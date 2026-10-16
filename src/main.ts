@@ -257,9 +257,12 @@ function handle(e: GameEvent) {
     case 'frog':
       audio.frog()
       break
-    case 'hop':
-      audio.hop()
+    case 'hop': {
+      // Nur Froesche in der Naehe sind zu hoeren
+      const h = game!.body[0]
+      if (Math.abs(e.p.x - h.x) <= game!.screenW / 2 + 2 && Math.abs(e.p.y - h.y) <= game!.screenH / 2 + 2) audio.hop()
       break
+    }
     case 'tower':
       audio.tower()
       haptic.medium()

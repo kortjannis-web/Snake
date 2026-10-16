@@ -82,7 +82,7 @@ export type GameEvent =
   | { type: 'cloud' }
   | { type: 'cloudGrow' }
   | { type: 'frog' }
-  | { type: 'hop' }
+  | { type: 'hop'; p: P }
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }

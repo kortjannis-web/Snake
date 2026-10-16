@@ -1136,7 +1136,7 @@ export class Game {
         f.p = ziel
         f.flugAb = this.time
         f.gone = this.time
-        this.emit({ type: 'hop' })
+        this.emit({ type: 'hop', p: { ...f.from } })
         continue
       }
       wand ??= this.froschWand()
@@ -1158,7 +1158,7 @@ export class Game {
       f.p = ziel
       f.flugAb = this.time
       f.hopAt = this.time + Math.max(R.FROSCH_FLUG + R.FROSCH_DREHEN + 200, c.froschSprung * 1000)
-      this.emit({ type: 'hop' })
+      this.emit({ type: 'hop', p: { ...ziel } })
       if (same(ziel, this.apple.p)) {
         this.neuerApfel()
         this.emit({ type: 'stolen' })
