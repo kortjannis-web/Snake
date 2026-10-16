@@ -1,0 +1,13 @@
+/* Selbst gehostet (OFL, Lizenzen daneben), gleiche Schriften wie topsichtbar.de */
+@font-face {
+  font-family: 'Newsreader';
+  src: url('./fonts/Newsreader-opsz.woff2') format('woff2');
+  font-weight: 400 650;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Libre Franklin';
+  src: url('./fonts/LibreFranklin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}

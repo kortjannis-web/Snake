@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#171513" />
+    <meta name="description" content="Snake im Endlos-Modus: Äpfel essen, die Karte wächst alle 30 Level, Mauern, Teiche, Giftäpfel, Fallen, Giftwolken und Ameisen." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Snake" />
+    <link rel="icon" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <title>Snake Endlos</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Leiste oben: Pause, Level, Rekord, Fortschritt zum naechsten Gebiet -->
+      <header class="hud" id="hud">
+        <button class="icon-btn" id="btn-pause" aria-label="Pause" data-icon="Pause"></button>
+        <div class="hud__level">
+          <small>Level</small>
+          <b id="hud-level">1</b>
+        </div>
+        <div class="hud__best" aria-label="Rekord">
+          <span data-icon="Trophy"></span>
+          <b id="hud-best">0</b>
+        </div>
+        <div class="hud__bar" id="hud-bar" aria-hidden="true"><i id="hud-bar-fill"></i></div>
+      </header>
+
+      <main class="stage" id="stage">
+        <canvas id="board" aria-label="Spielfeld" role="img"></canvas>
+        <div class="ready" id="ready" hidden>
+          <span class="ready__hand" aria-hidden="true"></span>
+          <span class="ready__t" id="ready-text">Wischen zum Starten</span>
+        </div>
+        <div class="toasts" id="toasts" aria-live="polite"></div>
+      </main>
+
+      <nav class="dpad no-swipe" id="dpad" hidden aria-label="Steuerkreuz">
+        <button data-dir="u" aria-label="Hoch" data-icon="ChevronUp"></button>
+        <button data-dir="l" aria-label="Links" data-icon="ChevronLeft"></button>
+        <button data-dir="r" aria-label="Rechts" data-icon="ChevronRight"></button>
+        <button data-dir="d" aria-label="Runter" data-icon="ChevronDown"></button>
+      </nav>
+
+      <!-- Startmenue -->
+      <section class="screen screen--home" id="home" data-open>
+        <div class="home">
+          <div class="home__top">
+            <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
+          </div>
+          <div class="home__brand">
+            <canvas class="home__apple" id="home-apple" width="96" height="96" aria-hidden="true"></canvas>
+            <h1 class="home__title">Snake</h1>
+            <span class="home__mode">Endlos</span>
+          </div>
+          <div class="home__actions">
+            <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
+            <p class="home__best" id="home-best"></p>
+            <div class="home__row">
+              <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
+              <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
+              <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pause -->
+      <section class="screen screen--dim" id="pause">
+        <div class="card">
+          <h2 class="card__title">Pause</h2>
+          <p class="card__sub" id="pause-info"></p>
+          <button class="btn btn--play" id="btn-resume"><span data-icon="Play"></span>Weiter</button>
+          <button class="btn btn--ghost" id="btn-restart"><span data-icon="RotateCcw"></span>Neu starten</button>
+          <div class="card__row">
+            <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
+            <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
+            <button class="tile-btn" id="btn-quit"><span data-icon="House"></span>Menü</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Spielende -->
+      <section class="screen screen--dim" id="over">
+        <div class="card card--over">
+          <canvas class="card__icon" id="over-icon" width="128" height="128" aria-hidden="true"></canvas>
+          <p class="card__cause" id="over-cause"></p>
+          <span class="card__label">Level</span>
+          <b class="card__big" id="over-level">1</b>
+          <span class="badge" id="over-record" hidden><span data-icon="Trophy"></span>Neuer Rekord</span>
+          <div class="facts">
+            <div><b id="over-apples">0</b><small>Äpfel</small></div>
+            <div><b id="over-len">3</b><small>Länge</small></div>
+            <div><b id="over-time">0:00</b><small>Zeit</small></div>
+          </div>
+          <button class="btn btn--play" id="btn-again"><span data-icon="RotateCcw"></span>Nochmal</button>
+          <button class="btn btn--ghost" id="btn-menu"><span data-icon="House"></span>Hauptmenü</button>
+        </div>
+      </section>
+
+      <!-- Anleitung -->
+      <section class="screen screen--page" id="help">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Anleitung</h2>
+          </header>
+          <div class="page__body" id="help-list"></div>
+        </div>
+      </section>
+
+      <!-- Statistik -->
+      <section class="screen screen--page" id="stats">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Statistik</h2>
+          </header>
+          <div class="page__body">
+            <div class="stat-grid" id="stat-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Einstellungen -->
+      <section class="screen screen--page" id="settings">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Optionen</h2>
+          </header>
+          <div class="page__body">
+            <label class="opt"><span data-icon="Volume2"></span><span class="opt__t">Töne</span><input type="checkbox" id="opt-sound" class="switch" /></label>
+            <label class="opt"><span data-icon="Music"></span><span class="opt__t">Musik</span><input type="checkbox" id="opt-music" class="switch" /></label>
+            <label class="opt"><span data-icon="Vibrate"></span><span class="opt__t">Vibration</span><input type="checkbox" id="opt-vibration" class="switch" /></label>
+            <label class="opt"><span data-icon="Gamepad2"></span><span class="opt__t">Steuerkreuz<small>Tasten statt Wischen (gilt ab dem nächsten Spiel)</small></span><input type="checkbox" id="opt-dpad" class="switch" /></label>
+            <div class="opt opt--col">
+              <div class="opt__row"><span data-icon="Gauge"></span><span class="opt__t">Tempo<small>Gilt ab dem nächsten Spiel</small></span></div>
+              <div class="seg" id="opt-tempo" role="radiogroup">
+                <button data-v="langsam" role="radio">Langsam</button>
+                <button data-v="normal" role="radio">Normal</button>
+                <button data-v="schnell" role="radio">Schnell</button>
+              </div>
+            </div>
+            <button class="btn btn--danger" id="btn-reset"><span data-icon="Trash2"></span>Statistik zurücksetzen</button>
+            <p class="fine">Snake Endlos · Version <span id="version"></span></p>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

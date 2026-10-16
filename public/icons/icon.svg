@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#1D1B19"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <defs><radialGradient id="glow" cx="0.5" cy="0.35" r="0.7"><stop offset="0" stop-color="#2a3a33"/><stop offset="1" stop-color="#1D1B19" stop-opacity="0"/></radialGradient></defs>
+  <defs>
+    <linearGradient id="sn" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#124237"/>
+      <stop offset="1" stop-color="#2F8F74"/>
+    </linearGradient>
+    <radialGradient id="ap" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#FF7A66"/>
+      <stop offset="0.45" stop-color="#E5463B"/>
+      <stop offset="1" stop-color="#A3241D"/>
+    </radialGradient>
+  </defs>
+  <g transform="translate(256 256) scale(0.92) translate(-256 -256)">
+    <path d="M110 392 L318 392 Q398 392 398 318 L398 306 Q398 232 318 232 L206 232 Q132 232 132 172 Q132 122 196 122 L222 122"
+      fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="74" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 10)"/>
+    <path d="M110 392 L318 392 Q398 392 398 318 L398 306 Q398 232 318 232 L206 232 Q132 232 132 172 Q132 122 196 122 L222 122"
+      fill="none" stroke="url(#sn)" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="226" cy="122" r="44" fill="#2F8F74"/>
+    <circle cx="238" cy="104" r="13" fill="#fff"/><circle cx="242" cy="104" r="6.5" fill="#16211d"/>
+    <circle cx="238" cy="140" r="13" fill="#fff"/><circle cx="242" cy="140" r="6.5" fill="#16211d"/>
+    <g transform="translate(360 132)">
+      <ellipse cx="0" cy="62" rx="50" ry="13" fill="rgba(0,0,0,0.3)"/>
+      <path d="M0 -38 C21 -63 66 -57 61 -3 C58 38 34 61 13 57 C5 55 -5 55 -13 57 C-34 61 -58 38 -61 -3 C-66 -57 -21 -63 0 -38 Z" fill="url(#ap)"/>
+      <ellipse cx="-27" cy="-17" rx="10" ry="16" fill="rgba(255,255,255,0.5)" transform="rotate(-28 -27 -17)"/>
+      <path d="M0 -34 Q3 -58 13 -69" stroke="#6B4A2A" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <path d="M7 -56 Q30 -78 52 -60 Q28 -44 7 -56 Z" fill="#4FA65A"/>
+    </g>
+  </g></svg>
