@@ -16,7 +16,9 @@ const bereich = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`)
 export const dauerhaft = (c: R.Config): string[] => [
   `Jedes Level ${String(c.tempoProLevel).replace('.', ',')} % schneller, bis höchstens ${c.tempoMin} % des Grundtakts.`,
   `Mauern stehen nach jedem Apfel woanders. Häuser wechseln nach jedem Apfel das Fenster, Türme drehen sich eine Vierteldrehung.`,
-  `Power-ups: nach jedem Apfel ${c.powerChance} % Chance (höchstens eins liegt), ${c.powerDauer} s lang.`,
+  `Power-ups: nach jedem Apfel ${c.powerChance} % Chance (höchstens eins liegt), ${c.powerDauer} s lang. Gewichte: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2 (nur wenn Tiere da sind), Maulwurf 2 (ab Level ${c.maulwurfAb}), goldener Apfel 1.`,
+  `Neue Gebiete wählst du selbst: Alle ${c.gebietAlle} Level leuchten die Wände, wo ein Block passt. Berührst du eine, kommt dort der Block hin. Wer nicht wählt, bekommt ihn beim nächsten Mal zufällig.`,
+  `Unter der Erde: Golderz (${c.erzGold} je 1000 Felder, ×${c.goldWert} Apfel) und Diamant (${c.erzDia} je 1000, ×${c.diaWert} Apfel). Freilegen per Maulwurf oder neuem Gebiet.`,
   `Zufällige Abstände: Fallen alle ${bereich(c.falleMin, c.falleMax)}, Wolken ${bereich(c.wolkeMin, c.wolkeMax)}, Frösche ${bereich(c.froschMin, c.froschMax)}, Gegner ${bereich(c.gegnerMin, c.gegnerMax)}, Ameisen ${bereich(c.ameiseMin, c.ameiseMax)} Level.`,
   `Lava breitet sich jeden ${c.lavaWachsen}. Apfel um ein Feld aus und hört bei ${bereich(Math.min(c.lavaMin, c.lavaMax), Math.max(c.lavaMin, c.lavaMax))} Feldern auf.`,
 ]
@@ -38,6 +40,7 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
   let haeuser = 0
   let tuerme = 0
   let lava = 0
+  let eis = 0
 
   for (let l = 1; l <= bis; l++) {
     const t: Eintrag['teile'] = []
@@ -47,7 +50,7 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
     // Karte
     if (R.neuesGebiet(c, l)) {
       bloecke++
-      add('karte', `Neuer Kartenblock (jetzt ${bloecke}).`)
+      add('karte', `Neues Gebiet wählen: Wände leuchten (jetzt ${bloecke} Blöcke).`)
     }
     if (l === c.gebietBis && c.gebietAlle > 0) add('karte', 'Die Karte wächst nicht mehr.')
     const felder = bloecke * feldProBlock
@@ -59,7 +62,8 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
       tempoMinErreicht = true
       add('schlange', `Höchsttempo erreicht (${c.tempoMin} % des Grundtakts).`)
     }
-    if (l === c.powerAb) add('apfel', `Power-ups: Schild, Zeitlupe, Geist, Schere (${c.powerChance} % je Apfel).`)
+    if (l === c.powerAb) add('apfel', `Power-ups: Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, goldener Apfel (${c.powerChance} % je Apfel).`)
+    if (l === c.maulwurfAb) add('apfel', `Power-up Maulwurf: ${c.maulwurfDauer} s durch die Erde graben.`)
 
     // Apfelwert
     const f = R.apfelFaktor(c, l)
@@ -130,6 +134,10 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
     if (R.neuerTurm(c, l) && tuerme < R.turmMax(c, felder)) {
       tuerme++
       add('bau', `Jägerturm ${tuerme} (Kegel −${c.kegelZurueck} Level).`)
+    }
+    if (R.neuesEis(c, l) && eis < R.eisMax(c, felder)) {
+      eis++
+      add('hindernis', `${eis === 1 ? 'Erstes Eisfeld' : `Eisfeld ${eis}`} (${Math.min(c.eisMin, c.eisMax)}–${Math.max(c.eisMin, c.eisMax)} Felder, nicht lenkbar).`)
     }
     if (R.neueLava(c, l) && lava < R.lavaMax(c, felder)) {
       lava++

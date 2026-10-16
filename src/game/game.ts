@@ -16,7 +16,7 @@
  */
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Baum, Cause, Dir, Falle, Fenster, Frosch, GameEvent, Gegner, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Side, Status, Teich, Turm, Wolke } from './types'
+import type { Ameise, Baum, Cause, Dir, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Side, Status, Teich, Turm, Wolke } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -38,6 +38,8 @@ const same = (a: P, b: P) => a.x === b.x && a.y === b.y
 const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 const cheb = (a: P, b: P) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
 const SIDE: Record<Dir, Side> = { u: 'top', d: 'bottom', l: 'left', r: 'right' }
+/** Schluessel fuer Weltkoordinaten (auch weit negativ) */
+const weltKey = (x: number, y: number) => (x + 100_000) * 200_003 + (y + 100_000)
 
 type Art = R.EreignisArt
 
@@ -71,6 +73,20 @@ export class Game {
   w = 0
   h = 0
   mask = new Uint8Array(0)
+  /** Freigelegte Felder ausserhalb der Bloecke (Maulwurf), in Kartenkoordinaten */
+  extra: P[] = []
+  /** Gesamte Verschiebung seit dem Start: Weltkoordinate = Karte - ursprung (fuer Erde, Erze, Deko) */
+  ursprung = { x: 0, y: 0 }
+  /** Abgebaute Erze (Weltkoordinaten) */
+  abgebaut = new Set<number>()
+  /** Freigelegte Erze auf der Karte */
+  funde: Fund[] = []
+  /** Gerade gegrabener Tunnel (Maulwurf): wird beim Zurueckkommen auf die Karte freigelegt */
+  tunnel: P[] = []
+  /** Offene Gebiets-Wahl: die Waende leuchten, beruehren baut dort einen Block an */
+  wahl = 0
+  /** Welt wird aufgebaut (Startlevel, Springen): keine Wahl, keine Funde */
+  private aufbau = false
 
   body: P[] = []
   prev: P[] = []
@@ -98,15 +114,16 @@ export class Game {
   haeuser: Haus[] = []
   tuerme: Turm[] = []
   lava: Lava[] = []
+  eis: Eis[] = []
   ameisen: Ameise[] = []
   ameisenWeg: { p: P; dir: Dir; t: number }[] = []
   /** Sandbox ohne Fortschritt: Welt bleibt, wie sie ist (nur der Apfel wandert) */
   statisch = false
   /** Power-ups auf der Karte */
   powers: Power[] = []
-  /** Aktive Power-ups: Schild (Anzahl), bis wann Zeitlupe/Geist wirken,
+  /** Aktive Power-ups: Schild (Anzahl), bis wann die anderen wirken,
    *  Schere = so viele Glieder kommen mit dem naechsten Apfel zurueck */
-  effekt = { schild: 0, zeitlupeBis: 0, geistBis: 0, schere: 0 }
+  effekt = { schild: 0, zeitlupeBis: 0, geistBis: 0, schere: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0, goldBis: 0 }
   /** Gegner-Schlangen und besiegte (zerfallen gerade) */
   gegner: Gegner[] = []
   gegnerWeg: { g: Gegner; t: number }[] = []
@@ -140,7 +157,7 @@ export class Game {
   private next: Record<Art, number>
   private lastSpawn = -1e9
   /** Faellige Baeume, Haeuser und Tuerme, die noch keinen Platz gefunden haben */
-  private offen = { baum: 0, haus: 0, turm: 0, lava: 0 }
+  private offen = { baum: 0, haus: 0, turm: 0, lava: 0, eis: 0 }
 
   constructor(o: GameOpts) {
     this.cfg = { ...R.DEFAULTS, ...(o.cfg ?? {}) }
@@ -184,6 +201,7 @@ export class Game {
     // Mit hoeherem Level starten: die Welt so aufbauen, wie sie bis dahin
     // ungefaehr entstanden waere (Bloecke, Teiche, Baeume, Haeuser, Tuerme)
     const start = Math.max(1, Math.floor(o.startLevel ?? 1))
+    this.aufbau = true
     if (!sb)
       for (let l = 2; l <= start; l++) {
         this.level = l
@@ -204,11 +222,13 @@ export class Game {
         for (let i = 0; i < Math.min(200, sb.objekte[art] ?? 0); i++) this.objektDazu(art)
       this.neuerApfel()
       this.events = []
+      this.aufbau = false
     } else if (start > 1) {
       this.gebiet = null
       this.layout()
       this.events = []
     }
+    this.aufbau = false
   }
 
   /* ================= Ablauf ================= */
@@ -244,12 +264,27 @@ export class Game {
 
   /** Aktueller Takt je Feld (Zeitlupe macht ihn laenger) */
   get takt() {
-    return this.time < this.effekt.zeitlupeBis ? this.tick * R.ZEITLUPE : this.tick
+    return this.time < this.effekt.zeitlupeBis ? this.tick * R.zeitlupe(this.cfg) : this.tick
   }
 
-  /** Geist: durch Hindernisse (Kreativ oder Power-up) */
+  /** Geist: durch Hindernisse (Kreativ, Power-up Geist oder goldener Apfel) */
   geist() {
-    return this.kreativ?.tod === 'geist' || this.time < this.effekt.geistBis
+    return this.kreativ?.tod === 'geist' || this.time < this.effekt.geistBis || this.unbesiegbar()
+  }
+  /** Goldener Apfel: nichts kann der Schlange etwas anhaben, sie faehrt auch ueber sich selbst */
+  unbesiegbar() {
+    return this.time < this.effekt.goldBis
+  }
+  /** Fuettern (oder goldener Apfel): Tiere und andere Schlangen fressen */
+  frisst() {
+    return this.time < this.effekt.fuetternBis || this.unbesiegbar()
+  }
+  /** Maulwurf: durch die Erde graben */
+  graebt() {
+    return this.time < this.effekt.maulwurfBis
+  }
+  aufEis(p: P) {
+    return this.eis.some((e) => e.cells.some((c) => same(c, p)))
   }
 
   private emit(e: GameEvent) {
@@ -260,6 +295,8 @@ export class Game {
    *  Sofort-Wende im ersten Drittel eines Schritts (wie im Telefon) */
   turn(d: Dir, sofort = true) {
     if (this.status !== 'play') return
+    // Auf Eis laesst sich nicht lenken (ausser beim Gnadenschritt vor einem Hindernis)
+    if (!this.halt && this.aufEis(this.body[0])) return
     if (
       sofort &&
       !this.queue.length &&
@@ -295,11 +332,23 @@ export class Game {
     this.prev = this.body.map((p) => ({ ...p }))
     this.prevDir = this.dir
     this.ate = false
-    const nd = this.queue.shift()
-    if (nd) this.dir = nd
     const k = this.kreativ
     const h = this.body[0]
-    const n = { x: h.x + STEP[this.dir].x, y: h.y + STEP[this.dir].y }
+    // Auf Eis rutscht die Schlange geradeaus (gedrueckte Richtungen verfallen)
+    if (!this.halt && this.aufEis(h)) this.queue = []
+    const nd = this.queue.shift()
+    if (nd) this.dir = nd
+    let n = { x: h.x + STEP[this.dir].x, y: h.y + STEP[this.dir].y }
+    // Leuchtende Wand beruehrt: dort kommt der neue Block hin
+    if (!this.inside(n) && this.wahl > 0) {
+      const neu = this.wahlAn(n)
+      if (neu) n = neu
+    }
+    // Maulwurf: ausserhalb der Karte durch die Erde graben (bis grabWeite)
+    const graben = !this.inside(n) && this.graebt() && this.grabbar(n)
+    // Fuettern / goldener Apfel: Tiere und Gegner werden gefressen statt gerammt
+    if (this.frisst()) this.fressen(n)
+    if (this.unbesiegbar()) this.zerschlagen(n)
     const eats = same(n, this.apple.p)
     // Wachsen: das Schwanzende bleibt stehen. Kreativ mit fester Laenge: auf die Laenge bringen
     const fest = k && !k.wachsen ? Math.max(1, Math.floor(k.laenge)) : 0
@@ -321,7 +370,11 @@ export class Game {
       }
     }
 
-    let cause = this.gefahr(n, rest) ?? (gi >= 0 && k?.tod === 'anhalten' && !this.geist() ? 'gift' : null)
+    let cause: Cause | null = graben
+      ? !k?.durchSelbst && !this.geist() && rest.some((p) => same(p, n))
+        ? 'selbst'
+        : null
+      : (this.gefahr(n, rest) ?? (gi >= 0 && k?.tod === 'anhalten' && !this.geist() ? 'gift' : null))
     // Schild: faengt den Aufprall ab, kurz danach gleitet die Schlange hindurch (nicht am Kartenrand)
     if (cause && cause !== 'rand' && (!k || k.tod === 'an') && this.schildBrechen()) cause = this.gefahr(n, rest)
     if (cause) {
@@ -350,6 +403,9 @@ export class Game {
     if (fest && this.body.length > fest) this.body.pop()
     if (grows && !fest && this.wachsRest > 0) this.wachsRest--
     this.maxLen = Math.max(this.maxLen, this.body.length)
+    if (graben) this.graben(n)
+    // Zurueck auf der Karte: Tunnel und eingeschlossene Erde werden freigelegt
+    else if (this.tunnel.length && this.inside(n)) this.freilegen()
     // Ameise unter dem Kopf: zertreten
     const ai = this.ameisen.findIndex((a) => same(a.p, n))
     if (ai >= 0) {
@@ -373,10 +429,68 @@ export class Game {
     return true
   }
 
-  /** Power-ups unter dem Kopf aufheben */
+  /** Power-ups und Erze unter dem Kopf aufheben */
   private einsammeln(n: P) {
     const pi = this.powers.findIndex((p) => same(p.p, n))
     if (pi >= 0) this.powerAn(this.powers.splice(pi, 1)[0].art, n)
+    const fi = this.funde.findIndex((f) => same(f.p, n))
+    if (fi >= 0) this.fundNehmen(this.funde.splice(fi, 1)[0].art, n)
+  }
+
+  /** Erz eingesammelt: Gold = goldWert, Diamant = diaWert mal aktueller Apfel */
+  private fundNehmen(art: 'gold' | 'dia', p: P) {
+    const c = this.cfg
+    const wert = Math.round((art === 'gold' ? c.goldWert : c.diaWert) * c.apfelWert * this.apfelStufe())
+    this.verdient += wert
+    this.emit({ type: 'fund', art, p: { ...p }, wert })
+    if (wert > 0) this.emit({ type: 'geld', wert, p: { ...p }, quelle: 'erz' })
+  }
+
+  /** Fuettern: Frosch, Ameise oder Gegner an diesem Feld fressen (bringt Aepfel) */
+  private fressen(n: P) {
+    const c = this.cfg
+    const stufe = this.apfelStufe()
+    const lohn = (was: 'frosch' | 'ameise' | 'gegner', anzahl: number) => {
+      const wert = anzahl * c.apfelWert * stufe
+      this.verdient += wert
+      this.emit({ type: 'gefressen', was, p: { ...n }, wert })
+      if (wert > 0) this.emit({ type: 'geld', wert, p: { ...n }, quelle: 'futter' })
+    }
+    const fi = this.froesche.findIndex((f) => f.gone === undefined && same(f.p, n))
+    if (fi >= 0) {
+      this.froesche.splice(fi, 1)
+      lohn('frosch', 2)
+    }
+    const ai = this.ameisen.findIndex((a) => same(a.p, n))
+    if (ai >= 0) {
+      const a = this.ameisen.splice(ai, 1)[0]
+      this.ameisenWeg.push({ p: { ...a.p }, dir: a.dir, t: this.time })
+      lohn('ameise', 1)
+    }
+    const e = this.gegner.find((o) => o.body.some((p) => same(p, n)))
+    if (e) {
+      this.gegner = this.gegner.filter((o) => o !== e)
+      e.prev = e.body.map((p) => ({ ...p }))
+      this.gegnerWeg.push({ g: e, t: this.time })
+      this.besiegt++
+      lohn('gegner', e.body.length)
+    }
+  }
+
+  /** Goldener Apfel: Mauersteine, Fallen und Giftaepfel im Weg werden weggeraeumt */
+  private zerschlagen(n: P) {
+    for (const m of this.mauern) {
+      const i = m.cells.findIndex((p) => same(p, n))
+      if (i < 0) continue
+      this.weg.push({ cells: [{ ...n }], t: this.time })
+      m.cells.splice(i, 1)
+      m.t.splice(i, 1)
+      if (i < m.grown) m.grown--
+    }
+    this.mauern = this.mauern.filter((m) => m.cells.length)
+    const fi = this.fallen.findIndex((f) => same(f.p, n))
+    if (fi >= 0) this.fallenWeg.push({ p: { ...n }, t: this.time }), this.fallen.splice(fi, 1)
+    this.gift = this.gift.filter((g) => !same(g.p, n))
   }
 
   powerAn(art: PowerArt, p: P = this.body[0]) {
@@ -384,6 +498,10 @@ export class Game {
     if (art === 'schild') this.effekt.schild = Math.min(3, this.effekt.schild + 1)
     if (art === 'zeitlupe') this.effekt.zeitlupeBis = this.time + c.effektDauer * 1000
     if (art === 'geist') this.effekt.geistBis = this.time + c.geistDauer * 1000
+    if (art === 'fuettern') this.effekt.fuetternBis = this.time + c.fuetternDauer * 1000
+    if (art === 'magnet') this.effekt.magnetBis = this.time + c.magnetDauer * 1000
+    if (art === 'maulwurf') this.effekt.maulwurfBis = this.time + c.maulwurfDauer * 1000
+    if (art === 'gold') this.effekt.goldBis = this.time + c.goldDauer * 1000
     if (art === 'schere') {
       // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach
       const weg = Math.min(Math.max(0, Math.round(c.schereLaenge)), Math.max(0, this.body.length - 3))
@@ -395,16 +513,37 @@ export class Game {
     this.emit({ type: 'power', art, p: { ...p } })
   }
 
-  /** Laufende Power-ups enden, abgelaufene Gegenstaende verschwinden */
+  /** Laufende Power-ups: Magnet holt, Maulwurf endet (in der Erde = Tod), abgelaufene verschwinden */
   private effekteTakt() {
     const e = this.effekt
-    for (const [art, bis] of [['zeitlupe', e.zeitlupeBis], ['geist', e.geistBis]] as const)
-      if (bis > 0 && this.time >= bis) {
-        if (art === 'zeitlupe') e.zeitlupeBis = 0
-        if (art === 'geist') e.geistBis = 0
+    for (const art of ['zeitlupe', 'geist', 'fuettern', 'magnet', 'maulwurf', 'gold'] as const) {
+      const feld = `${art}Bis` as const
+      if (e[feld] > 0 && this.time >= e[feld]) {
+        e[feld] = 0
         this.emit({ type: 'powerEnde', art })
       }
+    }
     this.powers = this.powers.filter((p) => this.time < p.until)
+    const head = this.body[0]
+    // Maulwurf vorbei, aber noch in der Erde: erstickt (Kreativ ohne Tod: Tunnel wird freigelegt)
+    if (!this.inside(head) && !this.graebt()) {
+      if (this.kreativ && this.kreativ.tod !== 'an') this.freilegen()
+      else return this.die('erde')
+    }
+    // Magnet: alles Gute im Umkreis kommt sofort, als waere es eingesammelt
+    if (this.time < e.magnetBis) {
+      const r = this.cfg.magnetRadius
+      const nah = (p: P) => cheb(p, head) <= r
+      for (const pw of this.powers.filter((pw) => nah(pw.p))) {
+        this.powers = this.powers.filter((o) => o !== pw)
+        this.powerAn(pw.art, pw.p)
+      }
+      for (const f of this.funde.filter((f) => nah(f.p))) {
+        this.funde = this.funde.filter((o) => o !== f)
+        this.fundNehmen(f.art, f.p)
+      }
+      if (nah(this.apple.p) && !same(this.apple.p, head)) this.eat({ ...this.apple.p })
+    }
   }
 
   /** Kopf in Giftwolke, Fensterlicht oder Lichtkegel: Level zurueck (nicht toedlich) */
@@ -523,7 +662,16 @@ export class Game {
   /** Was beim ersten Erreichen eines Levels dazukommt und bleibt */
   private welt(l: number) {
     const c = this.cfg
-    if (R.neuesGebiet(c, l)) this.expand()
+    if (R.neuesGebiet(c, l)) {
+      // Beim Aufbau zufaellig, im Spiel darf man waehlen (eine alte offene Wahl wird dann zufaellig gesetzt)
+      if (this.aufbau) this.expand()
+      else {
+        if (this.wahl > 0) this.expand()
+        this.wahl = 1
+        this.emit({ type: 'wahl', offen: 1 })
+      }
+    }
+    if (R.neuesEis(c, l)) this.offen.eis++
     if (R.neuerTeich(c, l)) this.neuerTeich(R.teichGroesse(c, l))
     if (R.neuerBaum(c, l)) this.offen.baum++
     if (R.neuesHaus(c, l)) this.offen.haus++
@@ -539,6 +687,7 @@ export class Game {
     while (this.offen.haus > 0 && this.haeuser.length < R.hausMax(this.cfg, felder) && this.neuesHaus()) this.offen.haus--
     while (this.offen.turm > 0 && this.tuerme.length < R.turmMax(this.cfg, felder) && this.neuerTurm()) this.offen.turm--
     while (this.offen.lava > 0 && this.lava.length < R.lavaMax(this.cfg, felder) && this.neuerLavaSee()) this.offen.lava--
+    while (this.offen.eis > 0 && this.eis.length < R.eisMax(this.cfg, felder) && this.neuesEisFeld()) this.offen.eis--
   }
 
   /** Nach jedem Apfel: Mauern neu, Licht und Kegel weiter, Apfel, Giftaepfel, Ereignisse */
@@ -579,8 +728,20 @@ export class Game {
     if (this.level >= c.powerAb && !this.powers.length && this.r.next() * 100 < c.powerChance) {
       const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3))
       const p = cand.length ? this.r.pick(cand) : null
-      if (p) this.powers.push({ p, t: this.time, until: this.time + c.powerDauer * 1000, art: this.r.pick(R.POWER_ARTEN) })
+      if (p) this.powers.push({ p, t: this.time, until: this.time + c.powerDauer * 1000, art: this.powerWahl() })
     }
+  }
+
+  /** Welches Power-up? Nach Gewicht; Maulwurf erst ab maulwurfAb, Fuettern nur, wenn es etwas zu fressen gibt */
+  private powerWahl(): PowerArt {
+    const tiere = this.aktiveFroesche.length + this.ameisen.length + this.gegner.length > 0
+    const arten = R.POWER_ARTEN.filter((a) => (a !== 'maulwurf' || this.level >= this.cfg.maulwurfAb) && (a !== 'fuettern' || tiere))
+    let z = this.r.next() * arten.reduce((s, a) => s + R.POWER_GEWICHT[a], 0)
+    for (const a of arten) {
+      z -= R.POWER_GEWICHT[a]
+      if (z < 0) return a
+    }
+    return arten[arten.length - 1]
   }
 
   /** Kreativ: direkt auf einen Level springen (hoeher: Welt waechst mit, niedriger: kuerzer) */
@@ -588,6 +749,7 @@ export class Game {
     const auf = Math.max(1, Math.floor(ziel))
     if (auf === this.level) return
     if (auf > this.level) {
+      this.aufbau = true
       for (let l = this.level + 1; l <= auf; l++) {
         if (this.waechstJetzt(l)) this.wachsRest++
         if (l % Math.max(1, this.cfg.lavaWachsen) === 0) this.lavaWachsen()
@@ -596,6 +758,7 @@ export class Game {
           if (!this.statisch) this.welt(l)
         }
       }
+      this.aufbau = false
     } else this.kuerzen(auf, this.level)
     this.level = auf
     this.apples = auf - 1
@@ -606,19 +769,25 @@ export class Game {
   /* ================= Karte aus Bloecken ================= */
 
   felder() {
-    return this.blocks.length * this.bw * this.bh
+    return this.blocks.length * this.bw * this.bh + this.extra.length
   }
 
   private baueMaske() {
-    this.w = (Math.max(...this.blocks.map((b) => b.x)) + 1) * this.bw
-    this.h = (Math.max(...this.blocks.map((b) => b.y)) + 1) * this.bh
+    this.w = Math.max((Math.max(...this.blocks.map((b) => b.x)) + 1) * this.bw, ...this.extra.map((c) => c.x + 1))
+    this.h = Math.max((Math.max(...this.blocks.map((b) => b.y)) + 1) * this.bh, ...this.extra.map((c) => c.y + 1))
     this.mask = new Uint8Array(this.w * this.h)
     for (const b of this.blocks)
       for (let y = 0; y < this.bh; y++) this.mask.fill(1, (b.y * this.bh + y) * this.w + b.x * this.bw, (b.y * this.bh + y) * this.w + (b.x + 1) * this.bw)
+    for (const c of this.extra) this.mask[c.y * this.w + c.x] = 1
   }
 
-  /** Ein neuer Block (halber Bildschirm) an einer zufaelligen freien Stelle neben der Karte */
-  expand() {
+  /** Weltkoordinaten eines Kartenfelds (bleiben gleich, auch wenn die Karte verschoben wird) */
+  welt_(p: P) {
+    return { x: p.x - this.ursprung.x, y: p.y - this.ursprung.y }
+  }
+
+  /** Ein neuer Block (halber Bildschirm): an der gewaehlten Stelle oder zufaellig neben der Karte */
+  expand(ziel?: { p: P; d: Dir }) {
     const belegt = new Set(this.blocks.map((b) => key(b.x, b.y)))
     const cand: { p: P; d: Dir }[] = []
     const seen = new Set<number>()
@@ -630,7 +799,7 @@ export class Game {
         seen.add(k)
         cand.push({ p, d })
       }
-    const { p, d } = this.r.pick(cand)
+    const { p, d } = ziel ? { p: { ...ziel.p }, d: ziel.d } : this.r.pick(cand)
     let dx = 0
     let dy = 0
     if (p.x < 0) {
@@ -643,13 +812,133 @@ export class Game {
       p.y = 0
       dy = this.bh
     }
+    if (dx || dy) {
+      this.shift(dx, dy)
+      this.baueMaske()
+    }
+    // Was vorher Erde war, wird freigelegt (Erze darin liegen dann auf der Karte)
+    const neu: P[] = []
+    for (let y = p.y * this.bh; y < (p.y + 1) * this.bh; y++) for (let x = p.x * this.bw; x < (p.x + 1) * this.bw; x++) if (!this.inside({ x, y })) neu.push({ x, y })
     this.blocks.push(p)
     this.baueMaske()
-    if (dx || dy) this.shift(dx, dy)
+    this.erzeFrei(neu)
     this.expansions++
     const side = SIDE[d]
     this.gebiet = { side, t: this.time, x: p.x * this.bw, y: p.y * this.bh, w: this.bw, h: this.bh }
     this.emit({ type: 'expand', side, add: this.bw * this.bh, dx, dy })
+  }
+
+  /** Leuchtende Wand beruehrt: Block in Laufrichtung anbauen. Gibt das Zielfeld (ggf. verschoben) zurueck */
+  private wahlAn(n: P): P | null {
+    const b = { x: Math.floor(n.x / this.bw), y: Math.floor(n.y / this.bh) }
+    const von = { x: b.x - STEP[this.dir].x, y: b.y - STEP[this.dir].y }
+    if (this.blocks.some((o) => same(o, b)) || !this.blocks.some((o) => same(o, von))) return null
+    const vorher = { ...this.ursprung }
+    this.expand({ p: b, d: this.dir })
+    this.wahl = Math.max(0, this.wahl - 1)
+    this.emit({ type: 'wahl', offen: this.wahl })
+    return { x: n.x + this.ursprung.x - vorher.x, y: n.y + this.ursprung.y - vorher.y }
+  }
+
+  /** Darf hier gegraben werden? (Erde bis grabWeite um die Karte herum) */
+  private grabbar(n: P) {
+    const g = this.cfg.grabWeite
+    return n.x >= -g && n.y >= -g && n.x < this.w + g && n.y < this.h + g
+  }
+
+  /** Ein Feld Erde gegraben: Tunnel merken, Erz darin gleich einsammeln */
+  private graben(n: P) {
+    if (!this.tunnel.some((t) => same(t, n))) this.tunnel.push({ ...n })
+    const w = this.welt_(n)
+    const erz = R.erdeBei(this.cfg, w.x, w.y)
+    const k = weltKey(w.x, w.y)
+    if ((erz === 'gold' || erz === 'dia') && !this.abgebaut.has(k)) {
+      this.abgebaut.add(k)
+      this.fundNehmen(erz, n)
+    }
+  }
+
+  /** Zurueck aus der Erde: der Tunnel und alles, was er mit der Karte einschliesst, wird Karte */
+  private freilegen() {
+    if (!this.tunnel.length) return
+    const g = this.cfg.grabWeite + 1
+    const x0 = -g
+    const y0 = -g
+    const W = this.w + 2 * g
+    const H = this.h + 2 * g
+    const wand = new Uint8Array(W * H)
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.mask[y * this.w + x]) wand[(y - y0) * W + (x - x0)] = 1
+    for (const t of this.tunnel) if (t.x >= x0 && t.y >= y0 && t.x < x0 + W && t.y < y0 + H) wand[(t.y - y0) * W + (t.x - x0)] = 1
+    // Von aussen fluten: was nicht erreicht wird, ist eingeschlossen
+    const seen = new Uint8Array(W * H)
+    const q: number[] = []
+    for (let x = 0; x < W; x++) q.push(x, (H - 1) * W + x)
+    for (let y = 0; y < H; y++) q.push(y * W, y * W + W - 1)
+    for (const i of q) seen[i] = 1
+    for (let i = 0; i < q.length; i++) {
+      const j = q[i]
+      if (wand[j]) continue
+      const x = j % W
+      const y = (j - x) / W
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue
+        const k = ny * W + nx
+        if (seen[k] || wand[k]) continue
+        seen[k] = 1
+        q.push(k)
+      }
+    }
+    const cells: P[] = this.tunnel.map((t) => ({ ...t }))
+    for (let j = 0; j < W * H; j++) if (!wand[j] && !seen[j]) cells.push({ x: (j % W) + x0, y: Math.floor(j / W) + y0 })
+    this.tunnel = []
+    this.zellenDazu(cells)
+  }
+
+  /** Einzelne Felder zur Karte hinzufuegen (links/oben: Karte um ganze Bloecke verschieben) */
+  private zellenDazu(cells: P[]) {
+    if (!cells.length) return
+    const minX = Math.min(...cells.map((c) => c.x))
+    const minY = Math.min(...cells.map((c) => c.y))
+    const bx = minX < 0 ? Math.ceil(-minX / this.bw) : 0
+    const by = minY < 0 ? Math.ceil(-minY / this.bh) : 0
+    const dx = bx * this.bw
+    const dy = by * this.bh
+    if (dx || dy) {
+      this.blocks.forEach((b) => {
+        b.x += bx
+        b.y += by
+      })
+      this.shift(dx, dy)
+      cells = cells.map((c) => ({ x: c.x + dx, y: c.y + dy }))
+      this.baueMaske()
+    }
+    const neu = cells.filter((c, i) => !this.inside(c) && cells.findIndex((o) => same(o, c)) === i)
+    this.extra.push(...neu)
+    this.baueMaske()
+    this.erzeFrei(neu)
+    this.emit({ type: 'freigelegt', dx, dy, anzahl: neu.length })
+  }
+
+  /** Frisch freigelegte Felder: Gold und Diamant darin liegen jetzt als Fund auf der Karte */
+  private erzeFrei(cells: P[]) {
+    if (this.aufbau) return
+    for (const c of cells) {
+      const w = this.welt_(c)
+      const k = weltKey(w.x, w.y)
+      const erz = R.erdeBei(this.cfg, w.x, w.y)
+      if ((erz !== 'gold' && erz !== 'dia') || this.abgebaut.has(k)) continue
+      this.abgebaut.add(k)
+      if (this.aufSchlange(c)) {
+        this.fundNehmen(erz, c)
+        continue
+      }
+      this.funde.push({ p: { ...c }, art: erz, t: this.time })
+    }
+  }
+
+  /** Erdfeld (Weltkoordinaten) noch nicht abgebaut? (fuer die Darstellung der Erze) */
+  erzDa(wx: number, wy: number) {
+    return !this.abgebaut.has(weltKey(wx, wy))
   }
 
   private shift(dx: number, dy: number) {
@@ -657,6 +946,11 @@ export class Game {
       p.x += dx
       p.y += dy
     }
+    mv(this.ursprung)
+    this.extra.forEach(mv)
+    this.funde.forEach((f) => mv(f.p))
+    this.tunnel.forEach(mv)
+    this.eis.forEach((e) => e.cells.forEach(mv))
     this.body.forEach(mv)
     this.prev.forEach(mv)
     mv(this.apple.p)
@@ -845,6 +1139,7 @@ export class Game {
       ...this.haeuser.flatMap((h) => h.cells),
       ...this.tuerme.flatMap((t) => t.cells),
       ...this.lava.flatMap((l) => l.cells),
+      ...this.eis.flatMap((e) => e.cells),
     ])
       for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) luft.add(key(p.x + dx, p.y + dy))
     const wand = this.hindernisse()
@@ -853,7 +1148,7 @@ export class Game {
       const k = key(c.x, c.y)
       if (!this.inside(c) || luft.has(k) || wand.has(k) || seen.has(k)) return false
       seen.add(k)
-      if (same(c, this.apple.p) || this.powers.some((p) => same(p.p, c))) return false
+      if (same(c, this.apple.p) || this.powers.some((p) => same(p.p, c)) || this.funde.some((f) => same(f.p, c)) || this.aufEis(c)) return false
       if (art === 'teich' ? cheb(c, head) < 3 : manhattan(c, head) < 5) return false
       if (this.body.some((p) => cheb(p, c) < 2)) return false
       if (this.imWeg(c)) return false
@@ -929,7 +1224,7 @@ export class Game {
     for (const h of this.haeuser) for (const p of h.strahl) wand.add(key(p.x, p.y))
     for (const t of this.tuerme) for (const p of t.kegel) wand.add(key(p.x, p.y))
     const reach = this.erreichbar(wand)
-    const item = new Set(this.powers.map((p) => key(p.p.x, p.p.y)))
+    const item = new Set([...this.powers.map((p) => key(p.p.x, p.p.y)), ...this.funde.map((f) => key(f.p.x, f.p.y))])
     const out: P[] = []
     for (let y = 0; y < this.h; y++)
       for (let x = 0; x < this.w; x++) {
@@ -1665,7 +1960,7 @@ export class Game {
           if (seen.has(k) || eigen.has(k)) continue
           seen.add(k)
           if (!this.inside(c) || wand.has(k) || this.aufSchlange(c) || same(c, this.apple.p) || this.powers.some((o) => same(o.p, c))) continue
-          if (cheb(c, head) < 2 || this.imWeg(c, 3)) continue
+          if (cheb(c, head) < 2 || this.imWeg(c, 3) || this.aufEis(c) || this.funde.some((f) => same(f.p, c))) continue
           cand.push(c)
         }
       for (const c of this.r.shuffle(cand)) {
@@ -1784,6 +2079,43 @@ export class Game {
     this.setback(this.cfg.ameiseZurueck, 'ameise')
   }
 
+  /* ================= Eis ================= */
+
+  /** Eisfeld (eisMin bis eisMax Felder), bleibt liegen. Mit einem Feld Luft zu festen Hindernissen
+   *  und nicht am Rand, damit man nicht direkt in etwas hineinrutscht */
+  neuesEisFeld() {
+    const c = this.cfg
+    const r = this.r
+    const head = this.body[0]
+    const lo = Math.max(1, Math.min(c.eisMin, c.eisMax))
+    const hi = Math.max(lo, c.eisMin, c.eisMax)
+    const wand = this.hindernisse()
+    const luft = new Set<number>()
+    for (const p of [...this.teiche.flatMap((t) => t.cells), ...this.mauern.flatMap((m) => m.cells), ...this.baeume.flatMap((b) => b.cells), ...this.haeuser.flatMap((h) => h.cells), ...this.tuerme.flatMap((t) => t.cells), ...this.lava.flatMap((l) => l.cells), ...this.eis.flatMap((e) => e.cells)])
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) luft.add(key(p.x + dx, p.y + dy))
+    for (let versuch = 0; versuch < 400; versuch++) {
+      const size = Math.max(lo, r.int(lo, hi) - Math.floor(versuch / 100))
+      const cells: P[] = [{ x: r.int(1, this.w - 2), y: r.int(1, this.h - 2) }]
+      let guard = 0
+      while (cells.length < size && guard++ < 80) {
+        const von = r.pick(cells)
+        const d = STEP[r.pick(DIRS)]
+        const n = { x: von.x + d.x, y: von.y + d.y }
+        if (!cells.some((o) => same(o, n))) cells.push(n)
+      }
+      if (cells.length < size) continue
+      const ok = cells.every((p) => {
+        const k = key(p.x, p.y)
+        return this.innen(p) && !wand.has(k) && !luft.has(k) && !this.aufSchlange(p) && cheb(p, head) >= 3 && !this.imWeg(p, 6) && !this.funde.some((f) => same(f.p, p))
+      })
+      if (!ok) continue
+      this.eis.push({ cells, t: this.time })
+      this.emit({ type: 'eis' })
+      return true
+    }
+    return false
+  }
+
   /* ================= Sandbox ================= */
 
   /** Ein Objekt dazu (Sandbox und Kreativ), ohne Level- und Anzahlgrenzen. false = kein Platz */
@@ -1817,6 +2149,8 @@ export class Game {
           return this.neueAmeise(true)
         case 'lava':
           return this.neuerLavaSee()
+        case 'eis':
+          return this.neuesEisFeld()
       }
     })()
     if (ok) this.lastSpawn = this.time
@@ -1837,6 +2171,8 @@ export class Game {
     this.gegner = []
     this.ameisen = []
     this.lava = []
+    this.eis = []
+    this.funde = []
     this.powers = []
   }
 

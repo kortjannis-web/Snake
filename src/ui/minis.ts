@@ -1,7 +1,7 @@
 /** Kleine Bilder fuer Anleitung, Hinweise und Spielende (gleiche Zeichnungen wie im Spiel) */
 import type { Cause, Side } from '../game/types'
 import { drawSchlange, GEGNER_SKIN, LILA_SKIN } from '../render/skins'
-import { C, drawAmeise, drawApfel, drawBaum, drawFalle, drawLava, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
+import { C, drawAmeise, drawApfel, drawBaum, drawEis, drawErz, drawFalle, drawLava, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
 
 export type Mini =
   | 'apfel'
@@ -22,6 +22,13 @@ export type Mini =
   | 'lila'
   | 'ameise'
   | 'lava'
+  | 'eis'
+  | 'erz'
+  | 'erde'
+  | 'fuettern'
+  | 'magnet'
+  | 'maulwurf'
+  | 'gold'
   | 'schild'
   | 'zeitlupe'
   | 'geist'
@@ -74,6 +81,21 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     }
     case 'ameise':
       drawAmeise(ctx, mid, mid + cell * 0.1, big * 0.9, -0.5, -1, 1, 1)
+      break
+    case 'eis':
+      drawEis(ctx, [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 2, y: 1 }, { x: 1, y: 2 }], cell, 1, t + 1300)
+      break
+    case 'erz':
+      ctx.fillStyle = '#3B281A'
+      ctx.fillRect(0, 0, css, css)
+      drawErz(ctx, mid - cell * 0.5, mid + cell * 0.3, cell * 1.2, 'gold', 1, 0.8)
+      drawErz(ctx, mid + cell * 0.6, mid - cell * 0.4, cell * 1.1, 'dia', 1, 0.6)
+      break
+    case 'erde':
+      ctx.fillStyle = '#3B281A'
+      ctx.fillRect(0, 0, css, css)
+      ctx.fillStyle = '#7A5434'
+      ctx.fillRect(0, cell, css, cell)
       break
     case 'lava':
       drawLava(ctx, [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 1 }], [0, 0, 0, 0], cell, t + 10000, true)
@@ -176,6 +198,10 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     }
     case 'schild':
     case 'zeitlupe':
+    case 'fuettern':
+    case 'magnet':
+    case 'maulwurf':
+    case 'gold':
     case 'geist':
     case 'schere':
       drawPower(ctx, mid, mid + cell * 0.1, big, kind, 1, 0)
@@ -201,4 +227,5 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   haus: 'haus',
   gegner: 'gegner',
   lava: 'lava',
+  erde: 'erde',
 }

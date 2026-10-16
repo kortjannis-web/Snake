@@ -24,6 +24,8 @@ const leer = (g: Game) => {
   g.gegner = []
   g.ameisen = []
   g.lava = []
+  g.eis = []
+  g.funde = []
 }
 const felderAufKarte = (g: Game) => g.mask.reduce((a, b) => a + b, 0)
 
@@ -445,8 +447,7 @@ describe('Aepfel als Waehrung und Power-ups', () => {
     expect(g.apfelStufe()).toBe(2)
   })
 
-  it('Keine Muenzen und kein Magnet mehr', () => {
-    expect(R.POWER_ARTEN).not.toContain('magnet' as never)
+  it('Keine Muenzen mehr', () => {
     expect('muenzen' in new Game({ screenW: SW, screenH: SH, seed: 1 })).toBe(false)
   })
 
@@ -465,7 +466,9 @@ describe('Aepfel als Waehrung und Power-ups', () => {
     const g = frisch()
     const vorher = g.takt
     g.powerAn('zeitlupe')
-    expect(g.takt).toBeCloseTo(vorher * R.ZEITLUPE)
+    // 30 % langsamer: Takt / 0,7
+    expect(g.takt).toBeCloseTo(vorher / 0.7)
+    expect(g.effekt.zeitlupeBis - g.time).toBe(30_000)
   })
 
   it('Geist laeuft durch Mauern', () => {
@@ -941,7 +944,7 @@ describe('Zeitleiste', () => {
     const bei = (l: number) => z.find((e) => e.level === l)?.teile.map((t) => t.text).join(' | ') ?? ''
     expect(bei(1)).toContain('Start')
     expect(bei(8)).toContain('Mauern beginnen')
-    expect(bei(20)).toContain('Kartenblock')
+    expect(bei(20)).toContain('Neues Gebiet')
     expect(bei(50)).toContain('×2')
     expect(bei(60)).toContain('Gegner')
     expect(bei(120)).toContain('Lila')
@@ -951,5 +954,275 @@ describe('Zeitleiste', () => {
     expect(bei(315)).toContain('Jägerturm')
     // Umgestellt: Gegner ab 40
     expect(zeitleiste({ ...C, gegnerAb: 40 }, 100).find((e) => e.level === 40)?.teile.some((t) => t.text.includes('Gegner'))).toBe(true)
+  })
+})
+
+/** Genau ein Schritt (update ist auf 100 ms je Aufruf begrenzt) */
+const einSchritt = (g: Game) => {
+  g.update(g.takt / 2 + 1)
+  g.update(g.takt / 2 + 1)
+}
+
+describe('Neue Power-ups', () => {
+  const welt = (seed = 1, startLevel = 1) => {
+    const g = new Game({ screenW: SW, screenH: SH, seed, startLevel, cfg: { powerChance: 0 } })
+    leer(g)
+    g.powers = []
+    g.wachsRest = 0
+    g.apple.p = { x: 0, y: 0 }
+    return g
+  }
+  const schritte = (g: Game, n: number) => {
+    const ev: GameEvent[] = []
+    for (let i = 0; i < n * 4 && g.status === 'play'; i++) {
+      g.update(g.takt / 4 + 1)
+      ev.push(...g.drain())
+    }
+    return ev
+  }
+  const gerade = (g: Game, y = 10) => {
+    g.body = [{ x: 4, y }, { x: 3, y }, { x: 2, y }]
+    g.prev = []
+    g.dir = 'r'
+    g.queue = []
+  }
+
+  it('Fuettern: Frosch und Gegner fressen statt sterben, bringt Aepfel', () => {
+    const g = welt()
+    gerade(g)
+    g.froesche.push({ p: { x: 5, y: 10 }, from: { x: 5, y: 10 }, dir: 'u', altDir: 'u', drehT: -1e9, t: 0, flugAb: -1e9, hopAt: 1e12 })
+    g.gegner.push({ art: 'rot', body: [{ x: 7, y: 10 }, { x: 7, y: 11 }, { x: 7, y: 12 }], prev: [], dir: 'u', t: 0, last: 1e12, wachsAt: 1e12, wachsRest: 0, wuchsT: 0, eng: 0, angst: 0 })
+    g.powerAn('fuettern')
+    const ev = schritte(g, 4)
+    expect(g.status).toBe('play')
+    expect(g.froesche).toHaveLength(0)
+    expect(g.gegner).toHaveLength(0)
+    const gef = ev.filter((e) => e.type === 'gefressen')
+    expect(gef.map((e) => (e as { was: string }).was)).toEqual(['frosch', 'gegner'])
+    expect(g.verdient).toBe(2 + 3)
+  })
+
+  it('Ohne Fuettern ist der Frosch toedlich', () => {
+    const g = welt()
+    gerade(g)
+    g.froesche.push({ p: { x: 5, y: 10 }, from: { x: 5, y: 10 }, dir: 'u', altDir: 'u', drehT: -1e9, t: 0, flugAb: -1e9, hopAt: 1e12 })
+    schritte(g, 4)
+    expect(g.cause).toBe('frosch')
+  })
+
+  it('Goldener Apfel: unbesiegbar, ueber sich selbst, Mauern weg', () => {
+    const g = welt()
+    gerade(g)
+    g.mauern.push({ cells: [{ x: 5, y: 10 }, { x: 6, y: 10 }], grown: 2, t: [0, 0], next: 0 })
+    g.powerAn('gold')
+    expect(g.unbesiegbar()).toBe(true)
+    schritte(g, 3)
+    expect(g.status).toBe('play')
+    expect(g.mauern).toHaveLength(0)
+    // Ueber sich selbst: Kreis fahren
+    g.body = Array.from({ length: 10 }, (_, i) => ({ x: 8 - i, y: 5 }))
+    g.prev = []
+    g.dir = 'd'
+    g.queue = []
+    for (const d of ['l', 'u'] as Dir[]) {
+      schritte(g, 1)
+      g.turn(d, false)
+    }
+    schritte(g, 2)
+    expect(g.status).toBe('play')
+  })
+
+  it('Magnet: Apfel und Power-ups im Umkreis von 2 kommen sofort', () => {
+    const g = welt()
+    gerade(g)
+    g.apple.p = { x: 6, y: 12 }
+    g.powers.push({ p: { x: 3, y: 8 }, t: 0, until: 1e9, art: 'schild' })
+    g.powerAn('magnet')
+    const ev = schritte(g, 1)
+    expect(ev.some((e) => e.type === 'eat')).toBe(true)
+    expect(g.effekt.schild).toBe(1)
+    expect(g.powers).toHaveLength(0)
+  })
+
+  it('Magnet holt nichts, was weiter weg ist', () => {
+    const g = welt()
+    gerade(g)
+    g.apple.p = { x: 11, y: 20 }
+    g.powerAn('magnet')
+    const ev = schritte(g, 1)
+    expect(ev.some((e) => e.type === 'eat')).toBe(false)
+  })
+
+  it('Maulwurf: graben, zurueckkommen legt Gang und Eingeschlossenes frei', () => {
+    const g = welt(3, 100)
+    // Karte 12 breit (Level 100: mehrere Bloecke, wir nehmen den Rand ganz rechts)
+    const vorher = g.felder()
+    const y = Math.floor(g.h / 2)
+    let x = g.w - 1
+    while (!g.inside({ x, y })) x--
+    g.body = [{ x, y }, { x: x - 1, y }, { x: x - 2, y }]
+    g.prev = []
+    g.dir = 'r'
+    g.queue = []
+    g.powerAn('maulwurf')
+    // 3 raus, 2 runter, 3 zurueck: Rechteck 3 x 1 eingeschlossen
+    const wege: Dir[] = ['r', 'r', 'r', 'd', 'd', 'l', 'l', 'l']
+    for (const d of wege) {
+      if (d !== g.dir) g.turn(d, false)
+      einSchritt(g)
+    }
+    g.drain()
+    expect(g.status).toBe('play')
+    expect(g.tunnel).toHaveLength(0)
+    // Gang (6 Felder: 3 raus, 2 runter, 1 zurueck vor dem Rand) + eingeschlossene 2 x 1
+    expect(g.felder()).toBeGreaterThan(vorher + 6)
+  })
+
+  it('Maulwurf vorbei, noch in der Erde: Spielende', () => {
+    const g = welt(3)
+    const y = 5
+    g.body = [{ x: g.w - 1, y }, { x: g.w - 2, y }, { x: g.w - 3, y }]
+    g.prev = []
+    g.dir = 'r'
+    g.queue = []
+    g.powerAn('maulwurf')
+    for (let i = 0; i < 3; i++) einSchritt(g)
+    expect(g.inside(g.body[0])).toBe(false)
+    g.effekt.maulwurfBis = g.time
+    g.update(10)
+    expect(g.status).toBe('over')
+    expect(g.cause).toBe('erde')
+  })
+
+  it('Maulwurf erst ab Level 100, Fuettern nur mit Tieren', () => {
+    const g = welt(4, 50)
+    const arten = new Set<string>()
+    for (let i = 0; i < 400; i++) arten.add((g as unknown as { powerWahl: () => string }).powerWahl())
+    expect(arten.has('maulwurf')).toBe(false)
+    expect(arten.has('fuettern')).toBe(false)
+    expect(arten.has('gold')).toBe(true)
+    const h = new Game({ screenW: SW, screenH: SH, seed: 4, startLevel: 120 })
+    h.neuerFrosch(true)
+    const arten2 = new Set<string>()
+    for (let i = 0; i < 400; i++) arten2.add((h as unknown as { powerWahl: () => string }).powerWahl())
+    expect(arten2.has('maulwurf')).toBe(true)
+    expect(arten2.has('fuettern')).toBe(true)
+  })
+})
+
+describe('Erde und Erze', () => {
+  it('fester Zufall: dasselbe Weltfeld hat immer dasselbe', () => {
+    for (let i = 0; i < 50; i++) expect(R.erdeBei(C, i * 7, -i * 3)).toBe(R.erdeBei(C, i * 7, -i * 3))
+    let gold = 0
+    let dia = 0
+    for (let x = 0; x < 200; x++)
+      for (let y = 0; y < 100; y++) {
+        const e = R.erdeBei(C, x, y)
+        if (e === 'gold') gold++
+        if (e === 'dia') dia++
+      }
+    // 12 bzw. 3 je 1000 Felder
+    expect(gold / 20).toBeGreaterThan(8)
+    expect(gold / 20).toBeLessThan(16)
+    expect(dia / 20).toBeGreaterThan(1)
+    expect(dia / 20).toBeLessThan(5)
+  })
+
+  it('Erz einsammeln: Gold 3 x, Diamant 10 x der aktuelle Apfel', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 1, startLevel: 100, cfg: { powerChance: 0 } })
+    leer(g)
+    g.apple.p = { x: 0, y: 0 }
+    const h = g.body[0]
+    const d = R.STEP[g.dir]
+    g.funde.push({ p: { x: h.x + d.x, y: h.y + d.y }, art: 'gold', t: 0 }, { p: { x: h.x + 2 * d.x, y: h.y + 2 * d.y }, art: 'dia', t: 0 })
+    const ev: GameEvent[] = []
+    for (let i = 0; i < 12; i++) {
+      g.update(g.takt / 4 + 1)
+      ev.push(...g.drain())
+    }
+    expect(ev.filter((e) => e.type === 'fund').map((e) => (e as { wert: number }).wert)).toEqual([9, 30])
+  })
+
+  it('Neuer Block legt Erze darin frei', () => {
+    let funde = 0
+    for (let s = 1; s <= 20; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s })
+      g.expand()
+      funde += g.funde.length
+    }
+    expect(funde).toBeGreaterThan(0)
+  })
+})
+
+describe('Gebiet waehlen', () => {
+  it('alle 20 Level leuchten die Waende; dagegenfahren baut dort den Block an', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 2, startLevel: 19, cfg: { powerChance: 0 } })
+    leer(g)
+    g.body = [{ x: 9, y: 5 }, { x: 8, y: 5 }, { x: 7, y: 5 }]
+    g.prev = []
+    g.dir = 'r'
+    g.queue = []
+    g.apple.p = { x: 10, y: 5 }
+    const ev: GameEvent[] = []
+    for (let i = 0; i < 4; i++) {
+      g.update(g.takt / 2 + 1)
+      ev.push(...g.drain())
+    }
+    expect(g.level).toBe(20)
+    expect(g.wahl).toBe(1)
+    expect(g.blocks).toHaveLength(2)
+    expect(ev.some((e) => e.type === 'wahl')).toBe(true)
+    // Weiter nach rechts gegen die leuchtende Wand
+    g.apple.p = { x: 0, y: 20 }
+    for (let i = 0; i < 8 && g.status === 'play'; i++) {
+      g.update(g.takt / 2 + 1)
+      ev.push(...g.drain())
+    }
+    expect(g.status).toBe('play')
+    expect(g.wahl).toBe(0)
+    expect(g.blocks).toHaveLength(3)
+    expect(g.blocks.some((b) => b.x === 1 && b.y === 0)).toBe(true)
+    expect(g.body[0].x).toBeGreaterThanOrEqual(12)
+  })
+
+  it('ohne Wahl kommt der alte Block beim naechsten Mal zufaellig', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 3, startLevel: 19 })
+    g.springeZu(20)
+    // Springen = Aufbau: sofort zufaellig
+    expect(g.blocks).toHaveLength(3)
+  })
+})
+
+describe('Eis', () => {
+  it('ab Level 180 alle 30 Level, 4 bis 10 Felder', () => {
+    expect([179, 180, 210, 211].map((l) => R.neuesEis(C, l))).toEqual([false, true, true, false])
+    for (let s = 1; s <= 15; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 180 })
+      expect(g.eis.length).toBeGreaterThanOrEqual(1)
+      const e = g.eis[0]
+      expect(e.cells.length).toBeGreaterThanOrEqual(4)
+      expect(e.cells.length).toBeLessThanOrEqual(10)
+    }
+  })
+
+  it('auf Eis laesst sich nicht lenken', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 1, cfg: { powerChance: 0 } })
+    leer(g)
+    g.apple.p = { x: 0, y: 0 }
+    g.body = [{ x: 3, y: 10 }, { x: 2, y: 10 }, { x: 1, y: 10 }]
+    g.prev = []
+    g.dir = 'r'
+    g.eis.push({ cells: [{ x: 4, y: 10 }, { x: 5, y: 10 }, { x: 6, y: 10 }], t: 0 })
+    einSchritt(g)
+    expect(g.body[0]).toEqual({ x: 4, y: 10 })
+    g.turn('d', false)
+    einSchritt(g)
+    einSchritt(g)
+    expect(g.body[0]).toEqual({ x: 6, y: 10 })
+    // Runter vom Eis: wieder lenkbar
+    einSchritt(g)
+    g.turn('d', false)
+    einSchritt(g)
+    expect(g.body[0]).toEqual({ x: 7, y: 11 })
   })
 })

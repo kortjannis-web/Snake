@@ -1,6 +1,6 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.5.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.6.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
@@ -31,11 +31,12 @@ Stand: Version 1.5.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 ## 4. Karte und neue Gebiete (Blöcke wie bei Minecraft)
 
 - Die Karte besteht aus **Blöcken von je einem halben Bildschirm**. Am Handy (hochkant) ist ein Block fast quadratisch, leicht hochkant (z. B. 12 × 11 Felder). Am Anfang liegen zwei Blöcke übereinander = ein Bildschirm.
-- **Alle 20 Level** (Standard, einstellbar) setzt sich ein **neuer Block an einer zufälligen freien Stelle** an die Karte, immer bündig im Blockraster: rechts oben, rechts unten, über einem Block, links daneben usw. Die Karte wird dadurch unregelmäßig (L-Formen, Treppen, Buchten).
+- **Alle 20 Level** (Standard, einstellbar) darfst du **selbst wählen**, wo der neue Block hinkommt: Die Wände, an die ein Block passt, **glühen** (goldener, pulsierender Rand), dazu Glocken und der Hinweis „Neues Gebiet wählen“. **Fährst du gegen eine glühende Wand**, kommt genau dort der Block hin (kein Gnadenschritt nötig) und du fährst direkt hinein. Wählst du nicht, wird der offene Block beim nächsten Mal (nach weiteren 20 Level) an eine zufällige Stelle gesetzt. Beim Aufbau (Startlevel, Kreativ-Springen) zufällig wie bisher. Die Karte wird so unregelmäßig (L-Formen, Treppen, Buchten), aber nach deinem Plan.
 - Jeder Block hat genau die gleiche Fläche.
 - **Ab Level 300** (einstellbar) kommt kein Block mehr dazu. Bei alle 20 Level sind das 14 neue Blöcke, insgesamt 16 Blöcke = 8 Bildschirme.
 - Der neue Block klappt von der Seite auf, an der er angesetzt wird, Feld für Feld als Welle. Dazu „Whoosh“ mit Akkord und der Hinweis „Ein neuer Block ist rechts dazugekommen“.
-- Außerhalb der Blöcke ist dunkler Boden mit Punktraster: dort ist Rand.
+- **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, glühende **Lavataschen**, **Golderz** (ca. 1,2 %) und selten **Diamanten** (ca. 0,3 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf.
+- **Erze freilegen:** Wird Erde zu Spielfeld (neuer Block, Maulwurf), liegen Gold und Diamanten darin als Brocken auf der Karte. Drüberfahren sammelt sie ein: **Gold = 3 ×**, **Diamant = 10 ×** der aktuelle Apfelwert. Jedes Erz gibt es nur einmal.
 - **Kamera (fest):** Die Kamera zeigt immer einen festen Ausschnitt von genau einem Bildschirm, an den Kartenblöcken ausgerichtet, auch wenn die Karte größer ist. Sie scrollt nicht mit.
   - **Rantast-Kamera:** Läuft die Schlange auf den Rand des Ausschnitts zu und geht die Karte dort weiter, schiebt sich die Kamera ab 4 Feldern vor dem Rand langsam ein Stück hinüber (bis ca. ein Drittel Block, höchstens 4 Felder), je näher, desto weiter.
   - **Wechsel-Kamera:** Ist die Schlange unmittelbar davor (1 Feld), fährt die Kamera zügig zum neuen Block: Wo zwei Blöcke auf den Bildschirm passen (am Handy oben/unten), rückt sie einen Block weiter, die Schlange ist dann in der Mitte. Wo nur einer passt (am Handy links/rechts), fährt sie schon halb hinüber und beim Übertritt ganz.
@@ -141,6 +142,13 @@ Stand: Version 1.5.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Der Kegel endet am Kartenrand, an Häusern, Bäumen und anderen Türmen. **Die Schlange wirft Schatten:** Liegt sie in der neuen Richtung, endet der Kegel vor ihr. So gibt es nie einen Sofort-Treffer, trotzdem dreht der Turm immer weiter.
 - Im Kegel = **10 Level zurück**, Turm berühren = Tod (mit Gnadenschritt).
 
+## 12a2. Eis (ab Level 180)
+
+- Ab Level 180 **alle 30 Level ein Eisfeld** (180, 210, 240 …), **4 bis 10 Felder** groß, zusammenhängend, bleibt liegen. Höchstens eins je ca. 300 Felder.
+- Hellblau mit wanderndem Glanz und feinen Rissen.
+- **Auf Eis kann man nicht lenken:** Solange der Kopf auf Eis ist, rutscht die Schlange geradeaus, gedrückte Richtungen verfallen. Erst wieder auf normalem Boden lenkt man.
+- Fair: Eis liegt nie am Kartenrand und hat ein Feld Abstand zu festen Hindernissen. Läuft man trotzdem auf etwas zu, darf man im **Gnadenschritt** abbiegen, auch auf Eis.
+
 ## 12b. Ameisen (ab Level 240)
 
 - Kleine braune Ameise (Kopf, Brust, Hinterleib, sechs Beine, Fühler). Alle **8 bis 12 Level** setzt sich eine irgendwohin, mit Abstand zur Schlange, höchstens **4** gleichzeitig. Sie bleiben, bis man sie zertritt.
@@ -183,15 +191,28 @@ Stand: Version 1.5.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 **Power-ups (ab Level 10)**
 - Nach jedem Apfel mit **18 % Chance** liegt ein Power-up auf der Karte (höchstens eins), 15 s lang, blinkt in den letzten 3 s. Leuchtende Kugel mit Symbol.
 - **Schild** (blau): fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Bis zu 3 sammeln sich. Blaue Blase um den Kopf. Nicht am Kartenrand.
-- **Zeitlupe** (lila): 8 s lang ein gutes Drittel langsamer.
+- Welches Power-up kommt, ist gewichtet: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2, Maulwurf 2, goldener Apfel 1 (von 18).
+- **Zeitlupe** (lila): **30 s** lang **30 % langsamer**.
+- **Füttern** (rot, Maul): **20 s** lang frisst du **Frösche, Ameisen und Gegner-Schlangen** (rot und lila), statt dich an ihnen zu stoßen. Frosch = 2, Ameise = 1, Gegner = so viele Äpfel, wie er lang ist (alles mal Apfelwert). Roter Schein um den Kopf. Kommt nur, wenn gerade Tiere oder Gegner da sind.
+- **Magnet** (rot, Hufeisen): **15 s** lang wird alles Gute im **Umkreis von 2 Feldern** (auch schräg) **sofort eingesammelt**, ohne Umweg, als wärst du drübergefahren: Apfel (zählt als gegessen), Power-ups, Erze. Gestrichelter Kreis zeigt die Reichweite.
+- **Maulwurf** (braun, Schaufel, **ab Level 100**): **20 s** lang kannst du dich **durch die Erde graben**, bis 8 Felder um die Karte herum. Erze im Weg sammelst du sofort ein. Erdkrümel fliegen, die Kamera folgt dir unter die Erde. **Kommst du zurück auf die Karte, wird dein Gang und alles, was er zusammen mit der Karte einschließt, zu Spielfeld** (Klang „Freigelegt“). Ist die Zeit um und der Kopf steckt noch in der Erde: **Spielende** („In der Erde stecken geblieben“).
+- **Goldener Apfel** (gold, selten): **10 s unbesiegbar**: kein Tod, keine Rückschläge, du fährst durch alles und **über dich selbst**. Mauersteine, Fallen und Giftäpfel im Weg werden weggeräumt, Tiere und Gegner gefressen. Goldener Schein um den ganzen Körper.
 - **Geist** (grau): 6 s lang durch alle Hindernisse und die eigene Schlange, keine Rückschläge; die Schlange ist durchscheinend und flackert kurz vor dem Ende.
 - **Schere** (orange): nimmt **5 Glieder, aber nur für einen Apfel lang**. Mit dem nächsten Apfel wachsen sie wieder nach (mindestens 3 Glieder bleiben). Solange zeigt eine Pille „−5“.
-- Den Magneten gibt es nicht mehr.
 - Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken.
 - Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
 
 **Skins (Startmenü → Skins)**
-- Klassik (gratis), **Koralle** 300, **Nacht** 800 (funkelnde Sterne), **Tiger** 1600 (Streifen), **Gold** 3500 (laufender Glanz), **Regenbogen** 7500 (Farben wandern über den Körper), Preise in Äpfeln.
+- **Vier Grundfarben hat jeder:** Grün, Blau, Gelb, Schwarz.
+- Alles andere kauft man mit Äpfeln, nach Stufen geordnet:
+  - **Einfarbig (250):** Minze, Himmel, Pfirsich, Flieder, Sand
+  - **Kräftig (600):** Koralle, Smaragd, Pink, Türkis, Orange
+  - **Muster (1200):** Nacht (Sterne), Tiger (Streifen), Zebra, Leopard (Flecken), Käfer
+  - **Elemente (2500):** Glut (Hitzewellen), Eis (Funkeln), Gift (Neonflecken), Tiefsee
+  - **Edelmetall (4000):** Gold, Silber, Roségold (laufender Glanz)
+  - **Kosmisch (6000):** Galaxie (Sterne), Aurora (Grün-Türkis-Violett wandert)
+  - **Legendär (9000):** Regenbogen, Diamant
+- Wer früher Koralle, Nacht, Tiger, Gold oder Regenbogen gekauft hat, behält sie.
 - Antippen kauft (wenn genug Äpfel) und wählt aus, gekaufte Skins lassen sich jederzeit wechseln. Zu wenig Äpfel: Karte wackelt.
 
 **Minikarte**
@@ -229,17 +250,17 @@ Stand: Version 1.5.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Sandbox** (Schalter im Kreativ-Menü): eigene Welt zum Testen von Mechaniken.
   - **Kartengröße** in Blöcken: Breite und Höhe je 1 bis 8 (ein Block = halber Bildschirm), immer rechteckig.
   - **Länge** der Schlange (1 bis 300), sie wächst in den ersten Schritten darauf.
-  - **Objekte:** Anzahl je Art: Mauer, Teich, Giftapfel, Baum, Haus, Turm, Falle, Wolke, Frosch, Gegner rot, Gegner lila, Ameise, Lava (je 0 bis 50, so viele wie Platz haben).
+  - **Objekte:** Anzahl je Art: Mauer, Teich, Giftapfel, Baum, Haus, Turm, Falle, Wolke, Frosch, Gegner rot, Gegner lila, Ameise, Lava, Eis (je 0 bis 50, so viele wie Platz haben).
   - **Danach:** „Bleibt so“ = nichts Neues kommt dazu, Mauern bleiben stehen, nur der Apfel wandert (Mechaniken laufen weiter: Licht wechselt, Türme drehen, Lava wächst, Gegner wachsen, Wolken und Fallen laufen ab). „Normal weiter“ = ab dem Startlevel geht es weiter wie im echten Spiel.
   - Der Startlevel bestimmt dabei Tempo, Apfelwert und was als Nächstes kommt.
-- **Im Spiel** (Pause → Kreativ-Optionen): **jedes Objekt sofort dazu** (alle 13 Arten, ohne Level- und Anzahlgrenzen) und **„Alles von der Karte“**.
+- **Im Spiel** (Pause → Kreativ-Optionen): **jedes Objekt sofort dazu** (alle 14 Arten, ohne Level- und Anzahlgrenzen), jedes Power-up sofort (auch Füttern, Magnet, Maulwurf, goldener Apfel) und **„Alles von der Karte“**.
 - Kreativ-Runden zählen nicht für Rekord und Statistik. In der Leiste steht „Level · Kreativ“.
 
 ## 16b. Master-Einstellungen
 
 - Optionen → Master-Einstellungen: **jede Zahl des Spiels** ist einstellbar, nach Gruppen: Karte (Block alle N Level, bis Level), Schlange (Tempo, Wachsen, Gnadenschritt, Schutzzeit), Mauern, Teiche, Giftäpfel, Bärenfallen, Bäume, Giftwolken, Frösche (Häufigkeit, Sprungtakt, Wende-Chance, Höchstzahl), Gegner-Schlangen (ab Level, Häufigkeit, Höchstzahl, Wachsen, Höchstlänge), Power-ups und Äpfel (Chance, Dauer, Schere, Apfelwert), Häuser (Häufigkeit, Lichtweite, Strafe), Jägertürme (Häufigkeit, Kegellänge, Strafe), Ereignisse (Mindestanzahl ab Level, früher häufiger).
 - **Zeitleiste** ganz oben (aufklappbar): was bei welchem Level kommt, aus den aktuellen Zahlen berechnet, bis Level 500. Jede kleinste Änderung hat einen Eintrag (neuer Block, Mauerlänge, Teichgröße, Anzahl Giftäpfel, Apfelwert und Farbe, Wachsen, Höchsttempo, Ereignisse, Höchstzahl Gegner, Wolkenstufe, jeder Baum, jede Hütte, jedes Haus, jeder Turm, jeder Lavasee …), farbig nach Art. Darüber die dauerhaften Regeln (Tempo je Level, zufällige Abstände, Power-up-Chance). Ändert man eine Zahl, ändert sich die Zeitleiste sofort.
-- Neue Gruppen: Gegner-Schlangen (mit lila), Ameisen, Lava, Häuser mit „Große Häuser ab Level“.
+- Neue Gruppen: Gegner-Schlangen (mit lila), Ameisen, Lava, Eis, Erze unter der Erde, Häuser mit „Große Häuser ab Level“; bei den Power-ups Dauer von Füttern, Magnet (und Reichweite), Maulwurf (und Grabweite), goldener Apfel und Zeitlupe (und um wie viel %).
 - Gilt ab dem nächsten Spiel, auch im Kreativ-Modus. „Alles auf Standard“ setzt zurück. Gespeichert wird nur, was vom Standard abweicht: neue Standardwerte (z. B. der knappere Gnadenschritt) gelten so für alle. Die Anleitung rechnet mit den eingestellten Werten.
 
 ## 17. Töne, Musik, Vibration
@@ -254,5 +275,5 @@ Stand: Version 1.5.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Web-App (PWA):** offline spielbar, installierbar („Zum Home-Bildschirm“), Vollbild. Veröffentlichung über GitHub Pages (einmalig in den Einstellungen aktivieren).
 - **Speicher:** Rekord, Statistik und Einstellungen nur auf dem Gerät.
 - **Leistung:** Gezeichnet wird nur der sichtbare Teil der Karte. Neue Hindernisse zu platzieren dauert auch auf der größten Karte nur wenige Millisekunden.
-- **Tests:** 61 automatische Tests der Spiellogik (Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Gegner-Schlangen rot und lila mit Ausweichen, Tempo, Einkesseln, Befreien und Wachsen, Ameisen, Lava, Sandbox, Zeitleiste, Bäume, Hütten, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Äpfel als Währung, Power-ups und Schere, lange Spiele bis über Level 300 mit Autopilot).
+- **Tests:** 76 automatische Tests (neu: Füttern, goldener Apfel, Magnet, Maulwurf mit Freilegen und Ersticken, Erze, Gebiet wählen, Eis; außerdem Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Gegner-Schlangen rot und lila mit Ausweichen, Tempo, Einkesseln, Befreien und Wachsen, Ameisen, Lava, Sandbox, Zeitleiste, Bäume, Hütten, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Äpfel als Währung, Power-ups und Schere, lange Spiele bis über Level 300 mit Autopilot).
 - **Zum Ausprobieren:** Kreativ-Modus (siehe 16a). In der Web-Fassung zusätzlich `?level=210` und `?auto=1` (Autopilot).
