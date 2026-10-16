@@ -4,13 +4,16 @@
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
 import type { Game } from '../game/game'
-import { AMEISE_SCHRITT, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
+import { FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Funke, GameEvent, P } from '../game/types'
 import {
   C,
   backOut,
   clamp01,
-  drawAmeise,
+  DIR_WINKEL,
+  drawFrosch,
+  drawKegel,
+  drawTurm,
   drawApfel,
   drawBaum,
   drawHaus,
@@ -157,45 +160,49 @@ export class Renderer {
     const y1 = Math.min(g.h - 1, Math.ceil((vh - oy) / cell) + 1)
     const sicht = (p: P, m = 2) => p.x >= x0 - m && p.x <= x1 + m && p.y >= y0 - m && p.y <= y1 + m
 
-    // Rahmen der Karte (waechst beim neuen Gebiet mit)
-    const gb = g.gebiet && now - g.gebiet.t < 2600 ? g.gebiet : null
-    let rect = { x: 0, y: 0, w: g.w, h: g.h }
-    if (gb && !this.reduce) {
-      const k = easeOut(clamp01((now - gb.t) / 900))
-      rect = { x: lerp(gb.x, 0, k), y: lerp(gb.y, 0, k), w: lerp(gb.w, g.w, k), h: lerp(gb.h, g.h, k) }
-    }
+    // Rahmen um jeden Block der Karte; der neue Block klappt von der Ansatzseite auf
+    const gb = g.gebiet && now - g.gebiet.t < 2600 && !this.reduce ? g.gebiet : null
     const pad = Math.max(4, cell * 0.22)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)'
-    rund(ctx, rect.x * cell - pad, rect.y * cell - pad + cell * 0.15, rect.w * cell + pad * 2, rect.h * cell + pad * 2, cell * 0.5)
-    ctx.fill()
-    ctx.fillStyle = '#1C5446'
-    rund(ctx, rect.x * cell - pad, rect.y * cell - pad, rect.w * cell + pad * 2, rect.h * cell + pad * 2, cell * 0.5)
-    ctx.fill()
+    const rahmen = g.blocks.map((b) => {
+      const r = { x: b.x * g.bw, y: b.y * g.bh, w: g.bw, h: g.bh }
+      if (!gb || r.x !== gb.x || r.y !== gb.y) return r
+      const k = easeOut(clamp01((now - gb.t) / 900))
+      if (gb.side === 'top') return { ...r, y: r.y + r.h * (1 - k), h: r.h * k }
+      if (gb.side === 'bottom') return { ...r, h: r.h * k }
+      if (gb.side === 'left') return { ...r, x: r.x + r.w * (1 - k), w: r.w * k }
+      return { ...r, w: r.w * k }
+    })
+    for (const [col, dy] of [['rgba(0, 0, 0, 0.45)', cell * 0.15], ['#1C5446', 0]] as const) {
+      ctx.fillStyle = col
+      for (const r of rahmen) {
+        rund(ctx, r.x * cell - pad, r.y * cell - pad + dy, r.w * cell + pad * 2, r.h * cell + pad * 2, cell * 0.5)
+        ctx.fill()
+      }
+    }
 
-    // Schachbrett; neue Felder klappen als Welle auf. Erst die dunkle Flaeche,
-    // dann die hellen Felder etwas groesser (sonst feine Fugen bei krummem Pixelverhaeltnis)
-    if (!gb || this.reduce) {
-      ctx.fillStyle = C.dunkel
-      ctx.fillRect(x0 * cell, y0 * cell, (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell)
+    // Schachbrett nur auf der Karte; neue Felder klappen als Welle auf. Erst die
+    // dunkle Flaeche je Block, dann die hellen Felder etwas groesser (sonst feine Fugen)
+    ctx.fillStyle = C.dunkel
+    for (const b of g.blocks) {
+      if (gb && b.x * g.bw === gb.x && b.y * g.bh === gb.y) continue
+      ctx.fillRect(b.x * g.bw * cell, b.y * g.bh * cell, g.bw * cell, g.bh * cell)
     }
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++) {
-        ctx.fillStyle = (x + y) % 2 ? C.dunkel : C.hell
-        if (gb && !this.reduce) {
-          const inOld = x >= gb.x && x < gb.x + gb.w && y >= gb.y && y < gb.y + gb.h
-          if (!inOld) {
-            const dist = gb.side === 'top' ? gb.y - y : gb.side === 'bottom' ? y - (gb.y + gb.h - 1) : gb.side === 'left' ? gb.x - x : x - (gb.x + gb.w - 1)
-            const p = clamp01((now - gb.t - 150 - dist * 45) / 380)
-            if (p <= 0) continue
-            const s = backOut(p)
-            const sz = cell * Math.min(1.08, s)
-            if (p < 1) ctx.fillStyle = (x + y) % 2 ? '#BFE8CB' : C.neuHell
-            ctx.fillRect(x * cell + (cell - sz) / 2, y * cell + (cell - sz) / 2, sz, sz)
-            continue
-          }
+        if (!g.mask[y * g.w + x]) continue
+        const neu = gb && x >= gb.x && x < gb.x + gb.w && y >= gb.y && y < gb.y + gb.h
+        if (neu) {
+          const dist = gb.side === 'top' ? gb.y + gb.h - 1 - y : gb.side === 'bottom' ? y - gb.y : gb.side === 'left' ? gb.x + gb.w - 1 - x : x - gb.x
+          const p = clamp01((now - gb.t - 150 - dist * 45) / 380)
+          if (p <= 0) continue
+          const sz = cell * Math.min(1.08, backOut(p))
+          ctx.fillStyle = p < 1 ? ((x + y) % 2 ? '#BFE8CB' : C.neuHell) : (x + y) % 2 ? C.dunkel : C.hell
+          ctx.fillRect(x * cell + (cell - sz) / 2, y * cell + (cell - sz) / 2, sz, sz)
+          continue
         }
-        if (gb && !this.reduce) ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
-        else if ((x + y) % 2 === 0) ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
+        if ((x + y) % 2) continue
+        ctx.fillStyle = C.hell
+        ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
       }
 
     // Teiche (trocknen ggf. aus)
@@ -224,8 +231,22 @@ export class Renderer {
       if (!h.cells.some((c) => sicht(c, 3))) continue
       const f = h.fenster[h.licht]
       const an = this.reduce ? 1 : clamp01((now - h.lichtT) / 450)
-      drawLicht(ctx, f.p, f.d, h.strahl.length, cell, an * clamp01((now - h.t) / 600), now)
+      if (f) drawLicht(ctx, f.p, f.d, h.strahl.length, cell, an * clamp01((now - h.t) / 600), now)
       drawHaus(ctx, h.cells, h.fenster, h.licht, h.kamin, cell, this.reduce ? 1 : backOut(clamp01((now - h.t) / 520)), now)
+    }
+
+    // Jaegertuerme: Kegel dreht sich mit, blendet nach jedem Wechsel ein
+    for (const t of g.tuerme) {
+      if (!t.cells.some((c) => sicht(c, 8))) continue
+      const k = this.reduce ? 1 : easeOut(clamp01((now - t.kegelT) / 500))
+      const a0 = DIR_WINKEL[t.altDir]
+      let a1 = DIR_WINKEL[t.dir]
+      while (a1 - a0 > Math.PI) a1 -= Math.PI * 2
+      while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
+      const ang = lerp(a0, a1, k)
+      const mitte = { x: (t.c.x + 1) * cell, y: (t.c.y + 1) * cell }
+      drawKegel(ctx, t.kegel, mitte, DIR_WINKEL[t.dir], cell, k * clamp01((now - t.t) / 600), now)
+      drawTurm(ctx, mitte.x, mitte.y, cell, ang, this.reduce ? 1 : backOut(clamp01((now - t.t) / 520)), now)
     }
 
     // Fallen: ploppen auf, blinken kurz vor dem Ende, schnappen zu
@@ -250,18 +271,22 @@ export class Renderer {
       drawApfel(ctx, px(gf.p.x), px(gf.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - gf.t) / 340)), wipp * 0.6, gf.ecke)
     }
 
-    // Ameisen
-    for (const am of g.ameisen) {
-      const k = clamp01((now - am.movedAt) / AMEISE_SCHRITT)
-      const e = easeOut(k)
-      const x = lerp(am.from.x, am.p.x, e)
-      const y = lerp(am.from.y, am.p.y, e)
+    // Froesche: Anlauf 1 s vor dem Sprung, Sprung im Bogen, Drehen nach der Landung
+    for (const f of g.froesche) {
+      const flug = (now - f.flugAb) / FROSCH_FLUG
+      const k = clamp01(flug)
+      const x = lerp(f.from.x, f.p.x, k)
+      const y = lerp(f.from.y, f.p.y, k)
       if (!sicht({ x: Math.round(x), y: Math.round(y) })) continue
-      const s = this.reduce ? 1 : backOut(clamp01((now - am.t) / 420))
-      const fade = am.gone !== undefined ? 1 - clamp01((now - am.gone) / 700) : 1
-      const lauf = k < 1 ? now / 45 : now / 500
-      // Kurz vor dem naechsten Schritt: Erdkruemel als Hinweis
-      drawAmeise(ctx, px(x), px(y), cell, am.dir, lauf, s * (0.85 + 0.15 * fade), fade)
+      const s = this.reduce ? 1 : backOut(clamp01((now - f.t) / 420))
+      const fade = f.gone !== undefined ? 1 - clamp01((now - f.gone - FROSCH_FLUG * 0.5) / 400) : 1
+      const anlauf = f.gone === undefined ? clamp01(1 - (f.hopAt - now) / FROSCH_ANLAUF) : 0
+      const a0 = DIR_WINKEL[f.altDir]
+      let a1 = DIR_WINKEL[f.dir]
+      while (a1 - a0 > Math.PI) a1 -= Math.PI * 2
+      while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
+      const ang = lerp(a0, a1, easeOut(clamp01((now - f.drehT) / 220)))
+      drawFrosch(ctx, px(x), px(y), cell, ang, this.reduce ? 0 : anlauf, this.reduce || flug > 1 ? -1 : k, s, fade)
     }
 
     // Schlange

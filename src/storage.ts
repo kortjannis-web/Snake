@@ -1,5 +1,6 @@
 /** Einstellungen und Statistik, nur auf dem Geraet (localStorage) */
-import type { Tempo } from './game/rules'
+import { DEFAULTS, type Config, type Tempo } from './game/rules'
+import type { Kreativ } from './game/types'
 
 export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean }
 export type Stats = {
@@ -45,3 +46,18 @@ export function resetStats() {
   Object.assign(stats, defaultStats())
   saveStats()
 }
+
+/* ---------------- Master-Einstellungen (alle Zahlen der Spielregeln) ---------------- */
+const CKEY = 'snake.config.v1'
+export const config: Config = read(CKEY, { ...DEFAULTS })
+export const saveConfig = () => write(CKEY, config)
+export function resetConfig() {
+  Object.assign(config, DEFAULTS)
+  saveConfig()
+}
+
+/* ---------------- Kreativ-Modus ---------------- */
+const KKEY = 'snake.kreativ.v1'
+export type KreativEinst = Kreativ & { start: number }
+export const kreativ: KreativEinst = read(KKEY, { start: 100, tod: 'anhalten', rueckschlag: true, durchSelbst: false, wachsen: true, laenge: 3 } as KreativEinst)
+export const saveKreativ = () => write(KKEY, kreativ)

@@ -58,6 +58,7 @@
           </div>
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
+            <button class="btn btn--ghost" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
             <p class="home__best" id="home-best"></p>
             <div class="home__row">
               <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
@@ -74,6 +75,7 @@
           <h2 class="card__title">Pause</h2>
           <p class="card__sub" id="pause-info"></p>
           <button class="btn btn--play" id="btn-resume"><span data-icon="Play"></span>Weiter</button>
+          <button class="btn btn--kreativ" id="btn-kreativ-live" data-go="kreativ" hidden><span data-icon="Wand"></span>Kreativ-Optionen</button>
           <button class="btn btn--ghost" id="btn-restart"><span data-icon="RotateCcw"></span>Neu starten</button>
           <div class="card__row">
             <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
@@ -146,8 +148,82 @@
                 <button data-v="schnell" role="radio">Schnell</button>
               </div>
             </div>
+            <button class="btn btn--ghost" data-go="master"><span data-icon="SlidersHorizontal"></span>Master-Einstellungen</button>
             <button class="btn btn--danger" id="btn-reset"><span data-icon="Trash2"></span>Statistik zurücksetzen</button>
             <p class="fine">Snake Endlos · Version <span id="version"></span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Kreativ-Modus: vor dem Start und waehrend des Spiels (Pause) -->
+      <section class="screen screen--page" id="kreativ">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Kreativ</h2>
+          </header>
+          <div class="page__body">
+            <div class="opt opt--col" id="k-start-box">
+              <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Startlevel<small>Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.</small></span></div>
+              <div class="zahl">
+                <input type="range" id="k-start-range" min="1" max="600" step="1" />
+                <input type="number" id="k-start" min="1" max="5000" step="1" inputmode="numeric" />
+              </div>
+            </div>
+            <div class="opt opt--col live" id="k-live" hidden>
+              <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Level <b id="k-level"></b><small>Springen baut die Welt mit auf.</small></span></div>
+              <div class="seg seg--4">
+                <button id="k-minus10">−10</button>
+                <button id="k-minus1">−1</button>
+                <button id="k-plus1">+1</button>
+                <button id="k-plus10">+10</button>
+              </div>
+              <div class="zahl">
+                <input type="number" id="k-ziel" min="1" max="5000" step="1" inputmode="numeric" />
+                <button class="btn btn--ghost btn--klein" id="k-springen">Springen</button>
+              </div>
+              <div class="opt__row"><span data-icon="Zap"></span><span class="opt__t">Ereignis jetzt auslösen</span></div>
+              <div class="seg">
+                <button id="k-falle">Falle</button>
+                <button id="k-wolke">Wolke</button>
+                <button id="k-frosch">Frosch</button>
+              </div>
+            </div>
+            <div class="opt opt--col">
+              <div class="opt__row"><span data-icon="Skull"></span><span class="opt__t">Hindernisse<small>Tödlich, nur anhalten oder als Geist durch alles hindurch</small></span></div>
+              <div class="seg" id="k-tod" role="radiogroup">
+                <button data-v="an" role="radio">Tödlich</button>
+                <button data-v="anhalten" role="radio">Anhalten</button>
+                <button data-v="geist" role="radio">Geist</button>
+              </div>
+            </div>
+            <label class="opt"><span data-icon="Undo2"></span><span class="opt__t">Rückschläge<small>Wolke, Fensterlicht und Lichtkegel kosten Level</small></span><input type="checkbox" id="k-rueckschlag" class="switch" /></label>
+            <label class="opt"><span data-icon="Ghost"></span><span class="opt__t">Durch die eigene Schlange</span><input type="checkbox" id="k-durch" class="switch" /></label>
+            <label class="opt"><span data-icon="TrendingUp"></span><span class="opt__t">Schlange wächst<small>Aus: feste Länge</small></span><input type="checkbox" id="k-wachsen" class="switch" /></label>
+            <div class="opt opt--col" id="k-laenge-box">
+              <div class="opt__row"><span data-icon="Ruler"></span><span class="opt__t">Feste Länge</span></div>
+              <div class="zahl">
+                <input type="range" id="k-laenge-range" min="1" max="60" step="1" />
+                <input type="number" id="k-laenge" min="1" max="500" step="1" inputmode="numeric" />
+              </div>
+            </div>
+            <button class="btn btn--play" id="btn-kreativ-start"><span data-icon="Play"></span>Kreativ starten</button>
+            <p class="fine">Kreativ-Runden zählen nicht für Rekord und Statistik.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Master-Einstellungen: alle Zahlen der Spielregeln -->
+      <section class="screen screen--page" id="master">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Master</h2>
+          </header>
+          <div class="page__body">
+            <p class="hinweis">Alle Häufigkeiten, Wahrscheinlichkeiten und Grenzen des Spiels. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
+            <div id="master-list"></div>
+            <button class="btn btn--danger" id="btn-master-reset"><span data-icon="RotateCcw"></span>Alles auf Standard</button>
           </div>
         </div>
       </section>

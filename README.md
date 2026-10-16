@@ -16,25 +16,29 @@ gepufferte Eingaben, Sofort-Wende, Gnadenschritt, Mauern Feld für Feld, Teiche)
 
 Level = gegessene Äpfel + 1. Alle Werte stehen in `src/game/rules.ts`.
 
+Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
+
 | Ab Level | Was passiert |
 |---|---|
-| 1 | Ganzer Bildschirm, Äpfel essen, die Schlange wächst (ab 50 nur jedes zweite, ab 300 jedes dritte Level). Tempo steigt leicht bis ca. Level 270. |
-| 8 | **Mauern:** eine Mauer mit 2 Feldern, alle 8 Level ein Feld länger. Bei 6 Feldern kommt eine neue Mauer dazu, die wieder mit 2 anfängt (Level 48: 6 + 2, Level 88: 6 + 6 + 2 …). Nach jedem Apfel stehen sie woanders. Höchstens eine Mauer je ca. 130 Felder. |
-| 15 | **Teiche:** alle 15 Level ein neuer Teich, der liegen bleibt. Größe 2, 2, 3, 3, 4, 4 … bis 12. Sind es zu viele für die Karte, trocknet der älteste aus. |
-| 30 | **Neues Gebiet:** alle 30 Level wächst die Karte in eine zufällige Richtung um genau einen halben Bildschirm (immer gleiche Fläche, die Karte bleibt ein Rechteck). Ab Level 300 nicht mehr. Die Kamera folgt der Schlange, ein Pfeil am Rand zeigt den Apfel. |
-| 50 | **Giftäpfel:** sehen aus wie Äpfel, eine Ecke ist verschimmelt. Essen = Spielende. 1 bis 4 Stück, liegen nach jedem Apfel woanders. |
-| 100 | **Bärenfallen:** alle 4 bis 5 Level (ab 200 alle 3 bis 4) eine Falle 5 bis 8 Felder vor dem Kopf, genau in der Laufbahn. Bleibt 25 s. |
-| 100 | **Bäume:** liegende Tanne aus 1-1-2-1 Feldern (Stamm, Stamm, Krone zwei breit, Spitze). Ab 100 alle 40 Level ein neuer (100, 140, 180 …), bleibt für immer. Berühren = Tod. |
-| 150 | **Giftwolken:** alle 5 bis 7 Level (ab 250 alle 4 bis 6). Erst ein Feld, alle 5 s größer: Kreuz, 3 × 3, 3 × 3 mit Spitzen, 5 × 5 … (größte Stufe steigt mit dem Level), 1 s vorher pulsiert die nächste Stufe. Danach 5 s stehen, dann löst sie sich auf. Hineingeraten = **10 Level zurück**. |
-| 200 | **Ameisen:** alle 6 bis 9 Level (ab 250 alle 5 bis 7). Laufen alle 3 s ein Feld geradeaus (ab 300 alle 2,4 s), biegen vor Hindernissen ab, warten vor der Schlange, klauen Äpfel und verschwinden am Rand. |
-| 210 | **Häuser:** 2 × 3 oder mit einer Ecke (Reihen 2-2-3-3), ab 210 alle 30 Level ein neues, bleiben stehen. Vier Fenster (eins je Seite), nach jedem Apfel leuchtet ein anderes, Licht 2 Felder weit. Haus berühren = Tod, ins Licht laufen = **5 Level zurück**. |
-| 150 / 200 / 300 | Mindestens 1 / 2 / 3 Gefahren (Falle, Wolke, Ameise) gleichzeitig unterwegs. |
+| 1 | Ein Bildschirm = zwei Kartenblöcke. Äpfel essen, die Schlange wächst (ab 50 jedes zweite, ab 300 jedes dritte Level). |
+| 8 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
+| 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
+| 20 | **Neuer Kartenblock** (halber Bildschirm) alle 20 Level an einer zufälligen freien Stelle, wie bei Minecraft, bis Level 300. |
+| 50 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
+| 100 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-2-1) alle 40 Level, bleiben. |
+| 150 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
+| 200 | **Frösche** (höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
+| 210 | **Häuser** (2 × 3 oder mit Ecke) alle 30 Level, vier Fenster, Licht 2 Felder (nie auf die Schlange, zugebaut = dunkel). Haus = Tod, Licht = **5 Level zurück**. |
+| 315 | **Jägertürme** (2 × 2) alle 40 Level, Lichtkegel 2 × 6, dreht jede Runde im Uhrzeigersinn, Schlange wirft Schatten. Turm = Tod, Kegel = **10 Level zurück**. |
+| 150 / 200 / 300 | Mindestens 1 / 2 / 3 Ereignisse (Falle, Wolke, Frosch) gleichzeitig. |
 
-**Level zurück:** Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen
-war (mindestens 3 lang), das Tempo passt sich an, danach ist sie gut 2 s geschützt (blinkt).
-Karte, Teiche, Bäume und Häuser bleiben; was schon einmal erreicht war (neues Gebiet, Teich,
-Baum, Haus, Hinweise), kommt beim zweiten Erreichen nicht noch einmal. Rekord ist der höchste
-erreichte Level.
+**Level zurück:** Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen war,
+danach ist sie gut 2 s geschützt (blinkt). Was schon da ist, bleibt, beim zweiten Erreichen eines
+Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
+
+**Kreativ-Modus:** Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,
+Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im Spiel Level springen und
+Ereignisse auslösen. Zählt nicht für den Rekord.
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 
@@ -53,8 +57,8 @@ npm run android    # build + Capacitor-Sync, danach android/ in Android Studio �
 npm run icons      # Icons und Startbild aus scripts/icons.mjs neu erzeugen
 ```
 
-Zum Ausprobieren später Level: `?level=150` startet direkt bei Level 150,
-`?auto=1` lässt den Autopiloten steuern.
+Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung `?level=150`
+(startet bei Level 150) und `?auto=1` (Autopilot steuert).
 
 ### Aufbau
 

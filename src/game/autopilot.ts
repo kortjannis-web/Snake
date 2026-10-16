@@ -16,6 +16,7 @@ export function autopilot(g: Game): Dir | null {
   // Wolken und Fensterlicht kosten Level: meiden
   g.wolken.forEach((w) => [...w.cells, ...w.pending].forEach((p) => blocked.add(key(p.x, p.y))))
   g.haeuser.forEach((h) => h.strahl.forEach((p) => blocked.add(key(p.x, p.y))))
+  g.tuerme.forEach((t) => t.kegel.forEach((p) => blocked.add(key(p.x, p.y))))
   const frei = (c: P) => g.inside(c) && !blocked.has(key(c.x, c.y)) && g.gefahr(c, []) === null
   const moves = DIRS.filter((d) => d !== OPP[g.dir]).filter((d) => frei({ x: head.x + STEP[d].x, y: head.y + STEP[d].y }))
   if (!moves.length) return null

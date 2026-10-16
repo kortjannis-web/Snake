@@ -14,19 +14,19 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
-import { GEBIET_ALLE, GEBIET_BIS } from './game/rules'
+import { SCHEMA, type ConfigKey } from './game/rules'
 import type { Dir, GameEvent, Side } from './game/types'
 import { haptic } from './haptics'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { drawApfel } from './render/sprites'
-import { saveSettings, saveStats, resetStats, settings, stats } from './storage'
+import { config, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, settings, stats } from './storage'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
-import { CAUSE, HELP, SIDE, UNLOCK } from './ui/texts'
+import { CAUSE, help, SIDE, unlockText } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
-type Page = 'help' | 'stats' | 'settings'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -40,7 +40,11 @@ const renderer = new Renderer(canvas)
 renderer.reduce = reduce
 
 let mode: Mode = 'home'
-let page: Page | null = null
+/** Offene Unterseiten (Optionen -> Master liegt ueber Optionen) */
+const pages: Page[] = []
+const page = () => pages[pages.length - 1] ?? null
+/** Laeuft gerade eine Kreativ-Runde? */
+let istKreativ = false
 let game: Game | null = null
 let demo: Game | null = null
 let startedAt = 0
@@ -92,25 +96,41 @@ function setMode(m: Mode) {
 
 function openPage(p: Page) {
   audio.click()
-  page = p
+  if (pages.includes(p)) return
+  pages.push(p)
   if (p === 'help') renderHelp()
   if (p === 'stats') renderStats()
   if (p === 'settings') renderSettings()
+  if (p === 'kreativ') renderKreativ()
+  if (p === 'master') renderMaster()
   show(p, true)
 }
 function closePage() {
-  if (!page) return
+  const p = pages.pop()
+  if (!p) return
   audio.click()
-  show(page, false)
-  page = null
+  show(p, false)
+}
+function closeAllPages() {
+  while (pages.length) show(pages.pop()!, false)
 }
 
 /* ================= Spiel ================= */
 
-function newGame() {
+function newGame(alsKreativ = istKreativ) {
   clearTimeout(overTimer)
+  istKreativ = alsKreativ
+  app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
-  game = new Game({ screenW: sc.w, screenH: sc.h, tempo: settings.tempo, startLevel })
+  const { start, ...k } = kreativ
+  game = new Game({
+    screenW: sc.w,
+    screenH: sc.h,
+    tempo: settings.tempo,
+    cfg: { ...config },
+    startLevel: istKreativ ? start : startLevel,
+    kreativ: istKreativ ? { ...k } : null,
+  })
   renderer.reset()
   $('ready-text').textContent = fine ? 'Pfeiltaste drücken zum Starten' : settings.dpad ? 'Tippe eine Richtung zum Starten' : 'Wischen zum Starten'
   setMode('ready')
@@ -123,8 +143,10 @@ function newGame() {
 function begin(d?: Dir) {
   if (!game || mode !== 'ready') return
   startedAt = performance.now()
-  stats.games++
-  saveStats()
+  if (!istKreativ) {
+    stats.games++
+    saveStats()
+  }
   audio.start()
   haptic.light()
   setMode('play')
@@ -134,7 +156,8 @@ function begin(d?: Dir) {
 function pause() {
   if (mode !== 'play' || !game) return
   setMode('paused')
-  $('pause-info').textContent = `Level ${game.level} · Länge ${game.body.length}`
+  $('pause-info').textContent = `${istKreativ ? 'Kreativ · ' : ''}Level ${game.level} · Länge ${game.body.length}`
+  $('btn-kreativ-live').hidden = !istKreativ
 }
 function resume() {
   if (mode !== 'paused') return
@@ -144,7 +167,7 @@ function resume() {
 
 function onDir(d: Dir) {
   audio.unlock()
-  if (page) return
+  if (page()) return
   if (mode === 'ready') return begin(d)
   if (mode === 'play') game?.turn(d)
 }
@@ -152,13 +175,16 @@ function onDir(d: Dir) {
 function gameOver() {
   if (!game) return
   const g = game
-  const neu = g.maxLevel > stats.best && g.gegessen > 0
-  stats.apples += g.gegessen
-  stats.time += performance.now() - startedAt
-  stats.longest = Math.max(stats.longest, g.maxLen)
-  stats.maxGebiete = Math.max(stats.maxGebiete, g.expansions)
-  if (neu) stats.best = g.maxLevel
-  saveStats()
+  // Kreativ-Runden zaehlen nicht
+  const neu = !istKreativ && g.maxLevel > stats.best && g.gegessen > 0
+  if (!istKreativ) {
+    stats.apples += g.gegessen
+    stats.time += performance.now() - startedAt
+    stats.longest = Math.max(stats.longest, g.maxLen)
+    stats.maxGebiete = Math.max(stats.maxGebiete, g.expansions)
+    if (neu) stats.best = g.maxLevel
+    saveStats()
+  }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
     $('over-cause').textContent = g.cause ? CAUSE[g.cause] : ''
@@ -193,11 +219,11 @@ function handle(e: GameEvent) {
     case 'expand':
       audio.expand()
       haptic.success()
-      toast('gebiet', 'Neues Gebiet', `Die Karte ist nach ${SIDE[e.side]} gewachsen. Mehr Platz!`, e.side)
+      toast('gebiet', 'Neues Gebiet', `Ein neuer Block ist ${SIDE[e.side]} dazugekommen. Mehr Platz!`, e.side)
       break
     case 'unlock': {
       if (e.what === 'gebiet') break
-      const u = UNLOCK[e.what]
+      const u = unlockText(game!.cfg)[e.what]
       audio.unlock_()
       toast(u.mini, u.title, u.text)
       if (!stats.seen.includes(e.what)) {
@@ -228,15 +254,19 @@ function handle(e: GameEvent) {
     case 'cloudGrow':
       audio.cloudGrow()
       break
-    case 'ant':
-      audio.ant()
+    case 'frog':
+      audio.frog()
       break
-    case 'antStep':
-      audio.antStep()
+    case 'hop':
+      audio.hop()
+      break
+    case 'tower':
+      audio.tower()
+      haptic.medium()
       break
     case 'stolen':
       audio.stolen()
-      toast('ameise', 'Apfel geklaut!', 'Die Ameise hat ihn mitgenommen. Er liegt jetzt woanders.')
+      toast('frosch', 'Apfel geschnappt!', 'Ein Frosch hat ihn erwischt. Er liegt jetzt woanders.')
       break
     case 'pond':
       audio.pond()
@@ -252,7 +282,8 @@ function handle(e: GameEvent) {
         el.classList.add('down')
       }
       const n = e.von - e.auf
-      toast(e.grund === 'wolke' ? 'wolke' : 'haus', `−${n} Level`, e.grund === 'wolke' ? 'In die Giftwolke geraten. Zurück auf Level ' + e.auf + '.' : 'Im Fensterlicht erwischt. Zurück auf Level ' + e.auf + '.', undefined, true)
+      const was = { wolke: 'In die Giftwolke geraten.', licht: 'Im Fensterlicht erwischt.', kegel: 'Vom Jägerturm entdeckt.' }[e.grund]
+      toast(e.grund === 'wolke' ? 'wolke' : e.grund === 'licht' ? 'haus' : 'turm', `−${n} Level`, `${was} Zurück auf Level ${e.auf}.`, undefined, true)
       break
     }
     case 'tree':
@@ -280,11 +311,12 @@ function updateHud(pop: boolean) {
     el.classList.add('pop')
   }
   $('hud-best').textContent = stats.best ? String(stats.best) : '–'
+  const c = game?.cfg ?? config
   const bar = $('hud-bar')
-  bar.hidden = lv >= GEBIET_BIS
-  const k = (lv % GEBIET_ALLE) / GEBIET_ALLE
+  bar.hidden = lv >= c.gebietBis || c.gebietAlle <= 0
+  const k = (lv % c.gebietAlle) / c.gebietAlle
   $('hud-bar-fill').style.transform = `scaleX(${k})`
-  bar.title = `Neues Gebiet in ${GEBIET_ALLE - (lv % GEBIET_ALLE)} Level`
+  bar.title = `Neues Gebiet in ${c.gebietAlle - (lv % c.gebietAlle)} Level`
 }
 
 /* ================= Hinweise ================= */
@@ -343,7 +375,7 @@ function updateHome() {
 
 function newDemo() {
   const sc = screenCells()
-  demo = new Game({ screenW: sc.w, screenH: sc.h, tempo: 'langsam', startLevel: 1 })
+  demo = new Game({ screenW: sc.w, screenH: sc.h, tempo: 'langsam', startLevel: 1, cfg: { ...config } })
   renderer.reset()
 }
 
@@ -351,8 +383,8 @@ function newDemo() {
 
 function renderHelp() {
   const list = $('help-list')
-  if (list.childElementCount) return
-  for (const h of HELP) {
+  list.innerHTML = ''
+  for (const h of help(game?.cfg ?? config)) {
     const item = document.createElement('article')
     item.className = 'help'
     item.innerHTML = `<canvas width="56" height="56"></canvas><div><h3></h3><p></p></div>`
@@ -397,12 +429,166 @@ function applySettings() {
   saveSettings()
 }
 
+/* ================= Kreativ ================= */
+
+const kInput = (id: string) => $<HTMLInputElement>(id)
+const live = () => !!game && istKreativ && (mode === 'paused' || mode === 'ready')
+
+function renderKreativ() {
+  const lv = live()
+  $('k-start-box').hidden = lv
+  $('k-live').hidden = !lv
+  $('btn-kreativ-start').hidden = lv
+  kInput('k-start').value = kInput('k-start-range').value = String(kreativ.start)
+  kInput('k-laenge').value = kInput('k-laenge-range').value = String(kreativ.laenge)
+  kInput('k-rueckschlag').checked = kreativ.rueckschlag
+  kInput('k-durch').checked = kreativ.durchSelbst
+  kInput('k-wachsen').checked = kreativ.wachsen
+  $('k-laenge-box').hidden = kreativ.wachsen
+  $('k-tod')
+    .querySelectorAll<HTMLButtonElement>('button')
+    .forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === kreativ.tod)))
+  if (lv && game) {
+    $('k-level').textContent = String(game.level)
+    kInput('k-ziel').value = String(game.level)
+  }
+}
+
+/** Einstellungen sofort ins laufende Spiel uebernehmen */
+function kreativAnwenden() {
+  saveKreativ()
+  if (game && istKreativ) {
+    const { start, ...k } = kreativ
+    void start
+    game.kreativ = { ...k }
+  }
+  renderKreativ()
+}
+
+function kreativZahl(range: string, zahl: string, setzen: (v: number) => void) {
+  const sync = (v: number, quelle: HTMLInputElement) => {
+    if (!Number.isFinite(v)) return
+    setzen(v)
+    if (quelle !== kInput(range)) kInput(range).value = String(v)
+    if (quelle !== kInput(zahl)) kInput(zahl).value = String(v)
+    saveKreativ()
+    kreativAnwenden()
+  }
+  kInput(range).addEventListener('input', (e) => sync(Number((e.target as HTMLInputElement).value), e.target as HTMLInputElement))
+  kInput(zahl).addEventListener('change', (e) => sync(Number((e.target as HTMLInputElement).value), e.target as HTMLInputElement))
+}
+kreativZahl('k-start-range', 'k-start', (v) => (kreativ.start = Math.max(1, Math.min(5000, Math.round(v)))))
+kreativZahl('k-laenge-range', 'k-laenge', (v) => (kreativ.laenge = Math.max(1, Math.min(500, Math.round(v)))))
+kInput('k-rueckschlag').addEventListener('change', (e) => {
+  kreativ.rueckschlag = (e.target as HTMLInputElement).checked
+  audio.click()
+  kreativAnwenden()
+})
+kInput('k-durch').addEventListener('change', (e) => {
+  kreativ.durchSelbst = (e.target as HTMLInputElement).checked
+  audio.click()
+  kreativAnwenden()
+})
+kInput('k-wachsen').addEventListener('change', (e) => {
+  kreativ.wachsen = (e.target as HTMLInputElement).checked
+  // Beim Ausschalten die aktuelle Laenge als feste Laenge nehmen
+  if (!kreativ.wachsen && game && istKreativ) kreativ.laenge = game.body.length
+  audio.click()
+  kreativAnwenden()
+})
+$('k-tod')
+  .querySelectorAll<HTMLButtonElement>('button')
+  .forEach((b) =>
+    b.addEventListener('click', () => {
+      kreativ.tod = b.dataset.v as typeof kreativ.tod
+      audio.click()
+      kreativAnwenden()
+    }),
+  )
+
+function springe(ziel: number) {
+  if (!game || !istKreativ) return
+  audio.click()
+  game.springeZu(ziel)
+  for (const e of game.drain()) handle(e)
+  updateHud(true)
+  renderKreativ()
+  $('pause-info').textContent = `Kreativ · Level ${game.level} · Länge ${game.body.length}`
+}
+$('k-minus10').addEventListener('click', () => game && springe(game.level - 10))
+$('k-minus1').addEventListener('click', () => game && springe(game.level - 1))
+$('k-plus1').addEventListener('click', () => game && springe(game.level + 1))
+$('k-plus10').addEventListener('click', () => game && springe(game.level + 10))
+$('k-springen').addEventListener('click', () => springe(Number(kInput('k-ziel').value) || 1))
+for (const art of ['falle', 'wolke', 'frosch'] as const)
+  $(`k-${art}`).addEventListener('click', () => {
+    if (!game) return
+    audio.click()
+    const ok = game.spawn(art)
+    for (const e of game.drain()) handle(e)
+    if (!ok) toast(art === 'falle' ? 'falle' : art, 'Kein Platz', 'Gerade passt das nicht auf die Karte.')
+  })
+$('btn-kreativ-start').addEventListener('click', () => {
+  audio.unlock()
+  audio.click()
+  closeAllPages()
+  newGame(true)
+})
+
+/* ================= Master-Einstellungen ================= */
+
+function renderMaster() {
+  const list = $('master-list')
+  list.innerHTML = ''
+  for (const g of SCHEMA) {
+    const box = document.createElement('div')
+    box.className = 'master'
+    const h = document.createElement('h3')
+    h.textContent = g.gruppe
+    box.append(h)
+    for (const f of g.felder) {
+      const row = document.createElement('label')
+      row.className = 'master__row'
+      const t = document.createElement('span')
+      t.textContent = f.label
+      const inp = document.createElement('input')
+      inp.type = 'number'
+      inp.min = String(f.min)
+      inp.max = String(f.max)
+      inp.step = String(f.step ?? 1)
+      inp.inputMode = f.step && f.step < 1 ? 'decimal' : 'numeric'
+      inp.value = String(config[f.key])
+      inp.dataset.key = f.key
+      const u = document.createElement('small')
+      u.textContent = f.einheit ?? ''
+      inp.addEventListener('change', () => {
+        let v = Number(inp.value.replace(',', '.'))
+        if (!Number.isFinite(v)) v = config[f.key as ConfigKey]
+        v = Math.min(f.max, Math.max(f.min, v))
+        if (!f.step || f.step >= 1) v = Math.round(v)
+        config[f.key as ConfigKey] = v
+        inp.value = String(v)
+        saveConfig()
+      })
+      row.append(t, inp, u)
+      box.append(row)
+    }
+    list.append(box)
+  }
+}
+$('btn-master-reset').addEventListener('click', () => {
+  if (!confirm('Alle Master-Einstellungen auf Standard zurücksetzen?')) return
+  resetConfig()
+  renderMaster()
+  audio.click()
+})
+
 /* ================= Verdrahtung ================= */
 
 $('btn-play').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame()
+  newGame(false)
 })
 $('btn-pause').addEventListener('click', () => {
   audio.click()
@@ -416,6 +602,8 @@ $('btn-restart').addEventListener('click', () => {
 $('btn-quit').addEventListener('click', () => {
   audio.click()
   game = null
+  istKreativ = false
+  app.removeAttribute('data-kreativ')
   newDemo()
   setMode('home')
 })
@@ -426,6 +614,8 @@ $('btn-again').addEventListener('click', () => {
 $('btn-menu').addEventListener('click', () => {
   audio.click()
   game = null
+  istKreativ = false
+  app.removeAttribute('data-kreativ')
   newDemo()
   setMode('home')
 })
@@ -473,7 +663,7 @@ bindInput(app, {
   dir: onDir,
   pause: () => {
     audio.unlock()
-    if (page) return closePage()
+    if (page()) return closePage()
     if (mode === 'play') pause()
     else if (mode === 'paused') resume()
   },
@@ -481,12 +671,12 @@ bindInput(app, {
     audio.unlock()
     if (mode === 'ready' && fine) begin()
   },
-  enabled: () => !page && (mode === 'ready' || mode === 'play'),
+  enabled: () => !page() && (mode === 'ready' || mode === 'play'),
 })
 bindDpad($('dpad'), onDir)
 // Spielende: Enter oder Leertaste startet neu
 window.addEventListener('keydown', (e) => {
-  if (mode === 'over' && $('over').hasAttribute('data-open') && !page && (e.key === 'Enter' || e.key === ' ')) {
+  if (mode === 'over' && $('over').hasAttribute('data-open') && !page() && (e.key === 'Enter' || e.key === ' ')) {
     e.preventDefault()
     audio.click()
     newGame()
@@ -508,11 +698,13 @@ window.addEventListener('blur', pause)
 // Android: Zuruecktaste
 if (nativ) {
   void App.addListener('backButton', () => {
-    if (page) return closePage()
+    if (page()) return closePage()
     if (mode === 'play') return pause()
     if (mode === 'paused') return resume()
     if (mode === 'ready' || mode === 'over') {
       game = null
+      istKreativ = false
+      app.removeAttribute('data-kreativ')
       newDemo()
       return setMode('home')
     }

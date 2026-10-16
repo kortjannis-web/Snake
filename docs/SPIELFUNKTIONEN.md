@@ -1,12 +1,12 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/game/rules.ts`.
+Stand: Version 1.2.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
 - **Ein Modus: Endlos.** Kein Ziel, es geht so lange, bis die Schlange stirbt.
 - **Level = gegessene Äpfel + 1.** Jeder Apfel ist ein Level.
-- **Start:** Die Karte ist genau ein Bildschirm groß, die Schlange ist 3 Glieder lang und läuft nach rechts. Das Spiel wartet, bis man wischt (Handy) oder eine Pfeiltaste drückt (PC).
+- **Start:** Die Karte ist genau ein Bildschirm groß (zwei Blöcke, siehe 4.), die Schlange ist 3 Glieder lang und läuft nach rechts. Das Spiel wartet, bis man wischt (Handy) oder eine Pfeiltaste drückt (PC).
 - **Feldgröße:** Ein Bildschirm hat immer ca. 300 Felder, egal welches Gerät (Handy hochkant z. B. 12 × 23). So spielt es sich überall gleich.
 - **Wachsen:** bis Level 50 bei jedem Apfel ein Glied mehr, bis Level 300 bei jedem zweiten, danach bei jedem dritten. Sonst wäre die Schlange auf Dauer länger als die Karte.
 - **Tempo:** Grundtakt je nach Einstellung 185 / 154 / 128 ms pro Feld (Langsam / Normal / Schnell). Mit jedem Level etwas schneller, ab ca. Level 270 bleibt es bei 68 % des Grundtakts.
@@ -18,7 +18,7 @@ Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/ga
 - **Steuerkreuz (Option):** vier Tasten unter dem Spielfeld statt Wischen.
 - **Eingabepuffer:** Bis zu drei schnelle Richtungswechsel werden gemerkt und nacheinander ausgeführt.
 - **Sofort-Wende:** Kommt ein Richtungswechsel im ersten Drittel eines Schritts, gilt er sofort und nicht erst ab dem nächsten Feld. Das fühlt sich direkter an.
-- **Gnadenschritt** (wie bei Google Snake): Läuft die Schlange gegen ein Hindernis, bleibt sie gut einen Takt (1,3) stehen. Wer dann abbiegt, lebt weiter. Erst der zweite Anlauf ist das Ende. Gilt für Rand, eigenen Körper, Mauer, Teich, Falle, Ameise, Baum und Haus, **nicht** für Giftäpfel (die isst man ja).
+- **Gnadenschritt** (wie bei Google Snake): Läuft die Schlange gegen ein Hindernis, bleibt sie gut einen Takt (1,3) stehen. Wer dann abbiegt, lebt weiter. Erst der zweite Anlauf ist das Ende. Gilt für Rand, eigenen Körper, Mauer, Teich, Falle, Frosch, Baum, Haus und Jägerturm, **nicht** für Giftäpfel (die isst man ja).
 
 ## 3. Äpfel
 
@@ -28,14 +28,16 @@ Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/ga
 - **Pfeil am Rand:** Liegt der Apfel außerhalb des Bildes, zeigt ein runder Pfeil mit Apfel am Bildrand die Richtung.
 - Beim Essen: Funken, Knackgeräusch (innerhalb eines Zehnerblocks steigt der Ton leicht an), leichte Vibration. Alle 10 Level ein kleiner Akkord.
 
-## 4. Karte und neue Gebiete
+## 4. Karte und neue Gebiete (Blöcke wie bei Minecraft)
 
-- **Alle 30 Level** (30, 60, … 270) wächst die Karte in eine **zufällige Richtung** (oben, unten, links oder rechts).
-- Es kommt immer **genau ein halber Bildschirm Fläche** dazu. Die Karte bleibt ein Rechteck: Ist sie schon zwei Bildschirme breit, wird ein Streifen nach oben nur einen Viertelbildschirm hoch, aber dafür doppelt so breit. Die Fläche ist also immer gleich.
-- **Ab Level 300** wächst die Karte nicht mehr (9 Erweiterungen, insgesamt 5,5 Bildschirme).
-- Das neue Gebiet klappt als Welle Feld für Feld auf, der Rahmen wächst mit, dazu ein „Whoosh“ mit Akkord und der Hinweis „Neues Gebiet: Die Karte ist nach links gewachsen“ mit Pfeil.
-- **Kamera:** Ist die Karte größer als der Bildschirm, folgt die Kamera weich der Schlange und schaut etwas voraus. Am Kartenrand bleibt sie stehen.
-- Der dünne Balken unter der Leiste zeigt, wie weit es noch bis zum nächsten Gebiet ist.
+- Die Karte besteht aus **Blöcken von je einem halben Bildschirm**. Am Handy (hochkant) ist ein Block fast quadratisch, leicht hochkant (z. B. 12 × 11 Felder). Am Anfang liegen zwei Blöcke übereinander = ein Bildschirm.
+- **Alle 20 Level** (Standard, einstellbar) setzt sich ein **neuer Block an einer zufälligen freien Stelle** an die Karte, immer bündig im Blockraster: rechts oben, rechts unten, über einem Block, links daneben usw. Die Karte wird dadurch unregelmäßig (L-Formen, Treppen, Buchten).
+- Jeder Block hat genau die gleiche Fläche.
+- **Ab Level 300** (einstellbar) kommt kein Block mehr dazu. Bei alle 20 Level sind das 14 neue Blöcke, insgesamt 16 Blöcke = 8 Bildschirme.
+- Der neue Block klappt von der Seite auf, an der er angesetzt wird, Feld für Feld als Welle. Dazu „Whoosh“ mit Akkord und der Hinweis „Ein neuer Block ist rechts dazugekommen“.
+- Außerhalb der Blöcke ist dunkler Boden mit Punktraster: dort ist Rand.
+- **Kamera:** Ist die Karte größer als der Bildschirm, folgt die Kamera weich der Schlange und schaut etwas voraus.
+- Der dünne Balken unter der Leiste zeigt, wie weit es noch bis zum nächsten Block ist.
 
 ## 5. Mauern (ab Level 8)
 
@@ -84,14 +86,17 @@ Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/ga
 - Wächst sie auf die Schlange, kommen diese Felder erst dazu, wenn die Schlange weg ist. Den Apfel schiebt sie woanders hin, Giftäpfel verschwinden darin.
 - **Hineingeraten = 10 Level zurück** (siehe Rückschläge).
 
-## 11. Ameisen (ab Level 200)
+## 11. Frösche (ab Level 200)
 
-- Etwa **alle 6 bis 9 Level** (ab Level 250 alle 5 bis 7) krabbelt eine Ameise aus der Erde.
-- Sie schaut in eine Richtung und läuft **alle 3 Sekunden ein Feld geradeaus** (ab Level 300 alle 2,4 s), mit Beinbewegung und Fühlern.
-- Vor Mauern, Teichen, Fallen, Bäumen, Häusern und Giftäpfeln biegt sie ab. Steht die Schlange im Weg, wartet sie.
-- Läuft sie über den Apfel, **klaut sie ihn** (er liegt dann woanders, Hinweis „Apfel geklaut!“).
-- **Am Rand verschwindet sie.**
-- Hineinbeißen = Tod (mit Gnadenschritt).
+- Etwa **alle 2 bis 3 Level** springt ein Frosch auf die Karte (ab Level 250 öfter), **höchstens 6 gleichzeitig**. So sind oft 4 oder mehr unterwegs.
+- Er schaut in eine Richtung und **hüpft alle 3 Sekunden ein Feld** weit.
+- **1 Sekunde vor dem Sprung** macht er sich bereit: Hinterbeine spreizen sich, der Körper duckt sich nach hinten (Anlauf).
+- **Sprung:** Er hebt im Bogen ab, die Hinterbeine strecken sich, der Schatten bleibt am Boden. Leises Ploppen.
+- **Richtungswechsel:** Nach jedem Sprung mit **20 % Chance** schaut er 0,25 s nach der Landung in eine andere Richtung und springt beim nächsten Mal dorthin.
+- **Nie in die Schlange:** Liegt die Schlange auf dem Zielfeld (oder ein Hindernis), dreht er sich in eine freie Richtung und nimmt neu Anlauf. Durch Giftwolken hüpft er hindurch.
+- Landet er auf dem Apfel, schnappt er ihn sich (Apfel liegt danach woanders, Hinweis „Apfel geschnappt!“).
+- Über den Kartenrand hüpft er weg und verschwindet.
+- Die Schlange kann gegen ihn laufen = Tod (mit Gnadenschritt).
 
 ## 12. Häuser (ab Level 210)
 
@@ -99,22 +104,33 @@ Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/ga
 - Ab Level 210 **alle 30 Level ein neues** (210, 240, 270 …). Es **bleibt stehen**. Höchstens eins je ca. 250 Felder.
 - Von oben gesehen: Ziegeldach, Kamin mit Rauch.
 - **Vier Fenster**, eins an jeder Seite (oben, unten, links, rechts).
-- **Nach jedem Apfel wechselt das Licht:** In jedem Haus leuchtet dann ein anderes Fenster gelb. Das Licht strahlt **2 Felder weit** nach außen (endet früher am Kartenrand, an einem Haus oder Baum). Das Spiel nimmt möglichst ein Fenster, dessen Licht nicht direkt vor dem Kopf liegt.
+- **Nach jedem Apfel wechselt das Licht:** In jedem Haus leuchtet dann ein anderes Fenster gelb. Das Licht strahlt **2 Felder weit** nach außen (endet früher am Kartenrand, an einem Haus, Baum oder Turm).
+- **Nie auf die Schlange:** Es wird nur ein Fenster gewählt, dessen Licht kein Feld der Schlange berührt (möglichst auch nicht direkt vor dem Kopf). So gibt es keinen Sofort-Treffer.
+- **Zugebaut = dunkel:** Kann kein Fenster leuchten (alle vier Seiten zugebaut oder die Schlange liegt überall davor), bleibt das Haus diese Runde dunkel. So kann man sich bewusst Platz schaffen.
 - **Haus berühren = Tod** (mit Gnadenschritt).
 - **Ins Licht laufen = 5 Level zurück.**
 
-## 13. Rückschläge (Giftwolke −10, Fensterlicht −5)
+## 12a. Jägertürme (ab Level 315)
+
+- Runder Steinturm mit Zinnen, **2 × 2 Felder**, oben ein Scheinwerfer.
+- Ab Level 315 **alle 40 Level ein neuer** (315, 355, 395 …), bleibt stehen. Höchstens einer je ca. 300 Felder.
+- **Lichtkegel:** 2 Felder breit, **6 Felder lang**, in die Richtung, in die der Scheinwerfer zeigt.
+- **Jede Runde (nach jedem Apfel) dreht er sich eine Vierteldrehung im Uhrzeigersinn** (oben → rechts → unten → links). Der Scheinwerfer schwenkt sichtbar mit.
+- Der Kegel endet am Kartenrand, an Häusern, Bäumen und anderen Türmen. **Die Schlange wirft Schatten:** Liegt sie in der neuen Richtung, endet der Kegel vor ihr. So gibt es nie einen Sofort-Treffer, trotzdem dreht der Turm immer weiter.
+- Im Kegel = **10 Level zurück**, Turm berühren = Tod (mit Gnadenschritt).
+
+## 13. Rückschläge (Giftwolke −10, Fensterlicht −5, Jägerturm −10)
 
 - Nur der **Kopf** zählt. Ein Rückschlag beendet das Spiel nicht.
 - Level sinkt um 10 bzw. 5 (nie unter 1). Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen war (mindestens 3 lang). Das Tempo passt sich dem neuen Level an.
 - Danach ist die Schlange **gut 2 Sekunden geschützt** und blinkt, damit sie aus der Wolke oder dem Licht herauskommt.
 - Absteigende Töne, kräftige Vibration, Bildschirm wackelt kurz, die Levelzahl springt rot nach unten, Hinweis „−10 Level“.
-- Was schon da ist, bleibt: Karte, Teiche, Bäume, Häuser. Beim zweiten Erreichen eines Levels kommt nichts doppelt (kein zweites neues Gebiet, kein zweiter Teich, Baum oder Haus, keine Hinweise noch einmal).
+- Was schon da ist, bleibt: Karte, Teiche, Bäume, Häuser, Türme. Beim zweiten Erreichen eines Levels kommt nichts doppelt (kein zweiter Block, kein zweiter Teich, Baum, Haus oder Turm, keine Hinweise noch einmal).
 - Als **Rekord** zählt der höchste erreichte Level der Runde.
 
 ## 14. Ereignisse werden häufiger
 
-- Fallen, Wolken und Ameisen haben eigene Abstände (siehe oben), die ab Level 200 bzw. 250 kürzer werden.
+- Fallen, Wolken und Frösche haben eigene Abstände (siehe oben), die ab Level 200 bzw. 250 kürzer werden.
 - Zusätzlich gilt: **ab Level 150 ist immer mindestens eine** dieser Gefahren unterwegs, **ab 200 mindestens zwei, ab 300 drei**. Fehlt eine, kommt nach ca. 2,5 s eine neue, bevorzugt die Art, die gerade am seltensten ist.
 
 ## 15. Fairness-Regeln (für alle Hindernisse)
@@ -128,8 +144,8 @@ Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/ga
 
 - **Startmenü:** großer Titel „Snake“ mit Apfel, Kennzeichen „Endlos“, orangener Knopf „Spielen“, bester Level, darunter Anleitung, Statistik, Optionen. Oben rechts Ton an/aus. Im Hintergrund spielt ein Autopilot (gedimmt).
 - **Bereit:** Nach „Spielen“ steht die Schlange, eine animierte Hand zeigt „Wischen zum Starten“ (PC: „Pfeiltaste drücken“).
-- **Leiste im Spiel:** Pause links, Level groß in der Mitte (ploppt beim Apfel, springt rot bei Rückschlag), Rekord mit Pokal rechts, darunter der Balken bis zum nächsten Gebiet.
-- **Hinweise:** Beim ersten Erreichen von Mauern, Teichen, Giftäpfeln, Fallen, Bäumen, Wolken, Ameisen und Häusern erscheint oben eine Karte mit Bild und kurzer Erklärung. Dazu „Neues Gebiet“, „Apfel geklaut!“ und Rückschläge.
+- **Leiste im Spiel:** Pause links, Level groß in der Mitte (ploppt beim Apfel, springt rot bei Rückschlag), Rekord mit Pokal rechts, darunter der Balken bis zum nächsten Block. Im Kreativ-Modus steht „Level · Kreativ“.
+- **Hinweise:** Beim ersten Erreichen von Mauern, Teichen, Giftäpfeln, Fallen, Bäumen, Wolken, Fröschen, Häusern und Jägertürmen erscheint oben eine Karte mit Bild und kurzer Erklärung. Dazu „Neues Gebiet“, „Apfel geschnappt!“ und Rückschläge.
 - **Pause:** Weiter, Neu starten, Anleitung, Optionen, Menü. Pausiert automatisch, wenn die App in den Hintergrund geht oder das Fenster den Fokus verliert.
 - **Spielende:** wackelndes Bild der Todesursache, Text (z. B. „Gegen einen Baum gelaufen“), erreichter Level, ggf. „Höchster Level“, Abzeichen „Neuer Rekord“ mit Fanfare, Äpfel, Länge, Zeit. Knöpfe „Nochmal“ und „Hauptmenü“.
 - **Anleitung:** alle Elemente mit Bild, „ab Level …“ und Erklärung.
@@ -137,9 +153,25 @@ Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/ga
 - **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Tempo (Langsam/Normal/Schnell), Statistik zurücksetzen, Versionsnummer.
 - **Android-Zurücktaste:** Spiel → Pause, Pause → weiter, Unterseite → zurück, Startmenü → App schließen.
 
+## 16a. Kreativ-Modus
+
+- Im Startmenü „Kreativ-Modus“, in der Pause einer Kreativ-Runde „Kreativ-Optionen“.
+- **Startlevel** (1 bis 5000): Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre: alle Blöcke, Teiche (ältere ausgetrocknet), Bäume, Häuser und Türme, dazu Mauern und Giftäpfel für diesen Level. Die Schlange wächst in den ersten Schritten auf ihre Länge.
+- **Hindernisse:** Tödlich (normal) / Anhalten (vor jedem Hindernis stehen bleiben, nie sterben) / Geist (durch alles hindurch, nur der Kartenrand hält an).
+- **Rückschläge** an/aus (Wolke, Licht, Kegel).
+- **Durch die eigene Schlange** an/aus.
+- **Schlange wächst** an/aus, sonst **feste Länge** (1 bis 500). Beim Ausschalten im Spiel wird die aktuelle Länge übernommen.
+- **Während des Spiels** (Pause → Kreativ-Optionen): alles oben live umschalten, Level **−10 / −1 / +1 / +10** oder direkt springen (höher baut die Welt mit auf, niedriger kürzt die Schlange), **Falle, Wolke oder Frosch sofort auslösen**.
+- Kreativ-Runden zählen nicht für Rekord und Statistik. In der Leiste steht „Level · Kreativ“.
+
+## 16b. Master-Einstellungen
+
+- Optionen → Master-Einstellungen: **jede Zahl des Spiels** ist einstellbar, nach Gruppen: Karte (Block alle N Level, bis Level), Schlange (Tempo, Wachsen, Gnadenschritt, Schutzzeit), Mauern, Teiche, Giftäpfel, Bärenfallen, Bäume, Giftwolken, Frösche (Häufigkeit, Sprungtakt, Wende-Chance, Höchstzahl), Häuser (Häufigkeit, Lichtweite, Strafe), Jägertürme (Häufigkeit, Kegellänge, Strafe), Ereignisse (Mindestanzahl ab Level, früher häufiger).
+- Gilt ab dem nächsten Spiel, auch im Kreativ-Modus. „Alles auf Standard“ setzt zurück. Die Anleitung rechnet mit den eingestellten Werten.
+
 ## 17. Töne, Musik, Vibration
 
-- Alle Töne werden im Gerät erzeugt (Web Audio), keine Audiodateien: Klick, Biss, Zehner-Akkord, neues Gebiet, Hinweis, Gnadenschritt (dumpfer Stoß), Tod (je nach Ursache: Falle schnappt, Teich platscht, Giftapfel wabert), Falle, Wolke zischt, Ameise trippelt, Apfel geklaut, Teich blubbert, Baum fällt, Haus wird gebaut, Licht klickt, Rückschlag, Rekord-Fanfare.
+- Alle Töne werden im Gerät erzeugt (Web Audio), keine Audiodateien: Klick, Biss, Zehner-Akkord, neues Gebiet, Hinweis, Gnadenschritt (dumpfer Stoß), Tod (je nach Ursache: Falle schnappt, Teich platscht, Giftapfel wabert), Falle, Wolke zischt, Frosch quakt und ploppt beim Sprung, Jägerturm, Apfel geschnappt, Teich blubbert, Baum fällt, Haus wird gebaut, Licht klickt, Rückschlag, Rekord-Fanfare.
 - **Musik:** ruhige Schleife in a-Moll (Am, F, C, G) mit Bass und leisen Hi-Hats, im Menü und in der Pause leiser.
 - **Vibration:** leicht beim Apfel, mittel bei Gnadenschritt und Falle, kräftig bei Tod und Rückschlag, „Erfolg“ beim neuen Gebiet. In der App über Capacitor Haptics, im Browser über die Vibrations-Schnittstelle.
 
@@ -149,5 +181,5 @@ Stand: Version 1.1.0 (16.10.2026). Alle Zahlen stehen an einer Stelle in `src/ga
 - **Web-App (PWA):** offline spielbar, installierbar („Zum Home-Bildschirm“), Vollbild. Veröffentlichung über GitHub Pages (einmalig in den Einstellungen aktivieren).
 - **Speicher:** Rekord, Statistik und Einstellungen nur auf dem Gerät.
 - **Leistung:** Gezeichnet wird nur der sichtbare Teil der Karte. Neue Hindernisse zu platzieren dauert auch auf der größten Karte nur wenige Millisekunden.
-- **Tests:** 19 automatische Tests der Spiellogik (Regeln, Kartenwachstum, Gnadenschritt, Giftapfel, Fallen, Wolken, Ameisen, Bäume, Häuser, Licht, Rückschläge, lange Spiele bis über Level 300 mit Autopilot).
-- **Zum Ausprobieren:** `?level=210` startet direkt bei Level 210, `?auto=1` lässt den Autopiloten spielen (nur in der Web-Fassung sinnvoll).
+- **Tests:** 26 automatische Tests der Spiellogik (Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Bäume, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, lange Spiele bis über Level 300 mit Autopilot).
+- **Zum Ausprobieren:** Kreativ-Modus (siehe 16a). In der Web-Fassung zusätzlich `?level=210` und `?auto=1` (Autopilot).

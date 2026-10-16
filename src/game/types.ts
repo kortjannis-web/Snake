@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'wolke' | 'ameise' | 'baum' | 'haus'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm'
 
 export type Status = 'play' | 'over'
 
@@ -30,8 +30,22 @@ export type Wolke = {
   /** Wann jedes Feld aus `cells` dazugekommen ist (fuer das Aufquellen) */
   bornAt: number[]
 }
-/** Ameise: laeuft alle paar Sekunden ein Feld geradeaus, verschwindet am Rand */
-export type Ameise = { p: P; from: P; dir: Dir; t: number; movedAt: number; nextAt: number; gone?: number }
+/** Frosch: huepft alle paar Sekunden ein Feld in Blickrichtung, verschwindet ueber den Rand.
+ *  `hopAt` naechster Sprung, `flugAb` Beginn des letzten Sprungs, `drehAt`/`neuDir` Wende nach der Landung */
+export type Frosch = {
+  p: P
+  from: P
+  dir: Dir
+  t: number
+  hopAt: number
+  flugAb: number
+  drehAt?: number
+  neuDir?: Dir
+  /** Blickrichtung vor der letzten Wende (fuer die Drehanimation) */
+  altDir: Dir
+  drehT: number
+  gone?: number
+}
 
 /** Liegender Tannenbaum: 1-1-2-1 Felder entlang `dir` (Stamm, Stamm, Krone breit, Spitze).
  *  `seite` = auf welcher Seite die breite Kronenreihe ein Feld mehr hat */
@@ -40,6 +54,19 @@ export type Baum = { cells: P[]; root: P; dir: Dir; seite: 1 | -1; t: number }
 export type Fenster = { p: P; d: Dir }
 /** Haus: bleibt stehen. Vier Fenster (eins je Seite), eins davon leuchtet 2 Felder weit */
 export type Haus = { cells: P[]; t: number; fenster: Fenster[]; licht: number; lichtT: number; strahl: P[]; kamin: number }
+/** Jaegerturm 2x2: Lichtkegel 2 breit in eine Richtung, dreht sich jede Runde im Uhrzeigersinn.
+ *  Der Kegel endet vor Hindernissen und wirft Schatten hinter der Schlange */
+export type Turm = { c: P; cells: P[]; dir: Dir; t: number; kegel: P[]; kegelT: number; altDir: Dir }
+
+/** Kreativ-Modus: alles waehrend des Spiels umschaltbar */
+export type Kreativ = {
+  /** an = normal, anhalten = vor Hindernissen stehen bleiben, geist = durch alles hindurch */
+  tod: 'an' | 'anhalten' | 'geist'
+  rueckschlag: boolean
+  durchSelbst: boolean
+  wachsen: boolean
+  laenge: number
+}
 
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }
 
@@ -54,14 +81,15 @@ export type GameEvent =
   | { type: 'trap' }
   | { type: 'cloud' }
   | { type: 'cloudGrow' }
-  | { type: 'ant' }
-  | { type: 'antStep' }
+  | { type: 'frog' }
+  | { type: 'hop' }
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }
-  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' }
+  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' }
   | { type: 'tree' }
   | { type: 'house' }
   | { type: 'light' }
+  | { type: 'tower' }
 
-export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'ameise' | 'baum' | 'haus'
+export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm'

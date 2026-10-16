@@ -1,8 +1,8 @@
 /** Kleine Bilder fuer Anleitung, Hinweise und Spielende (gleiche Zeichnungen wie im Spiel) */
 import type { Cause, Side } from '../game/types'
-import { C, drawAmeise, drawApfel, drawBaum, drawFalle, drawHaus, drawLicht, drawStein, drawTeich, drawWolkenFeld, rund } from '../render/sprites'
+import { C, drawApfel, drawBaum, drawFalle, drawFrosch, drawHaus, drawKegel, drawLicht, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
 
-export type Mini = 'apfel' | 'gift' | 'mauer' | 'teich' | 'gebiet' | 'falle' | 'wolke' | 'ameise' | 'schlange' | 'rand' | 'baum' | 'haus'
+export type Mini = 'apfel' | 'gift' | 'mauer' | 'teich' | 'gebiet' | 'falle' | 'wolke' | 'frosch' | 'schlange' | 'rand' | 'baum' | 'haus' | 'turm'
 
 export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 'top') {
   const dpr = Math.min(2.5, window.devicePixelRatio || 1)
@@ -66,9 +66,16 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     case 'wolke':
       for (const [x, y] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) drawWolkenFeld(ctx, mid + x * cell, mid + y * cell, cell, 1, 1, t, x + y * 3)
       break
-    case 'ameise':
-      drawAmeise(ctx, mid, mid, big, 'r', t / 60, 1)
+    case 'frosch':
+      drawFrosch(ctx, mid, mid + cell * 0.1, big, 0, 0, -1, 1)
       break
+    case 'turm': {
+      const k = css / 2.6
+      ctx.translate(-k * 0.25, (css - 2 * k) / 2)
+      drawKegel(ctx, [{ x: 2, y: 0 }, { x: 2, y: 1 }], { x: k, y: k }, 0, k, 1, t)
+      drawTurm(ctx, k, k, k, 0, 1, t)
+      break
+    }
     case 'schlange': {
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
@@ -132,8 +139,8 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   teich: 'teich',
   gift: 'gift',
   falle: 'falle',
-  wolke: 'wolke',
-  ameise: 'ameise',
+  frosch: 'frosch',
+  turm: 'turm',
   baum: 'baum',
   haus: 'haus',
 }

@@ -163,11 +163,23 @@ class Audio {
   cloudGrow() {
     this.noise(0.45, 'bandpass', 1100, 0.14, { to: 600, attack: 0.1, q: 0.8 })
   }
-  ant() {
-    ;[0, 0.06, 0.12, 0.2].forEach((d) => this.tone(2300, 0.018, 'square', 0.05, { delay: d, filter: 5000 }))
+  /** Frosch taucht auf: kurzes Quaken */
+  frog() {
+    ;[0, 0.16].forEach((d) => {
+      this.tone(140, 0.12, 'sawtooth', 0.12, { to: 110, delay: d, filter: 900, vib: 30 })
+      this.tone(280, 0.1, 'square', 0.04, { delay: d, filter: 1200 })
+    })
   }
-  antStep() {
-    this.tone(1900, 0.015, 'square', 0.025, { filter: 4000 })
+  /** Sprung: leises Ploppen */
+  hop() {
+    this.tone(320, 0.08, 'sine', 0.07, { to: 620 })
+    this.noise(0.04, 'lowpass', 900, 0.05, { delay: 0.3 })
+  }
+  /** Jaegerturm: dumpfer Steinschlag und ein Surren des Scheinwerfers */
+  tower() {
+    this.tone(90, 0.35, 'sine', 0.32, { to: 50 })
+    this.noise(0.2, 'lowpass', 600, 0.25)
+    this.tone(880, 0.4, 'triangle', 0.05, { to: 1320, delay: 0.25, attack: 0.1 })
   }
   stolen() {
     this.tone(720, 0.22, 'triangle', 0.2, { to: 330 })

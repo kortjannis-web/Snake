@@ -1,6 +1,6 @@
 /**
  * Zeichnungen fuer das Spielfeld (Canvas). Mauer und Teich stammen aus dem
- * Snake im Hero-Telefon, Apfel, Giftapfel, Falle, Wolke und Ameise sind neu.
+ * Snake im Hero-Telefon, Apfel, Giftapfel, Falle, Wolke, Frosch, Baum, Haus und Turm sind neu.
  * Alle Funktionen zeichnen um die Feldmitte (x, y) bzw. die linke obere Ecke.
  */
 import type { Dir, P } from '../game/types'
@@ -340,69 +340,6 @@ export function drawWolkenKern(ctx: CanvasRenderingContext2D, cx: number, cy: nu
 
 const ROT: Record<Dir, number> = { r: 0, d: Math.PI / 2, l: Math.PI, u: -Math.PI / 2 }
 
-/** Ameise von oben, zeigt in Laufrichtung. lauf = Beinbewegung (Phase), s = Groesse */
-export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, dir: Dir, lauf: number, s: number, a = 1) {
-  if (s <= 0 || a <= 0) return
-  const L = cell * 0.52 * s
-  ctx.save()
-  ctx.globalAlpha = a
-  ctx.translate(x, y)
-  ctx.rotate(ROT[dir])
-  // Schatten
-  ctx.fillStyle = 'rgba(12, 40, 32, 0.25)'
-  ctx.beginPath()
-  ctx.ellipse(0, L * 0.18, L * 1.05, L * 0.42, 0, 0, Math.PI * 2)
-  ctx.fill()
-  // Beine: drei Paare, schwingen gegenlaeufig
-  ctx.strokeStyle = '#2A1712'
-  ctx.lineWidth = Math.max(1, L * 0.09)
-  ctx.lineCap = 'round'
-  for (let i = 0; i < 3; i++) {
-    const bx = L * (0.15 - i * 0.22)
-    const sw = Math.sin(lauf + i * 2.1) * L * 0.18
-    for (const side of [-1, 1]) {
-      const swing = side * (i % 2 ? sw : -sw)
-      ctx.beginPath()
-      ctx.moveTo(bx, 0)
-      ctx.lineTo(bx + L * 0.12 + swing, side * L * 0.42)
-      ctx.lineTo(bx - L * 0.1 + swing * 1.3, side * L * 0.72)
-      ctx.stroke()
-    }
-  }
-  // Hinterleib, Brust, Kopf
-  const body = (cx: number, rx: number, ry: number, col: string) => {
-    ctx.fillStyle = col
-    ctx.beginPath()
-    ctx.ellipse(cx, 0, rx, ry, 0, 0, Math.PI * 2)
-    ctx.fill()
-  }
-  body(-L * 0.62, L * 0.44, L * 0.36, '#3A1E16')
-  body(-L * 0.02, L * 0.22, L * 0.17, '#4A271C')
-  body(L * 0.42, L * 0.26, L * 0.25, '#3A1E16')
-  // Glanz
-  ctx.fillStyle = 'rgba(255, 220, 200, 0.28)'
-  ctx.beginPath()
-  ctx.ellipse(-L * 0.7, -L * 0.1, L * 0.16, L * 0.08, -0.3, 0, Math.PI * 2)
-  ctx.fill()
-  // Fuehler
-  const f = Math.sin(lauf * 0.7) * L * 0.08
-  ctx.beginPath()
-  ctx.moveTo(L * 0.58, -L * 0.08)
-  ctx.lineTo(L * 0.82, -L * 0.22 + f)
-  ctx.lineTo(L * 1.02, -L * 0.18 + f)
-  ctx.moveTo(L * 0.58, L * 0.08)
-  ctx.lineTo(L * 0.82, L * 0.22 - f)
-  ctx.lineTo(L * 1.02, L * 0.18 - f)
-  ctx.stroke()
-  // Augen
-  ctx.fillStyle = '#F5EFE6'
-  ctx.beginPath()
-  ctx.arc(L * 0.52, -L * 0.1, L * 0.05, 0, Math.PI * 2)
-  ctx.arc(L * 0.52, L * 0.1, L * 0.05, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.restore()
-}
-
 /** Liegende Tanne (1-1-2-1): Stamm mit Schnittflaeche, Krone als Dreieck in drei
  *  Lagen. Gezeichnet entlang `dir`, die breite Kronenreihe auf `seite`. */
 export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, seite: number, cell: number, s: number) {
@@ -617,4 +554,181 @@ export function drawLicht(ctx: CanvasRenderingContext2D, from: P, d: Dir, len: n
     ctx.ellipse(x0 + s.x * (k - 0.5) * u, y0 + s.y * (k - 0.5) * u, 0.42 * u, 0.42 * u, 0, 0, Math.PI * 2)
     ctx.fill()
   }
+}
+
+/** Frosch von oben, Kopf in Richtung `ang` (Bogenmass, 0 = rechts).
+ *  anlauf 0..1: macht sich bereit (Hinterbeine spreizen sich, Koerper duckt sich nach hinten).
+ *  flug 0..1 (oder <0): im Sprung mit gestreckten Hinterbeinen, hebt ab (Schatten bleibt am Boden). */
+export function drawFrosch(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, anlauf: number, flug: number, s: number, a = 1) {
+  if (s <= 0 || a <= 0) return
+  const L = cell * 0.74 * s
+  const imFlug = flug >= 0 && flug <= 1
+  const hoch = imFlug ? Math.sin(Math.PI * flug) : 0
+  // Streckung der Beine im Sprung: schnell raus, zur Landung wieder angezogen
+  const streck = imFlug ? Math.sin(Math.PI * Math.min(1, flug * 1.3)) : 0
+  const duck = imFlug ? 0 : anlauf
+  const hell = '#6CBF55'
+  const mittel = '#4C9E42'
+  const dunkel = '#2F7334'
+  const oval = (cx: number, cy: number, rx: number, ry: number, rot: number, col: string) => {
+    ctx.fillStyle = col
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, rx, ry, rot, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  const fuss = (fx: number, fy: number, rot: number, sd: number) => {
+    ctx.save()
+    ctx.translate(fx, fy)
+    ctx.rotate(rot)
+    ctx.fillStyle = dunkel
+    ctx.beginPath()
+    ctx.moveTo(-L * 0.08, 0)
+    ctx.lineTo(L * 0.2, -sd * L * 0.14)
+    ctx.lineTo(L * 0.24, 0)
+    ctx.lineTo(L * 0.2, sd * L * 0.14)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+
+  ctx.save()
+  ctx.globalAlpha = a
+  // Schatten am Boden (wird im Sprung kleiner und blasser)
+  oval(x, y + L * 0.28, L * (0.8 - hoch * 0.25), L * (0.5 - hoch * 0.15), 0, `rgba(12, 40, 32, ${0.26 - hoch * 0.12})`)
+  ctx.translate(x, y - hoch * cell * 0.55)
+  ctx.rotate(ang)
+  const gross = 1 + hoch * 0.3
+  ctx.scale(gross * (1 - duck * 0.08), gross * (1 + duck * 0.05))
+  ctx.translate(-duck * L * 0.12, 0)
+
+  for (const sd of [-1, 1]) {
+    if (streck > 0.05) {
+      // Sprung: Ober- und Unterschenkel nach hinten gestreckt
+      const e = streck
+      oval(-L * (0.4 + 0.2 * e), sd * L * (0.3 - 0.06 * e), L * (0.3 + 0.08 * e), L * 0.13, sd * (0.5 - 0.4 * e), mittel)
+      oval(-L * (0.62 + 0.45 * e), sd * L * (0.42 - 0.18 * e), L * (0.3 + 0.1 * e), L * 0.09, -sd * (0.5 - 0.5 * e), dunkel)
+      fuss(-L * (0.9 + 0.6 * e), sd * L * (0.3 - 0.1 * e), Math.PI, sd)
+    } else {
+      // Sitzen: Beine seitlich angelegt; beim Anlauf weiter gespreizt und zurueckgezogen
+      const k = duck
+      oval(-L * (0.32 + 0.06 * k), sd * L * (0.38 + 0.06 * k), L * 0.3, L * 0.14, sd * (0.55 + 0.35 * k), mittel)
+      oval(-L * (0.1 + 0.08 * k), sd * L * (0.58 + 0.06 * k), L * 0.28, L * 0.1, -sd * (0.25 + 0.2 * k), dunkel)
+      fuss(L * (0.12 - 0.1 * k), sd * L * (0.6 + 0.05 * k), -sd * 0.2, sd)
+    }
+    // Vorderbeine
+    oval(L * 0.38, sd * L * 0.38, L * 0.15, L * 0.07, sd * 0.9, mittel)
+    fuss(L * 0.46, sd * L * 0.5, sd * 0.6, sd)
+  }
+  // Koerper und Kopf
+  const g = ctx.createRadialGradient(-L * 0.1, -L * 0.12, L * 0.05, 0, 0, L * 0.65)
+  g.addColorStop(0, '#8FD877')
+  g.addColorStop(1, hell)
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.ellipse(-L * 0.08, 0, L * 0.5, L * 0.4, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.ellipse(L * 0.32, 0, L * 0.3, L * 0.34, 0, 0, Math.PI * 2)
+  ctx.fill()
+  // Flecken auf dem Ruecken
+  for (const [fx, fy, r] of [[-L * 0.28, -L * 0.12, 0.09], [-L * 0.08, L * 0.15, 0.07], [-L * 0.36, L * 0.14, 0.06], [L * 0.05, -L * 0.18, 0.05]] as const)
+    oval(fx, fy, L * r, L * r * 0.85, 0, 'rgba(40, 110, 45, 0.6)')
+  // Glanz
+  oval(-L * 0.2, -L * 0.2, L * 0.16, L * 0.06, -0.3, 'rgba(255, 255, 255, 0.25)')
+  // Augen (vorstehend) und Maul
+  for (const sd of [-1, 1]) {
+    oval(L * 0.4, sd * L * 0.22, L * 0.14, L * 0.14, 0, hell)
+    oval(L * 0.43, sd * L * 0.23, L * 0.1, L * 0.1, 0, '#FFF6D8')
+    oval(L * 0.46, sd * L * 0.23, L * 0.04, L * 0.065, 0, '#16211d')
+  }
+  ctx.strokeStyle = 'rgba(30, 80, 35, 0.6)'
+  ctx.lineWidth = Math.max(1, L * 0.04)
+  ctx.beginPath()
+  ctx.arc(L * 0.38, 0, L * 0.2, -0.9, 0.9)
+  ctx.stroke()
+  ctx.restore()
+}
+
+export const DIR_WINKEL: Record<Dir, number> = { r: 0, d: Math.PI / 2, l: Math.PI, u: -Math.PI / 2 }
+
+/** Jaegerturm von oben (2x2 Felder, (x, y) = Mitte): runder Steinturm mit Zinnen,
+ *  in der Mitte ein Scheinwerfer, der in Richtung `ang` zeigt */
+export function drawTurm(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, s: number, now: number) {
+  if (s <= 0) return
+  const R = cell * 0.95 * s
+  ctx.save()
+  ctx.translate(x, y)
+  // Schatten
+  ctx.fillStyle = 'rgba(12, 40, 32, 0.32)'
+  ctx.beginPath()
+  ctx.ellipse(cell * 0.06, cell * 0.16, R, R, 0, 0, Math.PI * 2)
+  ctx.fill()
+  // Mauerring
+  const g = ctx.createLinearGradient(-R, -R, R, R)
+  g.addColorStop(0, '#9AA0A7')
+  g.addColorStop(1, '#5B6168')
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.arc(0, 0, R, 0, Math.PI * 2)
+  ctx.fill()
+  // Zinnen
+  ctx.fillStyle = '#B5BAC0'
+  for (let i = 0; i < 10; i++) {
+    const a = (Math.PI * 2 * i) / 10
+    ctx.save()
+    ctx.rotate(a)
+    ctx.fillRect(R * 0.74, -R * 0.11, R * 0.24, R * 0.22)
+    ctx.restore()
+  }
+  // Plattform
+  ctx.fillStyle = '#474C52'
+  ctx.beginPath()
+  ctx.arc(0, 0, R * 0.68, 0, Math.PI * 2)
+  ctx.fill()
+  // Steinfugen
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
+  ctx.lineWidth = Math.max(1, cell * 0.03)
+  ctx.beginPath()
+  ctx.arc(0, 0, R * 0.45, 0, Math.PI * 2)
+  ctx.stroke()
+  // Scheinwerfer in Blickrichtung
+  ctx.rotate(ang)
+  ctx.fillStyle = '#2B2F33'
+  rund(ctx, -R * 0.18, -R * 0.24, R * 0.52, R * 0.48, R * 0.1)
+  ctx.fill()
+  const p = 0.85 + 0.15 * Math.sin(now / 160)
+  ctx.fillStyle = `rgba(255, 244, 196, ${p})`
+  ctx.beginPath()
+  ctx.ellipse(R * 0.34, 0, R * 0.08, R * 0.2, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
+/** Lichtkegel des Jaegerturms: helle Felder, nach aussen blasser, dazu ein Strahl vom Scheinwerfer */
+export function drawKegel(ctx: CanvasRenderingContext2D, cells: P[], mitte: { x: number; y: number }, ang: number, cell: number, a: number, now: number) {
+  if (!cells.length || a <= 0) return
+  const u = cell
+  const flacker = 0.9 + 0.1 * Math.sin(now / 70) * Math.sin(now / 23)
+  ctx.save()
+  ctx.beginPath()
+  for (const c of cells) ctx.rect(c.x * u, c.y * u, u, u)
+  ctx.clip()
+  const ex = mitte.x + Math.cos(ang) * u * 8
+  const ey = mitte.y + Math.sin(ang) * u * 8
+  const g = ctx.createLinearGradient(mitte.x, mitte.y, ex, ey)
+  g.addColorStop(0, `rgba(255, 222, 110, ${0.92 * a * flacker})`)
+  g.addColorStop(1, `rgba(255, 206, 80, ${0.42 * a * flacker})`)
+  ctx.fillStyle = g
+  for (const c of cells) ctx.fillRect(c.x * u, c.y * u, u, u)
+  // Rand des Kegels etwas heller
+  // Lichtstreifen in Strahlrichtung
+  ctx.strokeStyle = `rgba(255, 255, 230, ${0.35 * a * flacker})`
+  ctx.lineWidth = Math.max(1, u * 0.08)
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath()
+    ctx.moveTo(mitte.x - Math.sin(ang) * i * u * 0.5, mitte.y + Math.cos(ang) * i * u * 0.5)
+    ctx.lineTo(ex - Math.sin(ang) * i * u * 0.9, ey + Math.cos(ang) * i * u * 0.9)
+    ctx.stroke()
+  }
+  ctx.restore()
 }

@@ -2,11 +2,13 @@
 import {
   ArrowLeft, ChartColumn, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleHelp, Gamepad2, Gauge, House,
   Music, Pause, Play, RotateCcw, Settings, Trash2, Trophy, Vibrate, Volume2, VolumeX, createElement, type IconNode,
+  Wand, Flag, Zap, Skull, Undo2, Ghost, TrendingUp, Ruler, SlidersHorizontal,
 } from 'lucide'
 
 const ICONS: Record<string, IconNode> = {
   ArrowLeft, ChartColumn, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleHelp, Gamepad2, Gauge, House,
   Music, Pause, Play, RotateCcw, Settings, Trash2, Trophy, Vibrate, Volume2, VolumeX,
+  Wand, Flag, Zap, Skull, Undo2, Ghost, TrendingUp, Ruler, SlidersHorizontal,
 }
 
 export function setIcon(el: HTMLElement, name: string) {
