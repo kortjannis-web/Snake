@@ -66,8 +66,9 @@ export const DEFAULTS = {
   froschSprung: 3,
   froschWende: 20,
   froschAnzahl: 6,
-  // Haeuser
-  hausAb: 210,
+  // Haeuser: erst kleine Huetten, ab hausGrossAb richtige Haeuser
+  hausAb: 130,
+  hausGrossAb: 210,
   hausAlle: 30,
   hausFelder: 250,
   lichtWeite: 2,
@@ -78,13 +79,33 @@ export const DEFAULTS = {
   turmFelder: 300,
   kegelLaenge: 6,
   kegelZurueck: 10,
+  // Lava
+  lavaAb: 270,
+  lavaAlle: 30,
+  lavaWachsen: 2,
+  lavaMin: 6,
+  lavaMax: 15,
+  lavaFelder: 300,
+  // Ameisen
+  ameiseAb: 240,
+  ameiseMin: 8,
+  ameiseMax: 12,
+  ameiseAnzahl: 4,
+  ameiseRadius: 2,
+  ameiseTakt: 0.8,
+  ameiseZurueck: 3,
   // Gegner-Schlangen
-  gegnerAb: 100,
+  gegnerAb: 60,
   gegnerMin: 6,
   gegnerMax: 10,
   gegnerAnzahl: 3,
   gegnerWachsen: 20,
   gegnerMaxLaenge: 8,
+  lilaAb: 120,
+  lilaChance: 25,
+  lilaLaenge: 5,
+  lilaTempo: 20,
+  lilaMaxLaenge: 10,
   // Power-ups und Aepfel als Waehrung
   powerAb: 10,
   powerChance: 18,
@@ -194,10 +215,11 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
   {
     gruppe: 'Häuser',
     felder: [
-      { key: 'hausAb', label: 'Ab Level', min: 1, max: 10000 },
+      { key: 'hausAb', label: 'Kleine Hütten (2 × 2) ab Level', min: 1, max: 10000 },
+      { key: 'hausGrossAb', label: 'Große Häuser ab Level', min: 1, max: 10000 },
       { key: 'hausAlle', label: 'Neues Haus alle', min: 1, max: 500, einheit: 'Level' },
       { key: 'hausFelder', label: 'Höchstens ein Haus je', min: 30, max: 5000, einheit: 'Felder' },
-      { key: 'lichtWeite', label: 'Licht reicht', min: 1, max: 10, einheit: 'Felder' },
+      { key: 'lichtWeite', label: 'Licht reicht (Hütte 1 weniger)', min: 1, max: 10, einheit: 'Felder' },
       { key: 'lichtZurueck', label: 'Licht kostet', min: 0, max: 100, einheit: 'Level' },
     ],
   },
@@ -220,6 +242,34 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'gegnerAnzahl', label: 'Höchstens gleichzeitig (+1 je 100 Level)', min: 0, max: 20 },
       { key: 'gegnerWachsen', label: 'Wird ein Glied länger alle', min: 1, max: 600, einheit: 's' },
       { key: 'gegnerMaxLaenge', label: 'Höchstens so lang', min: 3, max: 40, einheit: 'Glieder' },
+      { key: 'lilaAb', label: 'Lila Gegner ab Level', min: 1, max: 10000 },
+      { key: 'lilaChance', label: 'Chance, dass ein neuer Gegner lila ist', min: 0, max: 100, einheit: '%' },
+      { key: 'lilaLaenge', label: 'Lila startet mit', min: 3, max: 30, einheit: 'Glieder' },
+      { key: 'lilaTempo', label: 'Lila schneller als Rot', min: 0, max: 200, einheit: '%' },
+      { key: 'lilaMaxLaenge', label: 'Lila höchstens so lang', min: 3, max: 40, einheit: 'Glieder' },
+    ],
+  },
+  {
+    gruppe: 'Ameisen',
+    felder: [
+      { key: 'ameiseAb', label: 'Ab Level', min: 1, max: 10000 },
+      { key: 'ameiseMin', label: 'Neue alle mindestens', min: 1, max: 100, einheit: 'Level' },
+      { key: 'ameiseMax', label: 'Neue alle höchstens', min: 1, max: 100, einheit: 'Level' },
+      { key: 'ameiseAnzahl', label: 'Höchstens gleichzeitig', min: 0, max: 30 },
+      { key: 'ameiseRadius', label: 'Wird aufmerksam im Umkreis von', min: 1, max: 10, einheit: 'Feldern' },
+      { key: 'ameiseTakt', label: 'Krabbelt ein Feld alle', min: 0.1, max: 5, step: 0.05, einheit: 's' },
+      { key: 'ameiseZurueck', label: 'Biss kostet', min: 0, max: 100, einheit: 'Level' },
+    ],
+  },
+  {
+    gruppe: 'Lava',
+    felder: [
+      { key: 'lavaAb', label: 'Ab Level', min: 1, max: 10000 },
+      { key: 'lavaAlle', label: 'Neuer Lavasee alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'lavaWachsen', label: 'Breitet sich aus jeden', min: 1, max: 50, einheit: '. Apfel' },
+      { key: 'lavaMin', label: 'Hört frühestens auf bei', min: 1, max: 60, einheit: 'Feldern' },
+      { key: 'lavaMax', label: 'Hört spätestens auf bei', min: 1, max: 60, einheit: 'Feldern' },
+      { key: 'lavaFelder', label: 'Höchstens ein Lavasee je', min: 30, max: 5000, einheit: 'Felder' },
     ],
   },
   {
@@ -293,6 +343,8 @@ export const BAUM_FORM: { a: number; q: number }[] = [
 
 export const neuesHaus = (c: Config, level: number) => level >= c.hausAb && (level - c.hausAb) % c.hausAlle === 0
 export const hausMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.hausFelder))
+/** Kleine Huette 2 x 2 (vor hausGrossAb) */
+export const HUETTE_FORM: P[] = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }]
 export const HAUS_FORMEN: P[][] = [
   // 2 breit, 3 hoch
   [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
@@ -309,15 +361,24 @@ export const neuerTurm = (c: Config, level: number) => level >= c.turmAb && (lev
 export const turmMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.turmFelder))
 
 /** Abstand bis zum naechsten Ereignis dieser Art (ab `haeufigerAb` je 1 Level kuerzer) */
-export const pause = (c: Config, art: 'falle' | 'wolke' | 'frosch' | 'gegner', level: number): [number, number] => {
+export type EreignisArt = 'falle' | 'wolke' | 'frosch' | 'gegner' | 'ameise'
+export const pause = (c: Config, art: EreignisArt, level: number): [number, number] => {
   const [a, b] =
-    art === 'falle' ? [c.falleMin, c.falleMax] : art === 'wolke' ? [c.wolkeMin, c.wolkeMax] : art === 'frosch' ? [c.froschMin, c.froschMax] : [c.gegnerMin, c.gegnerMax]
+    art === 'falle'
+      ? [c.falleMin, c.falleMax]
+      : art === 'wolke'
+        ? [c.wolkeMin, c.wolkeMax]
+        : art === 'frosch'
+          ? [c.froschMin, c.froschMax]
+          : art === 'gegner'
+            ? [c.gegnerMin, c.gegnerMax]
+            : [c.ameiseMin, c.ameiseMax]
   const k = level >= c.haeufigerAb ? 1 : 0
   const lo = Math.max(1, Math.min(a, b) - k)
   return [lo, Math.max(lo, Math.max(a, b) - k)]
 }
-export const ab = (c: Config, art: 'falle' | 'wolke' | 'frosch' | 'gegner') =>
-  art === 'falle' ? c.falleAb : art === 'wolke' ? c.wolkeAb : art === 'frosch' ? c.froschAb : c.gegnerAb
+export const ab = (c: Config, art: EreignisArt) =>
+  art === 'falle' ? c.falleAb : art === 'wolke' ? c.wolkeAb : art === 'frosch' ? c.froschAb : art === 'gegner' ? c.gegnerAb : c.ameiseAb
 export const mindestEreignisse = (c: Config, level: number) =>
   level >= c.ereignis3Ab ? 3 : level >= c.ereignis2Ab ? 2 : level >= c.ereignis1Ab ? 1 : 0
 
@@ -352,8 +413,13 @@ export const ZEITLUPE = 1.55
 /** Gegner: so viele gleichzeitig (ab gegnerAb 1, alle 100 Level einer mehr, hoechstens gegnerAnzahl) */
 export const gegnerMax = (c: Config, level: number) =>
   level < c.gegnerAb ? 0 : Math.min(c.gegnerAnzahl, 1 + Math.floor((level - c.gegnerAb) / 100))
-/** Gegner bewegen sich halb so schnell wie die Schlange */
+/** Rote Gegner bewegen sich halb so schnell wie die Schlange (ein Schritt je 2 Takte) */
 export const GEGNER_TEMPO = 2
+/** Takte je Schritt fuer einen Gegner (lila ist lilaTempo % schneller) */
+export const gegnerTakte = (c: Config, art: 'rot' | 'lila') => (art === 'lila' ? GEGNER_TEMPO / (1 + c.lilaTempo / 100) : GEGNER_TEMPO)
+
+export const neueLava = (c: Config, level: number) => level >= c.lavaAb && (level - c.lavaAb) % c.lavaAlle === 0
+export const lavaMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.lavaFelder))
 
 /** Frosch: Sprung dauert so lange, 1 s vorher macht er sich bereit, 0,25 s nach der Landung dreht er ggf. */
 export const FROSCH_FLUG = 380
@@ -368,6 +434,9 @@ export const unlocks = (c: Config) =>
     { what: 'gift', level: c.giftAb },
     { what: 'falle', level: c.falleAb },
     { what: 'gegner', level: c.gegnerAb },
+    { what: 'lila', level: c.lilaAb },
+    { what: 'ameise', level: c.ameiseAb },
+    { what: 'lava', level: c.lavaAb },
     { what: 'baum', level: c.baumAb },
     { what: 'wolke', level: c.wolkeAb },
     { what: 'frosch', level: c.froschAb },

@@ -1088,6 +1088,132 @@ svg {
   color: var(--creme-leise);
 }
 
+/* Sandbox */
+.sb-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.sb-zahl {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  font: 600 0.8rem/1.2 var(--sans);
+}
+
+.sb-zahl small {
+  display: block;
+  font: 500 0.68rem/1.2 var(--sans);
+  color: var(--creme-leise);
+}
+
+.sb-zahl input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--creme);
+  font: 600 1rem/1 var(--sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#k-objekte button {
+  font-size: 0.78rem;
+}
+
+/* Zeitleiste in den Master-Einstellungen */
+.zeitleiste summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+  font: 600 1.15rem/1.2 var(--serif);
+  color: var(--mint);
+  list-style: none;
+}
+
+.zeitleiste summary::-webkit-details-marker {
+  display: none;
+}
+
+.zeitleiste summary::after {
+  content: '▾';
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.zeitleiste[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.zeitleiste summary svg {
+  width: 20px;
+  height: 20px;
+}
+
+.zl-dauer {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font: 500 0.84rem/1.45 var(--sans);
+  color: var(--creme-leise);
+}
+
+.zl {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(245, 239, 230, 0.07);
+}
+
+.zl b {
+  font: 600 0.95rem/1.3 var(--sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--creme);
+}
+
+.zl ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 500 0.86rem/1.35 var(--sans);
+}
+
+.zl li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.zl li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--zl, var(--creme-leise));
+}
+
+.zl--karte { --zl: #8fd6bd; }
+.zl--schlange { --zl: #a8dab5; }
+.zl--apfel { --zl: #ff8a73; }
+.zl--hindernis { --zl: #7cc3dd; }
+.zl--gefahr { --zl: #f29a4c; }
+.zl--gegner { --zl: #c27be8; }
+.zl--bau { --zl: #e6c36a; }
+
 #pause .card {
   max-height: 100%;
   overflow-y: auto;

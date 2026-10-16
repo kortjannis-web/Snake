@@ -175,10 +175,25 @@
           </header>
           <div class="page__body">
             <div class="opt opt--col" id="k-start-box">
-              <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Startlevel<small>Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.</small></span></div>
+              <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Startlevel<small id="k-start-info">Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.</small></span></div>
               <div class="zahl">
                 <input type="range" id="k-start-range" min="1" max="600" step="1" />
                 <input type="number" id="k-start" min="1" max="5000" step="1" inputmode="numeric" />
+              </div>
+            </div>
+            <label class="opt" id="k-sandbox-box"><span data-icon="Box"></span><span class="opt__t">Sandbox<small>Eigene Welt: Kartengröße, Länge und Objekte selbst wählen</small></span><input type="checkbox" id="k-sandbox" class="switch" /></label>
+            <div class="opt opt--col" id="k-sb">
+              <div class="sb-grid">
+                <label class="sb-zahl"><span>Breite<small>Blöcke</small></span><input type="number" id="k-sb-breite" min="1" max="8" step="1" inputmode="numeric" /></label>
+                <label class="sb-zahl"><span>Höhe<small>Blöcke</small></span><input type="number" id="k-sb-hoehe" min="1" max="8" step="1" inputmode="numeric" /></label>
+                <label class="sb-zahl"><span>Länge<small>Glieder</small></span><input type="number" id="k-sb-laenge" min="1" max="300" step="1" inputmode="numeric" /></label>
+              </div>
+              <div class="opt__row"><span data-icon="Zap"></span><span class="opt__t">Objekte auf der Karte<small>So viele, wie Platz haben</small></span></div>
+              <div class="sb-grid" id="k-sb-objekte"></div>
+              <div class="opt__row"><span data-icon="TrendingUp"></span><span class="opt__t">Danach<small>Bleibt so: nur der Apfel wandert. Normal weiter: ab dem Startlevel wie im echten Spiel.</small></span></div>
+              <div class="seg" id="k-sb-weiter" role="radiogroup">
+                <button data-v="fest" role="radio">Bleibt so</button>
+                <button data-v="weiter" role="radio">Normal weiter</button>
               </div>
             </div>
             <div class="opt opt--col live" id="k-live" hidden>
@@ -193,13 +208,9 @@
                 <input type="number" id="k-ziel" min="1" max="5000" step="1" inputmode="numeric" />
                 <button class="btn btn--ghost btn--klein" id="k-springen">Springen</button>
               </div>
-              <div class="opt__row"><span data-icon="Zap"></span><span class="opt__t">Ereignis jetzt auslösen</span></div>
-              <div class="seg seg--4">
-                <button id="k-falle">Falle</button>
-                <button id="k-wolke">Wolke</button>
-                <button id="k-frosch">Frosch</button>
-                <button id="k-gegner">Gegner</button>
-              </div>
+              <div class="opt__row"><span data-icon="Zap"></span><span class="opt__t">Objekt jetzt dazu</span></div>
+              <div class="seg seg--4" id="k-objekte"></div>
+              <button class="btn btn--ghost btn--klein" id="k-leeren"><span data-icon="Eraser"></span>Alles von der Karte</button>
               <div class="opt__row"><span data-icon="Shield"></span><span class="opt__t">Power-up sofort</span></div>
               <div class="seg seg--4">
                 <button data-power="schild">Schild</button>
@@ -256,6 +267,12 @@
           </header>
           <div class="page__body">
             <p class="hinweis">Alle Häufigkeiten, Wahrscheinlichkeiten und Grenzen des Spiels. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
+            <details class="master zeitleiste" id="zeitleiste">
+              <summary><span data-icon="ListOrdered"></span>Zeitleiste: was kommt wann</summary>
+              <p class="hinweis">Berechnet aus den Zahlen unten, ändert sich also mit jeder Einstellung. Bauten (Bäume, Hütten, Türme, Lava) nur, wenn Platz ist; Kartengröße wie am Handy hochkant.</p>
+              <ul class="zl-dauer" id="zeitleiste-dauer"></ul>
+              <div id="zeitleiste-list"></div>
+            </details>
             <div id="master-list"></div>
             <button class="btn btn--danger" id="btn-master-reset"><span data-icon="RotateCcw"></span>Alles auf Standard</button>
           </div>

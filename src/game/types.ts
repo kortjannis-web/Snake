@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava'
 
 export type Status = 'play' | 'over'
 
@@ -53,10 +53,17 @@ export type Baum = { cells: P[]; root: P; dir: Dir; seite: 1 | -1; t: number }
 /** Fenster: Wandfeld des Hauses und Richtung nach aussen */
 export type Fenster = { p: P; d: Dir }
 /** Haus: bleibt stehen. Vier Fenster (eins je Seite), eins davon leuchtet 2 Felder weit */
-export type Haus = { cells: P[]; t: number; fenster: Fenster[]; licht: number; lichtT: number; strahl: P[]; kamin: number }
+export type Haus = { cells: P[]; t: number; fenster: Fenster[]; licht: number; lichtT: number; strahl: P[]; kamin: number; klein?: boolean }
 /** Jaegerturm 2x2: Lichtkegel 2 breit in eine Richtung, dreht sich jede Runde im Uhrzeigersinn.
  *  Der Kegel endet vor Hindernissen und wirft Schatten hinter der Schlange */
 export type Turm = { c: P; cells: P[]; dir: Dir; t: number; kegel: P[]; kegelT: number; altDir: Dir }
+
+/** Was in der Sandbox (Kreativ) auf die Karte kann */
+export type SandboxObjekt = 'mauer' | 'teich' | 'gift' | 'baum' | 'haus' | 'turm' | 'falle' | 'wolke' | 'frosch' | 'gegner' | 'lila' | 'ameise' | 'lava'
+export const SANDBOX_OBJEKTE: SandboxObjekt[] = ['mauer', 'teich', 'gift', 'baum', 'haus', 'turm', 'falle', 'wolke', 'frosch', 'gegner', 'lila', 'ameise', 'lava']
+/** Sandbox: eigene Kartengroesse (in Bloecken), Schlangenlaenge und Objekte.
+ *  weiter = danach normal Level fuer Level, sonst bleibt die Welt so (nur der Apfel wandert) */
+export type Sandbox = { breite: number; hoehe: number; laenge: number; objekte: Partial<Record<SandboxObjekt, number>>; weiter: boolean }
 
 /** Kreativ-Modus: alles waehrend des Spiels umschaltbar */
 export type Kreativ = {
@@ -76,6 +83,8 @@ export type Power = { p: P; t: number; until: number; art: PowerArt }
 /** Gegner-Schlange: rot, halb so schnell wie die Schlange, weicht ihr aus.
  *  Eingekesselt stirbt sie, wer lange ueberlebt, wird laenger */
 export type Gegner = {
+  /** Rot (halb so schnell) oder lila (laenger, schneller, boeser) */
+  art: 'rot' | 'lila'
   body: P[]
   prev: P[]
   dir: Dir
@@ -96,6 +105,27 @@ export type Gegner = {
 
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }
 
+/** Lavasee: waechst alle paar Aepfel um ein Feld, bis er seine Groesse `ziel` erreicht hat.
+ *  `t` je Feld = wann es dazukam */
+export type Lava = { cells: P[]; t: number[]; ziel: number }
+
+/** Ameise: sitzt an ihrem Platz (`heim`). Kommt die Schlange in den Umkreis, krabbelt sie langsam
+ *  auf sie zu und beisst, wenn sie daneben ist. Danach (oder wenn die Schlange weg ist) zurueck nach Hause */
+export type Ameise = {
+  p: P
+  from: P
+  heim: P
+  dir: Dir
+  t: number
+  /** Letzter Schritt (Animation) */
+  schrittT: number
+  next: number
+  /** Seit wann sie die Schlange bemerkt hat (-1 = ruhig) */
+  alarm: number
+  /** Nach einem Biss bis hierhin satt (laeuft heim) */
+  sattBis: number
+}
+
 /** Ereignisse fuer Toene, Vibration und Anzeige */
 export type GameEvent =
   | { type: 'eat'; level: number; p: P; stufe: number }
@@ -112,17 +142,22 @@ export type GameEvent =
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }
-  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' }
+  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' }
   | { type: 'tree' }
   | { type: 'house' }
   | { type: 'light' }
   | { type: 'tower' }
   | { type: 'geld'; wert: number; p: P; quelle: 'apfel' | 'gegner' }
-  | { type: 'gegner'; p: P }
+  | { type: 'gegner'; p: P; art: 'rot' | 'lila' }
+  | { type: 'ameise'; p: P }
+  | { type: 'ameiseAlarm'; p: P }
+  | { type: 'ameiseWeg'; p: P }
+  | { type: 'lava'; p: P }
+  | { type: 'lavaWachsen'; p: P }
   | { type: 'gegnerWeg'; p: P; laenge: number; wert: number }
   | { type: 'power'; art: PowerArt; p: P }
   | { type: 'powerEnde'; art: PowerArt }
   | { type: 'schild' }
   | { type: 'faktor'; faktor: number }
 
-export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner'
+export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lila' | 'ameise' | 'lava'

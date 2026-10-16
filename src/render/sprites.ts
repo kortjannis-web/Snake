@@ -857,3 +857,130 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
   }
   ctx.restore()
 }
+
+/** Lavasee: zusammenhaengende Felder, gluehend mit dunkler Kruste und Blasen. born = wann jedes Feld dazukam */
+export function drawLava(ctx: CanvasRenderingContext2D, cells: P[], born: number[], cell: number, now: number, reduce = false) {
+  if (!cells.length) return
+  const set = new Set(cells.map((c) => c.x * 10000 + c.y))
+  const grow = (i: number) => (reduce ? 1 : backOut(clamp01((now - born[i]) / 420)))
+  // Hitzeschein
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i]
+    const s = grow(i)
+    const g = ctx.createRadialGradient((c.x + 0.5) * cell, (c.y + 0.5) * cell, cell * 0.2, (c.x + 0.5) * cell, (c.y + 0.5) * cell, cell * 0.95 * s)
+    g.addColorStop(0, 'rgba(255, 120, 30, 0.28)')
+    g.addColorStop(1, 'rgba(255, 120, 30, 0)')
+    ctx.fillStyle = g
+    ctx.fillRect((c.x - 0.5) * cell, (c.y - 0.5) * cell, cell * 2, cell * 2)
+  }
+  // Kruste (dunkel) und gluehende Mitte, Nachbarfelder verbunden
+  for (const [farbe, inset] of [['#5A1A0E', 0.02], ['#C2361A', 0.1]] as const) {
+    ctx.fillStyle = farbe
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i]
+      const s = grow(i)
+      const sz = cell * (1 - inset * 2) * s
+      const off = (cell - sz) / 2
+      rund(ctx, c.x * cell + off, c.y * cell + off, sz, sz, cell * 0.3 * s)
+      ctx.fill()
+      if (s < 1) continue
+      if (set.has((c.x + 1) * 10000 + c.y)) ctx.fillRect((c.x + 0.5) * cell, c.y * cell + off, cell, sz)
+      if (set.has(c.x * 10000 + c.y + 1)) ctx.fillRect(c.x * cell + off, (c.y + 0.5) * cell, sz, cell)
+      // Viererblock: Loch in der Mitte schliessen
+      if (set.has((c.x + 1) * 10000 + c.y) && set.has(c.x * 10000 + c.y + 1) && set.has((c.x + 1) * 10000 + c.y + 1))
+        ctx.fillRect((c.x + 0.5) * cell, (c.y + 0.5) * cell, cell, cell)
+    }
+  }
+  // Fliessendes Gluehen und Blasen
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i]
+    const s = grow(i)
+    if (s <= 0) continue
+    const cx = (c.x + 0.5) * cell
+    const cy = (c.y + 0.5) * cell
+    const ph = now / 700 + c.x * 1.3 + c.y * 0.7
+    const g = ctx.createRadialGradient(cx + Math.sin(ph) * cell * 0.15, cy + Math.cos(ph * 0.8) * cell * 0.15, 0, cx, cy, cell * 0.45 * s)
+    g.addColorStop(0, '#FFE27A')
+    g.addColorStop(0.45, '#FF9A2E')
+    g.addColorStop(1, 'rgba(240, 90, 30, 0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(cx, cy, cell * 0.45 * s, 0, Math.PI * 2)
+    ctx.fill()
+    if (reduce) continue
+    // Blase: waechst und platzt
+    const zyklus = (now / 1300 + ((c.x * 7 + c.y * 13) % 10) / 10) % 1
+    if (zyklus < 0.7) {
+      const r = cell * 0.09 * (zyklus / 0.7)
+      ctx.strokeStyle = 'rgba(255, 230, 150, 0.8)'
+      ctx.lineWidth = Math.max(1, cell * 0.035)
+      ctx.beginPath()
+      ctx.arc(cx + cell * 0.18 * Math.sin(c.x + c.y), cy - cell * 0.12, r, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+}
+
+/** Ameise von oben: Kopf, Brust, Hinterleib, sechs Beine (bewegen sich beim Laufen), Fuehler.
+ *  ang = Blickrichtung, lauf = 0..1 Schrittphase (-1 steht), alarm = 0..1 (Ausrufezeichen) */
+export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, lauf: number, s: number, alarm = 0, a = 1) {
+  if (s <= 0 || a <= 0) return
+  const u = cell * 0.5 * s
+  ctx.save()
+  ctx.globalAlpha *= a
+  ctx.fillStyle = 'rgba(12, 40, 32, 0.22)'
+  ctx.beginPath()
+  ctx.ellipse(x, y + u * 0.25, u * 0.75, u * 0.35, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.translate(x, y)
+  ctx.rotate(ang)
+  const wackel = lauf >= 0 ? Math.sin(lauf * Math.PI * 2) * 0.35 : 0
+  // Beine
+  ctx.strokeStyle = '#2A1A14'
+  ctx.lineWidth = Math.max(1, u * 0.09)
+  ctx.lineCap = 'round'
+  for (const [bx, w0] of [[u * 0.12, -0.5], [-u * 0.05, 0], [-u * 0.22, 0.5]] as const)
+    for (const seite of [-1, 1]) {
+      const w = w0 + (seite > 0 ? wackel : -wackel) * (bx > 0 ? 1 : -1)
+      ctx.beginPath()
+      ctx.moveTo(bx, 0)
+      ctx.lineTo(bx + Math.sin(w) * u * 0.25, seite * u * 0.32)
+      ctx.lineTo(bx + Math.sin(w) * u * 0.45 - u * 0.05, seite * u * 0.5)
+      ctx.stroke()
+    }
+  // Koerper
+  const koerper = (cx: number, rx: number, ry: number, farbe: string) => {
+    ctx.fillStyle = farbe
+    ctx.beginPath()
+    ctx.ellipse(cx, 0, rx, ry, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  koerper(-u * 0.48, u * 0.32, u * 0.24, '#3B2218')
+  koerper(-u * 0.05, u * 0.17, u * 0.12, '#4A2A1D')
+  koerper(u * 0.3, u * 0.17, u * 0.16, '#3B2218')
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
+  ctx.beginPath()
+  ctx.ellipse(-u * 0.55, -u * 0.08, u * 0.1, u * 0.06, 0, 0, Math.PI * 2)
+  ctx.fill()
+  // Fuehler
+  ctx.beginPath()
+  ctx.moveTo(u * 0.42, -u * 0.06)
+  ctx.quadraticCurveTo(u * 0.62, -u * 0.12, u * 0.72, -u * 0.3)
+  ctx.moveTo(u * 0.42, u * 0.06)
+  ctx.quadraticCurveTo(u * 0.62, u * 0.12, u * 0.72, u * 0.3)
+  ctx.stroke()
+  ctx.restore()
+  // Aufmerksam: rotes Ausrufezeichen ueber der Ameise
+  if (alarm > 0) {
+    ctx.save()
+    ctx.globalAlpha *= a * alarm
+    ctx.fillStyle = '#E5463B'
+    ctx.font = `800 ${Math.round(cell * 0.5)}px "Libre Franklin", system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+    ctx.strokeText('!', x, y - cell * 0.42)
+    ctx.fillText('!', x, y - cell * 0.42)
+    ctx.restore()
+  }
+}

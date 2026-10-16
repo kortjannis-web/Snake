@@ -1,5 +1,5 @@
 import type { Config } from '../game/rules'
-import type { Cause, Side, Unlock } from '../game/types'
+import type { Cause, SandboxObjekt, Side, Unlock } from '../game/types'
 import type { Mini } from './minis'
 
 export const CAUSE: Record<Cause, string> = {
@@ -14,6 +14,23 @@ export const CAUSE: Record<Cause, string> = {
   haus: 'Gegen ein Haus gelaufen',
   turm: 'Gegen einen Jägerturm gelaufen',
   gegner: 'Mit einer Gegner-Schlange zusammengestoßen',
+  lava: 'In die Lava gefahren',
+}
+
+export const OBJEKT_NAME: Record<SandboxObjekt, string> = {
+  mauer: 'Mauer',
+  teich: 'Teich',
+  gift: 'Giftapfel',
+  baum: 'Baum',
+  haus: 'Haus',
+  turm: 'Turm',
+  falle: 'Falle',
+  wolke: 'Wolke',
+  frosch: 'Frosch',
+  gegner: 'Gegner rot',
+  lila: 'Gegner lila',
+  ameise: 'Ameise',
+  lava: 'Lava',
 }
 
 export const SIDE: Record<Side, string> = { top: 'oben', bottom: 'unten', left: 'links', right: 'rechts' }
@@ -30,6 +47,9 @@ export const unlockText = (c: Config): Record<Unlock, { title: string; text: str
   haus: { title: 'Häuser', text: `Nicht anfahren! Aus einem Fenster scheint Licht: wer hineinläuft, fällt ${c.lichtZurueck} Level zurück.`, mini: 'haus' },
   turm: { title: 'Jägertürme', text: `Ihr Lichtkegel dreht sich jede Runde weiter. Im Licht: ${c.kegelZurueck} Level zurück.`, mini: 'turm' },
   gegner: { title: 'Gegner-Schlangen', text: 'Sie fliehen vor dir. Kessel sie mit deinem Körper ein, dann bringen sie Äpfel. Nicht anrempeln!', mini: 'gegner' },
+  lila: { title: 'Lila Gegner', text: `Seltener, länger (${c.lilaLaenge}) und ${c.lilaTempo} % schneller. Schwerer einzukesseln, bringen dafür mehr Äpfel.`, mini: 'lila' },
+  ameise: { title: 'Ameisen', text: `Sie sitzen still. Kommst du ihnen auf ${c.ameiseRadius} Felder nahe, krabbeln sie auf dich zu. Ein Biss kostet ${c.ameiseZurueck} Level, dein Kopf zertritt sie.`, mini: 'ameise' },
+  lava: { title: 'Lava', text: `Beginnt mit einem Feld und breitet sich jeden ${c.lavaWachsen}. Apfel aus. Hineinfahren ist tödlich.`, mini: 'lava' },
 })
 
 /** Namen der Apfel-Stufen (Farbe nach Wert) */
@@ -51,10 +71,13 @@ export const help = (c: Config): { mini: Mini; title: string; ab?: string; text:
   { mini: 'gift', title: 'Giftäpfel', ab: `ab Level ${c.giftAb}`, text: 'Sehen aus wie Äpfel, haben aber eine verschimmelte Ecke. Wer einen isst, hat verloren.' },
   { mini: 'falle', title: 'Bärenfallen', ab: `ab Level ${c.falleAb}`, text: `Etwa alle ${c.falleMin} bis ${c.falleMax} Level schnappt eine Falle ${c.falleAbstandMin} bis ${c.falleAbstandMax} Felder vor dir auf, genau in deiner Bahn. Nach ${c.falleDauer} Sekunden klappt sie zu.` },
   { mini: 'gegner', title: 'Gegner-Schlangen', ab: `ab Level ${c.gegnerAb}`, text: `Ab und zu taucht eine rote Schlange auf (3 bis 4 lang, ab Level ${c.gegnerAb + 100} auch zwei, dann drei). Sie ist halb so schnell wie du und weicht dir aus, so gut sie kann. Kessel sie mit deinem Körper ein: Hat sie keinen Ausweg mehr, zerplatzt sie und bringt so viele Äpfel, wie sie lang ist (mal Apfelwert). Sie versucht sich zu befreien, solange es geht. Alle ${c.gegnerWachsen} Sekunden wird sie ein Glied länger (bis ${c.gegnerMaxLaenge}). Mit dem Kopf in sie hineinfahren beendet das Spiel.` },
+  { mini: 'lila', title: 'Lila Gegner', ab: `ab Level ${c.lilaAb}`, text: `${c.lilaChance} % der neuen Gegner sind lila: Sie starten mit ${c.lilaLaenge} Gliedern, sind ${c.lilaTempo} % schneller als die roten, schauen noch böser und werden bis ${c.lilaMaxLaenge} lang. Einkesseln bringt so viele Äpfel, wie sie lang sind.` },
   { mini: 'baum', title: 'Bäume', ab: `ab Level ${c.baumAb}`, text: `Ein umgefallener Tannenbaum: zwei Felder Stamm, dann die Krone (zwei Felder breit, dann die Spitze). Bleibt für immer liegen, alle ${c.baumAlle} Level kommt ein neuer dazu. Berühren beendet das Spiel.` },
   { mini: 'wolke', title: 'Giftwolken', ab: `ab Level ${c.wolkeAb}`, text: `Beginnen auf einem Feld und wachsen alle ${c.wolkeTakt} Sekunden: erst ein Kreuz, dann ein Quadrat, dann noch größer. Kurz vorher pulsiert der Rand. Wer hineingerät, fällt ${c.wolkeZurueck} Level zurück und ist danach kurz geschützt (die Schlange blinkt).` },
   { mini: 'frosch', title: 'Frösche', ab: `ab Level ${c.froschAb}`, text: `Hüpfen alle ${c.froschSprung} Sekunden ein Feld in Blickrichtung. Kurz vorher machen sie sich bereit. Nach der Landung drehen sie sich manchmal um (${c.froschWende} %). In die Schlange springen sie nie, über den Rand hüpfen sie weg. Hineinbeißen beendet das Spiel.` },
-  { mini: 'haus', title: 'Häuser', ab: `ab Level ${c.hausAb}`, text: `Bleiben stehen, alle ${c.hausAlle} Level kommt eins dazu (2 × 3 Felder oder mit einer Ecke). Jedes Haus hat vier Fenster. Nach jedem Apfel leuchtet ein anderes, das Licht reicht ${c.lichtWeite} Felder weit und fällt nie auf die Schlange. Haus berühren beendet das Spiel, ins Licht laufen kostet ${c.lichtZurueck} Level.` },
+  { mini: 'haus', title: 'Hütten und Häuser', ab: `ab Level ${c.hausAb}`, text: `Bleiben stehen, alle ${c.hausAlle} Level kommt eins dazu: erst kleine Hütten (2 × 2, Licht ein Feld kürzer), ab Level ${c.hausGrossAb} große Häuser (2 × 3 Felder oder mit einer Ecke). Jedes Haus hat vier Fenster. Nach jedem Apfel leuchtet ein anderes, das Licht reicht ${c.lichtWeite} Felder weit und fällt nie auf die Schlange. Haus berühren beendet das Spiel, ins Licht laufen kostet ${c.lichtZurueck} Level.` },
   { mini: 'turm', title: 'Jägertürme', ab: `ab Level ${c.turmAb}`, text: `2 × 2 Felder, mit einem Lichtkegel (2 breit, ${c.kegelLaenge} lang). Jede Runde dreht er sich im Uhrzeigersinn weiter. Die Schlange wirft Schatten: hinter ihr ist kein Licht. Im Kegel: ${c.kegelZurueck} Level zurück. Turm berühren beendet das Spiel.` },
+  { mini: 'ameise', title: 'Ameisen', ab: `ab Level ${c.ameiseAb}`, text: `Alle ${c.ameiseMin} bis ${c.ameiseMax} Level setzt sich eine Ameise irgendwo hin (höchstens ${c.ameiseAnzahl}) und chillt. Kommt die Schlange in ihren Umkreis (${c.ameiseRadius} Felder, auch schräg), bemerkt sie dich (rotes Ausrufezeichen) und krabbelt langsam auf das nächste Glied zu, bis du wieder weg bist. Ist sie direkt daneben, beißt sie: ${c.ameiseZurueck} Level zurück. Danach geht sie satt nach Hause. Mit dem Kopf zertrittst du sie.` },
+  { mini: 'lava', title: 'Lava', ab: `ab Level ${c.lavaAb}`, text: `Alle ${c.lavaAlle} Level bricht ein Lavasee aus, erst ein einziges Feld. Jeden ${c.lavaWachsen}. Apfel breitet er sich um ein Feld in eine zufällige Richtung aus, nie in die Schlange und nie direkt vor den Kopf, und hört bei ${Math.min(c.lavaMin, c.lavaMax)} bis ${Math.max(c.lavaMin, c.lavaMax)} Feldern auf. Hineinfahren beendet das Spiel.` },
   { mini: 'gebiet', title: 'Immer mehr los', ab: `ab Level ${c.ereignis1Ab}`, text: `Ab Level ${c.ereignis1Ab} ist immer mindestens eine Gefahr (Falle, Wolke, Frosch) unterwegs, ab ${c.ereignis2Ab} mindestens zwei, ab ${c.ereignis3Ab} drei. Es geht endlos weiter: Wie weit kommst du?` },
 ]

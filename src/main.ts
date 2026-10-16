@@ -15,7 +15,8 @@ import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
 import { apfelFaktor, SCHEMA, type ConfigKey } from './game/rules'
-import type { Dir, GameEvent, Side } from './game/types'
+import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
+import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
@@ -24,7 +25,7 @@ import { config, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, save
 import { drawSkinVorschau, SKINS, skinVon } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
-import { CAUSE, help, SIDE, stufenName, unlockText } from './ui/texts'
+import { CAUSE, help, OBJEKT_NAME, SIDE, stufenName, unlockText } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
 type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop'
@@ -125,7 +126,8 @@ function newGame(alsKreativ = istKreativ) {
   istKreativ = alsKreativ
   app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
-  const { start, ...k } = kreativ
+  const { start, sandbox, ...k } = kreativ
+  const { an, ...sb } = sandbox
   game = new Game({
     screenW: sc.w,
     screenH: sc.h,
@@ -133,6 +135,7 @@ function newGame(alsKreativ = istKreativ) {
     cfg: { ...config },
     startLevel: istKreativ ? start : startLevel,
     kreativ: istKreativ ? { ...k } : null,
+    sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
   })
   renderer.reset()
   $('ready-text').textContent = fine ? 'Pfeiltaste drücken zum Starten' : settings.dpad ? 'Tippe eine Richtung zum Starten' : 'Wischen zum Starten'
@@ -290,12 +293,23 @@ function handle(e: GameEvent) {
       }
       updateGeld(true)
       break
-    case 'gegner': {
-      // Nur in der Naehe zu hoeren
-      const h = game!.body[0]
-      if (Math.abs(e.p.x - h.x) <= game!.screenW + 2 && Math.abs(e.p.y - h.y) <= game!.screenH + 2) audio.gegner()
+    case 'gegner':
+      if (nah(e.p, 1)) audio.gegner()
       break
-    }
+    case 'ameiseAlarm':
+      if (nah(e.p, 0.5)) audio.ameise()
+      break
+    case 'ameiseWeg':
+      audio.zertreten()
+      haptic.light()
+      break
+    case 'lava':
+      audio.lava(true)
+      haptic.medium()
+      break
+    case 'lavaWachsen':
+      if (nah(e.p, 0.5)) audio.lava()
+      break
     case 'gegnerWeg':
       if (e.wert <= 0) break
       audio.besiegt()
@@ -332,8 +346,9 @@ function handle(e: GameEvent) {
         el.classList.add('down')
       }
       const n = e.von - e.auf
-      const was = { wolke: 'In die Giftwolke geraten.', licht: 'Im Fensterlicht erwischt.', kegel: 'Vom Jägerturm entdeckt.' }[e.grund]
-      toast(e.grund === 'wolke' ? 'wolke' : e.grund === 'licht' ? 'haus' : 'turm', `−${n} Level`, `${was} Zurück auf Level ${e.auf}.`, { minus: true })
+      const was = { wolke: 'In die Giftwolke geraten.', licht: 'Im Fensterlicht erwischt.', kegel: 'Vom Jägerturm entdeckt.', ameise: 'Eine Ameise hat zugebissen.' }[e.grund]
+      const mini = ({ wolke: 'wolke', licht: 'haus', kegel: 'turm', ameise: 'ameise' } as const)[e.grund]
+      toast(mini, `−${n} Level`, `${was} Zurück auf Level ${e.auf}.`, { minus: true })
       break
     }
     case 'tree':
@@ -347,6 +362,12 @@ function handle(e: GameEvent) {
       audio.light()
       break
   }
+}
+
+/** Ist etwas in der Naehe des Kopfes (so viele Bildschirme weit)? Fuer Toene, die man nur nah hoert */
+function nah(p: { x: number; y: number }, bildschirme: number) {
+  const h = game!.body[0]
+  return Math.abs(p.x - h.x) <= game!.screenW * bildschirme + 2 && Math.abs(p.y - h.y) <= game!.screenH * bildschirme + 2
 }
 
 /* ================= HUD ================= */
@@ -606,7 +627,24 @@ const live = () => !!game && istKreativ && (mode === 'paused' || mode === 'ready
 
 function renderKreativ() {
   const lv = live()
+  const sb = kreativ.sandbox
   $('k-start-box').hidden = lv
+  $('k-sandbox-box').hidden = lv
+  $('k-sb').hidden = lv || !sb.an
+  kInput('k-sandbox').checked = sb.an
+  $('k-start-info').textContent = sb.an
+    ? 'Bestimmt Tempo, Apfelwert und was kommt, wenn es normal weitergeht.'
+    : 'Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.'
+  kInput('k-sb-breite').value = String(sb.breite)
+  kInput('k-sb-hoehe').value = String(sb.hoehe)
+  kInput('k-sb-laenge').value = String(sb.laenge)
+  for (const art of SANDBOX_OBJEKTE) {
+    const el = document.getElementById(`k-sb-${art}`) as HTMLInputElement | null
+    if (el) el.value = String(sb.objekte[art] ?? 0)
+  }
+  $('k-sb-weiter')
+    .querySelectorAll<HTMLButtonElement>('button')
+    .forEach((b) => b.setAttribute('aria-checked', String((b.dataset.v === 'weiter') === sb.weiter)))
   $('k-live').hidden = !lv
   $('btn-kreativ-start').hidden = lv
   kInput('k-start').value = kInput('k-start-range').value = String(kreativ.start)
@@ -628,8 +666,9 @@ function renderKreativ() {
 function kreativAnwenden() {
   saveKreativ()
   if (game && istKreativ) {
-    const { start, ...k } = kreativ
+    const { start, sandbox, ...k } = kreativ
     void start
+    void sandbox
     game.kreativ = { ...k }
   }
   renderKreativ()
@@ -690,14 +729,65 @@ $('k-minus1').addEventListener('click', () => game && springe(game.level - 1))
 $('k-plus1').addEventListener('click', () => game && springe(game.level + 1))
 $('k-plus10').addEventListener('click', () => game && springe(game.level + 10))
 $('k-springen').addEventListener('click', () => springe(Number(kInput('k-ziel').value) || 1))
-for (const art of ['falle', 'wolke', 'frosch', 'gegner'] as const)
-  $(`k-${art}`).addEventListener('click', () => {
+/* ---- Sandbox: Kartengroesse, Laenge, Objekte, bleibt so / normal weiter ---- */
+kInput('k-sandbox').addEventListener('change', (e) => {
+  kreativ.sandbox.an = (e.target as HTMLInputElement).checked
+  audio.click()
+  saveKreativ()
+  renderKreativ()
+})
+const sbZahl = (id: string, min: number, max: number, setzen: (v: number) => void) =>
+  kInput(id).addEventListener('change', (e) => {
+    const el = e.target as HTMLInputElement
+    let v = Math.round(Number(el.value))
+    if (!Number.isFinite(v)) v = min
+    v = Math.max(min, Math.min(max, v))
+    el.value = String(v)
+    setzen(v)
+    saveKreativ()
+  })
+sbZahl('k-sb-breite', 1, 8, (v) => (kreativ.sandbox.breite = v))
+sbZahl('k-sb-hoehe', 1, 8, (v) => (kreativ.sandbox.hoehe = v))
+sbZahl('k-sb-laenge', 1, 300, (v) => (kreativ.sandbox.laenge = v))
+for (const art of SANDBOX_OBJEKTE) {
+  const lab = document.createElement('label')
+  lab.className = 'sb-zahl'
+  lab.innerHTML = `<span></span><input type="number" min="0" max="50" step="1" inputmode="numeric" />`
+  lab.querySelector('span')!.textContent = OBJEKT_NAME[art]
+  const inp = lab.querySelector('input')!
+  inp.id = `k-sb-${art}`
+  $('k-sb-objekte').append(lab)
+  sbZahl(inp.id, 0, 50, (v) => (kreativ.sandbox.objekte[art] = v))
+}
+$('k-sb-weiter')
+  .querySelectorAll<HTMLButtonElement>('button')
+  .forEach((b) =>
+    b.addEventListener('click', () => {
+      kreativ.sandbox.weiter = b.dataset.v === 'weiter'
+      audio.click()
+      saveKreativ()
+      renderKreativ()
+    }),
+  )
+
+/* ---- Im Spiel: jedes Objekt sofort dazu, alles wegraeumen ---- */
+for (const art of SANDBOX_OBJEKTE) {
+  const b = document.createElement('button')
+  b.textContent = OBJEKT_NAME[art]
+  b.addEventListener('click', () => {
     if (!game) return
     audio.click()
-    const ok = game.spawn(art)
+    const ok = game.objektDazu(art as SandboxObjekt)
     for (const e of game.drain()) handle(e)
-    if (!ok) toast(art, 'Kein Platz', art === 'gegner' ? 'Kein Platz oder schon genug Gegner unterwegs.' : 'Gerade passt das nicht auf die Karte.')
+    if (!ok) toast(art, 'Kein Platz', 'Gerade passt das nicht auf die Karte.')
   })
+  $('k-objekte').append(b)
+}
+$('k-leeren').addEventListener('click', () => {
+  if (!game) return
+  audio.click()
+  game.allesWeg()
+})
 document.querySelectorAll<HTMLButtonElement>('[data-power]').forEach((b) =>
   b.addEventListener('click', () => {
     if (!game) return
@@ -714,7 +804,35 @@ $('btn-kreativ-start').addEventListener('click', () => {
 
 /* ================= Master-Einstellungen ================= */
 
+/** Zeitleiste: was kommt wann (aus den aktuellen Zahlen) */
+function renderZeitleiste() {
+  $('zeitleiste-dauer').innerHTML = ''
+  for (const t of dauerhaft(config)) {
+    const li = document.createElement('li')
+    li.textContent = t
+    $('zeitleiste-dauer').append(li)
+  }
+  const box = $('zeitleiste-list')
+  box.innerHTML = ''
+  for (const e of zeitleiste(config, 500)) {
+    const row = document.createElement('div')
+    row.className = 'zl'
+    const b = document.createElement('b')
+    b.textContent = `Level ${e.level}`
+    const ul = document.createElement('ul')
+    for (const t of e.teile) {
+      const li = document.createElement('li')
+      li.className = `zl--${t.art}`
+      li.textContent = t.text
+      ul.append(li)
+    }
+    row.append(b, ul)
+    box.append(row)
+  }
+}
+
 function renderMaster() {
+  renderZeitleiste()
   const list = $('master-list')
   list.innerHTML = ''
   for (const g of SCHEMA) {
@@ -746,6 +864,7 @@ function renderMaster() {
         config[f.key as ConfigKey] = v
         inp.value = String(v)
         saveConfig()
+        renderZeitleiste()
       })
       row.append(t, inp, u)
       box.append(row)
