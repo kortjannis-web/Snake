@@ -215,10 +215,16 @@ class Audio {
     this.tone(1500, 0.03, 'square', 0.03, { filter: 3000 })
     this.tone(2100, 0.05, 'sine', 0.04, { delay: 0.03 })
   }
-  /** Muenze: zwei helle Toene */
-  coin() {
-    this.tone(1320, 0.07, 'square', 0.06, { filter: 5000 })
-    this.tone(1760, 0.16, 'square', 0.06, { delay: 0.06, filter: 5000 })
+  /** Gegner-Schlange taucht auf: kurzes Zischen */
+  gegner() {
+    this.noise(0.32, 'highpass', 3800, 0.1, { attack: 0.06 })
+    this.tone(196, 0.18, 'sawtooth', 0.05, { to: 160, filter: 900, delay: 0.05 })
+  }
+  /** Gegner eingekesselt: Plopp und helle Toene */
+  besiegt() {
+    this.noise(0.12, 'lowpass', 900, 0.3)
+    this.tone(330, 0.1, 'triangle', 0.2, { to: 660 })
+    ;[880, 1175, 1568].forEach((f, i) => this.tone(f, 0.12, 'square', 0.05, { delay: 0.08 + i * 0.06, filter: 5000 }))
   }
   /** Power-up aufgehoben: aufsteigendes Funkeln */
   power() {
@@ -239,7 +245,7 @@ class Audio {
     this.tone(1318, 0.08, 'square', 0.07, { delay: 0.07, filter: 4000 })
     this.tone(1568, 0.25, 'triangle', 0.12, { delay: 0.14 })
   }
-  /** Zu wenig Muenzen */
+  /** Zu wenig Aepfel */
   nein() {
     this.tone(220, 0.12, 'square', 0.06, { filter: 900 })
     this.tone(180, 0.18, 'square', 0.06, { delay: 0.1, filter: 900 })

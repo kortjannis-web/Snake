@@ -1,6 +1,6 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.4.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
@@ -18,15 +18,15 @@ Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Steuerkreuz (Option):** vier Tasten unter dem Spielfeld statt Wischen.
 - **Eingabepuffer:** Bis zu drei schnelle Richtungswechsel werden gemerkt und nacheinander ausgeführt.
 - **Sofort-Wende:** Kommt ein Richtungswechsel im ersten Drittel eines Schritts, gilt er sofort und nicht erst ab dem nächsten Feld. Das fühlt sich direkter an.
-- **Gnadenschritt** (wie bei Google Snake): Läuft die Schlange gegen ein Hindernis, bleibt sie gut einen Takt (1,3) stehen. Wer dann abbiegt, lebt weiter. Erst der zweite Anlauf ist das Ende. Gilt für Rand, eigenen Körper, Mauer, Teich, Falle, Frosch, Baum, Haus und Jägerturm, **nicht** für Giftäpfel (die isst man ja).
+- **Gnadenschritt** (wie bei Google Snake): Läuft die Schlange gegen ein Hindernis, bleibt sie kurz stehen (1,15 Takte, etwas knapper als früher mit 1,3). Wer dann abbiegt, lebt weiter. Erst der zweite Anlauf ist das Ende. Gilt für Rand, eigenen Körper, Mauer, Teich, Falle, Frosch, Gegner-Schlange, Baum, Haus und Jägerturm, **nicht** für Giftäpfel (die isst man ja).
 
 ## 3. Äpfel
 
-- Roter Apfel mit Stiel, Blatt und Glanz, ploppt beim Erscheinen auf und wippt leicht.
+- Apfel mit Stiel, Blatt und Glanz, ploppt beim Erscheinen auf und wippt leicht. Seine **Farbe zeigt, wie viel er wert ist** (siehe 14a): erst Rot, ab Level 50 Orange usw.
 - Liegt nie unter der Schlange, in einem Hindernis, in einer Sackgasse, im Fensterlicht oder dort, wo eine Giftwolke gleich hinwächst. Er ist immer erreichbar.
 - Auf großen Karten liegt er meist in Reichweite (höchstens ca. ein Bildschirm entfernt).
-- **Pfeil am Rand:** Liegt der Apfel außerhalb des Bildes, zeigt ein runder Pfeil mit Apfel am Bildrand die Richtung.
-- Beim Essen: Funken, Knackgeräusch (innerhalb eines Zehnerblocks steigt der Ton leicht an), leichte Vibration. Alle 10 Level ein kleiner Akkord.
+- **Pfeil am Rand:** Liegt der Apfel außerhalb des Bildes, zeigt ein runder Pfeil mit Apfel (in Apfelfarbe) am Bildrand die Richtung.
+- Beim Essen: Funken in Apfelfarbe, Knackgeräusch (innerhalb eines Zehnerblocks steigt der Ton leicht an), leichte Vibration. Alle 10 Level ein kleiner Akkord.
 
 ## 4. Karte und neue Gebiete (Blöcke wie bei Minecraft)
 
@@ -56,7 +56,7 @@ Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 
 ## 7. Giftäpfel (ab Level 50)
 
-- Sehen aus wie normale Äpfel, sind aber **an einer Ecke verschimmelt** (brauner Faulfleck mit graugrünem Schimmel und hellem Flaum). Daran erkennt man sie.
+- Sehen aus wie normale Äpfel (auch in derselben Farbe), sind aber **an einer Ecke verschimmelt** (brauner Faulfleck mit graugrünem Schimmel und hellem Flaum). Daran erkennt man sie.
 - **Essen = sofort Spielende** (kein Gnadenschritt). Die Schlange färbt sich dabei kränklich.
 - Anzahl: 1 ab Level 50, dann alle 60 Level einer mehr, höchstens 4.
 - Liegen nach jedem Apfel woanders, einer davon gern in der Nähe des echten Apfels. Nie direkt vor dem Kopf (6 Felder in Laufrichtung frei).
@@ -67,6 +67,24 @@ Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Metallischer Klack beim Erscheinen, orangener Warnring, sie pulsiert kurz.
 - Bleibt 25 Sekunden, blinkt in den letzten 3 Sekunden und schnappt dann zu.
 - Hineinlaufen = Tod (mit Gnadenschritt).
+
+## 8a. Gegner-Schlangen (ab Level 100)
+
+- **Rote Schlangen mit bösen Augenbrauen**, beim Erscheinen **3 oder 4 Glieder** lang. Sie tauchen weit weg vom Kopf auf (mindestens ca. 6 bis 12 Felder, nie in der Laufrichtung), immer dort, wo die Schlange hinkommt, mit genug Platz drumherum. Leises Zischen, Hinweis beim ersten Mal.
+- **Ab und zu:** ab Level 100 etwa alle **6 bis 10 Level** eine neue (ab Level 250 je 1 Level früher). Gleichzeitig höchstens **1** (ab Level 100), **2** (ab 200), **3** (ab 300).
+- **Halb so schnell** wie die Schlange (ein Schritt je zwei Takte der Schlange). Zeitlupe bremst nur die eigene Schlange.
+- **Weichen immer aus, so gut es geht.** Die KI bewertet bei jedem Schritt jede freie Richtung:
+  - **Sicheres Gebiet:** wie viele Felder sie erreicht, bevor die Schlange dort sein kann (Breitensuche von beiden Köpfen, sie ist ja halb so schnell). Das ist der wichtigste Wert: so flieht sie in offene Bereiche und schlüpft durch Lücken, bevor sie sich schließen.
+  - **Platz:** keine Sackgassen und keine Taschen, in denen sie sich selbst einsperrt.
+  - **Abstand zur Schlange** (echter Weg, nicht Luftlinie), nie direkt vor oder neben den Kopf.
+  - **Bewegungsfreiheit** (freie Nachbarfelder), gern geradeaus, ein wenig Zufall.
+  - Ist die Schlange weit weg (mehr als ca. 14 Schritte), schlängelt sie gemütlich herum. Wird sie gejagt, ziehen die Augenbrauen hoch und die Pupillen werden klein.
+- Sie laufen nie in die Schlange, in Hindernisse (Mauern, Teiche, Fallen, Bäume, Häuser, Türme, Frösche, Giftäpfel, Giftwolken), in andere Gegner oder über den Rand. Läuft eine über den Apfel, rollt er woandershin.
+- **Eingekesselt = tot:** Hat sie keinen freien Zug mehr, oder ist ihr ganzer Bereich kaum größer als sie selbst (zwei Schritte hintereinander), zerplatzt sie in rote Funken. Solange es einen Ausweg gibt, versucht sie sich zu befreien.
+- **Belohnung:** Hat die Schlange sie eingekesselt (der eigene Körper ist höchstens 2 Felder entfernt), bringt sie **so viele Äpfel, wie sie lang ist, mal Apfelwert** (siehe 14a). Hinweis „Gegner eingekesselt! +N Äpfel“, Plopp und Fanfare, „+N“ steigt auf. Zählt in der Statistik („Gegner eingekesselt“).
+- **Werden länger:** Wer überlebt, wird **alle 20 Sekunden ein Glied länger**, höchstens **8**. Ein kurzer Schimmer um den Kopf zeigt es. Längere Gegner bringen mehr, versperren aber auch mehr Platz.
+- **Mit dem Kopf hineinfahren = Tod** (mit Gnadenschritt; Schild fängt es ab, Geist fährt hindurch). Giftwolken wachsen nicht über sie, sondern warten wie bei der Schlange.
+- Im Kreativ-Modus lässt sich eine Gegner-Schlange sofort auslösen (bis zur eingestellten Höchstzahl).
 
 ## 9. Bäume (ab Level 100)
 
@@ -130,34 +148,34 @@ Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 
 ## 14. Ereignisse werden häufiger
 
-- Fallen, Wolken und Frösche haben eigene Abstände (siehe oben), die ab Level 200 bzw. 250 kürzer werden.
+- Fallen, Wolken, Frösche und Gegner-Schlangen haben eigene Abstände (siehe oben), die ab Level 250 kürzer werden.
 - Zusätzlich gilt: **ab Level 150 ist immer mindestens eine** dieser Gefahren unterwegs, **ab 200 mindestens zwei, ab 300 drei**. Fehlt eine, kommt nach ca. 2,5 s eine neue, bevorzugt die Art, die gerade am seltensten ist.
 
-## 14a. Münzen, Power-ups, Skins, Minikarte
+## 14a. Äpfel als Währung, Power-ups, Skins, Minikarte
 
-**Münzen (Spielgeld, keine echten Käufe)**
-- Jeder Apfel bringt **1 Münze**. Nach jedem Apfel liegt mit **25 % Chance** eine **Goldmünze (3 Münzen)** auf der Karte, höchstens 3 gleichzeitig, sie liegt 12 s (blinkt am Ende) und dreht sich.
-- **Mehrfach ab Level 50:** Bis Level 49 zählt jede Münze einfach, ab Level 50 doppelt, ab 100 dreifach, ab 150 vierfach und so weiter (gilt für Apfel- und Goldmünzen, nach dem aktuellen Level). Beim Erreichen kommt der Hinweis „Münzen ×2“, in der Leiste steht der Faktor neben dem Kontostand.
-- Einsammeln: mit dem Kopf drüberfahren, „+3“ steigt auf, Klingeln. Der Magnet zieht sie an.
-- Kontostand oben in der Leiste, im Startmenü (antippen öffnet den Shop) und im Shop. Auf dem Spielende-Bildschirm „+N Münzen“.
-- Im Kreativ-Modus gibt es keine Münzen.
+**Äpfel sind die Währung (keine Münzen, keine echten Käufe)**
+- Jeder gegessene Apfel kommt in den **Apfel-Vorrat**. Eingekesselte Gegner-Schlangen bringen extra Äpfel (siehe 8a).
+- **Mehr wert mit dem Level:** Bis Level 49 zählt ein Apfel einfach, ab Level 50 doppelt, ab 100 dreifach, ab 150 vierfach und so weiter (nach dem Level, auf dem der Apfel liegt). Beim Erreichen kommt der Hinweis „Äpfel ×2“ mit dem Apfel in der neuen Farbe, in der Leiste steht der Faktor neben dem Vorrat.
+- **Jede Stufe hat ihre Farbe:** ×1 **Rot**, ×2 **Orange**, ×3 **Gelb**, ×4 **Grün**, ×5 **Türkis**, ×6 **Blau**, ×7 **Lila**, ×8 **Rosa**, ×9 **Übergang Blau → Rosa**, ×10 **Übergang Lila → Rosa** (danach bleibt es bei Lila-Rosa, der Wert steigt weiter). Giftäpfel tarnen sich in derselben Farbe, Funken, Pfeil am Rand, das Apfel-Symbol in der Leiste und die Minikarte übernehmen sie.
+- Vorrat oben in der Leiste, im Startmenü (antippen öffnet den Shop) und im Shop. Auf dem Spielende-Bildschirm „+N Äpfel“. Münzen aus früheren Fassungen wurden 1:1 zu Äpfeln.
+- Im Kreativ-Modus wird nichts gesammelt.
 
 **Power-ups (ab Level 10)**
 - Nach jedem Apfel mit **18 % Chance** liegt ein Power-up auf der Karte (höchstens eins), 15 s lang, blinkt in den letzten 3 s. Leuchtende Kugel mit Symbol.
 - **Schild** (blau): fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Bis zu 3 sammeln sich. Blaue Blase um den Kopf. Nicht am Kartenrand.
 - **Zeitlupe** (lila): 8 s lang ein gutes Drittel langsamer.
-- **Magnet** (rot): 8 s lang rückt der Apfel alle 0,26 s ein Feld näher, Goldmünzen in der Nähe auch.
 - **Geist** (grau): 6 s lang durch alle Hindernisse und die eigene Schlange, keine Rückschläge; die Schlange ist durchscheinend und flackert kurz vor dem Ende.
-- **Schere** (orange): sofort 30 % kürzer (mindestens 3 Glieder bleiben).
+- **Schere** (orange): nimmt **5 Glieder, aber nur für einen Apfel lang**. Mit dem nächsten Apfel wachsen sie wieder nach (mindestens 3 Glieder bleiben). Solange zeigt eine Pille „−5“.
+- Den Magneten gibt es nicht mehr.
 - Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken.
 - Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
 
 **Skins (Startmenü → Skins)**
-- Klassik (gratis), **Koralle** 300, **Nacht** 800 (funkelnde Sterne), **Tiger** 1600 (Streifen), **Gold** 3500 (laufender Glanz), **Regenbogen** 7500 (Farben wandern über den Körper).
-- Antippen kauft (wenn genug Münzen) und wählt aus, gekaufte Skins lassen sich jederzeit wechseln. Zu wenig Münzen: Karte wackelt.
+- Klassik (gratis), **Koralle** 300, **Nacht** 800 (funkelnde Sterne), **Tiger** 1600 (Streifen), **Gold** 3500 (laufender Glanz), **Regenbogen** 7500 (Farben wandern über den Körper), Preise in Äpfeln.
+- Antippen kauft (wenn genug Äpfel) und wählt aus, gekaufte Skins lassen sich jederzeit wechseln. Zu wenig Äpfel: Karte wackelt.
 
 **Minikarte**
-- Winzig unten links (ca. 50 px), nur die Kartenblöcke ganz blass und die Schlange als Punkt. Erscheint erst, wenn die Karte größer als ein Bildschirm ist.
+- Klein unten links, erscheint erst, wenn die Karte größer als ein Bildschirm ist. Sie zeigt **nur die Kartenblöcke**: **grün** der Block (Quadrant), in dem die Schlange ist, **in Apfelfarbe mit hellem Rand** der Block mit dem Apfel. Keine genauen Positionen. Liegen beide im selben Block, steckt ein Kästchen in Apfelfarbe im grünen Block.
 
 ## 15. Fairness-Regeln (für alle Hindernisse)
 
@@ -170,12 +188,12 @@ Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 
 - **Startmenü:** großer Titel „Snake“ mit Apfel, Kennzeichen „Endlos“, orangener Knopf „Spielen“, bester Level, darunter Anleitung, Statistik, Optionen. Oben rechts Ton an/aus. Im Hintergrund spielt ein Autopilot (gedimmt).
 - **Bereit:** Nach „Spielen“ steht die Schlange, eine animierte Hand zeigt „Wischen zum Starten“ (PC: „Pfeiltaste drücken“).
-- **Leiste im Spiel:** Pause links, Level groß in der Mitte (ploppt beim Apfel, springt rot bei Rückschlag), Rekord mit Pokal rechts, darunter der Balken bis zum nächsten Block. Im Kreativ-Modus steht „Level · Kreativ“.
-- **Hinweise:** Beim ersten Erreichen von Mauern, Teichen, Giftäpfeln, Fallen, Bäumen, Wolken, Fröschen, Häusern und Jägertürmen erscheint oben eine Karte mit Bild und kurzer Erklärung. Dazu „Neues Gebiet“, „Apfel geschnappt!“ und Rückschläge.
+- **Leiste im Spiel:** Pause links, Level groß in der Mitte (ploppt beim Apfel, springt rot bei Rückschlag), Apfel-Vorrat mit Faktor und Rekord mit Pokal rechts, darunter der Balken bis zum nächsten Block. Im Kreativ-Modus steht „Level · Kreativ“.
+- **Hinweise:** Beim ersten Erreichen von Mauern, Teichen, Giftäpfeln, Fallen, Gegner-Schlangen, Bäumen, Wolken, Fröschen, Häusern und Jägertürmen erscheint oben eine Karte mit Bild und kurzer Erklärung. Dazu „Neues Gebiet“, „Apfel geschnappt!“ und Rückschläge.
 - **Pause:** Weiter, Neu starten, Anleitung, Optionen, Menü. Pausiert automatisch, wenn die App in den Hintergrund geht oder das Fenster den Fokus verliert.
 - **Spielende:** wackelndes Bild der Todesursache, Text (z. B. „Gegen einen Baum gelaufen“), erreichter Level, ggf. „Höchster Level“, Abzeichen „Neuer Rekord“ mit Fanfare, Äpfel, Länge, Zeit. Knöpfe „Nochmal“ und „Hauptmenü“.
 - **Anleitung:** alle Elemente mit Bild, „ab Level …“ und Erklärung.
-- **Statistik:** bester Level, Spiele, Äpfel gesamt, längste Schlange, größte Karte, Spielzeit.
+- **Statistik:** bester Level, Spiele, Äpfel gesamt, längste Schlange, größte Karte, eingekesselte Gegner, Spielzeit.
 - **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Tempo (Langsam/Normal/Schnell), Statistik zurücksetzen, Versionsnummer.
 - **Android-Zurücktaste:** Spiel → Pause, Pause → weiter, Unterseite → zurück, Startmenü → App schließen.
 
@@ -187,17 +205,17 @@ Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Rückschläge** an/aus (Wolke, Licht, Kegel).
 - **Durch die eigene Schlange** an/aus.
 - **Schlange wächst** an/aus, sonst **feste Länge** (1 bis 500). Beim Ausschalten im Spiel wird die aktuelle Länge übernommen.
-- **Während des Spiels** (Pause → Kreativ-Optionen): alles oben live umschalten, Level **−10 / −1 / +1 / +10** oder direkt springen (höher baut die Welt mit auf, niedriger kürzt die Schlange), **Falle, Wolke oder Frosch sofort auslösen**.
+- **Während des Spiels** (Pause → Kreativ-Optionen): alles oben live umschalten, Level **−10 / −1 / +1 / +10** oder direkt springen (höher baut die Welt mit auf, niedriger kürzt die Schlange), **Falle, Wolke, Frosch oder Gegner-Schlange sofort auslösen**.
 - Kreativ-Runden zählen nicht für Rekord und Statistik. In der Leiste steht „Level · Kreativ“.
 
 ## 16b. Master-Einstellungen
 
-- Optionen → Master-Einstellungen: **jede Zahl des Spiels** ist einstellbar, nach Gruppen: Karte (Block alle N Level, bis Level), Schlange (Tempo, Wachsen, Gnadenschritt, Schutzzeit), Mauern, Teiche, Giftäpfel, Bärenfallen, Bäume, Giftwolken, Frösche (Häufigkeit, Sprungtakt, Wende-Chance, Höchstzahl), Häuser (Häufigkeit, Lichtweite, Strafe), Jägertürme (Häufigkeit, Kegellänge, Strafe), Ereignisse (Mindestanzahl ab Level, früher häufiger).
-- Gilt ab dem nächsten Spiel, auch im Kreativ-Modus. „Alles auf Standard“ setzt zurück. Die Anleitung rechnet mit den eingestellten Werten.
+- Optionen → Master-Einstellungen: **jede Zahl des Spiels** ist einstellbar, nach Gruppen: Karte (Block alle N Level, bis Level), Schlange (Tempo, Wachsen, Gnadenschritt, Schutzzeit), Mauern, Teiche, Giftäpfel, Bärenfallen, Bäume, Giftwolken, Frösche (Häufigkeit, Sprungtakt, Wende-Chance, Höchstzahl), Gegner-Schlangen (ab Level, Häufigkeit, Höchstzahl, Wachsen, Höchstlänge), Power-ups und Äpfel (Chance, Dauer, Schere, Apfelwert), Häuser (Häufigkeit, Lichtweite, Strafe), Jägertürme (Häufigkeit, Kegellänge, Strafe), Ereignisse (Mindestanzahl ab Level, früher häufiger).
+- Gilt ab dem nächsten Spiel, auch im Kreativ-Modus. „Alles auf Standard“ setzt zurück. Gespeichert wird nur, was vom Standard abweicht: neue Standardwerte (z. B. der knappere Gnadenschritt) gelten so für alle. Die Anleitung rechnet mit den eingestellten Werten.
 
 ## 17. Töne, Musik, Vibration
 
-- Alle Töne werden im Gerät erzeugt (Web Audio), keine Audiodateien: Klick, Biss, Zehner-Akkord, neues Gebiet, Hinweis, Gnadenschritt (dumpfer Stoß), Tod (je nach Ursache: Falle schnappt, Teich platscht, Giftapfel wabert), Falle, Wolke zischt, Frosch quakt und ploppt beim Sprung, Jägerturm, Apfel geschnappt, Teich blubbert, Baum fällt, Haus wird gebaut, Licht klickt, Rückschlag, Rekord-Fanfare.
+- Alle Töne werden im Gerät erzeugt (Web Audio), keine Audiodateien: Klick, Biss, Zehner-Akkord, neues Gebiet, Hinweis, Gnadenschritt (dumpfer Stoß), Tod (je nach Ursache: Falle schnappt, Teich platscht, Giftapfel wabert), Falle, Wolke zischt, Frosch quakt und ploppt beim Sprung, Gegner zischt beim Erscheinen und ploppt beim Einkesseln, Jägerturm, Apfel geschnappt, Teich blubbert, Baum fällt, Haus wird gebaut, Licht klickt, Rückschlag, Rekord-Fanfare.
 - **Musik:** ruhige Schleife in a-Moll (Am, F, C, G) mit Bass und leisen Hi-Hats, im Menü und in der Pause leiser.
 - **Vibration:** leicht beim Apfel, mittel bei Gnadenschritt und Falle, kräftig bei Tod und Rückschlag, „Erfolg“ beim neuen Gebiet. In der App über Capacitor Haptics, im Browser über die Vibrations-Schnittstelle.
 
@@ -207,5 +225,5 @@ Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Web-App (PWA):** offline spielbar, installierbar („Zum Home-Bildschirm“), Vollbild. Veröffentlichung über GitHub Pages (einmalig in den Einstellungen aktivieren).
 - **Speicher:** Rekord, Statistik und Einstellungen nur auf dem Gerät.
 - **Leistung:** Gezeichnet wird nur der sichtbare Teil der Karte. Neue Hindernisse zu platzieren dauert auch auf der größten Karte nur wenige Millisekunden.
-- **Tests:** 31 automatische Tests der Spiellogik (Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Bäume, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Münzen und Power-ups, lange Spiele bis über Level 300 mit Autopilot).
+- **Tests:** 46 automatische Tests der Spiellogik (Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Gegner-Schlangen mit Ausweichen, Einkesseln, Befreien und Wachsen, Bäume, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Äpfel als Währung, Power-ups und Schere, lange Spiele bis über Level 300 mit Autopilot).
 - **Zum Ausprobieren:** Kreativ-Modus (siehe 16a). In der Web-Fassung zusätzlich `?level=210` und `?auto=1` (Autopilot).

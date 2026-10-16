@@ -19,14 +19,10 @@ export const C = {
   wasserHell: '#7CC3DD',
   wasserTief: '#2B6F8C',
   fuge: 'rgba(168, 218, 181, 0.32)',
-  apfel: '#E5463B',
-  apfelTief: '#A3241D',
-  apfelHell: '#FF7A66',
   stiel: '#6B4A2A',
   blatt: '#4FA65A',
   blattTief: '#2F7A3E',
   schatten: 'rgba(12, 40, 32, 0.22)',
-  partikel: ['#E5463B', '#F29A4C', '#F5EFE6', '#4FA65A', '#FF7A66'],
 }
 
 export const backOut = (t: number) => 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2)
@@ -44,6 +40,30 @@ export function rund(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.closePath()
 }
 
+/** Farben der Apfel-Stufen (Wert x1, x2, x3 ...) je [hell, mitte, tief].
+ *  Rot, Orange, Gelb, Gruen, Tuerkis, Blau, Lila, Rosa, dann Uebergaenge Blau-Rosa und Lila-Rosa */
+type Farbe = readonly [string, string, string]
+const ROT_: Farbe = ['#FF7A66', '#E5463B', '#A3241D']
+const ORANGE: Farbe = ['#FFB36B', '#F28A2E', '#B35A10']
+const GELB: Farbe = ['#FFF19A', '#F5CF2E', '#B08A0C']
+const GRUEN: Farbe = ['#B4F08A', '#5DBF3A', '#2C7419']
+const TUERKIS: Farbe = ['#9AF2E4', '#25BFAA', '#11756B']
+const BLAU: Farbe = ['#93C6FF', '#3A80E6', '#1B4896']
+const LILA: Farbe = ['#CFA6FF', '#8D52E0', '#512996']
+const ROSA: Farbe = ['#FFB8DD', '#F06AB0', '#AD3677']
+export const APFEL_STUFEN: readonly (readonly Farbe[])[] = [[ROT_], [ORANGE], [GELB], [GRUEN], [TUERKIS], [BLAU], [LILA], [ROSA], [BLAU, ROSA], [LILA, ROSA]]
+/** Farben fuer eine Stufe (ab der letzten bleibt es bei Lila-Rosa) */
+export const apfelFarben = (stufe: number) => APFEL_STUFEN[Math.min(APFEL_STUFEN.length, Math.max(1, Math.floor(stufe))) - 1]
+/** Farbe fuer Anzeigen (Pfeil, Minikarte, Funken) */
+export const apfelFarbe = (stufe: number, i = 0) => {
+  const f = apfelFarben(stufe)
+  return f[Math.min(i, f.length - 1)][1]
+}
+export const apfelPartikel = (stufe: number) => {
+  const f = apfelFarben(stufe)
+  return [f[0][1], f[f.length - 1][0], '#F5EFE6', C.blatt, f[f.length - 1][1]]
+}
+
 /** Apfelform (ohne Fuellung): zwei Backen, oben eine kleine Delle */
 function apfelPfad(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.beginPath()
@@ -56,8 +76,9 @@ function apfelPfad(ctx: CanvasRenderingContext2D, x: number, y: number, r: numbe
   ctx.closePath()
 }
 
-/** Apfel mit Stiel, Blatt und Glanz. s = Ploppen (0 bis 1+), wipp = leichtes Wippen */
-export function drawApfel(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, s: number, wipp = 0, schimmel?: number) {
+/** Apfel mit Stiel, Blatt und Glanz. s = Ploppen (0 bis 1+), wipp = leichtes Wippen,
+ *  schimmel = Winkel der verschimmelten Ecke (Giftapfel), stufe = Wert (Farbe) */
+export function drawApfel(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, s: number, wipp = 0, schimmel?: number, stufe = 1) {
   if (s <= 0) return
   const r = cell * 0.36 * s
   y += cell * 0.04
@@ -67,14 +88,30 @@ export function drawApfel(ctx: CanvasRenderingContext2D, x: number, y: number, c
   ctx.ellipse(x, y + r * 0.95, r * 0.85, r * 0.25, 0, 0, Math.PI * 2)
   ctx.fill()
   y -= wipp
-  // Koerper
-  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r * 1.15)
-  g.addColorStop(0, C.apfelHell)
-  g.addColorStop(0.45, C.apfel)
-  g.addColorStop(1, C.apfelTief)
+  // Koerper: eine Farbe mit Licht und Schatten, oder ein Uebergang zwischen zwei Farben
+  const f = apfelFarben(stufe)
   apfelPfad(ctx, x, y, r)
-  ctx.fillStyle = g
-  ctx.fill()
+  if (f.length === 1) {
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r * 1.15)
+    g.addColorStop(0, f[0][0])
+    g.addColorStop(0.45, f[0][1])
+    g.addColorStop(1, f[0][2])
+    ctx.fillStyle = g
+    ctx.fill()
+  } else {
+    const lg = ctx.createLinearGradient(x - r, y - r, x + r, y + r)
+    lg.addColorStop(0.1, f[0][1])
+    lg.addColorStop(0.9, f[1][1])
+    ctx.fillStyle = lg
+    ctx.fill()
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r * 1.15)
+    g.addColorStop(0, 'rgba(255, 255, 255, 0.45)')
+    g.addColorStop(0.45, 'rgba(255, 255, 255, 0)')
+    g.addColorStop(0.7, 'rgba(0, 0, 0, 0)')
+    g.addColorStop(1, 'rgba(40, 0, 40, 0.38)')
+    ctx.fillStyle = g
+    ctx.fill()
+  }
 
   // Verschimmelte Ecke (Giftapfel): im Apfel abgeschnitten, an einer Seite
   if (schimmel !== undefined) {
@@ -733,47 +770,9 @@ export function drawKegel(ctx: CanvasRenderingContext2D, cells: P[], mitte: { x:
   ctx.restore()
 }
 
-/** Goldmuenze, dreht sich langsam (Breite schwankt), mit Glanz */
-export function drawMuenze(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, s: number, now: number) {
-  if (s <= 0) return
-  const r = cell * 0.3 * s
-  const dreh = Math.abs(Math.cos(now / 420))
-  const rx = r * (0.25 + 0.75 * dreh)
-  const hop = Math.max(0, Math.sin(now / 300)) * cell * 0.06
-  ctx.fillStyle = 'rgba(12, 40, 32, 0.22)'
-  ctx.beginPath()
-  ctx.ellipse(x, y + r * 0.95, r * 0.8, r * 0.25, 0, 0, Math.PI * 2)
-  ctx.fill()
-  y -= hop
-  ctx.fillStyle = '#B9861E'
-  ctx.beginPath()
-  ctx.ellipse(x + r * 0.08 * dreh, y + r * 0.06, rx, r, 0, 0, Math.PI * 2)
-  ctx.fill()
-  const g = ctx.createLinearGradient(x - rx, y - r, x + rx, y + r)
-  g.addColorStop(0, '#FFE58A')
-  g.addColorStop(0.5, '#F6C343')
-  g.addColorStop(1, '#D99A1E')
-  ctx.fillStyle = g
-  ctx.beginPath()
-  ctx.ellipse(x, y, rx, r, 0, 0, Math.PI * 2)
-  ctx.fill()
-  if (dreh > 0.4) {
-    ctx.strokeStyle = 'rgba(150, 100, 20, 0.6)'
-    ctx.lineWidth = Math.max(1, cell * 0.04)
-    ctx.beginPath()
-    ctx.ellipse(x, y, rx * 0.65, r * 0.65, 0, 0, Math.PI * 2)
-    ctx.stroke()
-  }
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
-  ctx.beginPath()
-  ctx.ellipse(x - rx * 0.35, y - r * 0.4, rx * 0.18, r * 0.22, -0.4, 0, Math.PI * 2)
-  ctx.fill()
-}
-
 export const POWER_FARBE: Record<string, string> = {
   schild: '#4FA8E8',
   zeitlupe: '#9B7BE0',
-  magnet: '#E5544A',
   geist: '#B8C4CC',
   schere: '#F29A4C',
 }
@@ -828,13 +827,6 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.lineTo(-k * 0.6, k)
     ctx.lineTo(k * 0.6, k)
     ctx.closePath()
-    ctx.stroke()
-  } else if (art === 'magnet') {
-    ctx.arc(0, -k * 0.1, k * 0.6, Math.PI, 0, false)
-    ctx.moveTo(-k * 0.6, -k * 0.1)
-    ctx.lineTo(-k * 0.6, k * 0.8)
-    ctx.moveTo(k * 0.6, -k * 0.1)
-    ctx.lineTo(k * 0.6, k * 0.8)
     ctx.stroke()
   } else if (art === 'geist') {
     ctx.moveTo(-k * 0.7, k * 0.9)

@@ -20,6 +20,7 @@ const leer = (g: Game) => {
   g.baeume = []
   g.haeuser = []
   g.tuerme = []
+  g.gegner = []
 }
 const felderAufKarte = (g: Game) => g.mask.reduce((a, b) => a + b, 0)
 
@@ -172,8 +173,10 @@ describe('Spiel', () => {
       const ev = play(g, 340)
       ev.forEach((e) => seen.add(e.type === 'unlock' ? 'unlock:' + e.what : e.type))
       maxLevel = Math.max(maxLevel, g.level)
+      // Geist (auch nach einem Schild) darf durch die eigene Schlange gleiten
+      const geist = ev.some((e) => e.type === 'schild' || (e.type === 'power' && e.art === 'geist'))
       const k = new Set(g.body.map((p) => key(p.x, p.y)))
-      expect(k.size).toBe(g.body.length)
+      if (!geist) expect(k.size).toBe(g.body.length)
       for (const p of g.body) expect(g.inside(p)).toBe(true)
       expect(g.inside(g.apple.p)).toBe(true)
     }
@@ -379,11 +382,10 @@ describe('Kreativ-Modus', () => {
   })
 })
 
-describe('Muenzen und Power-ups', () => {
-  const frisch = (seed = 1) => {
-    const g = new Game({ screenW: SW, screenH: SH, seed, cfg: { powerChance: 0, muenzeChance: 0 } })
+describe('Aepfel als Waehrung und Power-ups', () => {
+  const frisch = (seed = 1, startLevel = 1) => {
+    const g = new Game({ screenW: SW, screenH: SH, seed, startLevel, cfg: { powerChance: 0 } })
     leer(g)
-    g.muenzen = []
     g.powers = []
     g.apple.p = { x: 0, y: 0 }
     return g
@@ -396,26 +398,41 @@ describe('Muenzen und Power-ups', () => {
     }
     return ev
   }
-
-  it('Apfel bringt eine Muenze, Goldmuenze ihren Wert', () => {
-    const g = frisch()
-    const h = g.body[0]
-    g.apple.p = { x: h.x + 1, y: h.y }
-    g.muenzen.push({ p: { x: h.x + 2, y: h.y }, t: 0, until: 1e9, wert: 3 })
-    const ev = schritte(g, 2)
-    const coins = ev.filter((e) => e.type === 'coin')
-    expect(coins.map((e) => (e as { wert: number }).wert).sort()).toEqual([1, 3])
-    expect(g.verdient).toBe(4)
-  })
-
-  it('Muenzen zaehlen ab Level 50 doppelt, ab 100 dreifach', () => {
-    expect([1, 49, 50, 99, 100, 150, 260].map((l) => R.muenzFaktor(C, l))).toEqual([1, 1, 2, 2, 3, 4, 6])
-    const g = new Game({ screenW: SW, screenH: SH, seed: 2, startLevel: 100, cfg: { powerChance: 0, muenzeChance: 0 } })
-    leer(g)
+  const vorDenKopf = (g: Game) => {
     const h = g.body[0]
     g.apple.p = { x: h.x + R.STEP[g.dir].x, y: h.y + R.STEP[g.dir].y }
+  }
+
+  it('Jeder Apfel kommt in den Vorrat', () => {
+    const g = frisch()
+    vorDenKopf(g)
     const ev = schritte(g, 1)
-    expect(ev.find((e) => e.type === 'coin')).toMatchObject({ wert: 3 })
+    expect(ev.find((e) => e.type === 'geld')).toMatchObject({ wert: 1, quelle: 'apfel' })
+    expect(g.verdient).toBe(1)
+  })
+
+  it('Aepfel zaehlen ab Level 50 doppelt, ab 100 dreifach, die Farbe zeigt den Wert', () => {
+    expect([1, 49, 50, 99, 100, 150, 260].map((l) => R.apfelFaktor(C, l))).toEqual([1, 1, 2, 2, 3, 4, 6])
+    const g = frisch(2, 100)
+    expect(g.apfelStufe()).toBe(3)
+    vorDenKopf(g)
+    const ev = schritte(g, 1)
+    expect(ev.find((e) => e.type === 'geld')).toMatchObject({ wert: 3 })
+    expect(ev.find((e) => e.type === 'eat')).toMatchObject({ stufe: 3 })
+  })
+
+  it('Beim Erreichen von Level 50 werden die Aepfel orange (x2)', () => {
+    const g = frisch(3, 49)
+    vorDenKopf(g)
+    const ev = schritte(g, 1)
+    expect(ev.find((e) => e.type === 'geld')).toMatchObject({ wert: 1 })
+    expect(ev.find((e) => e.type === 'faktor')).toMatchObject({ faktor: 2 })
+    expect(g.apfelStufe()).toBe(2)
+  })
+
+  it('Keine Muenzen und kein Magnet mehr', () => {
+    expect(R.POWER_ARTEN).not.toContain('magnet' as never)
+    expect('muenzen' in new Game({ screenW: SW, screenH: SH, seed: 1 })).toBe(false)
   })
 
   it('Schild faengt einen Aufprall ab', () => {
@@ -436,21 +453,7 @@ describe('Muenzen und Power-ups', () => {
     expect(g.takt).toBeCloseTo(vorher * R.ZEITLUPE)
   })
 
-  it('Magnet zieht den Apfel heran', () => {
-    const g = frisch()
-    const h = g.body[0]
-    g.apple.p = { x: h.x + 2, y: 1 }
-    const dist = () => Math.abs(g.apple.p.x - g.body[0].x) + Math.abs(g.apple.p.y - g.body[0].y)
-    const vorher = dist()
-    g.powerAn('magnet')
-    for (let i = 0; i < 5; i++) {
-      g.time += R.MAGNET_TAKT + 1
-      ;(g as unknown as { effekteTakt: () => void }).effekteTakt()
-    }
-    expect(dist()).toBe(vorher - 5)
-  })
-
-  it('Geist laeuft durch Mauern, Schere kuerzt', () => {
+  it('Geist laeuft durch Mauern', () => {
     const g = frisch()
     const h = g.body[0]
     g.mauern.push({ cells: [{ x: h.x + 1, y: h.y }], grown: 1, t: [0], next: 0 })
@@ -458,8 +461,231 @@ describe('Muenzen und Power-ups', () => {
     schritte(g, 2)
     expect(g.status).toBe('play')
     expect(g.body[0].x).toBeGreaterThan(h.x + 1)
-    g.body = Array.from({ length: 20 }, (_, i) => ({ x: Math.max(0, g.body[0].x - i), y: g.body[0].y }))
-    g.powerAn('schere')
-    expect(g.body.length).toBe(14)
   })
+
+  it('Schere nimmt 5 Glieder, aber nur bis zum naechsten Apfel', () => {
+    const g = frisch()
+    g.dir = 'r'
+    g.body = Array.from({ length: 12 }, (_, i) => ({ x: 11 - i, y: 5 }))
+    g.prev = g.body.map((p) => ({ ...p }))
+    g.wachsRest = 0
+    g.dir = 'd'
+    g.powerAn('schere')
+    expect(g.body.length).toBe(7)
+    expect(g.effekt.schere).toBe(5)
+    // Naechster Apfel: die 5 wachsen wieder nach (plus das normale Wachsen)
+    vorDenKopf(g)
+    const ev = schritte(g, 1)
+    expect(ev.some((e) => e.type === 'powerEnde' && e.art === 'schere')).toBe(true)
+    expect(g.effekt.schere).toBe(0)
+    schritte(g, 10)
+    expect(g.body.length).toBe(13)
+  })
+
+  it('Schere laesst mindestens 3 Glieder', () => {
+    const g = frisch()
+    g.body = g.body.slice(0, 3).concat([{ ...g.body[2] }, { ...g.body[2] }])
+    g.powerAn('schere')
+    expect(g.body.length).toBe(3)
+    expect(g.effekt.schere).toBe(2)
+  })
+})
+
+describe('Gnadenschritt', () => {
+  it('ist etwas kuerzer als frueher', () => {
+    expect(C.gnade).toBeLessThan(1.3)
+    expect(C.gnade).toBeGreaterThan(1)
+  })
+})
+
+describe('Gegner-Schlangen', () => {
+  /** Leere Karte (Level 1: rechteckig 12 x 22), nichts los. Gegner laufen auf jedem Level, wenn sie da sind */
+  const welt = (seed = 1, startLevel = 1) => {
+    const g = new Game({ screenW: SW, screenH: SH, seed, startLevel, cfg: { powerChance: 0 } })
+    leer(g)
+    g.powers = []
+    g.wachsRest = 0
+    g.apple.p = { x: 0, y: 0 }
+    return g
+  }
+  const gegner = (body: { x: number; y: number }[], dir: Dir = 'r') => ({
+    body,
+    prev: body.map((p) => ({ ...p })),
+    dir,
+    t: -1e9,
+    last: -1e9,
+    wachsAt: 1e12,
+    wachsRest: 0,
+    wuchsT: -1e9,
+    eng: 0,
+    angst: 0,
+  })
+  const schritt = (g: Game) => (g as unknown as { gegnerTakt: () => void }).gegnerTakt()
+
+  it('erst ab Level 100, dann hoechstens 1, 2, 3', () => {
+    expect([99, 100, 199, 200, 300, 900].map((l) => R.gegnerMax(C, l))).toEqual([0, 1, 1, 2, 3, 3])
+    const g = new Game({ screenW: SW, screenH: SH, seed: 1, startLevel: 50 })
+    expect(g.neuerGegner()).toBe(false)
+  })
+
+  it('erscheint rot, 3 bis 4 lang, weit weg vom Kopf, zusammenhaengend', () => {
+    const laengen = new Set<number>()
+    for (let s = 1; s < 25; s++) {
+      const g = welt(s, 120)
+      expect(g.neuerGegner()).toBe(true)
+      const e = g.gegner[0]
+      laengen.add(e.body.length)
+      for (let i = 1; i < e.body.length; i++) expect(Math.abs(e.body[i].x - e.body[i - 1].x) + Math.abs(e.body[i].y - e.body[i - 1].y)).toBe(1)
+      for (const p of e.body) {
+        expect(g.inside(p)).toBe(true)
+        expect(g.aufSchlange(p)).toBe(false)
+      }
+      const h = g.body[0]
+      expect(Math.abs(e.body[0].x - h.x) + Math.abs(e.body[0].y - h.y)).toBeGreaterThanOrEqual(6)
+      // Zweiter auf Level 120 nicht erlaubt
+      expect(g.neuerGegner()).toBe(false)
+    }
+    expect([...laengen].sort()).toEqual([3, 4])
+  })
+
+  it('ist halb so schnell wie die Schlange', () => {
+    const g = welt(2, 120)
+    g.neuerGegner()
+    const e = g.gegner[0]
+    e.last = g.time
+    let schritte = 0
+    const kopf = () => `${e.body[0].x},${e.body[0].y}`
+    let vorher = kopf()
+    for (let i = 0; i < 40; i++) {
+      g.time += g.tick
+      schritt(g)
+      if (kopf() !== vorher) schritte++
+      vorher = kopf()
+    }
+    expect(schritte).toBe(20)
+  })
+
+  it('weicht der Schlange aus', () => {
+    let weg = 0
+    for (let s = 1; s <= 20; s++) {
+      const g = welt(s)
+      // Schlange kommt von links auf den Gegner zu
+      g.body = [{ x: 3, y: 11 }, { x: 2, y: 11 }, { x: 1, y: 11 }]
+      g.dir = 'r'
+      g.gegner = [gegner([{ x: 7, y: 11 }, { x: 7, y: 12 }, { x: 7, y: 13 }], 'u')]
+      const dist = () => Math.abs(g.gegner[0].body[0].x - g.body[0].x) + Math.abs(g.gegner[0].body[0].y - g.body[0].y)
+      const vorher = dist()
+      for (let i = 0; i < 3; i++) {
+        g.time += g.gegnerSchrittzeit
+        schritt(g)
+      }
+      if (dist() > vorher) weg++
+      expect(g.gegner).toHaveLength(1)
+    }
+    expect(weg).toBeGreaterThanOrEqual(18)
+  })
+
+  it('laeuft nie in die Schlange, Hindernisse oder ueber den Rand', () => {
+    for (let s = 1; s <= 8; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s * 31, startLevel: 160 })
+      g.wachsRest = 0
+      for (let i = 0; i < 3; i++) g.neuerGegner()
+      expect(g.gegner.length).toBeGreaterThan(0)
+      for (let i = 0; i < 400 && g.status === 'play'; i++) {
+        const d = autopilot(g)
+        if (d && !g.queue.length) g.turn(d, false)
+        g.update(g.tick)
+        g.drain()
+        const wand = g.hindernisse(false)
+        for (const e of g.gegner) {
+          for (const p of e.body) {
+            expect(g.inside(p)).toBe(true)
+            expect(wand.has(key(p.x, p.y))).toBe(false)
+          }
+          expect(g.aufSchlange(e.body[0])).toBe(false)
+          expect(new Set(e.body.map((p) => key(p.x, p.y))).size).toBe(e.body.length)
+        }
+      }
+    }
+  })
+
+  it('stirbt eingekesselt und bringt Aepfel', () => {
+    const g = welt(4)
+    // Gegner in einer Ecke, die Schlange kesselt ihn ein
+    g.gegner = [gegner([{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 0 }], 'd')]
+    g.body = [{ x: 0, y: 2 }, { x: 1, y: 2 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 0 }, { x: 3, y: 0 }]
+    g.dir = 'l'
+    g.time += g.gegnerSchrittzeit
+    schritt(g)
+    const ev = g.drain()
+    expect(g.gegner).toHaveLength(0)
+    expect(g.gegnerWeg).toHaveLength(1)
+    expect(g.besiegt).toBe(1)
+    const stufe = g.apfelStufe()
+    expect(ev.find((e) => e.type === 'gegnerWeg')).toMatchObject({ laenge: 3, wert: 3 * stufe })
+    expect(ev.find((e) => e.type === 'geld')).toMatchObject({ quelle: 'gegner', wert: 3 * stufe })
+  })
+
+  it('versucht sich zu befreien, solange es einen Ausweg gibt', () => {
+    const g = welt(5)
+    // Gang nach rechts offen: nicht sterben, sondern hinaus
+    g.gegner = [gegner([{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 0 }], 'd')]
+    g.body = [{ x: 0, y: 4 }, { x: 1, y: 4 }, { x: 1, y: 3 }, { x: 1, y: 2 }]
+    g.dir = 'l'
+    for (let i = 0; i < 4; i++) {
+      g.time += g.gegnerSchrittzeit
+      schritt(g)
+    }
+    expect(g.gegner).toHaveLength(1)
+    expect(g.gegner[0].body[0].x).toBeGreaterThan(1)
+  })
+
+  it('wird mit der Zeit laenger, hoechstens bis zur Hoechstlaenge', () => {
+    const g = welt(6, 120)
+    g.neuerGegner()
+    const e = g.gegner[0]
+    const start = e.body.length
+    e.wachsAt = g.time
+    e.last = g.time
+    g.time += g.gegnerSchrittzeit
+    schritt(g)
+    g.time += g.gegnerSchrittzeit
+    schritt(g)
+    expect(e.body.length).toBe(start + 1)
+    for (let i = 0; i < 400; i++) {
+      g.time += 1000
+      g.body = [{ x: 0, y: 0 }]
+      schritt(g)
+      if (!g.gegner.length) break
+    }
+    if (g.gegner.length) expect(e.body.length).toBeLessThanOrEqual(C.gegnerMaxLaenge)
+  })
+
+  it('Hineinfahren ist toedlich (mit Gnadenschritt)', () => {
+    const g = welt(7)
+    g.body = [{ x: 3, y: 11 }, { x: 2, y: 11 }, { x: 1, y: 11 }]
+    g.dir = 'r'
+    g.prev = []
+    g.gegner = [gegner([{ x: 4, y: 11 }, { x: 4, y: 12 }, { x: 4, y: 13 }], 'u')]
+    g.gegner[0].last = 1e12
+    expect(g.gefahr({ x: 4, y: 11 })).toBe('gegner')
+    const ev: GameEvent[] = []
+    for (let i = 0; i < 20 && g.status === 'play'; i++) {
+      g.update(50)
+      ev.push(...g.drain())
+    }
+    expect(ev.some((e) => e.type === 'halt')).toBe(true)
+    expect(g.cause).toBe('gegner')
+  })
+
+  it('kommen im Spiel ab Level 100 ab und zu', () => {
+    let gesehen = 0
+    for (let s = 1; s <= 4; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s * 101, startLevel: 100 })
+      const ev = play(g, 130)
+      if (ev.some((e) => e.type === 'gegner')) gesehen++
+      expect(ev.some((e) => e.type === 'unlock' && e.what === 'gegner')).toBe(false)
+    }
+    expect(gesehen).toBeGreaterThanOrEqual(3)
+  }, 60_000)
 })

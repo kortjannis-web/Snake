@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#171513" />
-    <meta name="description" content="Snake im Endlos-Modus: Äpfel essen, die Karte wächst alle 30 Level, Mauern, Teiche, Giftäpfel, Fallen, Giftwolken und Ameisen." />
+    <meta name="description" content="Snake im Endlos-Modus: Äpfel essen und sammeln, die Karte wächst, Mauern, Teiche, Giftäpfel, Fallen, Giftwolken, Frösche und flüchtende Gegner-Schlangen." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -23,8 +23,8 @@
           <b id="hud-level">1</b>
         </div>
         <div class="hud__right">
-          <div class="hud__geld" aria-label="Münzen">
-            <i class="muenze" aria-hidden="true"></i>
+          <div class="hud__geld" aria-label="Äpfel">
+            <i class="apfel-ico" aria-hidden="true"></i>
             <b id="hud-geld">0</b>
             <small id="hud-faktor" hidden>×2</small>
           </div>
@@ -57,7 +57,7 @@
       <section class="screen screen--home" id="home" data-open>
         <div class="home">
           <div class="home__top">
-            <button class="geld-pille" data-go="shop" aria-label="Münzen und Skins"><i class="muenze" aria-hidden="true"></i><b id="home-geld">0</b></button>
+            <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
           <div class="home__brand">
@@ -109,7 +109,7 @@
             <div><b id="over-len">3</b><small>Länge</small></div>
             <div><b id="over-time">0:00</b><small>Zeit</small></div>
           </div>
-          <span class="verdient" id="over-geld" hidden><i class="muenze" aria-hidden="true"></i><b></b></span>
+          <span class="verdient" id="over-geld" hidden><i class="apfel-ico" aria-hidden="true"></i><b></b></span>
           <button class="btn btn--play" id="btn-again"><span data-icon="RotateCcw"></span>Nochmal</button>
           <button class="btn btn--ghost" id="btn-menu"><span data-icon="House"></span>Hauptmenü</button>
         </div>
@@ -194,16 +194,16 @@
                 <button class="btn btn--ghost btn--klein" id="k-springen">Springen</button>
               </div>
               <div class="opt__row"><span data-icon="Zap"></span><span class="opt__t">Ereignis jetzt auslösen</span></div>
-              <div class="seg">
+              <div class="seg seg--4">
                 <button id="k-falle">Falle</button>
                 <button id="k-wolke">Wolke</button>
                 <button id="k-frosch">Frosch</button>
+                <button id="k-gegner">Gegner</button>
               </div>
               <div class="opt__row"><span data-icon="Shield"></span><span class="opt__t">Power-up sofort</span></div>
-              <div class="seg seg--5">
+              <div class="seg seg--4">
                 <button data-power="schild">Schild</button>
                 <button data-power="zeitlupe">Zeit</button>
-                <button data-power="magnet">Magnet</button>
                 <button data-power="geist">Geist</button>
                 <button data-power="schere">Schere</button>
               </div>
@@ -232,16 +232,16 @@
         </div>
       </section>
 
-      <!-- Shop: Skins fuer Muenzen -->
+      <!-- Shop: Skins fuer Aepfel -->
       <section class="screen screen--page" id="shop">
         <div class="page">
           <header class="page__head">
             <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
             <h2>Skins</h2>
-            <span class="geld-pille geld-pille--still"><i class="muenze" aria-hidden="true"></i><b id="shop-geld">0</b></span>
+            <span class="geld-pille geld-pille--still"><i class="apfel-ico" aria-hidden="true"></i><b id="shop-geld">0</b></span>
           </header>
           <div class="page__body">
-            <p class="hinweis">Jeder Apfel bringt 1 Münze, Goldmünzen auf der Karte 3. Ab Level 50 zählt alles doppelt, ab 100 dreifach, ab 150 vierfach und so weiter. Im Kreativ-Modus gibt es keine Münzen.</p>
+            <p class="hinweis">Äpfel sind die Währung: Jeder gegessene Apfel kommt in den Vorrat. Ab Level 50 ist er doppelt so viel wert (orange), ab 100 dreifach (gelb), dann grün, türkis, blau, lila, rosa und schillernd. Eingekesselte Gegner-Schlangen bringen extra Äpfel. Im Kreativ-Modus wird nichts gesammelt.</p>
             <div class="skins" id="skins"></div>
           </div>
         </div>

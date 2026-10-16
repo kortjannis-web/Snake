@@ -13,6 +13,7 @@ export const CAUSE: Record<Cause, string> = {
   baum: 'Gegen einen Baum gelaufen',
   haus: 'Gegen ein Haus gelaufen',
   turm: 'Gegen einen Jägerturm gelaufen',
+  gegner: 'Mit einer Gegner-Schlange zusammengestoßen',
 }
 
 export const SIDE: Record<Side, string> = { top: 'oben', bottom: 'unten', left: 'links', right: 'rechts' }
@@ -28,22 +29,28 @@ export const unlockText = (c: Config): Record<Unlock, { title: string; text: str
   baum: { title: 'Bäume', text: `Ein Baum ist umgefallen und bleibt liegen. Alle ${c.baumAlle} Level kommt einer dazu.`, mini: 'baum' },
   haus: { title: 'Häuser', text: `Nicht anfahren! Aus einem Fenster scheint Licht: wer hineinläuft, fällt ${c.lichtZurueck} Level zurück.`, mini: 'haus' },
   turm: { title: 'Jägertürme', text: `Ihr Lichtkegel dreht sich jede Runde weiter. Im Licht: ${c.kegelZurueck} Level zurück.`, mini: 'turm' },
+  gegner: { title: 'Gegner-Schlangen', text: 'Sie fliehen vor dir. Kessel sie mit deinem Körper ein, dann bringen sie Äpfel. Nicht anrempeln!', mini: 'gegner' },
 })
+
+/** Namen der Apfel-Stufen (Farbe nach Wert) */
+export const STUFEN_NAME = ['Rot', 'Orange', 'Gelb', 'Grün', 'Türkis', 'Blau', 'Lila', 'Rosa', 'Blau-Rosa', 'Lila-Rosa']
+export const stufenName = (stufe: number) => STUFEN_NAME[Math.min(STUFEN_NAME.length, Math.max(1, stufe)) - 1]
 
 export const help = (c: Config): { mini: Mini; title: string; ab?: string; text: string }[] => [
   { mini: 'schlange', title: 'Steuerung', text: 'Wische in die Richtung, in die die Schlange laufen soll. Am PC mit den Pfeiltasten oder WASD, Pause mit Esc oder P. Wer gegen ein Hindernis läuft, bleibt kurz stehen und kann noch abbiegen.' },
   { mini: 'apfel', title: 'Äpfel', text: 'Jeder Apfel ist ein Level. Die Schlange wird länger und mit der Zeit etwas schneller. Liegt der Apfel außerhalb des Bildes, zeigt ein Pfeil am Rand die Richtung.' },
-  { mini: 'muenze', title: 'Münzen', text: `Jeder Apfel bringt ${c.apfelMuenzen} Münze, Goldmünzen auf der Karte ${c.muenzeWert}. Ab Level ${c.muenzFaktorAlle} zählt alles doppelt, ab ${c.muenzFaktorAlle * 2} dreifach und so weiter. Goldmünzen liegen 12 Sekunden. Mit Münzen kaufst du Skins (Startmenü → Skins). Im Kreativ-Modus gibt es keine Münzen.` },
+  { mini: 'aepfel', title: 'Äpfel sind die Währung', text: `Jeder gegessene Apfel landet in deinem Vorrat, damit kaufst du Skins (Startmenü → Skins). Ab Level ${c.apfelWertAlle} ist jeder Apfel doppelt so viel wert, ab ${c.apfelWertAlle * 2} dreifach und so weiter. Mit jedem Wert bekommt er eine andere Farbe: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, dann Blau-Rosa und Lila-Rosa. Im Kreativ-Modus wird nichts gesammelt.` },
+  { mini: 'gebiet', title: 'Minikarte', text: 'Sobald die Karte größer als ein Bildschirm ist, zeigt unten links eine kleine Karte die Blöcke: grün der Block, in dem du bist, in Apfelfarbe der Block mit dem Apfel.' },
   { mini: 'schild', title: 'Power-up: Schild', ab: `ab Level ${c.powerAb}`, text: 'Fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab. Die Schlange gleitet dann kurz durch das Hindernis. Bis zu 3 Schilde sammeln sich.' },
   { mini: 'zeitlupe', title: 'Power-up: Zeitlupe', ab: `ab Level ${c.powerAb}`, text: `Die Schlange ist ${c.effektDauer} Sekunden lang langsamer.` },
-  { mini: 'magnet', title: 'Power-up: Magnet', ab: `ab Level ${c.powerAb}`, text: `${c.effektDauer} Sekunden lang kommt der Apfel zu dir, Goldmünzen in der Nähe auch.` },
   { mini: 'geist', title: 'Power-up: Geist', ab: `ab Level ${c.powerAb}`, text: `${c.geistDauer} Sekunden lang durch alle Hindernisse und die eigene Schlange, ohne Rückschläge. Nur der Kartenrand hält dich auf.` },
-  { mini: 'schere', title: 'Power-up: Schere', ab: `ab Level ${c.powerAb}`, text: `Die Schlange wird sofort um ${c.schereProzent} % kürzer (mindestens 3 Glieder bleiben). Power-ups liegen ${c.powerDauer} Sekunden und blinken kurz vor dem Verschwinden.` },
+  { mini: 'schere', title: 'Power-up: Schere', ab: `ab Level ${c.powerAb}`, text: `Schneidet ${c.schereLaenge} Glieder ab, aber nur für einen Apfel: mit dem nächsten Apfel wachsen sie wieder nach (mindestens 3 Glieder bleiben). Power-ups liegen ${c.powerDauer} Sekunden und blinken kurz vor dem Verschwinden.` },
   { mini: 'gebiet', title: 'Neues Gebiet', ab: `alle ${c.gebietAlle} Level`, text: `Die Karte besteht aus Blöcken von je einem halben Bildschirm. Alle ${c.gebietAlle} Level setzt sich ein neuer Block an einer zufälligen Stelle an, wie bei Minecraft. Ab Level ${c.gebietBis} wächst sie nicht mehr.` },
   { mini: 'mauer', title: 'Mauern', ab: `ab Level ${c.mauerAb}`, text: `Erst 2 Felder lang, alle ${c.mauerSchritt} Level eins mehr. Bei ${c.mauerMax} Feldern kommt eine neue Mauer dazu, die wieder mit 2 anfängt. Nach jedem Apfel stehen sie woanders.` },
   { mini: 'teich', title: 'Teiche', ab: `ab Level ${c.teichAb}`, text: `Alle ${c.teichAlle} Level entsteht ein Teich und bleibt liegen. Die Teiche werden langsam größer. Wird es zu voll, trocknet der älteste aus.` },
   { mini: 'gift', title: 'Giftäpfel', ab: `ab Level ${c.giftAb}`, text: 'Sehen aus wie Äpfel, haben aber eine verschimmelte Ecke. Wer einen isst, hat verloren.' },
   { mini: 'falle', title: 'Bärenfallen', ab: `ab Level ${c.falleAb}`, text: `Etwa alle ${c.falleMin} bis ${c.falleMax} Level schnappt eine Falle ${c.falleAbstandMin} bis ${c.falleAbstandMax} Felder vor dir auf, genau in deiner Bahn. Nach ${c.falleDauer} Sekunden klappt sie zu.` },
+  { mini: 'gegner', title: 'Gegner-Schlangen', ab: `ab Level ${c.gegnerAb}`, text: `Ab und zu taucht eine rote Schlange auf (3 bis 4 lang, ab Level ${c.gegnerAb + 100} auch zwei, dann drei). Sie ist halb so schnell wie du und weicht dir aus, so gut sie kann. Kessel sie mit deinem Körper ein: Hat sie keinen Ausweg mehr, zerplatzt sie und bringt so viele Äpfel, wie sie lang ist (mal Apfelwert). Sie versucht sich zu befreien, solange es geht. Alle ${c.gegnerWachsen} Sekunden wird sie ein Glied länger (bis ${c.gegnerMaxLaenge}). Mit dem Kopf in sie hineinfahren beendet das Spiel.` },
   { mini: 'baum', title: 'Bäume', ab: `ab Level ${c.baumAb}`, text: `Ein umgefallener Tannenbaum: zwei Felder Stamm, dann die Krone (zwei Felder breit, dann die Spitze). Bleibt für immer liegen, alle ${c.baumAlle} Level kommt ein neuer dazu. Berühren beendet das Spiel.` },
   { mini: 'wolke', title: 'Giftwolken', ab: `ab Level ${c.wolkeAb}`, text: `Beginnen auf einem Feld und wachsen alle ${c.wolkeTakt} Sekunden: erst ein Kreuz, dann ein Quadrat, dann noch größer. Kurz vorher pulsiert der Rand. Wer hineingerät, fällt ${c.wolkeZurueck} Level zurück und ist danach kurz geschützt (die Schlange blinkt).` },
   { mini: 'frosch', title: 'Frösche', ab: `ab Level ${c.froschAb}`, text: `Hüpfen alle ${c.froschSprung} Sekunden ein Feld in Blickrichtung. Kurz vorher machen sie sich bereit. Nach der Landung drehen sie sich manchmal um (${c.froschWende} %). In die Schlange springen sie nie, über den Rand hüpfen sie weg. Hineinbeißen beendet das Spiel.` },

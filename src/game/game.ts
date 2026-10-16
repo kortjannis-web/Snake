@@ -16,7 +16,7 @@
  */
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Baum, Cause, Dir, Falle, Fenster, Frosch, GameEvent, Gift, Haus, Kreativ, Mauer, Muenze, P, Power, PowerArt, Side, Status, Teich, Turm, Wolke } from './types'
+import type { Baum, Cause, Dir, Falle, Fenster, Frosch, GameEvent, Gegner, Gift, Haus, Kreativ, Mauer, P, Power, PowerArt, Side, Status, Teich, Turm, Wolke } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -37,7 +37,19 @@ const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 const cheb = (a: P, b: P) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
 const SIDE: Record<Dir, Side> = { u: 'top', d: 'bottom', l: 'left', r: 'right' }
 
-type Art = 'falle' | 'wolke' | 'frosch'
+type Art = 'falle' | 'wolke' | 'frosch' | 'gegner'
+
+/** Was eine Gegner-Schlange beim Ausweichen sieht (einmal je Takt berechnet) */
+type Sicht = {
+  /** Feste Hindernisse (ohne Schlangen) */
+  wand: Set<number>
+  /** Schritte, die die Schlange bis zu jedem Feld braucht (-1 = kommt nicht hin) */
+  dist: Int32Array
+  /** Feld vor dem Kopf der Schlange */
+  vorKopf: P
+}
+/** So lange zerfaellt eine besiegte Gegner-Schlange (ms) */
+export const GEGNER_WEG = 700
 
 export class Game {
   readonly cfg: R.Config
@@ -81,14 +93,18 @@ export class Game {
   baeume: Baum[] = []
   haeuser: Haus[] = []
   tuerme: Turm[] = []
-  /** Goldmuenzen und Power-ups auf der Karte */
-  muenzen: Muenze[] = []
+  /** Power-ups auf der Karte */
   powers: Power[] = []
-  /** Aktive Power-ups: Schild (Anzahl), sonst bis wann sie wirken */
-  effekt = { schild: 0, zeitlupeBis: 0, magnetBis: 0, geistBis: 0 }
-  /** In dieser Runde verdiente Muenzen */
+  /** Aktive Power-ups: Schild (Anzahl), bis wann Zeitlupe/Geist wirken,
+   *  Schere = so viele Glieder kommen mit dem naechsten Apfel zurueck */
+  effekt = { schild: 0, zeitlupeBis: 0, geistBis: 0, schere: 0 }
+  /** Gegner-Schlangen und besiegte (zerfallen gerade) */
+  gegner: Gegner[] = []
+  gegnerWeg: { g: Gegner; t: number }[] = []
+  /** In dieser Runde besiegte Gegner */
+  besiegt = 0
+  /** In dieser Runde verdiente Aepfel (Waehrung) */
   verdient = 0
-  private magnetNext = 0
 
   time = 0
   last = 0
@@ -135,7 +151,7 @@ export class Game {
     this.baueMaske()
     this.screenW = this.w
     this.screenH = this.h
-    this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb }
+    this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb }
     this.tick = R.takt(this.cfg, this.tempo, 1)
 
     const y = Math.floor(this.h / 2)
@@ -159,7 +175,7 @@ export class Game {
     this.maxLevel = start
     this.apples = start - 1
     this.tick = R.takt(this.cfg, this.tempo, this.level)
-    for (const k of ['falle', 'wolke', 'frosch'] as const) this.next[k] = Math.max(this.next[k], start + 1)
+    for (const k of ['falle', 'wolke', 'frosch', 'gegner'] as const) this.next[k] = Math.max(this.next[k], start + 1)
     if (start > 1) {
       this.gebiet = null
       this.layout()
@@ -186,6 +202,7 @@ export class Game {
     this.wachsen()
     this.wolkenTakt()
     this.froschTakt()
+    this.gegnerTakt()
     this.fallenTakt()
     this.regie()
   }
@@ -320,15 +337,8 @@ export class Game {
     return true
   }
 
-  /** Muenzen und Power-ups unter dem Kopf aufheben */
+  /** Power-ups unter dem Kopf aufheben */
   private einsammeln(n: P) {
-    const mi = this.muenzen.findIndex((m) => same(m.p, n))
-    if (mi >= 0) {
-      const m = this.muenzen.splice(mi, 1)[0]
-      const wert = m.wert * R.muenzFaktor(this.cfg, this.level)
-      this.verdient += wert
-      this.emit({ type: 'coin', wert, p: { ...m.p }, apfel: false })
-    }
     const pi = this.powers.findIndex((p) => same(p.p, n))
     if (pi >= 0) this.powerAn(this.powers.splice(pi, 1)[0].art, n)
   }
@@ -337,50 +347,28 @@ export class Game {
     const c = this.cfg
     if (art === 'schild') this.effekt.schild = Math.min(3, this.effekt.schild + 1)
     if (art === 'zeitlupe') this.effekt.zeitlupeBis = this.time + c.effektDauer * 1000
-    if (art === 'magnet') this.effekt.magnetBis = this.time + c.effektDauer * 1000
     if (art === 'geist') this.effekt.geistBis = this.time + c.geistDauer * 1000
     if (art === 'schere') {
-      const weg = Math.max(3, Math.round((this.body.length * c.schereProzent) / 100))
-      const len = Math.max(3, this.body.length - weg)
-      this.wachsRest = 0
+      // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach
+      const weg = Math.min(Math.max(0, Math.round(c.schereLaenge)), Math.max(0, this.body.length - 3))
+      const len = this.body.length - weg
       this.body = this.body.slice(0, len)
       this.prev = this.prev.slice(0, len)
+      this.effekt.schere += weg
     }
     this.emit({ type: 'power', art, p: { ...p } })
   }
 
-  /** Laufende Power-ups: Magnet zieht, abgelaufene Gegenstaende verschwinden */
+  /** Laufende Power-ups enden, abgelaufene Gegenstaende verschwinden */
   private effekteTakt() {
     const e = this.effekt
-    for (const [art, bis] of [['zeitlupe', e.zeitlupeBis], ['magnet', e.magnetBis], ['geist', e.geistBis]] as const)
+    for (const [art, bis] of [['zeitlupe', e.zeitlupeBis], ['geist', e.geistBis]] as const)
       if (bis > 0 && this.time >= bis) {
         if (art === 'zeitlupe') e.zeitlupeBis = 0
-        if (art === 'magnet') e.magnetBis = 0
         if (art === 'geist') e.geistBis = 0
         this.emit({ type: 'powerEnde', art })
       }
-    this.muenzen = this.muenzen.filter((m) => this.time < m.until)
     this.powers = this.powers.filter((p) => this.time < p.until)
-    if (this.time < e.magnetBis && this.time >= this.magnetNext) {
-      this.magnetNext = this.time + R.MAGNET_TAKT
-      const head = this.body[0]
-      const wand = this.hindernisse()
-      for (const h of this.haeuser) for (const p of h.strahl) wand.add(key(p.x, p.y))
-      for (const t of this.tuerme) for (const p of t.kegel) wand.add(key(p.x, p.y))
-      const naeher = (p: P) => {
-        const opts = DIRS.map((d) => ({ x: p.x + STEP[d].x, y: p.y + STEP[d].y })).filter(
-          (c) => manhattan(c, head) < manhattan(p, head) && this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c),
-        )
-        return opts[0]
-      }
-      const a = naeher(this.apple.p)
-      if (a && manhattan(this.apple.p, head) > 1 && !this.muenzen.some((m) => same(m.p, a))) this.apple.p = a
-      for (const m of this.muenzen) {
-        if (manhattan(m.p, head) > 8) continue
-        const z = naeher(m.p)
-        if (z && !same(z, this.apple.p)) m.p = z
-      }
-    }
   }
 
   /** Kopf in Giftwolke, Fensterlicht oder Lichtkegel: Level zurueck (nicht toedlich) */
@@ -442,6 +430,7 @@ export class Game {
     if (this.baeume.some((b) => b.cells.some((p) => same(p, n)))) return 'baum'
     if (this.haeuser.some((h) => h.cells.some((p) => same(p, n)))) return 'haus'
     if (this.tuerme.some((t) => t.cells.some((p) => same(p, n)))) return 'turm'
+    if (this.aufGegner(n)) return 'gegner'
     if (!k?.durchSelbst && rest.some((p) => same(p, n))) return 'selbst'
     return null
   }
@@ -454,7 +443,14 @@ export class Game {
     this.emit({ type: 'die', cause })
   }
 
+  /** Wie viel der Apfel gerade wert ist (Stufe = Farbe) */
+  apfelStufe() {
+    return R.apfelFaktor(this.cfg, this.level)
+  }
+
   private eat(n: P) {
+    // Wert nach dem Level, auf dem der Apfel lag (so passt er zu seiner Farbe)
+    const stufe = this.apfelStufe()
     this.ate = true
     this.apples++
     this.gegessen++
@@ -463,13 +459,19 @@ export class Game {
     const neu = this.level > this.maxLevel
     if (neu) this.maxLevel = this.level
     if (this.waechstJetzt(this.level)) this.wachsRest++
-    this.emit({ type: 'eat', level: this.level, p: { ...n } })
-    if (this.cfg.apfelMuenzen > 0) {
-      const wert = this.cfg.apfelMuenzen * R.muenzFaktor(this.cfg, this.level)
-      this.verdient += wert
-      this.emit({ type: 'coin', wert, p: { ...n }, apfel: true })
+    // Schere wirkt nur einen Apfel lang: die Glieder wachsen wieder nach
+    if (this.effekt.schere > 0) {
+      this.wachsRest += this.effekt.schere
+      this.effekt.schere = 0
+      this.emit({ type: 'powerEnde', art: 'schere' })
     }
-    if (neu && this.level % Math.max(1, this.cfg.muenzFaktorAlle) === 0) this.emit({ type: 'faktor', faktor: R.muenzFaktor(this.cfg, this.level) })
+    this.emit({ type: 'eat', level: this.level, p: { ...n }, stufe })
+    if (this.cfg.apfelWert > 0) {
+      const wert = this.cfg.apfelWert * stufe
+      this.verdient += wert
+      this.emit({ type: 'geld', wert, p: { ...n }, quelle: 'apfel' })
+    }
+    if (neu && this.level % Math.max(1, this.cfg.apfelWertAlle) === 0) this.emit({ type: 'faktor', faktor: this.apfelStufe() })
     if (neu && this.level % 10 === 0) this.emit({ type: 'milestone', level: this.level })
     if (neu) {
       for (const u of R.unlocks(this.cfg)) if (u.level === this.level) this.emit({ type: 'unlock', what: u.what, level: this.level })
@@ -513,7 +515,7 @@ export class Game {
     this.neuerApfel()
     this.neueGifte()
     this.gegenstaende()
-    for (const k of ['falle', 'wolke', 'frosch'] as const) {
+    for (const k of ['falle', 'wolke', 'frosch', 'gegner'] as const) {
       if (this.level < R.ab(this.cfg, k) || this.level < this.next[k]) continue
       const [a, b] = R.pause(this.cfg, k, this.level)
       this.next[k] = this.level + this.r.int(a, b)
@@ -521,21 +523,14 @@ export class Game {
     }
   }
 
-  /** Nach einem Apfel vielleicht eine Goldmuenze oder ein Power-up (auf einem freien Feld in Reichweite) */
+  /** Nach einem Apfel vielleicht ein Power-up (auf einem freien Feld in Reichweite) */
   private gegenstaende() {
     const c = this.cfg
     const head = this.body[0]
     const nah = this.screenW + this.screenH
-    const feld = () => {
-      const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3))
-      return cand.length ? this.r.pick(cand) : null
-    }
-    if (this.muenzen.length < R.MUENZE_MAX && this.r.next() * 100 < c.muenzeChance) {
-      const p = feld()
-      if (p) this.muenzen.push({ p, t: this.time, until: this.time + R.MUENZE_DAUER, wert: c.muenzeWert })
-    }
     if (this.level >= c.powerAb && !this.powers.length && this.r.next() * 100 < c.powerChance) {
-      const p = feld()
+      const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3))
+      const p = cand.length ? this.r.pick(cand) : null
       if (p) this.powers.push({ p, t: this.time, until: this.time + c.powerDauer * 1000, art: this.r.pick(R.POWER_ARTEN) })
     }
   }
@@ -645,8 +640,11 @@ export class Game {
       t.cells.forEach(mv)
       t.kegel.forEach(mv)
     })
-    this.muenzen.forEach((m) => mv(m.p))
     this.powers.forEach((p) => mv(p.p))
+    for (const e of [...this.gegner, ...this.gegnerWeg.map((w) => w.g)]) {
+      e.body.forEach(mv)
+      e.prev.forEach(mv)
+    }
   }
 
   /* ================= Platz finden ================= */
@@ -660,8 +658,9 @@ export class Game {
     return this.inside(c) && DIRS.every((d) => this.inside({ x: c.x + STEP[d].x, y: c.y + STEP[d].y }))
   }
 
-  /** Alle Hindernisse (fuer Platzsuche und Erreichbarkeit). Mauern mit allen geplanten Feldern */
-  hindernisse(): Set<number> {
+  /** Alle Hindernisse (fuer Platzsuche und Erreichbarkeit). Mauern mit allen geplanten Feldern.
+   *  Gegner-Schlangen zaehlen dazu, ausser fuer ihre eigene Wegsuche */
+  hindernisse(mitGegnern = true): Set<number> {
     const s = new Set<number>()
     const add = (p: P) => s.add(key(p.x, p.y))
     this.mauern.forEach((m) => m.cells.forEach(add))
@@ -676,6 +675,7 @@ export class Game {
     this.baeume.forEach((b) => b.cells.forEach(add))
     this.haeuser.forEach((h) => h.cells.forEach(add))
     this.tuerme.forEach((t) => t.cells.forEach(add))
+    if (mitGegnern) this.gegner.forEach((e) => e.body.forEach(add))
     return s
   }
 
@@ -794,7 +794,7 @@ export class Game {
       const k = key(c.x, c.y)
       if (!this.inside(c) || luft.has(k) || wand.has(k) || seen.has(k)) return false
       seen.add(k)
-      if (same(c, this.apple.p) || this.muenzen.some((m) => same(m.p, c)) || this.powers.some((p) => same(p.p, c))) return false
+      if (same(c, this.apple.p) || this.powers.some((p) => same(p.p, c))) return false
       if (art === 'teich' ? cheb(c, head) < 3 : manhattan(c, head) < 5) return false
       if (this.body.some((p) => cheb(p, c) < 2)) return false
       if (this.imWeg(c)) return false
@@ -870,7 +870,7 @@ export class Game {
     for (const h of this.haeuser) for (const p of h.strahl) wand.add(key(p.x, p.y))
     for (const t of this.tuerme) for (const p of t.kegel) wand.add(key(p.x, p.y))
     const reach = this.erreichbar(wand)
-    const item = new Set([...this.muenzen.map((m) => key(m.p.x, m.p.y)), ...this.powers.map((p) => key(p.p.x, p.p.y))])
+    const item = new Set(this.powers.map((p) => key(p.p.x, p.p.y)))
     const out: P[] = []
     for (let y = 0; y < this.h; y++)
       for (let x = 0; x < this.w; x++) {
@@ -1092,7 +1092,7 @@ export class Game {
   }
 
   spawn(k: Art) {
-    const ok = k === 'falle' ? this.neueFalle() : k === 'wolke' ? this.neueWolke() : this.neuerFrosch()
+    const ok = k === 'falle' ? this.neueFalle() : k === 'wolke' ? this.neueWolke() : k === 'frosch' ? this.neuerFrosch() : this.neuerGegner()
     if (ok) this.lastSpawn = this.time
     return ok
   }
@@ -1164,7 +1164,7 @@ export class Game {
         for (const o of R.wolkenForm(w.stage)) {
           const c = { x: w.c.x + o.x, y: w.c.y + o.y }
           if (!this.inside(c) || has.has(key(c.x, c.y))) continue
-          if (this.aufSchlange(c)) w.pending.push(c)
+          if (this.aufSchlange(c) || this.aufGegner(c)) w.pending.push(c)
           else {
             w.cells.push(c)
             w.bornAt.push(this.time)
@@ -1187,9 +1187,10 @@ export class Game {
   private wolkenNachruecken() {
     for (const w of this.wolken) {
       if (!w.pending.length) continue
-      const frei = w.pending.filter((c) => !this.aufSchlange(c))
+      const belegt = (c: P) => this.aufSchlange(c) || this.aufGegner(c)
+      const frei = w.pending.filter((c) => !belegt(c))
       if (!frei.length) continue
-      w.pending = w.pending.filter((c) => this.aufSchlange(c))
+      w.pending = w.pending.filter(belegt)
       for (const c of frei) {
         w.cells.push(c)
         w.bornAt.push(this.time)
@@ -1303,6 +1304,256 @@ export class Game {
       }
     }
     this.froesche = this.froesche.filter((f) => f.gone === undefined || this.time - f.gone < R.FROSCH_FLUG + 300)
+  }
+
+  /* ================= Gegner-Schlangen ================= */
+
+  aufGegner(c: P) {
+    return this.gegner.some((e) => e.body.some((p) => same(p, c)))
+  }
+
+  /** Takt der Gegner: halb so schnell wie die Schlange (Zeitlupe bremst nur die Schlange) */
+  get gegnerSchrittzeit() {
+    return this.tick * R.GEGNER_TEMPO
+  }
+
+  /** Freie Felder ab `start` (Flutfuellung, hoechstens `cap`) */
+  private raum(start: P, zu: (c: P) => boolean, cap: number) {
+    const seen = new Set<number>([key(start.x, start.y)])
+    const q = [start]
+    for (let i = 0; i < q.length && seen.size < cap; i++)
+      for (const d of DIRS) {
+        const n = { x: q[i].x + STEP[d].x, y: q[i].y + STEP[d].y }
+        const k = key(n.x, n.y)
+        if (seen.has(k) || zu(n)) continue
+        seen.add(k)
+        q.push(n)
+      }
+    return seen.size
+  }
+
+  /** Neue Gegner-Schlange (3 bis 4 lang), weit weg vom Kopf, irgendwo, wo die Schlange hinkommt */
+  neuerGegner() {
+    const max = this.kreativ ? Math.max(1, this.cfg.gegnerAnzahl) : R.gegnerMax(this.cfg, this.level)
+    if (this.gegner.length >= max) return false
+    const head = this.body[0]
+    const wand = this.hindernisse()
+    const reach = this.erreichbar(wand)
+    const frei = (c: P) =>
+      this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && !same(c, this.apple.p) && !this.powers.some((p) => same(p.p, c))
+    const weit = Math.max(6, Math.min(12, Math.floor((this.screenW + this.screenH) / 3)))
+    const cand: P[] = []
+    for (let y = 0; y < this.h; y++)
+      for (let x = 0; x < this.w; x++) {
+        const c = { x, y }
+        if (!frei(c) || !reach.has(key(x, y)) || manhattan(c, head) < weit || this.imWeg(c, 12)) continue
+        if (this.freieNachbarn(c, wand) < 3) continue
+        cand.push(c)
+      }
+    const len = this.r.int(3, 4)
+    for (let v = 0; v < 60 && cand.length; v++) {
+      const c = cand.splice(this.r.int(0, cand.length - 1), 1)[0]
+      // Koerper vom Kopf aus nach hinten legen, gern gerade
+      const body = [c]
+      let d = this.r.pick(DIRS)
+      for (let i = 1; i < len; i++) {
+        const last = body[body.length - 1]
+        const reihe = [d, ...this.r.shuffle(DIRS.filter((o) => o !== d))]
+        const nd = reihe.find((o) => {
+          const p = { x: last.x + STEP[o].x, y: last.y + STEP[o].y }
+          return frei(p) && !body.some((b) => same(b, p))
+        })
+        if (!nd) break
+        d = nd
+        body.push({ x: last.x + STEP[nd].x, y: last.y + STEP[nd].y })
+      }
+      if (body.length < len) continue
+      // Genug Platz drumherum, damit sie nicht gleich eingekesselt ist
+      if (this.raum(c, (p) => !frei(p) || body.some((b) => same(b, p)), 4 * len) < 4 * len) continue
+      const dir = DIRS.find((o) => body[1].x + STEP[o].x === c.x && body[1].y + STEP[o].y === c.y)!
+      const t = this.time
+      this.gegner.push({
+        body,
+        prev: body.map((p) => ({ ...p })),
+        dir,
+        t,
+        // Erst kurz erscheinen, dann loslaufen
+        last: t + 500,
+        wachsAt: t + this.cfg.gegnerWachsen * 1000,
+        wachsRest: 0,
+        wuchsT: -1e9,
+        eng: 0,
+        angst: 0,
+      })
+      this.emit({ type: 'gegner', p: { ...c } })
+      return true
+    }
+    return false
+  }
+
+  private gegnerTakt() {
+    this.gegnerWeg = this.gegnerWeg.filter((w) => this.time - w.t < GEGNER_WEG)
+    if (!this.gegner.length) return
+    const c = this.cfg
+    const takt = this.gegnerSchrittzeit
+    let sicht: Sicht | null = null
+    for (const e of [...this.gegner]) {
+      // Wer lange ueberlebt, wird laenger
+      if (this.time >= e.wachsAt) {
+        e.wachsAt = this.time + c.gegnerWachsen * 1000
+        if (e.body.length + e.wachsRest < c.gegnerMaxLaenge) {
+          e.wachsRest++
+          e.wuchsT = this.time
+        }
+      }
+      if (this.time - e.last < takt - 1e-6) continue
+      e.last += takt
+      if (this.time - e.last > takt) e.last = this.time
+      sicht ??= this.gegnerSicht()
+      this.gegnerSchritt(e, sicht)
+    }
+  }
+
+  /** Wie weit hat es die Schlange bis zu jedem Feld? (Breitensuche vom Kopf, ihr Koerper ist im Weg) */
+  private gegnerSicht(): Sicht {
+    const { w, h, mask } = this
+    const wand = this.hindernisse(false)
+    const dist = new Int32Array(w * h).fill(-1)
+    const q = new Int32Array(w * h)
+    const koerper = new Set(this.body.slice(1).map((p) => key(p.x, p.y)))
+    const head = this.body[0]
+    let qh = 0
+    let qt = 0
+    if (this.inside(head)) {
+      dist[head.y * w + head.x] = 0
+      q[qt++] = head.y * w + head.x
+    }
+    while (qh < qt) {
+      const i = q[qh++]
+      const x = i % w
+      const y = (i - x) / w
+      for (const d of DIRS) {
+        const nx = x + STEP[d].x
+        const ny = y + STEP[d].y
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
+        const j = ny * w + nx
+        if (dist[j] >= 0 || !mask[j]) continue
+        const k = key(nx, ny)
+        if (wand.has(k) || koerper.has(k)) continue
+        dist[j] = dist[i] + 1
+        q[qt++] = j
+      }
+    }
+    const dir = this.queue[0] ?? this.dir
+    return { wand, dist, vorKopf: { x: head.x + STEP[dir].x, y: head.y + STEP[dir].y } }
+  }
+
+  /** Felder, die der Gegner sicher vor der Schlange erreicht (er ist halb so schnell).
+   *  Gesucht wird nur durch solche Felder: so viel Platz bleibt ihm wirklich */
+  private gebietVon(start: P, zu: (p: P) => boolean, dist: Int32Array, cap: number) {
+    const w = this.w
+    const zuerst = (p: P, tiefe: number) => {
+      const d = dist[p.y * w + p.x]
+      return d < 0 || tiefe * R.GEGNER_TEMPO < d
+    }
+    if (!zuerst(start, 1)) return 0
+    const tiefe = new Map<number, number>([[key(start.x, start.y), 1]])
+    const q = [start]
+    for (let i = 0; i < q.length && q.length < cap; i++) {
+      const t = tiefe.get(key(q[i].x, q[i].y))! + 1
+      for (const d of DIRS) {
+        const p = { x: q[i].x + STEP[d].x, y: q[i].y + STEP[d].y }
+        const k = key(p.x, p.y)
+        if (tiefe.has(k) || zu(p) || !zuerst(p, t)) continue
+        tiefe.set(k, t)
+        q.push(p)
+      }
+    }
+    return q.length
+  }
+
+  /** Ein Schritt einer Gegner-Schlange. Sie bewertet jede freie Richtung:
+   *  - Gebiet: wie viele Felder sie sicher vor der Schlange erreicht (der wichtigste Wert,
+   *    so flieht sie in offene Bereiche und durch Luecken, bevor sie sich schliessen)
+   *  - Platz: keine Sackgassen, in denen sie sich selbst einsperrt
+   *  - Abstand zur Schlange (Weg, nicht Luftlinie), nie direkt vor oder neben den Kopf
+   *  - Bewegungsfreiheit (freie Nachbarn), gern geradeaus, ein wenig Zufall
+   *  Ist niemand in der Naehe, schlaengelt sie gemuetlich herum.
+   *  Eingekesselt (kein Zug mehr, oder ihr Bereich ist kaum groesser als sie selbst) stirbt sie. */
+  private gegnerSchritt(e: Gegner, s: Sicht) {
+    const w = this.w
+    e.prev = e.body.map((p) => ({ ...p }))
+    const head = e.body[0]
+    const len = e.body.length
+    const eigen = new Set((e.wachsRest > 0 ? e.body : e.body.slice(0, -1)).map((p) => key(p.x, p.y)))
+    const andere = new Set<number>()
+    for (const o of this.gegner) if (o !== e) o.body.forEach((p) => andere.add(key(p.x, p.y)))
+    const schlange = new Set(this.body.map((p) => key(p.x, p.y)))
+    const fremd = (p: P) => {
+      if (!this.inside(p)) return true
+      const k = key(p.x, p.y)
+      return s.wand.has(k) || schlange.has(k) || andere.has(k)
+    }
+    const zu = (p: P) => fremd(p) || eigen.has(key(p.x, p.y))
+    const moves = DIRS.map((d) => ({ d, p: { x: head.x + STEP[d].x, y: head.y + STEP[d].y } })).filter((m) => !zu(m.p))
+
+    // Eingekesselt? Der ganze Bereich (mit ihr selbst) ist kaum groesser als sie: dann ist es vorbei
+    const bereich = this.raum(head, fremd, len + 2)
+    e.eng = !moves.length || bereich <= len + 1 ? e.eng + 1 : 0
+    if (!moves.length || e.eng >= 2) {
+      this.gegnerBesiegt(e)
+      return
+    }
+
+    const ph = this.body[0]
+    const dKopf = s.dist[head.y * w + head.x]
+    const gejagt = dKopf >= 0 && dKopf <= 14
+    e.angst = gejagt ? 1 - dKopf / 15 : Math.max(0, e.angst - 0.25)
+    let best = moves[0]
+    let bestS = -Infinity
+    for (const m of moves) {
+      const dP = s.dist[m.p.y * w + m.p.x]
+      const gebiet = this.gebietVon(m.p, zu, s.dist, 120)
+      const platz = this.raum(m.p, zu, 40)
+      const frei = DIRS.filter((d) => !zu({ x: m.p.x + STEP[d].x, y: m.p.y + STEP[d].y })).length
+      let sc = gebiet
+      sc += platz * (platz <= len + 2 ? 3 : 0.3)
+      if (platz <= len + 1) sc -= 60
+      sc += (dP < 0 ? 20 : Math.min(dP, 20)) * (gejagt ? 2.5 : 0.4)
+      sc += frei * 1.2
+      if (manhattan(m.p, ph) <= 1) sc -= 40
+      if (same(m.p, s.vorKopf)) sc -= 40
+      if (m.d === e.dir) sc += gejagt ? 0.8 : 3
+      if (same(m.p, this.apple.p) || this.powers.some((p) => same(p.p, m.p))) sc -= 6
+      sc += this.r.next() * (gejagt ? 0.8 : 3)
+      if (sc > bestS) {
+        bestS = sc
+        best = m
+      }
+    }
+    e.dir = best.d
+    e.body.unshift({ ...best.p })
+    if (e.wachsRest > 0) e.wachsRest--
+    else e.body.pop()
+    // Laeuft sie ueber den Apfel, rollt er woandershin
+    if (same(best.p, this.apple.p)) this.neuerApfel()
+  }
+
+  /** Gegner eingekesselt: zerfaellt. Hat die Schlange ihn eingekesselt (sie ist ganz nah),
+   *  bringt er so viele Aepfel, wie er lang ist (mal Apfel-Stufe) */
+  private gegnerBesiegt(e: Gegner) {
+    this.gegner = this.gegner.filter((o) => o !== e)
+    e.prev = e.body.map((p) => ({ ...p }))
+    this.gegnerWeg.push({ g: e, t: this.time })
+    const kopf = { ...e.body[0] }
+    const dabei = e.body.some((g) => this.body.some((p) => cheb(p, g) <= 2))
+    const wert = dabei ? e.body.length * this.cfg.apfelWert * this.apfelStufe() : 0
+    if (dabei) this.besiegt++
+    this.emit({ type: 'gegnerWeg', p: kopf, laenge: e.body.length, wert })
+    if (wert > 0) {
+      this.verdient += wert
+      this.emit({ type: 'geld', wert, p: kopf, quelle: 'gegner' })
+    }
   }
 
   /** Events abholen */

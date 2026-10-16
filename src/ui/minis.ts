@@ -1,10 +1,31 @@
 /** Kleine Bilder fuer Anleitung, Hinweise und Spielende (gleiche Zeichnungen wie im Spiel) */
 import type { Cause, Side } from '../game/types'
-import { C, drawApfel, drawBaum, drawFalle, drawFrosch, drawHaus, drawKegel, drawLicht, drawMuenze, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
+import { drawSchlange, GEGNER_SKIN } from '../render/skins'
+import { C, drawApfel, drawBaum, drawFalle, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
 
-export type Mini = 'apfel' | 'gift' | 'mauer' | 'teich' | 'gebiet' | 'falle' | 'wolke' | 'frosch' | 'schlange' | 'rand' | 'baum' | 'haus' | 'turm' | 'muenze' | 'schild' | 'zeitlupe' | 'magnet' | 'geist' | 'schere'
+export type Mini =
+  | 'apfel'
+  | 'aepfel'
+  | 'gift'
+  | 'mauer'
+  | 'teich'
+  | 'gebiet'
+  | 'falle'
+  | 'wolke'
+  | 'frosch'
+  | 'schlange'
+  | 'rand'
+  | 'baum'
+  | 'haus'
+  | 'turm'
+  | 'gegner'
+  | 'schild'
+  | 'zeitlupe'
+  | 'geist'
+  | 'schere'
 
-export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 'top') {
+/** stufe = Apfelfarbe (fuer 'apfel') */
+export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 'top', stufe = 1) {
   const dpr = Math.min(2.5, window.devicePixelRatio || 1)
   const css = cv.clientWidth || Number(cv.getAttribute('width')) || 64
   cv.width = Math.round(css * dpr)
@@ -26,8 +47,21 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
   const big = cell * 1.6
   switch (kind) {
     case 'apfel':
-      drawApfel(ctx, mid, mid, big, 1)
+      drawApfel(ctx, mid, mid, big, 1, 0, undefined, stufe)
       break
+    case 'aepfel':
+      // Drei Stufen nebeneinander: Rot, Orange, Gelb
+      drawApfel(ctx, mid - cell * 0.8, mid + cell * 0.25, cell * 1.05, 1, 0, undefined, 1)
+      drawApfel(ctx, mid + cell * 0.8, mid + cell * 0.25, cell * 1.05, 1, 0, undefined, 3)
+      drawApfel(ctx, mid, mid - cell * 0.35, cell * 1.15, 1, 0, undefined, 2)
+      break
+    case 'gegner': {
+      ctx.save()
+      ctx.translate(0, cell * 0.1)
+      drawSchlange(ctx, [{ x: 2.1, y: 1 }, { x: 1.1, y: 1 }, { x: 0.1, y: 1 }, { x: -0.9, y: 1 }], cell, 'r', GEGNER_SKIN, t, { brauen: true })
+      ctx.restore()
+      break
+    }
     case 'gift':
       drawApfel(ctx, mid, mid, big, 1, 0, -0.7)
       break
@@ -124,12 +158,8 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
       ctx.restore()
       break
     }
-    case 'muenze':
-      drawMuenze(ctx, mid, mid, big, 1, 0)
-      break
     case 'schild':
     case 'zeitlupe':
-    case 'magnet':
     case 'geist':
     case 'schere':
       drawPower(ctx, mid, mid + cell * 0.1, big, kind, 1, 0)
@@ -153,4 +183,5 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   turm: 'turm',
   baum: 'baum',
   haus: 'haus',
+  gegner: 'gegner',
 }
