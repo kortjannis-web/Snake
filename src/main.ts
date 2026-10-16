@@ -26,7 +26,7 @@ import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveCo
 import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
-import { CAUSE, help, OBJEKT_NAME, SIDE, stufenName, unlockText } from './ui/texts'
+import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
 type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop'
@@ -287,12 +287,9 @@ function zaehlen(e: GameEvent) {
   saveStats()
 }
 
-/** Neu erreichte Erfolge anzeigen (Belohnungen gibt es noch keine) */
+/** Neu erreichte Erfolge merken (ohne Meldung im Spiel, sie stehen in der Statistik) */
 function erfolgeMelden() {
-  for (const e of erfolgePruefen()) {
-    audio.record()
-    toast('erfolg', `Erfolg: ${e.titel}`, e.text)
-  }
+  erfolgePruefen()
 }
 
 function handle(e: GameEvent) {
@@ -310,13 +307,10 @@ function handle(e: GameEvent) {
     case 'expand':
       audio.expand()
       haptic.success()
-      toast('gebiet', 'Neues Gebiet', `Ein neuer Block ist ${SIDE[e.side]} dazugekommen. Mehr Platz!`, { pfeil: e.side })
       break
     case 'unlock': {
+      // Keine Vorstellung neuer Gefahren: der Spieler findet alles selbst heraus
       if (e.what === 'gebiet') break
-      const u = unlockText(game!.cfg)[e.what]
-      audio.unlock_()
-      toast(u.mini, u.title, u.text)
       if (!stats.seen.includes(e.what)) {
         stats.seen.push(e.what)
         saveStats()
@@ -360,7 +354,6 @@ function handle(e: GameEvent) {
       break
     case 'stolen':
       audio.stolen()
-      toast('frosch', 'Apfel geschnappt!', 'Ein Frosch hat ihn erwischt. Er liegt jetzt woanders.')
       break
     case 'pond':
       audio.pond()
@@ -393,18 +386,10 @@ function handle(e: GameEvent) {
     case 'fund': {
       audio.fund(e.art !== 'gold')
       haptic.success()
-      const name = { gold: '', dia: 'Diamant!', rubin: 'Rubin!', opal: 'Opal!' }[e.art]
-      if (name) toast('erz', name, `+${e.wert} Äpfel.`)
-      break
-    }
-    case 'erzGesetzt': {
-      const name = { gold: 'Golderz', dia: 'ein Diamant', rubin: 'ein Rubin', opal: 'ein Opal' }[e.art]
-      toast('erz', 'Spitzhacke', `Irgendwo liegt jetzt ${name}. Fahr drüber und grab es aus!`)
       break
     }
     case 'wahlVorbei':
       audio.powerEnde()
-      toast('gebiet', 'Zu spät', 'Der neue Block ist an eine zufällige Stelle gekommen.')
       break
     case 'gefressen':
       audio.happs()
@@ -413,14 +398,13 @@ function handle(e: GameEvent) {
     case 'wahl':
       if (e.offen > 0) {
         audio.wahl()
-        toast('gebiet', 'Neues Gebiet wählen', 'Die Wände leuchten. Fahr gegen eine leuchtende Wand: dort kommt der neue Block hin.')
+        toast('gebiet', 'Öffne eine Wand', '')
       }
       break
     case 'freigelegt':
       if (e.anzahl > 0) {
         audio.freigelegt()
         haptic.success()
-        toast('erde', 'Freigelegt', `${e.anzahl} Felder Erde sind jetzt Spielfeld.`)
       }
       break
     case 'eis':
@@ -430,7 +414,6 @@ function handle(e: GameEvent) {
       if (e.wert <= 0) break
       audio.besiegt()
       haptic.success()
-      toast('gegner', 'Gegner eingekesselt!', istKreativ ? 'Er hatte keinen Ausweg mehr.' : `+${e.wert} Äpfel für ${e.laenge} Glieder.`)
       break
     case 'power':
       audio.power()
@@ -442,7 +425,6 @@ function handle(e: GameEvent) {
     case 'faktor':
       if (!istKreativ) {
         audio.milestone()
-        toast('apfel', `Äpfel ×${e.faktor}`, `Die Äpfel sind jetzt ${stufenName(e.faktor)} und ${e.faktor}-mal so viel wert.`, { stufe: e.faktor })
       }
       updateGeld()
       break
@@ -461,10 +443,6 @@ function handle(e: GameEvent) {
         void el.offsetWidth
         el.classList.add('down')
       }
-      const n = e.von - e.auf
-      const was = { wolke: 'In die Giftwolke geraten.', licht: 'Im Fensterlicht erwischt.', kegel: 'Vom Jägerturm entdeckt.', ameise: 'Eine Ameise hat zugebissen.' }[e.grund]
-      const mini = ({ wolke: 'wolke', licht: 'haus', kegel: 'turm', ameise: 'ameise' } as const)[e.grund]
-      toast(mini, `−${n} Level`, `${was} Zurück auf Level ${e.auf}.`, { minus: true })
       break
     }
     case 'tree':
@@ -673,7 +651,8 @@ function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string
     if (pfeil) el.dataset.side = pfeil
     el.innerHTML = `<canvas width="44" height="44"></canvas><div><b></b><span></span></div>`
     el.querySelector('b')!.textContent = title
-    el.querySelector('span')!.textContent = text
+    if (text) el.querySelector('span')!.textContent = text
+    else el.querySelector('span')!.remove()
     $('toasts').append(el)
     drawMini(el.querySelector('canvas')!, mini, 0, pfeil, stufe)
     setTimeout(() => el.classList.add('out'), 2900)

@@ -1,5 +1,5 @@
 import type { Config } from '../game/rules'
-import type { Cause, SandboxObjekt, Side, Unlock } from '../game/types'
+import type { Cause, SandboxObjekt } from '../game/types'
 import type { Mini } from './minis'
 
 export const CAUSE: Record<Cause, string> = {
@@ -34,31 +34,6 @@ export const OBJEKT_NAME: Record<SandboxObjekt, string> = {
   lava: 'Lava',
   eis: 'Eis',
 }
-
-export const SIDE: Record<Side, string> = { top: 'oben', bottom: 'unten', left: 'links', right: 'rechts' }
-
-export const unlockText = (c: Config): Record<Unlock, { title: string; text: string; mini: Mini }> => ({
-  mauer: { title: 'Mauern', text: 'Nach jedem Apfel stehen sie woanders und werden mit der Zeit länger.', mini: 'mauer' },
-  teich: { title: 'Teiche', text: 'Wasser bleibt liegen. Nicht hineinschwimmen!', mini: 'teich' },
-  gebiet: { title: 'Neues Gebiet', text: `Alle ${c.gebietAlle} Level kommt ein Block Karte dazu.`, mini: 'gebiet' },
-  gift: { title: 'Giftäpfel', text: 'Achte auf die verschimmelte Ecke. Ein Biss und es ist vorbei.', mini: 'gift' },
-  falle: { title: 'Bärenfallen', text: 'Sie schnappen genau in deiner Bahn auf. Rechtzeitig abbiegen!', mini: 'falle' },
-  wolke: { title: 'Giftwolken', text: `Sie wachsen alle ${c.wolkeTakt} Sekunden. Wer hineingerät, fällt ${c.wolkeZurueck} Level zurück.`, mini: 'wolke' },
-  frosch: { title: 'Frösche', text: 'Hüpfen in Blickrichtung, drehen sich ab und zu und schnappen sich auch mal den Apfel.', mini: 'frosch' },
-  baum: { title: 'Bäume', text: `Ein Baum ist umgefallen und bleibt liegen. Alle ${c.baumAlle} Level kommt einer dazu.`, mini: 'baum' },
-  haus: { title: 'Häuser', text: `Nicht anfahren! Aus einem Fenster scheint Licht: wer hineinläuft, fällt ${c.lichtZurueck} Level zurück.`, mini: 'haus' },
-  turm: { title: 'Jägertürme', text: `Ihr Lichtkegel dreht sich jede Runde weiter. Im Licht: ${c.kegelZurueck} Level zurück.`, mini: 'turm' },
-  gegner: { title: 'Gegner-Schlangen', text: 'Sie fliehen vor dir. Kessel sie mit deinem Körper ein, dann bringen sie Äpfel. Nicht anrempeln!', mini: 'gegner' },
-  lila: { title: 'Lila Gegner', text: `Seltener, länger (${c.lilaLaenge}) und ${c.lilaTempo} % schneller. Schwerer einzukesseln, bringen dafür mehr Äpfel.`, mini: 'lila' },
-  ameise: { title: 'Ameisen', text: `Sie sitzen still. Kommst du ihnen auf ${c.ameiseRadius} Felder nahe, krabbeln sie auf dich zu. Ein Biss kostet ${c.ameiseZurueck} Level, dein Kopf zertritt sie.`, mini: 'ameise' },
-  lava: { title: 'Lava', text: `Beginnt mit einem Feld und breitet sich jeden ${c.lavaWachsen}. Apfel aus. Hineinfahren ist tödlich.`, mini: 'lava' },
-  eis: { title: 'Eis', text: 'Auf Eis kannst du nicht lenken: du rutschst geradeaus, bis du wieder runter bist.', mini: 'eis' },
-  maulwurf: { title: 'Maulwurf', text: `Neues Power-up: ${c.maulwurfDauer} s durch die Erde graben. Rechtzeitig zurück, sonst steckst du fest!`, mini: 'maulwurf' },
-})
-
-/** Namen der Apfel-Stufen (Farbe nach Wert) */
-export const STUFEN_NAME = ['Rot', 'Orange', 'Gelb', 'Grün', 'Türkis', 'Blau', 'Lila', 'Rosa', 'Blau-Rosa', 'Lila-Rosa']
-export const stufenName = (stufe: number) => STUFEN_NAME[Math.min(STUFEN_NAME.length, Math.max(1, stufe)) - 1]
 
 export const help = (c: Config): { mini: Mini; title: string; ab?: string; text: string }[] => [
   { mini: 'schlange', title: 'Steuerung', text: 'Wische in die Richtung, in die die Schlange laufen soll. Oder schalte unten links auf Zeichnen: Finger liegen lassen, die Schlange fährt dorthin, wohin du die Linie ziehst (schräge Striche zählen nicht). Daneben ist ein kleiner Pause-Knopf. Am PC mit den Pfeiltasten oder WASD, Pause mit Esc oder P. Wer gegen ein Hindernis läuft, bleibt kurz stehen und kann noch abbiegen, gegen Rand und Mauern ist es sofort vorbei.' },
