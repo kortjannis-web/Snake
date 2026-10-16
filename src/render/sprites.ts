@@ -779,6 +779,7 @@ export const POWER_FARBE: Record<string, string> = {
   magnet: '#D8434A',
   maulwurf: '#8A5A34',
   gold: '#F2B824',
+  spitzhacke: '#7B8794',
 }
 
 /** Power-up: leuchtende Kugel mit Symbol, schwebt leicht. warn = kurz vor dem Verschwinden */
@@ -888,6 +889,15 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.quadraticCurveTo(-k * 0.95, k * 0.95, -k * 0.35, k * 0.75)
     ctx.closePath()
     ctx.fill()
+  } else if (art === 'spitzhacke') {
+    // Spitzhacke
+    ctx.moveTo(-k * 0.55, k * 0.85)
+    ctx.lineTo(k * 0.35, -k * 0.35)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(-k * 0.65, -k * 0.35)
+    ctx.quadraticCurveTo(k * 0.15, -k * 1.0, k * 0.9, -k * 0.15)
+    ctx.stroke()
   } else if (art === 'gold') {
     // Goldener Apfel mit Stern-Glanz
     ctx.arc(0, k * 0.1, k * 0.7, 0, Math.PI * 2)
@@ -1077,10 +1087,22 @@ export function drawEis(ctx: CanvasRenderingContext2D, cells: P[], cell: number,
   }
 }
 
-/** Erzbrocken: grauer Stein mit Gold- oder Diamantstuecken. glanz = 0..1 Funkeln */
-export function drawErz(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, art: 'gold' | 'dia', s: number, glanz = 0) {
+/** Erzbrocken: grauer Stein mit Gold, Diamant, Rubin oder Opal. glanz = 0..1 Funkeln.
+ *  Opal schimmert zwischen Pink und Lila und leuchtet */
+export function drawErz(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, art: 'gold' | 'dia' | 'rubin' | 'opal', s: number, glanz = 0, now = 0) {
   if (s <= 0) return
   const r = cell * 0.38 * s
+  if (art === 'opal') {
+    // Leuchten drumherum, wechselt zwischen Pink und Lila
+    const t = 0.5 + 0.5 * Math.sin(now / 420)
+    const g = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 1.9)
+    g.addColorStop(0, `rgba(${Math.round(255 - 70 * t)}, ${Math.round(110 - 30 * t)}, ${Math.round(200 + 55 * t)}, 0.55)`)
+    g.addColorStop(1, 'rgba(200, 90, 255, 0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(x, y, r * 1.9, 0, Math.PI * 2)
+    ctx.fill()
+  }
   ctx.fillStyle = '#6E6A66'
   ctx.beginPath()
   for (let i = 0; i < 7; i++) {
@@ -1094,14 +1116,22 @@ export function drawErz(ctx: CanvasRenderingContext2D, x: number, y: number, cel
   ctx.beginPath()
   ctx.ellipse(x - r * 0.3, y - r * 0.35, r * 0.4, r * 0.22, -0.4, 0, Math.PI * 2)
   ctx.fill()
-  const farbe = art === 'gold' ? ['#FFE07A', '#E0A81E'] : ['#B9FBFF', '#3ED6E6']
+  const t = 0.5 + 0.5 * Math.sin(now / 420)
+  const farbe =
+    art === 'gold'
+      ? ['#FFE07A', '#E0A81E']
+      : art === 'dia'
+        ? ['#B9FBFF', '#3ED6E6']
+        : art === 'rubin'
+          ? ['#FF9AA8', '#D3122E']
+          : [`rgb(255, ${Math.round(200 - 40 * t)}, ${Math.round(240 + 15 * t)})`, `rgb(${Math.round(240 - 90 * t)}, ${Math.round(70 + 10 * t)}, ${Math.round(190 + 60 * t)})`]
   for (const [dx, dy, g] of [[-0.35, 0.1, 0.24], [0.25, -0.25, 0.2], [0.2, 0.35, 0.18], [-0.05, -0.45, 0.13]] as const) {
     const cx = x + dx * r
     const cy = y + dy * r
     const gr = g * r * 1.4
     ctx.fillStyle = farbe[1]
     ctx.beginPath()
-    if (art === 'dia') {
+    if (art !== 'gold') {
       ctx.moveTo(cx, cy - gr)
       ctx.lineTo(cx + gr * 0.8, cy)
       ctx.lineTo(cx, cy + gr)

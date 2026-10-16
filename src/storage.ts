@@ -13,6 +13,12 @@ export type Stats = {
   maxGebiete: number
   /** Besiegte Gegner-Schlangen */
   gegner: number
+  /** Bester Level heute (datum = JJJJ-MM-TT) */
+  heute: { datum: string; best: number }
+  /** Zaehler fuer Erfolge (gefressen, Erze, Gebiete ...) */
+  zaehler: Record<string, number>
+  /** Erreichte Erfolge (Ids) */
+  erfolge: string[]
   /** Gefahren, die schon einmal vorgestellt wurden */
   seen: string[]
 }
@@ -21,7 +27,15 @@ const SKEY = 'snake.settings.v1'
 const TKEY = 'snake.stats.v1'
 
 export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false })
-export const defaultStats = (): Stats => ({ best: 0, games: 0, apples: 0, time: 0, longest: 0, maxGebiete: 0, gegner: 0, seen: [] })
+export const defaultStats = (): Stats => ({ best: 0, games: 0, apples: 0, time: 0, longest: 0, maxGebiete: 0, gegner: 0, heute: { datum: '', best: 0 }, zaehler: {}, erfolge: [], seen: [] })
+
+/** Heutiges Datum (Geraetezeit) */
+export const heuteDatum = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+/** Bester Level heute (0, wenn heute noch nicht gespielt) */
+export const heuteBest = () => (stats.heute?.datum === heuteDatum() ? stats.heute.best : 0)
 
 function read<T extends object>(k: string, def: T): T {
   try {

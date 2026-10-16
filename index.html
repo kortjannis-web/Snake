@@ -31,6 +31,7 @@
           <div class="hud__best" aria-label="Rekord">
             <span data-icon="Trophy"></span>
             <b id="hud-best">0</b>
+            <small id="hud-heute" title="Bester Level heute"></small>
           </div>
         </div>
         <div class="hud__bar" id="hud-bar" aria-hidden="true"><i id="hud-bar-fill"></i></div>
@@ -104,6 +105,7 @@
           <b class="card__big" id="over-level">1</b>
           <span class="card__max" id="over-max" hidden></span>
           <span class="badge" id="over-record" hidden><span data-icon="Trophy"></span>Neuer Rekord</span>
+          <span class="badge badge--heute" id="over-heute" hidden><span data-icon="Sun"></span>Neuer Tagesrekord</span>
           <div class="facts">
             <div><b id="over-apples">0</b><small>Äpfel</small></div>
             <div><b id="over-len">3</b><small>Länge</small></div>
@@ -135,6 +137,8 @@
           </header>
           <div class="page__body">
             <div class="stat-grid" id="stat-grid"></div>
+            <h3 class="erfolge-titel" id="erfolge-titel">Erfolge</h3>
+            <div class="erfolge" id="erfolge"></div>
           </div>
         </div>
       </section>
@@ -221,6 +225,7 @@
                 <button data-power="magnet">Magnet</button>
                 <button data-power="maulwurf">Maulwurf</button>
                 <button data-power="gold">Gold</button>
+                <button data-power="spitzhacke">Spitzhacke</button>
               </div>
             </div>
             <div class="opt opt--col">

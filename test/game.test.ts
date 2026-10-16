@@ -67,11 +67,12 @@ describe('Regeln', () => {
     expect([0, 1, 2, 3, 4].map((s) => R.wolkenForm(s).length)).toEqual([1, 5, 9, 13, 25])
   })
 
-  it('Neuer Block alle 20 Level bis 300 (einstellbar)', () => {
-    const lv = Array.from({ length: 400 }, (_, i) => i + 1).filter((l) => R.neuesGebiet(C, l))
-    expect(lv).toEqual([20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280])
+  it('Neues Gebiet alle 20 Level bis 300, dann alle 30, ab 500 alle 50', () => {
+    const lv = Array.from({ length: 700 }, (_, i) => i + 1).filter((l) => R.neuesGebiet(C, l))
+    expect(lv).toEqual([20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 330, 360, 390, 420, 450, 480, 500, 550, 600, 650, 700])
     const c30 = { ...C, gebietAlle: 30 }
-    expect(Array.from({ length: 400 }, (_, i) => i + 1).filter((l) => R.neuesGebiet(c30, l))).toHaveLength(9)
+    expect(Array.from({ length: 299 }, (_, i) => i + 1).filter((l) => R.neuesGebiet(c30, l))).toHaveLength(9)
+    expect(R.gebietFortschritt(C, 310)).toEqual({ rest: 20, abschnitt: 30 })
   })
 })
 
@@ -118,10 +119,10 @@ describe('Karte aus Bloecken', () => {
     }
   })
 
-  it('Startlevel 300: 14 neue Bloecke, Welt wird mit aufgebaut', () => {
+  it('Startlevel 300: 15 neue Bloecke, Welt wird mit aufgebaut', () => {
     const g = new Game({ screenW: SW, screenH: SH, seed: 9, startLevel: 300 })
-    expect(g.expansions).toBe(14)
-    expect(g.blocks).toHaveLength(16)
+    expect(g.expansions).toBe(15)
+    expect(g.blocks).toHaveLength(17)
     expect(g.level).toBe(300)
     expect(g.teiche.length).toBeGreaterThan(0)
     expect(g.baeume.length).toBeGreaterThan(0)
@@ -617,6 +618,8 @@ describe('Gegner-Schlangen', () => {
         g.update(g.tick)
         g.drain()
         const wand = g.hindernisse(false)
+        // Wolkenfelder, die noch auf einen Gegner warten, zaehlen nicht (die Wolke waechst erst, wenn er weg ist)
+        for (const w of g.wolken) for (const p of w.pending) wand.delete(key(p.x, p.y))
         for (const e of g.gegner) {
           for (const p of e.body) {
             expect(g.inside(p)).toBe(true)
@@ -1128,7 +1131,7 @@ describe('Erde und Erze', () => {
     expect(dia / 20).toBeLessThan(5)
   })
 
-  it('Erz einsammeln: Gold 3 x, Diamant 10 x der aktuelle Apfel', () => {
+  it('Erz einsammeln: Gold 3 x, Diamant 6 x der aktuelle Apfel', () => {
     const g = new Game({ screenW: SW, screenH: SH, seed: 1, startLevel: 100, cfg: { powerChance: 0 } })
     leer(g)
     g.apple.p = { x: 0, y: 0 }
@@ -1140,7 +1143,37 @@ describe('Erde und Erze', () => {
       g.update(g.takt / 4 + 1)
       ev.push(...g.drain())
     }
-    expect(ev.filter((e) => e.type === 'fund').map((e) => (e as { wert: number }).wert)).toEqual([9, 30])
+    expect(ev.filter((e) => e.type === 'fund').map((e) => (e as { wert: number }).wert)).toEqual([9, 18])
+  })
+
+  it('Rubin 10 x, Opal 20 x, beide seltener als Diamant', () => {
+    expect(R.erzWert(C, 'rubin')).toBe(10)
+    expect(R.erzWert(C, 'opal')).toBe(20)
+    const n = { gold: 0, dia: 0, rubin: 0, opal: 0 }
+    for (let x = 0; x < 600; x++)
+      for (let y = 0; y < 600; y++) {
+        const e = R.erdeBei(C, x, y)
+        if (e === 'gold' || e === 'dia' || e === 'rubin' || e === 'opal') n[e]++
+      }
+    expect(n.gold).toBeGreaterThan(n.dia)
+    expect(n.dia).toBeGreaterThan(n.rubin)
+    expect(n.rubin).toBeGreaterThan(n.opal)
+    expect(n.opal).toBeGreaterThan(0)
+  })
+
+  it('Spitzhacke legt ein zufaelliges Erz auf die Karte, drueberfahren graebt es aus', () => {
+    const arten = new Set<string>()
+    for (let s = 1; s <= 60; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 100, cfg: { powerChance: 0 } })
+      leer(g)
+      g.powerAn('spitzhacke')
+      expect(g.funde).toHaveLength(1)
+      expect(g.inside(g.funde[0].p)).toBe(true)
+      expect(g.aufSchlange(g.funde[0].p)).toBe(false)
+      arten.add(g.funde[0].art)
+    }
+    expect(arten.has('gold')).toBe(true)
+    expect(arten.has('dia')).toBe(true)
   })
 
   it('Neuer Block legt Erze darin frei', () => {
@@ -1224,5 +1257,66 @@ describe('Eis', () => {
     g.turn('d', false)
     einSchritt(g)
     expect(g.body[0]).toEqual({ x: 7, y: 11 })
+  })
+})
+
+describe('Power-up-Garantie', () => {
+  it('spaetestens nach 8 Aepfeln ohne Power-up kommt eins', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 3, startLevel: 20, cfg: { powerChance: 0 } })
+    leer(g)
+    g.powers = []
+    let aepfel = 0
+    for (let i = 0; i < 200 && !g.powers.length; i++) {
+      const h = g.body[0]
+      const d = R.STEP[g.dir]
+      const n = { x: h.x + d.x, y: h.y + d.y }
+      if (!g.inside(n) || g.gefahr(n) !== null) {
+        const frei = (['u', 'd', 'l', 'r'] as Dir[]).find((dd) => {
+          const m = { x: h.x + R.STEP[dd].x, y: h.y + R.STEP[dd].y }
+          return dd !== R.OPP[g.dir] && g.inside(m) && g.gefahr(m) === null
+        })
+        if (frei) g.turn(frei, false)
+        g.update(g.takt / 2 + 1)
+        g.update(g.takt / 2 + 1)
+        g.drain()
+        continue
+      }
+      g.apple.p = n
+      const vor = g.apples
+      g.update(g.takt / 2 + 1)
+      g.update(g.takt / 2 + 1)
+      g.drain()
+      if (g.apples > vor) aepfel++
+    }
+    expect(g.powers).toHaveLength(1)
+    // Der Aufbau beim Start zaehlt schon als ein Apfel-Durchgang mit
+    expect(aepfel).toBeLessThanOrEqual(C.powerGarantie)
+    expect(aepfel).toBeGreaterThanOrEqual(C.powerGarantie - 1)
+  })
+})
+
+describe('Gebiets-Wahl mit Zeitlimit', () => {
+  it('nach 30 s ohne Wahl kommt der Block zufaellig', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 2, startLevel: 19, cfg: { powerChance: 0 } })
+    leer(g)
+    g.body = [{ x: 5, y: 15 }, { x: 4, y: 15 }, { x: 3, y: 15 }]
+    g.prev = []
+    g.dir = 'r'
+    g.apple.p = { x: 6, y: 15 }
+    for (let i = 0; i < 4; i++) g.update(g.takt / 2 + 1)
+    g.drain()
+    expect(g.wahl).toBe(1)
+    expect(g.wahlBis - g.time).toBeGreaterThan(29_000)
+    // 30 s im Kreis fahren (Kreativ-Anhalten: nicht sterben)
+    g.kreativ = { tod: 'geist', rueckschlag: false, durchSelbst: true, wachsen: true, laenge: 3 }
+    const ev: GameEvent[] = []
+    for (let t = 0; t < 31_000 && g.wahl > 0; t += 50) {
+      if (t % 600 === 0) g.turn((['u', 'r', 'd', 'l'] as Dir[])[(t / 600) % 4], false)
+      g.update(50)
+      ev.push(...g.drain())
+    }
+    expect(g.wahl).toBe(0)
+    expect(g.blocks).toHaveLength(3)
+    expect(ev.some((e) => e.type === 'wahlVorbei')).toBe(true)
   })
 })
