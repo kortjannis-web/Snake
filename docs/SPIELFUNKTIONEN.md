@@ -14,11 +14,13 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 ## 2. Steuerung
 
 - **Handy:** Wischen auf dem ganzen Bildschirm. Mehrere Richtungen in einem Wisch gehen (Finger nicht absetzen).
+- **Zeichnen (Schalter unten links oder in den Optionen):** Finger liegen lassen und eine Linie ziehen, die Schlange fährt in die Richtung, in die du zeichnest. Gezählt wird erst ab **26 px** Weg, und die Linie darf höchstens **28°** von waagrecht oder senkrecht abweichen; schräge Striche lösen keine Wende aus.
+- **Unten links:** der kleine Schalter Wischen/Zeichnen (Hand bzw. Linie) und rechts daneben ein kleiner **Pause-Knopf**. Die Minikarte sitzt darüber.
 - **PC:** Pfeiltasten oder WASD. Esc oder P = Pause, Enter oder Leertaste startet nach dem Spielende neu.
 - **Steuerkreuz (Option):** vier Tasten unter dem Spielfeld statt Wischen.
 - **Eingabepuffer:** Bis zu drei schnelle Richtungswechsel werden gemerkt und nacheinander ausgeführt.
 - **Sofort-Wende:** Kommt ein Richtungswechsel im ersten Drittel eines Schritts, gilt er sofort und nicht erst ab dem nächsten Feld. Das fühlt sich direkter an.
-- **Gnadenschritt** (wie bei Google Snake): Läuft die Schlange gegen ein Hindernis, bleibt sie kurz stehen (1,15 Takte, etwas knapper als früher mit 1,3). Wer dann abbiegt, lebt weiter. Erst der zweite Anlauf ist das Ende. Gilt für Rand, eigenen Körper, Mauer, Teich, Falle, Frosch, Gegner-Schlange, Baum, Haus und Jägerturm, **nicht** für Giftäpfel (die isst man ja).
+- **Gnadenschritt** (wie bei Google Snake): Läuft die Schlange gegen ein Hindernis, bleibt sie kurz stehen (1,15 Takte, etwas knapper als früher mit 1,3). Wer dann abbiegt, lebt weiter. Erst der zweite Anlauf ist das Ende. Gilt für eigenen Körper, Teich, Falle, Frosch, Gegner-Schlange, Baum, Haus und Jägerturm, **nicht** für Giftäpfel (die isst man ja) und **nicht für Wände**: Wer gegen den Kartenrand oder eine Mauer kracht, ist sofort tot (keine Pause mehr).
 
 ## 3. Äpfel
 
@@ -36,8 +38,8 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Jeder Block hat genau die gleiche Fläche.
 - **Ab Level 300** (einstellbar) kommt kein Block mehr dazu. Bei alle 20 Level sind das 14 neue Blöcke, insgesamt 16 Blöcke = 8 Bildschirme.
 - Der neue Block klappt von der Seite auf, an der er angesetzt wird, Feld für Feld als Welle. Dazu „Whoosh“ mit Akkord und der Hinweis „Ein neuer Block ist rechts dazugekommen“.
-- **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, glühende **Lavataschen**, **Golderz** (ca. 1,2 %) und selten **Diamanten** (ca. 0,3 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf.
-- **Erze** (je 1000 Erdfelder): **Golderz** 12 (= **3 ×** der aktuelle Apfelwert), **Diamant** 3 (**6 ×**), **Rubin** 1,5 (rot, **10 ×**), **Opal** 0,5 (leuchtet und schimmert zwischen Pink und Lila, **20 ×**).
+- **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, glühende **Lavataschen**, **Golderz** (ca. 0,9 %) und selten **Diamanten** (ca. 0,12 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf.
+- **Erze** (je 1000 Erdfelder): **Golderz** 9 (= **3 ×** der aktuelle Apfelwert), **Diamant** 1,2 (**6 ×**), **Rubin** 0,5 (rot, **10 ×**), **Opal** 0,15 (leuchtet und schimmert zwischen Pink und Lila, **20 ×**).
 - **Erze freilegen:** Wird Erde zu Spielfeld (neuer Block, Maulwurf), liegen die Erze darin als Brocken auf der Karte. Drüberfahren gräbt sie aus. Jedes Erz gibt es nur einmal. Diamant, Rubin und Opal melden sich mit eigenem Hinweis.
 - **Kamera (fest):** Die Kamera zeigt immer einen festen Ausschnitt von genau einem Bildschirm, an den Kartenblöcken ausgerichtet, auch wenn die Karte größer ist. Sie scrollt nicht mit.
   - **Rantast-Kamera:** Läuft die Schlange auf den Rand des Ausschnitts zu und geht die Karte dort weiter, schiebt sich die Kamera ab 4 Feldern vor dem Rand langsam ein Stück hinüber (bis ca. ein Drittel Block, höchstens 4 Felder), je näher, desto weiter.
@@ -192,17 +194,17 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 
 **Power-ups (ab Level 10)**
 - Nach jedem Apfel mit **18 % Chance** liegt ein Power-up auf der Karte (höchstens eins), 15 s lang, blinkt in den letzten 3 s. Leuchtende Kugel mit Symbol.
-- **Schild** (blau): fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Bis zu 3 sammeln sich. Blaue Blase um den Kopf. Nicht am Kartenrand.
+- **Schild** (blau): fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Bis zu 3 sammeln sich. **Hält 20 s** (ein neuer Schild setzt die Zeit zurück), Countdown oben links, die letzten 3 s blinken Pille und Blase. Blaue Blase um den Kopf. Nicht am Kartenrand.
 - **Garantie:** Spätestens nach **8 Äpfeln** ohne Power-up kommt eins (einstellbar).
 - Welches Power-up kommt, ist gewichtet: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2, Spitzhacke 2, Maulwurf 2, goldener Apfel 1 (von 20).
-- **Spitzhacke** (grau): legt sofort **ein zufälliges Erz** irgendwo in deiner Nähe auf die Karte (Gold 60 %, Diamant 25 %, Rubin 11 %, Opal 4 %). Drüberfahren gräbt es aus.
+- **Spitzhacke** (grau): legt sofort **ein zufälliges Erz** irgendwo in deiner Nähe auf die Karte (Gold 72 %, Diamant 19 %, Rubin 7 %, Opal 2 %). Drüberfahren gräbt es aus.
 - **Zeitlupe** (lila): **30 s** lang **30 % langsamer**.
 - **Füttern** (rot, Maul): **20 s** lang frisst du **Frösche, Ameisen und Gegner-Schlangen** (rot und lila), statt dich an ihnen zu stoßen. Frosch = 2, Ameise = 1, Gegner = so viele Äpfel, wie er lang ist (alles mal Apfelwert). Roter Schein um den Kopf. Kommt nur, wenn gerade Tiere oder Gegner da sind.
 - **Magnet** (rot, Hufeisen): **15 s** lang wird alles Gute im **Umkreis von 2 Feldern** (auch schräg) **sofort eingesammelt**, ohne Umweg, als wärst du drübergefahren: Apfel (zählt als gegessen), Power-ups, Erze. Gestrichelter Kreis zeigt die Reichweite.
 - **Maulwurf** (braun, Schaufel, **ab Level 100**): **20 s** lang kannst du dich **durch die Erde graben**, bis 8 Felder um die Karte herum. Erze im Weg sammelst du sofort ein. Erdkrümel fliegen, die Kamera folgt dir unter die Erde. **Kommst du zurück auf die Karte, wird dein Gang und alles, was er zusammen mit der Karte einschließt, zu Spielfeld** (Klang „Freigelegt“). Ist die Zeit um und der Kopf steckt noch in der Erde: **Spielende** („In der Erde stecken geblieben“).
 - **Goldener Apfel** (gold, selten): **10 s unbesiegbar**: kein Tod, keine Rückschläge, du fährst durch alles und **über dich selbst**. Mauersteine, Fallen und Giftäpfel im Weg werden weggeräumt, Tiere und Gegner gefressen. Goldener Schein um den ganzen Körper.
 - **Geist** (grau): 6 s lang durch alle Hindernisse und die eigene Schlange, keine Rückschläge; die Schlange ist durchscheinend und flackert kurz vor dem Ende.
-- **Schere** (orange): nimmt **5 Glieder, aber nur für einen Apfel lang**. Mit dem nächsten Apfel wachsen sie wieder nach (mindestens 3 Glieder bleiben). Solange zeigt eine Pille „−5“.
+- **Schere** (orange): nimmt **5 Glieder, aber nur für einen Apfel lang**. Mit dem nächsten Apfel wachsen sie wieder nach (mindestens 3 Glieder bleiben). Solange zeigt eine Pille „−5“. Die abgeschnittenen Glieder **fallen sichtbar ab**: weiße Schnittlinie mit Funken, sie blitzen auf, springen auseinander, fallen herunter und verblassen.
 - Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken.
 - Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
 
@@ -239,7 +241,7 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Spielende:** wackelndes Bild der Todesursache, Text (z. B. „Gegen einen Baum gelaufen“), erreichter Level, ggf. „Höchster Level“, Abzeichen „Neuer Rekord“ mit Fanfare, Äpfel, Länge, Zeit. Knöpfe „Nochmal“ und „Hauptmenü“.
 - **Anleitung:** alle Elemente mit Bild, „ab Level …“ und Erklärung.
 - **Statistik:** bester Level, Spiele, Äpfel gesamt, längste Schlange, größte Karte, eingekesselte Gegner, Spielzeit.
-- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Tempo (Langsam/Normal/Schnell), Statistik zurücksetzen, Versionsnummer.
+- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Zeichnen, Tempo (Langsam/Normal/Schnell), Statistik zurücksetzen, Versionsnummer.
 - **Android-Zurücktaste:** Spiel → Pause, Pause → weiter, Unterseite → zurück, Startmenü → App schließen.
 
 ## 16-1. Tagesrekord und Erfolge
@@ -285,5 +287,5 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Web-App (PWA):** offline spielbar, installierbar („Zum Home-Bildschirm“), Vollbild. Veröffentlichung über GitHub Pages (einmalig in den Einstellungen aktivieren).
 - **Speicher:** Rekord, Statistik und Einstellungen nur auf dem Gerät.
 - **Leistung:** Gezeichnet wird nur der sichtbare Teil der Karte. Der Aufbau nach jedem Apfel (Mauern, Giftäpfel, Apfel, Power-ups) wurde stark beschleunigt: Schlange als Nachschlage-Tabelle statt Durchsuchen, Platz-Prüfungen nur einmal je Runde, Verbindungsprüfung, die früh abbricht, freie Felder nur einmal je Apfel gesucht. Ab Level 200 im Mittel 2,7 statt 11,4 ms je Apfel-Takt (am PC gemessen), Spitzen 15 statt 38 ms.
-- **Tests:** 80 automatische Tests (neu: Spitzhacke, Rubin und Opal, Power-up-Garantie, Gebiets-Wahl mit Zeitlimit, Gebiete nach 300; Füttern, goldener Apfel, Magnet, Maulwurf mit Freilegen und Ersticken, Erze, Gebiet wählen, Eis; außerdem Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Gegner-Schlangen rot und lila mit Ausweichen, Tempo, Einkesseln, Befreien und Wachsen, Ameisen, Lava, Sandbox, Zeitleiste, Bäume, Hütten, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Äpfel als Währung, Power-ups und Schere, lange Spiele bis über Level 300 mit Autopilot).
+- **Tests:** 82 automatische Tests (neu: Schild läuft ab, Rand und Mauer sofort tödlich, Schere wirft Glieder ab; Spitzhacke, Rubin und Opal, Power-up-Garantie, Gebiets-Wahl mit Zeitlimit, Gebiete nach 300; Füttern, goldener Apfel, Magnet, Maulwurf mit Freilegen und Ersticken, Erze, Gebiet wählen, Eis; außerdem Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Gegner-Schlangen rot und lila mit Ausweichen, Tempo, Einkesseln, Befreien und Wachsen, Ameisen, Lava, Sandbox, Zeitleiste, Bäume, Hütten, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Äpfel als Währung, Power-ups und Schere, lange Spiele bis über Level 300 mit Autopilot).
 - **Zum Ausprobieren:** Kreativ-Modus (siehe 16a). In der Web-Fassung zusätzlich `?level=210` und `?auto=1` (Autopilot).

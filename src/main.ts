@@ -94,6 +94,7 @@ function setMode(m: Mode) {
   show('over', false)
   $('ready').hidden = m !== 'ready'
   $('dpad').hidden = !(settings.dpad && (m === 'ready' || m === 'play' || m === 'paused'))
+  $('steuer').hidden = !(m === 'ready' || m === 'play')
   audio.music(true, m !== 'play')
   if (m === 'home') updateHome()
 }
@@ -139,13 +140,36 @@ function newGame(alsKreativ = istKreativ) {
     sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
   })
   renderer.reset()
-  $('ready-text').textContent = fine ? 'Pfeiltaste drücken zum Starten' : settings.dpad ? 'Tippe eine Richtung zum Starten' : 'Wischen zum Starten'
+  readyText()
   setMode('ready')
   // Steuerkreuz veraendert die Hoehe: danach neu messen
   requestAnimationFrame(resize)
   updateHud(false)
   updateGeld()
   toastsClear()
+}
+
+function readyText() {
+  $('ready-text').textContent = fine
+    ? 'Pfeiltaste drücken zum Starten'
+    : settings.dpad
+      ? 'Tippe eine Richtung zum Starten'
+      : settings.steuerung === 'zeichnen'
+        ? 'Linie ziehen zum Starten'
+        : 'Wischen zum Starten'
+}
+
+/** Schalter unten links: Wischen oder Zeichnen */
+function updateSteuerung() {
+  const an = settings.steuerung === 'zeichnen'
+  $('btn-steuerung').setAttribute('aria-checked', String(an))
+  $<HTMLInputElement>('opt-zeichnen').checked = an
+}
+function setSteuerung(an: boolean) {
+  settings.steuerung = an ? 'zeichnen' : 'wischen'
+  applySettings()
+  updateSteuerung()
+  if (mode === 'ready') readyText()
 }
 
 function begin(d?: Dir) {
@@ -524,7 +548,10 @@ function updateEffekte() {
   const aktiv: { art: string; rest: number; text: string }[] = []
   if (g && mode !== 'home') {
     const e = g.effekt
-    if (e.schild > 0) aktiv.push({ art: 'schild', rest: 1, text: e.schild > 1 ? `×${e.schild}` : '' })
+    if (e.schild > 0) {
+      const rest = Math.max(0, e.schildBis - g.time)
+      aktiv.push({ art: 'schild', rest: Math.min(1, rest / (g.cfg.schildDauer * 1000)), text: `${e.schild > 1 ? `×${e.schild} ` : ''}${Math.ceil(rest / 1000)}` })
+    }
     // Schere: bis zum naechsten Apfel kuerzer
     if (e.schere > 0) aktiv.push({ art: 'schere', rest: 1, text: `−${e.schere}` })
     // Neues Gebiet waehlen: Countdown
@@ -557,7 +584,7 @@ function updateEffekte() {
     }
     const b = el.querySelector('b')!
     if (b.textContent !== a.text) b.textContent = a.text
-    el.classList.toggle('effekt--blink', a.art === 'wahl' && Number(a.text) <= 5)
+    el.classList.toggle('effekt--blink', (a.art === 'wahl' && Number(a.text) <= 5) || (a.art === 'schild' && a.rest * g!.cfg.schildDauer <= 3))
     el.querySelector('i')!.style.transform = `scaleX(${a.rest})`
   }
 }
@@ -754,6 +781,7 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
+  updateSteuerung()
   $('opt-tempo')
     .querySelectorAll<HTMLButtonElement>('button')
     .forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === settings.tempo)))
@@ -1035,6 +1063,19 @@ $('btn-pause').addEventListener('click', () => {
   audio.click()
   pause()
 })
+$('btn-pause-klein').addEventListener('click', () => {
+  audio.click()
+  pause()
+})
+$('btn-steuerung').addEventListener('click', () => {
+  audio.unlock()
+  audio.click()
+  setSteuerung(settings.steuerung !== 'zeichnen')
+})
+$<HTMLInputElement>('opt-zeichnen').addEventListener('change', (e) => {
+  audio.click()
+  setSteuerung((e.target as HTMLInputElement).checked)
+})
 $('btn-resume').addEventListener('click', resume)
 $('btn-restart').addEventListener('click', () => {
   audio.click()
@@ -1102,6 +1143,7 @@ $('btn-reset').addEventListener('click', () => {
 
 bindInput(app, {
   dir: onDir,
+  steuerung: () => settings.steuerung,
   pause: () => {
     audio.unlock()
     if (page()) return closePage()
@@ -1115,6 +1157,7 @@ bindInput(app, {
   enabled: () => !page() && (mode === 'ready' || mode === 'play'),
 })
 bindDpad($('dpad'), onDir)
+updateSteuerung()
 // Spielende: Enter oder Leertaste startet neu
 window.addEventListener('keydown', (e) => {
   if (mode === 'over' && $('over').hasAttribute('data-open') && !page() && (e.key === 'Enter' || e.key === ' ')) {

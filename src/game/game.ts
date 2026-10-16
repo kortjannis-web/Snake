@@ -126,9 +126,11 @@ export class Game {
   statisch = false
   /** Power-ups auf der Karte */
   powers: Power[] = []
-  /** Aktive Power-ups: Schild (Anzahl), bis wann die anderen wirken,
+  /** Aktive Power-ups: Schild (Anzahl, haelt bis schildBis), bis wann die anderen wirken,
    *  Schere = so viele Glieder kommen mit dem naechsten Apfel zurueck */
-  effekt = { schild: 0, zeitlupeBis: 0, geistBis: 0, schere: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0, goldBis: 0 }
+  effekt = { schild: 0, schildBis: 0, zeitlupeBis: 0, geistBis: 0, schere: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0, goldBis: 0 }
+  /** Von der Schere abgeschnittene Glieder (fallen ab und verschwinden) */
+  abgeschnitten: { cells: P[]; von: number; laenge: number; t: number }[] = []
   /** Gegner-Schlangen und besiegte (zerfallen gerade) */
   gegner: Gegner[] = []
   gegnerWeg: { g: Gegner; t: number }[] = []
@@ -243,6 +245,7 @@ export class Game {
     this.time += Math.min(dt, 100)
     this.weg = this.weg.filter((m) => this.time - m.t < 240)
     this.teiche = this.teiche.filter((t) => t.drying === undefined || this.time - t.drying < 1500)
+    this.abgeschnitten = this.abgeschnitten.filter((a) => this.time - a.t < 1400)
     if (this.status !== 'play') return
     // Nach einem Haenger nicht mehrere Schritte nachholen
     if (this.time - this.last > this.takt * 3) this.last = this.time - this.takt
@@ -390,8 +393,8 @@ export class Game {
         this.prev = this.body.map((p) => ({ ...p }))
         return
       }
-      if (!this.halt) {
-        // Erster Anlauf: stehen bleiben, abbiegen rettet noch
+      // Gegen Rand oder Mauer gekracht: sofort vorbei. Sonst erster Anlauf: stehen bleiben, abbiegen rettet noch
+      if (!this.halt && cause !== 'rand' && cause !== 'mauer') {
         this.halt = true
         this.prev = this.body.map((p) => ({ ...p }))
         this.last += this.takt * (this.cfg.gnade - 1)
@@ -500,7 +503,10 @@ export class Game {
 
   powerAn(art: PowerArt, p: P = this.body[0]) {
     const c = this.cfg
-    if (art === 'schild') this.effekt.schild = Math.min(3, this.effekt.schild + 1)
+    if (art === 'schild') {
+      this.effekt.schild = Math.min(3, this.effekt.schild + 1)
+      this.effekt.schildBis = this.time + c.schildDauer * 1000
+    }
     if (art === 'zeitlupe') this.effekt.zeitlupeBis = this.time + c.effektDauer * 1000
     if (art === 'geist') this.effekt.geistBis = this.time + c.geistDauer * 1000
     if (art === 'fuettern') this.effekt.fuetternBis = this.time + c.fuetternDauer * 1000
@@ -512,6 +518,7 @@ export class Game {
       // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach
       const weg = Math.min(Math.max(0, Math.round(c.schereLaenge)), Math.max(0, this.body.length - 3))
       const len = this.body.length - weg
+      if (weg > 0) this.abgeschnitten.push({ cells: this.body.slice(len).map((q) => ({ ...q })), von: len, laenge: this.body.length, t: this.time })
       this.body = this.body.slice(0, len)
       this.prev = this.prev.slice(0, len)
       this.effekt.schere += weg
@@ -522,6 +529,12 @@ export class Game {
   /** Laufende Power-ups: Magnet holt, Maulwurf endet (in der Erde = Tod), abgelaufene verschwinden */
   private effekteTakt() {
     const e = this.effekt
+    // Schild haelt nicht ewig
+    if (e.schild > 0 && this.time >= e.schildBis) {
+      e.schild = 0
+      e.schildBis = 0
+      this.emit({ type: 'powerEnde', art: 'schild' })
+    }
     for (const art of ['zeitlupe', 'geist', 'fuettern', 'magnet', 'maulwurf', 'gold'] as const) {
       const feld = `${art}Bis` as const
       if (e[feld] > 0 && this.time >= e[feld]) {
@@ -1036,6 +1049,7 @@ export class Game {
       mv(a.heim)
     })
     this.ameisenWeg.forEach((a) => mv(a.p))
+    this.abgeschnitten.forEach((a) => a.cells.forEach(mv))
   }
 
   /* ================= Platz finden ================= */

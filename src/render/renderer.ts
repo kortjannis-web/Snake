@@ -166,6 +166,17 @@ export class Renderer {
         spitzhacke: 'Erz!',
       }[e.art]
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
+      // Schere: an der Schnittstelle spritzen helle Funken, das Bild zuckt kurz
+      const schnitt = e.art === 'schere' ? g.abgeschnitten[g.abgeschnitten.length - 1] : undefined
+      if (schnitt && schnitt.t === g.time && !this.reduce) {
+        const c = schnitt.cells[0]
+        for (let i = 0; i < 12; i++) {
+          const ang = (Math.PI * 2 * i) / 12 + Math.random() * 0.4
+          const sp = cell * (0.9 + Math.random() * 0.9)
+          this.funken.push({ x: (c.x + 0.5) * cell, y: (c.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: i % 2 ? '#FFFFFF' : '#C9D3DC' })
+        }
+        this.shake = { until: g.time + 220, amp: cell * 0.1 }
+      }
     } else if (e.type === 'setback') {
       if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
     } else if (e.type === 'halt') {
@@ -423,6 +434,9 @@ export class Renderer {
     for (const e of g.gegner) if (e.body.some((p) => sicht(p))) this.drawGegner(g, e, now)
     for (const w of g.gegnerWeg) if (w.g.body.some((p) => sicht(p))) this.drawGegner(g, w.g, now, w.t)
 
+    // Von der Schere abgeschnittener Schwanz: faellt ab
+    for (const st of g.abgeschnitten) if (st.cells.some((p) => sicht(p))) this.drawAbgeschnitten(st, now)
+
     // Schlange
     if (n) this.drawSchlange(g, head, a)
 
@@ -556,7 +570,9 @@ export class Renderer {
       }
     }
     // Schild: Blase um den Kopf
-    if (!tot && g.effekt.schild > 0) {
+    // Kurz vor dem Ablaufen flackert sie
+    const schildRest = g.effekt.schildBis - now
+    if (!tot && g.effekt.schild > 0 && !(schildRest < 3000 && Math.sin(now / 70) < 0)) {
       const hx = (head.x + 0.5) * cell
       const hy = (head.y + 0.5) * cell
       const p = 0.5 + 0.5 * Math.sin(now / 240)
@@ -568,6 +584,55 @@ export class Renderer {
       ctx.fillStyle = 'rgba(120, 200, 255, 0.12)'
       ctx.fill()
     }
+  }
+
+  /** Abgeschnittene Glieder: kurz weisser Schnitt, dann springen sie auseinander,
+   *  fallen herunter, werden kleiner und verblassen */
+  private drawAbgeschnitten(st: Game['abgeschnitten'][number], now: number) {
+    const { ctx, cell } = this
+    const t = Math.max(0, now - st.t) / 1000
+    const k = clamp01(t / 1.4)
+    const sk = this.skin
+    const fall = this.reduce ? 0 : Math.max(0, t - 0.12)
+    st.cells.forEach((c, i) => {
+      const f = st.laenge > 1 ? (st.von + i) / (st.laenge - 1) : 1
+      const rgb = sk.kopf.map((v, j) => Math.round(lerp(v, sk.schwanz[j], f)))
+      // Jedes Glied fliegt etwas anders: abwechselnd zur Seite, leicht hoch, dann runter
+      const seite = (i % 2 ? 1 : -1) * (0.6 + ((i * 37) % 5) * 0.15)
+      const x = (c.x + 0.5) * cell + seite * cell * 1.6 * fall
+      const y = (c.y + 0.5) * cell + (-2.2 * fall + 9 * fall * fall) * cell
+      const r = cell * 0.37 * (1 - k * 0.55)
+      ctx.globalAlpha = 1 - k * k
+      ctx.fillStyle = 'rgba(12, 40, 32, 0.22)'
+      ctx.beginPath()
+      ctx.arc(x, y + cell * 0.1, r, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fill()
+      // Am Anfang weiss aufblitzen, damit man sieht, was ab ist
+      if (t < 0.35) {
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * (1 - t / 0.35)})`
+        ctx.lineWidth = Math.max(1.5, cell * 0.08)
+        ctx.stroke()
+      }
+    })
+    // Schnittlinie zwischen Schlange und abgeschnittenem Stueck
+    if (t < 0.4 && st.cells.length) {
+      const c = st.cells[0]
+      const x = (c.x + 0.5) * cell
+      const y = (c.y + 0.5) * cell
+      ctx.globalAlpha = 1 - t / 0.4
+      ctx.strokeStyle = '#FFFFFF'
+      ctx.lineWidth = Math.max(2, cell * 0.1)
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(x - cell * 0.5, y - cell * 0.5)
+      ctx.lineTo(x + cell * 0.5, y + cell * 0.5)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
   }
 
   /** Kamera mit festem Ausschnitt (ein Bildschirm, an den Kartenbloecken ausgerichtet), auch wenn
@@ -694,7 +759,8 @@ export class Renderer {
     const mh = g.h * s
     const pad = 4
     const x0 = 10 + pad
-    const y0 = vh - 10 - pad - mh
+    // Ueber dem Schalter und dem Pause-Knopf unten links
+    const y0 = vh - 10 - pad - mh - 42
     ctx.fillStyle = 'rgba(23, 21, 19, 0.55)'
     rund(ctx, x0 - pad, y0 - pad, mw + pad * 2, mh + pad * 2, 6)
     ctx.fill()
