@@ -1132,6 +1132,14 @@ svg {
   color: #ffd34d;
 }
 
+.hud__geld small {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #ffd34d;
+  color: var(--mokka-tief);
+  font: 800 0.66rem/1 var(--sans);
+}
+
 .hud__geld b.pop {
   display: inline-block;
   animation: pop 0.45s var(--pop);

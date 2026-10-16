@@ -14,7 +14,7 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
-import { SCHEMA, type ConfigKey } from './game/rules'
+import { muenzFaktor, SCHEMA, type ConfigKey } from './game/rules'
 import type { Dir, GameEvent, Side } from './game/types'
 import { haptic } from './haptics'
 import { bindDpad, bindInput } from './input'
@@ -300,11 +300,19 @@ function handle(e: GameEvent) {
     case 'powerEnde':
       audio.powerEnde()
       break
+    case 'faktor':
+      if (!istKreativ) {
+        audio.milestone()
+        toast('muenze', `Münzen ×${e.faktor}`, `Ab jetzt zählt jede Münze ${e.faktor}-fach.`)
+      }
+      updateGeld()
+      break
     case 'schild':
       audio.schild()
       haptic.medium()
       break
     case 'setback': {
+      updateGeld()
       audio.setback()
       haptic.heavy()
       updateHud(false)
@@ -356,6 +364,10 @@ function updateHud(pop: boolean) {
 function updateGeld(pop = false) {
   const el = $('hud-geld')
   el.textContent = istKreativ ? '–' : String(wallet.muenzen)
+  const f = game && !istKreativ ? muenzFaktor(game.cfg, game.level) : 1
+  const fx = $('hud-faktor')
+  fx.hidden = f <= 1
+  fx.textContent = `×${f}`
   if (pop && !reduce) {
     el.classList.remove('pop')
     void el.offsetWidth

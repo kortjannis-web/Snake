@@ -101,5 +101,6 @@ export type GameEvent =
   | { type: 'power'; art: PowerArt; p: P }
   | { type: 'powerEnde'; art: PowerArt }
   | { type: 'schild' }
+  | { type: 'faktor'; faktor: number }
 
 export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm'

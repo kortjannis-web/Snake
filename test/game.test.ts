@@ -408,6 +408,16 @@ describe('Muenzen und Power-ups', () => {
     expect(g.verdient).toBe(4)
   })
 
+  it('Muenzen zaehlen ab Level 50 doppelt, ab 100 dreifach', () => {
+    expect([1, 49, 50, 99, 100, 150, 260].map((l) => R.muenzFaktor(C, l))).toEqual([1, 1, 2, 2, 3, 4, 6])
+    const g = new Game({ screenW: SW, screenH: SH, seed: 2, startLevel: 100, cfg: { powerChance: 0, muenzeChance: 0 } })
+    leer(g)
+    const h = g.body[0]
+    g.apple.p = { x: h.x + R.STEP[g.dir].x, y: h.y + R.STEP[g.dir].y }
+    const ev = schritte(g, 1)
+    expect(ev.find((e) => e.type === 'coin')).toMatchObject({ wert: 3 })
+  })
+
   it('Schild faengt einen Aufprall ab', () => {
     const g = frisch()
     const h = g.body[0]

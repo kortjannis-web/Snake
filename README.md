@@ -36,7 +36,7 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
 danach ist sie gut 2 s geschützt (blinkt). Was schon da ist, bleibt, beim zweiten Erreichen eines
 Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 
-**Münzen und Skins:** 1 Münze je Apfel, Goldmünzen (3) auf der Karte. Damit im Shop 5 Skins kaufen
+**Münzen und Skins:** 1 Münze je Apfel, Goldmünzen (3) auf der Karte, ab Level 50 doppelt, ab 100 dreifach usw. Damit im Shop 5 Skins kaufen
 (Koralle, Nacht, Tiger, Gold, Regenbogen). **Power-ups** ab Level 10: Schild, Zeitlupe, Magnet, Geist,
 Schere. **Minikarte** winzig unten links, sobald die Karte größer als ein Bildschirm ist.
 

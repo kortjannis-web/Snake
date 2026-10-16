@@ -325,8 +325,9 @@ export class Game {
     const mi = this.muenzen.findIndex((m) => same(m.p, n))
     if (mi >= 0) {
       const m = this.muenzen.splice(mi, 1)[0]
-      this.verdient += m.wert
-      this.emit({ type: 'coin', wert: m.wert, p: { ...m.p }, apfel: false })
+      const wert = m.wert * R.muenzFaktor(this.cfg, this.level)
+      this.verdient += wert
+      this.emit({ type: 'coin', wert, p: { ...m.p }, apfel: false })
     }
     const pi = this.powers.findIndex((p) => same(p.p, n))
     if (pi >= 0) this.powerAn(this.powers.splice(pi, 1)[0].art, n)
@@ -464,9 +465,11 @@ export class Game {
     if (this.waechstJetzt(this.level)) this.wachsRest++
     this.emit({ type: 'eat', level: this.level, p: { ...n } })
     if (this.cfg.apfelMuenzen > 0) {
-      this.verdient += this.cfg.apfelMuenzen
-      this.emit({ type: 'coin', wert: this.cfg.apfelMuenzen, p: { ...n }, apfel: true })
+      const wert = this.cfg.apfelMuenzen * R.muenzFaktor(this.cfg, this.level)
+      this.verdient += wert
+      this.emit({ type: 'coin', wert, p: { ...n }, apfel: true })
     }
+    if (neu && this.level % Math.max(1, this.cfg.muenzFaktorAlle) === 0) this.emit({ type: 'faktor', faktor: R.muenzFaktor(this.cfg, this.level) })
     if (neu && this.level % 10 === 0) this.emit({ type: 'milestone', level: this.level })
     if (neu) {
       for (const u of R.unlocks(this.cfg)) if (u.level === this.level) this.emit({ type: 'unlock', what: u.what, level: this.level })

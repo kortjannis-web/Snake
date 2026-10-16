@@ -1,6 +1,6 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.3.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.3.1 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
@@ -137,6 +137,7 @@ Stand: Version 1.3.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 
 **Münzen (Spielgeld, keine echten Käufe)**
 - Jeder Apfel bringt **1 Münze**. Nach jedem Apfel liegt mit **25 % Chance** eine **Goldmünze (3 Münzen)** auf der Karte, höchstens 3 gleichzeitig, sie liegt 12 s (blinkt am Ende) und dreht sich.
+- **Mehrfach ab Level 50:** Bis Level 49 zählt jede Münze einfach, ab Level 50 doppelt, ab 100 dreifach, ab 150 vierfach und so weiter (gilt für Apfel- und Goldmünzen, nach dem aktuellen Level). Beim Erreichen kommt der Hinweis „Münzen ×2“, in der Leiste steht der Faktor neben dem Kontostand.
 - Einsammeln: mit dem Kopf drüberfahren, „+3“ steigt auf, Klingeln. Der Magnet zieht sie an.
 - Kontostand oben in der Leiste, im Startmenü (antippen öffnet den Shop) und im Shop. Auf dem Spielende-Bildschirm „+N Münzen“.
 - Im Kreativ-Modus gibt es keine Münzen.
@@ -152,7 +153,7 @@ Stand: Version 1.3.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
 
 **Skins (Startmenü → Skins)**
-- Klassik (gratis), **Koralle** 60, **Nacht** 150 (funkelnde Sterne), **Tiger** 300 (Streifen), **Gold** 600 (laufender Glanz), **Regenbogen** 1000 (Farben wandern über den Körper).
+- Klassik (gratis), **Koralle** 300, **Nacht** 800 (funkelnde Sterne), **Tiger** 1600 (Streifen), **Gold** 3500 (laufender Glanz), **Regenbogen** 7500 (Farben wandern über den Körper).
 - Antippen kauft (wenn genug Münzen) und wählt aus, gekaufte Skins lassen sich jederzeit wechseln. Zu wenig Münzen: Karte wackelt.
 
 **Minikarte**

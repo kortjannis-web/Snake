@@ -88,6 +88,7 @@ export const DEFAULTS = {
   apfelMuenzen: 1,
   muenzeChance: 25,
   muenzeWert: 3,
+  muenzFaktorAlle: 50,
   // Ereignisse
   ereignis1Ab: 150,
   ereignis2Ab: 200,
@@ -217,6 +218,7 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'apfelMuenzen', label: 'Münzen je Apfel', min: 0, max: 100 },
       { key: 'muenzeChance', label: 'Chance je Apfel auf eine Goldmünze', min: 0, max: 100, einheit: '%' },
       { key: 'muenzeWert', label: 'Goldmünze ist wert', min: 1, max: 1000, einheit: 'Münzen' },
+      { key: 'muenzFaktorAlle', label: 'Münzen zählen einmal mehr alle', min: 1, max: 10000, einheit: 'Level' },
     ],
   },
   {
@@ -324,6 +326,9 @@ export const wolkenForm = (stage: number): P[] => {
 }
 
 /** Frosch: Sprung dauert so lange, 1 s vorher macht er sich bereit, 0,25 s nach der Landung dreht er ggf. */
+/** Muenzen zaehlen mehrfach: bis Level 49 einfach, ab 50 doppelt, ab 100 dreifach ... */
+export const muenzFaktor = (c: Config, level: number) => 1 + Math.floor(level / Math.max(1, c.muenzFaktorAlle))
+
 /** So lange liegt eine Goldmuenze (ms), hoechstens so viele gleichzeitig */
 export const MUENZE_DAUER = 12_000
 export const MUENZE_MAX = 3

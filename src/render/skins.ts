@@ -17,11 +17,11 @@ export type Skin = {
 
 export const SKINS: Skin[] = [
   { id: 'klassik', name: 'Klassik', preis: 0, kopf: [47, 143, 116], schwanz: [18, 66, 55] },
-  { id: 'koralle', name: 'Koralle', preis: 60, kopf: [244, 128, 96], schwanz: [160, 52, 66] },
-  { id: 'nacht', name: 'Nacht', preis: 150, kopf: [70, 96, 170], schwanz: [22, 24, 60], muster: 'sterne' },
-  { id: 'tiger', name: 'Tiger', preis: 300, kopf: [246, 160, 70], schwanz: [200, 104, 36], muster: 'streifen' },
-  { id: 'gold', name: 'Gold', preis: 600, kopf: [255, 214, 102], schwanz: [170, 118, 28], muster: 'glanz' },
-  { id: 'regenbogen', name: 'Regenbogen', preis: 1000, kopf: [255, 255, 255], schwanz: [255, 255, 255], muster: 'regenbogen' },
+  { id: 'koralle', name: 'Koralle', preis: 300, kopf: [244, 128, 96], schwanz: [160, 52, 66] },
+  { id: 'nacht', name: 'Nacht', preis: 800, kopf: [70, 96, 170], schwanz: [22, 24, 60], muster: 'sterne' },
+  { id: 'tiger', name: 'Tiger', preis: 1600, kopf: [246, 160, 70], schwanz: [200, 104, 36], muster: 'streifen' },
+  { id: 'gold', name: 'Gold', preis: 3500, kopf: [255, 214, 102], schwanz: [170, 118, 28], muster: 'glanz' },
+  { id: 'regenbogen', name: 'Regenbogen', preis: 7500, kopf: [255, 255, 255], schwanz: [255, 255, 255], muster: 'regenbogen' },
 ]
 export const skinVon = (id: string) => SKINS.find((s) => s.id === id) ?? SKINS[0]
 
