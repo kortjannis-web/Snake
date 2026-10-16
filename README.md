@@ -46,7 +46,7 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
 Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel). Außerhalb der Karte ist Erde mit Steinen, Kohle,
 Skeletten, Lava, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
-die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild, Zeitlupe (30 s, −30 %), Geist,
+die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild (20 s), Zeitlupe (30 s, −30 %), Geist,
 Schere (5 Glieder weg, nur bis zum nächsten Apfel), Füttern (20 s Tiere und Gegner fressen), Magnet (15 s, holt alles im
 2-Felder-Umkreis sofort), goldener Apfel (10 s unbesiegbar, über sich selbst), ab Level 100 Maulwurf (20 s durch die Erde graben,
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
@@ -64,7 +64,10 @@ Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUN
 
 Neue Hindernisse schließen nie Bereiche ab und bauen keine Sackgassen; Mauern entstehen nie
 direkt vor dem Kopf. Läuft die Schlange gegen ein Hindernis, bleibt sie kurz stehen (1,15 Takte)
-und kann noch abbiegen (Gnadenschritt).
+und kann noch abbiegen (Gnadenschritt). Gegen Kartenrand und Mauern ist es sofort vorbei.
+
+**Steuerung:** Wischen oder Zeichnen (Finger liegen lassen, die Schlange folgt der Linie; erst ab 26 px
+und höchstens 28° schräg). Umschalten mit dem kleinen Schalter unten links, daneben ein kleiner Pause-Knopf.
 
 ## Entwickeln
 

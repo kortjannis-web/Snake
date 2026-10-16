@@ -45,6 +45,13 @@
         </div>
         <div class="toasts" id="toasts" aria-live="polite"></div>
         <div class="effekte" id="effekte" aria-live="polite"></div>
+        <!-- Unten links: Steuerung umschalten (Wischen / Zeichnen) und Pause -->
+        <div class="steuer no-swipe" id="steuer">
+          <button class="steuer__switch" id="btn-steuerung" role="switch" aria-checked="false" aria-label="Zeichnen: Finger liegen lassen, die Schlange folgt der Linie">
+            <span data-icon="Hand"></span><span data-icon="Spline"></span>
+          </button>
+          <button class="steuer__pause" id="btn-pause-klein" aria-label="Pause" data-icon="Pause"></button>
+        </div>
       </main>
 
       <nav class="dpad no-swipe" id="dpad" hidden aria-label="Steuerkreuz">
@@ -155,6 +162,7 @@
             <label class="opt"><span data-icon="Music"></span><span class="opt__t">Musik</span><input type="checkbox" id="opt-music" class="switch" /></label>
             <label class="opt"><span data-icon="Vibrate"></span><span class="opt__t">Vibration</span><input type="checkbox" id="opt-vibration" class="switch" /></label>
             <label class="opt"><span data-icon="Gamepad2"></span><span class="opt__t">Steuerkreuz<small>Tasten statt Wischen (gilt ab dem nächsten Spiel)</small></span><input type="checkbox" id="opt-dpad" class="switch" /></label>
+            <label class="opt"><span data-icon="Spline"></span><span class="opt__t">Zeichnen<small>Finger liegen lassen: die Schlange fährt dorthin, wohin du die Linie ziehst (auch unten links umschaltbar)</small></span><input type="checkbox" id="opt-zeichnen" class="switch" /></label>
             <div class="opt opt--col">
               <div class="opt__row"><span data-icon="Gauge"></span><span class="opt__t">Tempo<small>Gilt ab dem nächsten Spiel</small></span></div>
               <div class="seg" id="opt-tempo" role="radiogroup">

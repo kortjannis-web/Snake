@@ -123,6 +123,7 @@ export const DEFAULTS = {
   effektDauer: 30,
   zeitlupeProzent: 30,
   geistDauer: 6,
+  schildDauer: 20,
   powerGarantie: 8,
   schereLaenge: 5,
   fuetternDauer: 20,
@@ -133,10 +134,10 @@ export const DEFAULTS = {
   grabWeite: 8,
   goldDauer: 10,
   // Erze unter der Erde (je 1000 Erdfelder) und ihr Wert in Aepfeln (mal Apfelwert)
-  erzGold: 12,
-  erzDia: 3,
-  erzRubin: 1.5,
-  erzOpal: 0.5,
+  erzGold: 9,
+  erzDia: 1.2,
+  erzRubin: 0.5,
+  erzOpal: 0.15,
   goldWert: 3,
   diaWert: 6,
   rubinWert: 10,
@@ -314,6 +315,7 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'effektDauer', label: 'Zeitlupe hält', min: 1, max: 120, einheit: 's' },
       { key: 'zeitlupeProzent', label: 'Zeitlupe langsamer um', min: 5, max: 80, einheit: '%' },
       { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
+      { key: 'schildDauer', label: 'Schild hält', min: 1, max: 300, einheit: 's' },
       { key: 'schereLaenge', label: 'Schere kürzt bis zum nächsten Apfel um', min: 1, max: 50, einheit: 'Glieder' },
       { key: 'fuetternDauer', label: 'Füttern (Tiere und Schlangen fressen) hält', min: 1, max: 120, einheit: 's' },
       { key: 'magnetDauer', label: 'Magnet hält', min: 1, max: 120, einheit: 's' },
@@ -500,7 +502,7 @@ export const POWER_GEWICHT: Record<(typeof POWER_ARTEN)[number], number> = {
 /** Erze: welches die Spitzhacke setzt (Gewicht, je seltener desto wertvoller) */
 export type ErzArt = 'gold' | 'dia' | 'rubin' | 'opal'
 export const ERZ_ARTEN: ErzArt[] = ['gold', 'dia', 'rubin', 'opal']
-export const SPITZHACKE_GEWICHT: Record<ErzArt, number> = { gold: 60, dia: 25, rubin: 11, opal: 4 }
+export const SPITZHACKE_GEWICHT: Record<ErzArt, number> = { gold: 72, dia: 19, rubin: 7, opal: 2 }
 export const erzWert = (c: Config, art: ErzArt) => (art === 'gold' ? c.goldWert : art === 'dia' ? c.diaWert : art === 'rubin' ? c.rubinWert : c.opalWert)
 /** Zeitlupe: Takt so viel laenger (30 % langsamer = Takt / 0,7) */
 export const zeitlupe = (c: Config) => 1 / Math.max(0.2, 1 - c.zeitlupeProzent / 100)

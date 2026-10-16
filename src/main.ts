@@ -26,7 +26,7 @@ import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveCo
 import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
-import { CAUSE, help, OBJEKT_NAME, SIDE, stufenName, unlockText } from './ui/texts'
+import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
 type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop'
@@ -94,6 +94,7 @@ function setMode(m: Mode) {
   show('over', false)
   $('ready').hidden = m !== 'ready'
   $('dpad').hidden = !(settings.dpad && (m === 'ready' || m === 'play' || m === 'paused'))
+  $('steuer').hidden = !(m === 'ready' || m === 'play')
   audio.music(true, m !== 'play')
   if (m === 'home') updateHome()
 }
@@ -139,13 +140,36 @@ function newGame(alsKreativ = istKreativ) {
     sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
   })
   renderer.reset()
-  $('ready-text').textContent = fine ? 'Pfeiltaste drücken zum Starten' : settings.dpad ? 'Tippe eine Richtung zum Starten' : 'Wischen zum Starten'
+  readyText()
   setMode('ready')
   // Steuerkreuz veraendert die Hoehe: danach neu messen
   requestAnimationFrame(resize)
   updateHud(false)
   updateGeld()
   toastsClear()
+}
+
+function readyText() {
+  $('ready-text').textContent = fine
+    ? 'Pfeiltaste drücken zum Starten'
+    : settings.dpad
+      ? 'Tippe eine Richtung zum Starten'
+      : settings.steuerung === 'zeichnen'
+        ? 'Linie ziehen zum Starten'
+        : 'Wischen zum Starten'
+}
+
+/** Schalter unten links: Wischen oder Zeichnen */
+function updateSteuerung() {
+  const an = settings.steuerung === 'zeichnen'
+  $('btn-steuerung').setAttribute('aria-checked', String(an))
+  $<HTMLInputElement>('opt-zeichnen').checked = an
+}
+function setSteuerung(an: boolean) {
+  settings.steuerung = an ? 'zeichnen' : 'wischen'
+  applySettings()
+  updateSteuerung()
+  if (mode === 'ready') readyText()
 }
 
 function begin(d?: Dir) {
@@ -263,12 +287,9 @@ function zaehlen(e: GameEvent) {
   saveStats()
 }
 
-/** Neu erreichte Erfolge anzeigen (Belohnungen gibt es noch keine) */
+/** Neu erreichte Erfolge merken (ohne Meldung im Spiel, sie stehen in der Statistik) */
 function erfolgeMelden() {
-  for (const e of erfolgePruefen()) {
-    audio.record()
-    toast('erfolg', `Erfolg: ${e.titel}`, e.text)
-  }
+  erfolgePruefen()
 }
 
 function handle(e: GameEvent) {
@@ -286,13 +307,10 @@ function handle(e: GameEvent) {
     case 'expand':
       audio.expand()
       haptic.success()
-      toast('gebiet', 'Neues Gebiet', `Ein neuer Block ist ${SIDE[e.side]} dazugekommen. Mehr Platz!`, { pfeil: e.side })
       break
     case 'unlock': {
+      // Keine Vorstellung neuer Gefahren: der Spieler findet alles selbst heraus
       if (e.what === 'gebiet') break
-      const u = unlockText(game!.cfg)[e.what]
-      audio.unlock_()
-      toast(u.mini, u.title, u.text)
       if (!stats.seen.includes(e.what)) {
         stats.seen.push(e.what)
         saveStats()
@@ -336,7 +354,6 @@ function handle(e: GameEvent) {
       break
     case 'stolen':
       audio.stolen()
-      toast('frosch', 'Apfel geschnappt!', 'Ein Frosch hat ihn erwischt. Er liegt jetzt woanders.')
       break
     case 'pond':
       audio.pond()
@@ -369,18 +386,10 @@ function handle(e: GameEvent) {
     case 'fund': {
       audio.fund(e.art !== 'gold')
       haptic.success()
-      const name = { gold: '', dia: 'Diamant!', rubin: 'Rubin!', opal: 'Opal!' }[e.art]
-      if (name) toast('erz', name, `+${e.wert} Äpfel.`)
-      break
-    }
-    case 'erzGesetzt': {
-      const name = { gold: 'Golderz', dia: 'ein Diamant', rubin: 'ein Rubin', opal: 'ein Opal' }[e.art]
-      toast('erz', 'Spitzhacke', `Irgendwo liegt jetzt ${name}. Fahr drüber und grab es aus!`)
       break
     }
     case 'wahlVorbei':
       audio.powerEnde()
-      toast('gebiet', 'Zu spät', 'Der neue Block ist an eine zufällige Stelle gekommen.')
       break
     case 'gefressen':
       audio.happs()
@@ -389,14 +398,13 @@ function handle(e: GameEvent) {
     case 'wahl':
       if (e.offen > 0) {
         audio.wahl()
-        toast('gebiet', 'Neues Gebiet wählen', 'Die Wände leuchten. Fahr gegen eine leuchtende Wand: dort kommt der neue Block hin.')
+        toast('gebiet', 'Öffne eine Wand', '')
       }
       break
     case 'freigelegt':
       if (e.anzahl > 0) {
         audio.freigelegt()
         haptic.success()
-        toast('erde', 'Freigelegt', `${e.anzahl} Felder Erde sind jetzt Spielfeld.`)
       }
       break
     case 'eis':
@@ -406,7 +414,6 @@ function handle(e: GameEvent) {
       if (e.wert <= 0) break
       audio.besiegt()
       haptic.success()
-      toast('gegner', 'Gegner eingekesselt!', istKreativ ? 'Er hatte keinen Ausweg mehr.' : `+${e.wert} Äpfel für ${e.laenge} Glieder.`)
       break
     case 'power':
       audio.power()
@@ -418,7 +425,6 @@ function handle(e: GameEvent) {
     case 'faktor':
       if (!istKreativ) {
         audio.milestone()
-        toast('apfel', `Äpfel ×${e.faktor}`, `Die Äpfel sind jetzt ${stufenName(e.faktor)} und ${e.faktor}-mal so viel wert.`, { stufe: e.faktor })
       }
       updateGeld()
       break
@@ -437,10 +443,6 @@ function handle(e: GameEvent) {
         void el.offsetWidth
         el.classList.add('down')
       }
-      const n = e.von - e.auf
-      const was = { wolke: 'In die Giftwolke geraten.', licht: 'Im Fensterlicht erwischt.', kegel: 'Vom Jägerturm entdeckt.', ameise: 'Eine Ameise hat zugebissen.' }[e.grund]
-      const mini = ({ wolke: 'wolke', licht: 'haus', kegel: 'turm', ameise: 'ameise' } as const)[e.grund]
-      toast(mini, `−${n} Level`, `${was} Zurück auf Level ${e.auf}.`, { minus: true })
       break
     }
     case 'tree':
@@ -524,7 +526,10 @@ function updateEffekte() {
   const aktiv: { art: string; rest: number; text: string }[] = []
   if (g && mode !== 'home') {
     const e = g.effekt
-    if (e.schild > 0) aktiv.push({ art: 'schild', rest: 1, text: e.schild > 1 ? `×${e.schild}` : '' })
+    if (e.schild > 0) {
+      const rest = Math.max(0, e.schildBis - g.time)
+      aktiv.push({ art: 'schild', rest: Math.min(1, rest / (g.cfg.schildDauer * 1000)), text: `${e.schild > 1 ? `×${e.schild} ` : ''}${Math.ceil(rest / 1000)}` })
+    }
     // Schere: bis zum naechsten Apfel kuerzer
     if (e.schere > 0) aktiv.push({ art: 'schere', rest: 1, text: `−${e.schere}` })
     // Neues Gebiet waehlen: Countdown
@@ -557,7 +562,7 @@ function updateEffekte() {
     }
     const b = el.querySelector('b')!
     if (b.textContent !== a.text) b.textContent = a.text
-    el.classList.toggle('effekt--blink', a.art === 'wahl' && Number(a.text) <= 5)
+    el.classList.toggle('effekt--blink', (a.art === 'wahl' && Number(a.text) <= 5) || (a.art === 'schild' && a.rest * g!.cfg.schildDauer <= 3))
     el.querySelector('i')!.style.transform = `scaleX(${a.rest})`
   }
 }
@@ -646,7 +651,8 @@ function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string
     if (pfeil) el.dataset.side = pfeil
     el.innerHTML = `<canvas width="44" height="44"></canvas><div><b></b><span></span></div>`
     el.querySelector('b')!.textContent = title
-    el.querySelector('span')!.textContent = text
+    if (text) el.querySelector('span')!.textContent = text
+    else el.querySelector('span')!.remove()
     $('toasts').append(el)
     drawMini(el.querySelector('canvas')!, mini, 0, pfeil, stufe)
     setTimeout(() => el.classList.add('out'), 2900)
@@ -754,6 +760,7 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
+  updateSteuerung()
   $('opt-tempo')
     .querySelectorAll<HTMLButtonElement>('button')
     .forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === settings.tempo)))
@@ -1035,6 +1042,19 @@ $('btn-pause').addEventListener('click', () => {
   audio.click()
   pause()
 })
+$('btn-pause-klein').addEventListener('click', () => {
+  audio.click()
+  pause()
+})
+$('btn-steuerung').addEventListener('click', () => {
+  audio.unlock()
+  audio.click()
+  setSteuerung(settings.steuerung !== 'zeichnen')
+})
+$<HTMLInputElement>('opt-zeichnen').addEventListener('change', (e) => {
+  audio.click()
+  setSteuerung((e.target as HTMLInputElement).checked)
+})
 $('btn-resume').addEventListener('click', resume)
 $('btn-restart').addEventListener('click', () => {
   audio.click()
@@ -1102,6 +1122,7 @@ $('btn-reset').addEventListener('click', () => {
 
 bindInput(app, {
   dir: onDir,
+  steuerung: () => settings.steuerung,
   pause: () => {
     audio.unlock()
     if (page()) return closePage()
@@ -1115,6 +1136,7 @@ bindInput(app, {
   enabled: () => !page() && (mode === 'ready' || mode === 'play'),
 })
 bindDpad($('dpad'), onDir)
+updateSteuerung()
 // Spielende: Enter oder Leertaste startet neu
 window.addEventListener('keydown', (e) => {
   if (mode === 'over' && $('over').hasAttribute('data-open') && !page() && (e.key === 'Enter' || e.key === ' ')) {

@@ -133,7 +133,7 @@ describe('Karte aus Bloecken', () => {
 })
 
 describe('Spiel', () => {
-  it('Gnadenschritt: vor dem Rand erst stehen bleiben', () => {
+  it('Gegen den Rand: sofort vorbei, kein Gnadenschritt', () => {
     const g = new Game({ screenW: SW, screenH: SH, seed: 1 })
     g.apple.p = { x: 0, y: 0 }
     const ev: GameEvent[] = []
@@ -141,9 +141,24 @@ describe('Spiel', () => {
       g.update(g.tick)
       ev.push(...g.drain())
     }
-    expect(ev.some((e) => e.type === 'halt')).toBe(true)
+    expect(ev.some((e) => e.type === 'halt')).toBe(false)
     expect(g.status).toBe('over')
     expect(g.cause).toBe('rand')
+  })
+
+  it('Gegen eine Mauer: sofort vorbei, kein Gnadenschritt', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 1, cfg: { powerChance: 0 } })
+    leer(g)
+    g.apple.p = { x: 0, y: 0 }
+    const h = g.body[0]
+    g.mauern.push({ cells: [{ x: h.x + 1, y: h.y }], grown: 1, t: [0], next: 0 })
+    const ev: GameEvent[] = []
+    for (let i = 0; i < 3 && g.status === 'play'; i++) {
+      g.update(g.tick)
+      ev.push(...g.drain())
+    }
+    expect(ev.some((e) => e.type === 'halt')).toBe(false)
+    expect(g.cause).toBe('mauer')
   })
 
   it('Giftapfel essen beendet das Spiel', () => {
@@ -463,6 +478,24 @@ describe('Aepfel als Waehrung und Power-ups', () => {
     expect(ev.some((e) => e.type === 'schild')).toBe(true)
   })
 
+  it('Schild haelt nicht ewig', () => {
+    const g = frisch()
+    g.powerAn('schild')
+    g.powerAn('schild')
+    expect(g.effekt.schild).toBe(2)
+    g.time += C.schildDauer * 1000 - 100
+    g.last = g.time
+    g.update(16)
+    expect(g.effekt.schild).toBe(2)
+    g.time += 200
+    g.last = g.time
+    const ev: GameEvent[] = []
+    g.update(16)
+    ev.push(...g.drain())
+    expect(g.effekt.schild).toBe(0)
+    expect(ev.some((e) => e.type === 'powerEnde' && e.art === 'schild')).toBe(true)
+  })
+
   it('Zeitlupe macht den Takt laenger', () => {
     const g = frisch()
     const vorher = g.takt
@@ -489,9 +522,12 @@ describe('Aepfel als Waehrung und Power-ups', () => {
     g.prev = g.body.map((p) => ({ ...p }))
     g.wachsRest = 0
     g.dir = 'd'
+    const schwanz = g.body.slice(7).map((p) => ({ ...p }))
     g.powerAn('schere')
     expect(g.body.length).toBe(7)
     expect(g.effekt.schere).toBe(5)
+    // Die abgeschnittenen Glieder fallen sichtbar ab
+    expect(g.abgeschnitten.at(-1)?.cells).toEqual(schwanz)
     // Naechster Apfel: die 5 wachsen wieder nach (plus das normale Wachsen)
     vorDenKopf(g)
     const ev = schritte(g, 1)
@@ -1124,11 +1160,11 @@ describe('Erde und Erze', () => {
         if (e === 'gold') gold++
         if (e === 'dia') dia++
       }
-    // 12 bzw. 3 je 1000 Felder
-    expect(gold / 20).toBeGreaterThan(8)
-    expect(gold / 20).toBeLessThan(16)
-    expect(dia / 20).toBeGreaterThan(1)
-    expect(dia / 20).toBeLessThan(5)
+    // 9 bzw. 1,2 je 1000 Felder
+    expect(gold / 20).toBeGreaterThan(5)
+    expect(gold / 20).toBeLessThan(13)
+    expect(dia / 20).toBeGreaterThan(0.3)
+    expect(dia / 20).toBeLessThan(3)
   })
 
   it('Erz einsammeln: Gold 3 x, Diamant 6 x der aktuelle Apfel', () => {
