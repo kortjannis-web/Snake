@@ -4,7 +4,7 @@
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
 import { AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
-import { FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
+import { erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Funke, GameEvent, Gegner, P } from '../game/types'
 import { drawSchlange, GEGNER_SKIN, LILA_SKIN, SKINS, type Skin } from './skins'
 import {
@@ -16,6 +16,10 @@ import {
   clamp01,
   DIR_WINKEL,
   drawAmeise,
+  drawEis,
+  drawErdDeko,
+  drawErdFeld,
+  drawErz,
   drawFrosch,
   drawLava,
   drawPower,
@@ -124,6 +128,15 @@ export class Renderer {
       this.cam.y += e.dy * cell
       this.frame.x += e.dx
       this.frame.y += e.dy
+    } else if (e.type === 'freigelegt') {
+      this.cam.x += e.dx * cell
+      this.cam.y += e.dy * cell
+      this.frame.x += e.dx
+      this.frame.y += e.dy
+      for (const f of [...this.funken, ...this.texte]) {
+        f.x += e.dx * cell
+        f.y += e.dy * cell
+      }
       this.funken.forEach((f) => {
         f.x += e.dx * cell
         f.y += e.dy * cell
@@ -134,10 +147,23 @@ export class Renderer {
       })
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
+    } else if (e.type === 'fund') {
+      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: e.art === 'gold' ? '#FFD86B' : '#9DF6FF' })
+    } else if (e.type === 'geld' && e.quelle === 'futter') {
+      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: '#FFB38A' })
     } else if (e.type === 'geld' && e.quelle === 'gegner') {
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: apfelFarben(g.apfelStufe())[0][0] })
     } else if (e.type === 'power') {
-      const name = { schild: 'Schild', zeitlupe: 'Zeitlupe', geist: 'Geist', schere: g.effekt.schere > 0 ? `Schere −${g.effekt.schere}` : 'Schere' }[e.art]
+      const name = {
+        schild: 'Schild',
+        zeitlupe: 'Zeitlupe',
+        geist: 'Geist',
+        schere: g.effekt.schere > 0 ? `Schere −${g.effekt.schere}` : 'Schere',
+        fuettern: 'Füttern!',
+        magnet: 'Magnet',
+        maulwurf: 'Maulwurf',
+        gold: 'Unbesiegbar!',
+      }[e.art]
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
     } else if (e.type === 'setback') {
       if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
@@ -171,51 +197,56 @@ export class Renderer {
     }
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
-    // Hintergrund ausserhalb der Karte: dunkles Mokka mit feinem Punktraster
-    ctx.fillStyle = '#171513'
+    // Erde rund um die Karte: dunkelbraun, am Spielfeld eine hellere Erdkante.
+    // Darin Steine, Kohle, Schlangenskelette, Lavataschen und Erze (fest je Weltfeld)
+    ctx.fillStyle = '#2C1E14'
     ctx.fillRect(0, 0, vw, vh)
-    ctx.fillStyle = 'rgba(203, 191, 177, 0.07)'
-    const step = cell
-    const sx = ((ox % step) + step) % step
-    const sy = ((oy % step) + step) % step
-    for (let y = sy - step / 2; y < vh; y += step) for (let x = sx - step / 2; x < vw; x += step) ctx.fillRect(x - 1, y - 1, 2, 2)
-
     ctx.translate(ox, oy)
 
-    // Sichtbarer Bereich in Feldern
-    const x0 = Math.max(0, Math.floor(-ox / cell) - 1)
-    const y0 = Math.max(0, Math.floor(-oy / cell) - 1)
-    const x1 = Math.min(g.w - 1, Math.ceil((vw - ox) / cell) + 1)
-    const y1 = Math.min(g.h - 1, Math.ceil((vh - oy) / cell) + 1)
+    // Sichtbarer Bereich in Feldern (ex/ey auch ausserhalb der Karte)
+    const ex0 = Math.floor(-ox / cell) - 1
+    const ey0 = Math.floor(-oy / cell) - 1
+    const ex1 = Math.ceil((vw - ox) / cell) + 1
+    const ey1 = Math.ceil((vh - oy) / cell) + 1
+    const x0 = Math.max(0, ex0)
+    const y0 = Math.max(0, ey0)
+    const x1 = Math.min(g.w - 1, ex1)
+    const y1 = Math.min(g.h - 1, ey1)
     const sicht = (p: P, m = 2) => p.x >= x0 - m && p.x <= x1 + m && p.y >= y0 - m && p.y <= y1 + m
-
-    // Rahmen um jeden Block der Karte; der neue Block klappt von der Ansatzseite auf
-    const gb = g.gebiet && now - g.gebiet.t < 2600 && !this.reduce ? g.gebiet : null
-    const pad = Math.max(4, cell * 0.22)
-    const rahmen = g.blocks.map((b) => {
-      const r = { x: b.x * g.bw, y: b.y * g.bh, w: g.bw, h: g.bh }
-      if (!gb || r.x !== gb.x || r.y !== gb.y) return r
-      const k = easeOut(clamp01((now - gb.t) / 900))
-      if (gb.side === 'top') return { ...r, y: r.y + r.h * (1 - k), h: r.h * k }
-      if (gb.side === 'bottom') return { ...r, h: r.h * k }
-      if (gb.side === 'left') return { ...r, x: r.x + r.w * (1 - k), w: r.w * k }
-      return { ...r, w: r.w * k }
-    })
-    for (const [col, dy] of [['rgba(0, 0, 0, 0.45)', cell * 0.15], ['#1C5446', 0]] as const) {
-      ctx.fillStyle = col
-      for (const r of rahmen) {
-        rund(ctx, r.x * cell - pad, r.y * cell - pad + dy, r.w * cell + pad * 2, r.h * cell + pad * 2, cell * 0.5)
-        ctx.fill()
+    const drin = (x: number, y: number) => g.inside({ x, y })
+    const tunnel = new Set(g.tunnel.map((t) => t.x * 100_003 + t.y))
+    for (let y = ey0; y <= ey1; y++)
+      for (let x = ex0; x <= ex1; x++) {
+        if (drin(x, y)) continue
+        const wx = x - g.ursprung.x
+        const wy = y - g.ursprung.y
+        const z = feldZufall(wx, wy)
+        if (tunnel.has(x * 100_003 + y)) {
+          // Gegrabener Gang (Maulwurf)
+          ctx.fillStyle = '#7A5434'
+          ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
+          ctx.fillStyle = 'rgba(40, 24, 14, 0.4)'
+          ctx.fillRect(x * cell + cell * z * 0.6, y * cell + cell * 0.3, cell * 0.12, cell * 0.08)
+          continue
+        }
+        const ring = drin(x + 1, y) || drin(x - 1, y) || drin(x, y + 1) || drin(x, y - 1) ? 1 : drin(x + 1, y + 1) || drin(x - 1, y - 1) || drin(x + 1, y - 1) || drin(x - 1, y + 1) || drin(x + 2, y) || drin(x - 2, y) || drin(x, y + 2) || drin(x, y - 2) ? 2 : 0
+        drawErdFeld(ctx, x * cell, y * cell, cell, ring, z)
+        const deko = erdeBei(g.cfg, wx, wy)
+        if (!deko) continue
+        if (deko === 'gold' || deko === 'dia') {
+          if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9)
+        } else drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
-    }
 
-    // Schachbrett nur auf der Karte; neue Felder klappen als Welle auf. Erst die
+    // Schachbrett nur auf der Karte; der neue Block klappt als Welle auf. Erst die
     // dunkle Flaeche je Block, dann die hellen Felder etwas groesser (sonst feine Fugen)
+    const gb = g.gebiet && now - g.gebiet.t < 2600 && !this.reduce ? g.gebiet : null
     ctx.fillStyle = C.dunkel
     for (const b of g.blocks) {
       if (gb && b.x * g.bw === gb.x && b.y * g.bh === gb.y) continue
       ctx.fillRect(b.x * g.bw * cell, b.y * g.bh * cell, g.bw * cell, g.bh * cell)
     }
+    for (const c of g.extra) if (sicht(c)) ctx.fillRect(c.x * cell - 0.3, c.y * cell - 0.3, cell + 0.6, cell + 0.6)
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++) {
         if (!g.mask[y * g.w + x]) continue
@@ -233,9 +264,48 @@ export class Renderer {
         ctx.fillStyle = C.hell
         ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
       }
+    // Grasrand am Uebergang zur Erde
+    ctx.fillStyle = 'rgba(46, 96, 58, 0.7)'
+    const kante = Math.max(2, cell * 0.1)
+    for (let y = y0; y <= y1; y++)
+      for (let x = x0; x <= x1; x++) {
+        if (!g.mask[y * g.w + x]) continue
+        if (!drin(x, y - 1)) ctx.fillRect(x * cell, y * cell, cell, kante)
+        if (!drin(x, y + 1)) ctx.fillRect(x * cell, (y + 1) * cell - kante, cell, kante)
+        if (!drin(x - 1, y)) ctx.fillRect(x * cell, y * cell, kante, cell)
+        if (!drin(x + 1, y)) ctx.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
+      }
 
-    // Lava
+    // Neues Gebiet waehlen: die Waende, an die ein Block passt, gluehen
+    if (g.wahl > 0 && g.status === 'play') {
+      const belegt = new Set(g.blocks.map((b) => b.x * 1000 + b.y))
+      const puls = this.reduce ? 1 : 0.5 + 0.5 * Math.sin(now / 170)
+      for (const b of g.blocks)
+        for (const d of ['u', 'd', 'l', 'r'] as const) {
+          const st = STEP[d]
+          if (belegt.has((b.x + st.x) * 1000 + b.y + st.y)) continue
+          const bx = b.x * g.bw * cell
+          const by = b.y * g.bh * cell
+          const bw = g.bw * cell
+          const bh = g.bh * cell
+          const [ax, ay, zx, zy] =
+            d === 'u' ? [bx, by, bx + bw, by] : d === 'd' ? [bx, by + bh, bx + bw, by + bh] : d === 'l' ? [bx, by, bx, by + bh] : [bx + bw, by, bx + bw, by + bh]
+          ctx.lineCap = 'round'
+          ctx.strokeStyle = `rgba(255, 180, 60, ${0.18 + 0.25 * puls})`
+          ctx.lineWidth = cell * 0.7
+          ctx.beginPath()
+          ctx.moveTo(ax, ay)
+          ctx.lineTo(zx, zy)
+          ctx.stroke()
+          ctx.strokeStyle = `rgba(255, 226, 120, ${0.7 + 0.3 * puls})`
+          ctx.lineWidth = Math.max(2, cell * 0.14)
+          ctx.stroke()
+        }
+    }
+
+    // Lava und Eis
     for (const l of g.lava) if (l.cells.some((c) => sicht(c))) drawLava(ctx, l.cells, l.t, cell, now, this.reduce)
+    for (const e of g.eis) if (e.cells.some((c) => sicht(c))) drawEis(ctx, e.cells, cell, this.reduce ? 1 : backOut(clamp01((now - e.t) / 500)), now)
 
     // Teiche (trocknen ggf. aus)
     for (const t of g.teiche) {
@@ -302,6 +372,11 @@ export class Renderer {
     for (const pw of g.powers) {
       if (!sicht(pw.p)) continue
       drawPower(ctx, px(pw.p.x), px(pw.p.y), cell, pw.art, this.reduce ? 1 : backOut(clamp01((now - pw.t) / 380)), now, pw.until - now < 3000)
+    }
+    for (const f of g.funde) {
+      if (!sicht(f.p)) continue
+      const hop = this.reduce ? 0 : Math.sin(now / 300 + f.p.x) * cell * 0.04
+      drawErz(ctx, px(f.p.x), px(f.p.y) - hop, cell, f.art, this.reduce ? 1 : backOut(clamp01((now - f.t) / 400)), this.reduce ? 0 : Math.max(0, Math.sin(now / 250 + f.p.y)))
     }
     for (const gf of g.gift) {
       if (!sicht(gf.p)) continue
@@ -424,6 +499,20 @@ export class Renderer {
     else if (!tot && now < g.schutzBis) ctx.globalAlpha = Math.sin(now / 55) > 0 ? 0.9 : 0.35
     // Geist (Power-up): durchscheinend, kurz vor dem Ende flackernd
     else if (!tot && now < g.effekt.geistBis) ctx.globalAlpha = g.effekt.geistBis - now < 1500 && Math.sin(now / 70) > 0 ? 0.75 : 0.45
+    // Goldener Apfel: goldener Schein um den ganzen Koerper
+    if (!tot && g.unbesiegbar()) {
+      const p = 0.5 + 0.5 * Math.sin(now / 120)
+      ctx.save()
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = `rgba(255, 205, 60, ${0.35 + 0.3 * p})`
+      ctx.lineWidth = cell * 1.05
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      pts.forEach((q, i) => (i ? ctx.lineTo((q.x + 0.5) * cell, (q.y + 0.5) * cell) : ctx.moveTo((q.x + 0.5) * cell, (q.y + 0.5) * cell)))
+      ctx.stroke()
+      ctx.restore()
+    }
     drawSchlange(ctx, pts, cell, g.dir, this.skin, now, {
       tot,
       vergiftet: g.cause === 'gift' ? clamp01(sinceDeath / 600) : 0,
@@ -431,6 +520,39 @@ export class Renderer {
       blinzeln: !tot && now % 4300 < 120,
     })
     ctx.globalAlpha = 1
+    const hx0 = (head.x + 0.5) * cell
+    const hy0 = (head.y + 0.5) * cell
+    // Fuettern: hungriger roter Schein um den Kopf
+    if (!tot && now < g.effekt.fuetternBis) {
+      const p = 0.5 + 0.5 * Math.sin(now / 90)
+      ctx.strokeStyle = `rgba(240, 90, 60, ${0.45 + 0.35 * p})`
+      ctx.lineWidth = Math.max(2, cell * 0.1)
+      ctx.beginPath()
+      ctx.arc(hx0, hy0, cell * (0.55 + 0.08 * p), 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    // Magnet: Reichweite als gestrichelter Kreis
+    if (!tot && now < g.effekt.magnetBis) {
+      ctx.strokeStyle = 'rgba(216, 67, 74, 0.55)'
+      ctx.lineWidth = Math.max(1.5, cell * 0.05)
+      ctx.setLineDash([cell * 0.2, cell * 0.15])
+      ctx.lineDashOffset = -now / 40
+      ctx.beginPath()
+      ctx.arc(hx0, hy0, cell * (g.cfg.magnetRadius + 0.5), 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+    // Maulwurf: Erdkruemel fliegen vom Kopf
+    if (!tot && g.graebt() && !this.reduce) {
+      ctx.fillStyle = 'rgba(122, 84, 52, 0.9)'
+      for (let i = 0; i < 5; i++) {
+        const t = ((now / 500 + i / 5) % 1)
+        const a = i * 2.4 + Math.floor(now / 500) * 0.7
+        ctx.beginPath()
+        ctx.arc(hx0 + Math.cos(a) * cell * 0.6 * t, hy0 + Math.sin(a) * cell * 0.6 * t - cell * 0.2 * t, cell * 0.06 * (1 - t), 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
     // Schild: Blase um den Kopf
     if (!tot && g.effekt.schild > 0) {
       const hx = (head.x + 0.5) * cell
@@ -456,6 +578,13 @@ export class Renderer {
     const vhC = g.screenH
     const h = g.body[0]
     const d = STEP[g.queue[0] ?? g.dir]
+    // In der Erde (Maulwurf): die Kamera folgt dem Kopf
+    if (!g.inside(h) && this.camInit && !this.reduce) {
+      const k = 1 - Math.exp(-dt / 260)
+      this.cam.x += ((h.x + 0.5) * cell - this.cam.x) * k
+      this.cam.y += ((h.y + 0.5) * cell - this.cam.y) * k
+      return
+    }
     // Pro Achse: Startposition des Ausschnitts, Blockgroesse, Bloecke je Bildschirm, Kartengroesse
     const achse = (pos: number, blk: number, view: number, total: number, alt: number | null) => {
       if (total <= view) return (total - view) / 2
@@ -592,6 +721,9 @@ export class Renderer {
       if (schlange) ctx.strokeRect(x + bw * 0.28, y + bh * 0.28, bw * 0.44, bh * 0.44)
       else ctx.strokeRect(x + 0.5, y + 0.5, bw - 1, bh - 1)
     }
+    // Freigegrabene Felder ausserhalb der Bloecke
+    ctx.fillStyle = 'rgba(245, 239, 230, 0.2)'
+    for (const c of g.extra) ctx.fillRect(x0 + c.x * s, y0 + c.y * s, Math.max(1, s), Math.max(1, s))
   }
 
   /** Pfeil am Bildrand, wenn der Apfel ausserhalb liegt */

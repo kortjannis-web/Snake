@@ -23,13 +23,14 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
 | 1 | Ein Bildschirm = zwei Kartenblöcke. Äpfel essen, die Schlange wächst (ab 50 jedes zweite, ab 300 jedes dritte Level). |
 | 8 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
 | 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
-| 20 | **Neuer Kartenblock** (halber Bildschirm) alle 20 Level an einer zufälligen freien Stelle, wie bei Minecraft, bis Level 300. |
+| 20 | **Neues Gebiet** alle 20 Level bis Level 300: die Wände glühen, wo ein Block passt; dagegenfahren baut ihn genau dort an (sonst beim nächsten Mal zufällig). |
 | 50 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
 | 60 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 60 / 160 / 260). |
 | 100 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-2-1) alle 40 Level, bleiben. |
 | 120 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
 | 130 | **Hütten** (2 × 2, Licht 1 Feld) alle 30 Level, ab 210 große Häuser. |
 | 150 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
+| 180 | **Eis** (4–10 Felder) alle 30 Level, bleibt; darauf kann man nicht lenken. |
 | 200 | **Frösche** (höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
 | 210 | **Große Häuser** (2 × 3 oder mit Ecke) statt Hütten, vier Fenster, Licht 2 Felder (nie auf die Schlange, zugebaut = dunkel). Haus = Tod, Licht = **5 Level zurück**. |
 | 240 | **Ameisen** chillen, kommen im 2-Felder-Umkreis langsam auf dich zu, Biss −3 Level, der Kopf zertritt sie. |
@@ -43,8 +44,11 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 
 **Äpfel als Währung und Skins:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
-Damit im Shop 5 Skins kaufen (Koralle, Nacht, Tiger, Gold, Regenbogen). **Power-ups** ab Level 10: Schild, Zeitlupe, Geist,
-Schere (5 Glieder weg, nur bis zum nächsten Apfel). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
+Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel). Außerhalb der Karte ist Erde mit Steinen, Kohle,
+Skeletten, Lava, **Golderz (3 ×)** und **Diamant (10 ×)**. **Power-ups** ab Level 10: Schild, Zeitlupe (30 s, −30 %), Geist,
+Schere (5 Glieder weg, nur bis zum nächsten Apfel), Füttern (20 s Tiere und Gegner fressen), Magnet (15 s, holt alles im
+2-Felder-Umkreis sofort), goldener Apfel (10 s unbesiegbar, über sich selbst), ab Level 100 Maulwurf (20 s durch die Erde graben,
+zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
 **Kreativ-Modus:** Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,

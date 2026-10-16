@@ -12,17 +12,67 @@ export type Skin = {
   preis: number
   kopf: RGB
   schwanz: RGB
-  muster?: 'sterne' | 'streifen' | 'glanz' | 'regenbogen'
+  muster?: 'sterne' | 'streifen' | 'glanz' | 'regenbogen' | 'punkte' | 'glut' | 'funkeln' | 'aurora'
+  /** Farbe fuer Streifen, Punkte, Glanz (sonst Standard des Musters) */
+  musterFarbe?: string
 }
 
-export const SKINS: Skin[] = [
-  { id: 'klassik', name: 'Klassik', preis: 0, kopf: [47, 143, 116], schwanz: [18, 66, 55] },
-  { id: 'koralle', name: 'Koralle', preis: 300, kopf: [244, 128, 96], schwanz: [160, 52, 66] },
-  { id: 'nacht', name: 'Nacht', preis: 800, kopf: [70, 96, 170], schwanz: [22, 24, 60], muster: 'sterne' },
-  { id: 'tiger', name: 'Tiger', preis: 1600, kopf: [246, 160, 70], schwanz: [200, 104, 36], muster: 'streifen' },
-  { id: 'gold', name: 'Gold', preis: 3500, kopf: [255, 214, 102], schwanz: [170, 118, 28], muster: 'glanz' },
-  { id: 'regenbogen', name: 'Regenbogen', preis: 7500, kopf: [255, 255, 255], schwanz: [255, 255, 255], muster: 'regenbogen' },
+/** Preisstufen im Shop (in Aepfeln) mit Namen */
+export const STUFEN: { preis: number; name: string }[] = [
+  { preis: 0, name: 'Grundfarben (gratis)' },
+  { preis: 250, name: 'Einfarbig' },
+  { preis: 600, name: 'Kräftig' },
+  { preis: 1200, name: 'Muster' },
+  { preis: 2500, name: 'Elemente' },
+  { preis: 4000, name: 'Edelmetall' },
+  { preis: 6000, name: 'Kosmisch' },
+  { preis: 9000, name: 'Legendär' },
 ]
+
+/** Alle Skins. Die vier Grundfarben hat jeder, alles andere kauft man mit Aepfeln.
+ *  Alte Ids (koralle, nacht, tiger, gold, regenbogen) bleiben, wer sie gekauft hat, behaelt sie */
+export const SKINS: Skin[] = [
+  // Grundfarben
+  { id: 'klassik', name: 'Grün', preis: 0, kopf: [47, 143, 116], schwanz: [18, 66, 55] },
+  { id: 'ozean', name: 'Blau', preis: 0, kopf: [64, 140, 220], schwanz: [24, 56, 120] },
+  { id: 'sonne', name: 'Gelb', preis: 0, kopf: [246, 206, 72], schwanz: [190, 128, 20] },
+  { id: 'kohle', name: 'Schwarz', preis: 0, kopf: [78, 78, 84], schwanz: [24, 24, 28] },
+  // Einfarbig
+  { id: 'minze', name: 'Minze', preis: 250, kopf: [150, 230, 190], schwanz: [50, 150, 120] },
+  { id: 'himmel', name: 'Himmel', preis: 250, kopf: [150, 210, 250], schwanz: [60, 130, 200] },
+  { id: 'pfirsich', name: 'Pfirsich', preis: 250, kopf: [255, 190, 150], schwanz: [210, 110, 80] },
+  { id: 'flieder', name: 'Flieder', preis: 250, kopf: [210, 180, 240], schwanz: [130, 100, 180] },
+  { id: 'sand', name: 'Sand', preis: 250, kopf: [232, 210, 160], schwanz: [160, 130, 80] },
+  // Kraeftig
+  { id: 'koralle', name: 'Koralle', preis: 600, kopf: [244, 128, 96], schwanz: [160, 52, 66] },
+  { id: 'smaragd', name: 'Smaragd', preis: 600, kopf: [40, 200, 120], schwanz: [6, 90, 60] },
+  { id: 'pink', name: 'Pink', preis: 600, kopf: [255, 110, 180], schwanz: [170, 30, 110] },
+  { id: 'tuerkis', name: 'Türkis', preis: 600, kopf: [60, 220, 210], schwanz: [10, 110, 120] },
+  { id: 'orange', name: 'Orange', preis: 600, kopf: [255, 150, 50], schwanz: [190, 80, 10] },
+  // Muster
+  { id: 'nacht', name: 'Nacht', preis: 1200, kopf: [70, 96, 170], schwanz: [22, 24, 60], muster: 'sterne' },
+  { id: 'tiger', name: 'Tiger', preis: 1200, kopf: [246, 160, 70], schwanz: [200, 104, 36], muster: 'streifen' },
+  { id: 'zebra', name: 'Zebra', preis: 1200, kopf: [245, 245, 240], schwanz: [200, 200, 195], muster: 'streifen', musterFarbe: 'rgba(20, 20, 24, 0.85)' },
+  { id: 'leopard', name: 'Leopard', preis: 1200, kopf: [240, 200, 120], schwanz: [190, 140, 60], muster: 'punkte' },
+  { id: 'marienkaefer', name: 'Käfer', preis: 1200, kopf: [230, 60, 50], schwanz: [150, 20, 20], muster: 'punkte', musterFarbe: 'rgba(15, 10, 10, 0.9)' },
+  // Elemente
+  { id: 'glut', name: 'Glut', preis: 2500, kopf: [255, 140, 40], schwanz: [120, 20, 10], muster: 'glut' },
+  { id: 'eis', name: 'Eis', preis: 2500, kopf: [220, 245, 255], schwanz: [110, 180, 220], muster: 'funkeln' },
+  { id: 'gift', name: 'Gift', preis: 2500, kopf: [170, 255, 60], schwanz: [40, 120, 20], muster: 'punkte', musterFarbe: 'rgba(230, 255, 160, 0.8)' },
+  { id: 'tiefsee', name: 'Tiefsee', preis: 2500, kopf: [30, 110, 160], schwanz: [6, 20, 50], muster: 'funkeln', musterFarbe: '#7FE8FF' },
+  // Edelmetall
+  { id: 'gold', name: 'Gold', preis: 4000, kopf: [255, 214, 102], schwanz: [170, 118, 28], muster: 'glanz' },
+  { id: 'silber', name: 'Silber', preis: 4000, kopf: [225, 228, 235], schwanz: [120, 125, 140], muster: 'glanz' },
+  { id: 'rosegold', name: 'Roségold', preis: 4000, kopf: [245, 190, 170], schwanz: [170, 100, 90], muster: 'glanz' },
+  // Kosmisch
+  { id: 'galaxie', name: 'Galaxie', preis: 6000, kopf: [120, 60, 200], schwanz: [20, 10, 60], muster: 'sterne' },
+  { id: 'aurora', name: 'Aurora', preis: 6000, kopf: [255, 255, 255], schwanz: [255, 255, 255], muster: 'aurora' },
+  // Legendaer
+  { id: 'regenbogen', name: 'Regenbogen', preis: 9000, kopf: [255, 255, 255], schwanz: [255, 255, 255], muster: 'regenbogen' },
+  { id: 'diamant', name: 'Diamant', preis: 9000, kopf: [200, 250, 255], schwanz: [90, 180, 220], muster: 'funkeln', musterFarbe: '#FFFFFF' },
+]
+/** Gratis-Skins hat jeder */
+export const hatSkin = (besitz: string[], id: string) => skinVon(id).preis === 0 || besitz.includes(id)
 export const skinVon = (id: string) => SKINS.find((s) => s.id === id) ?? SKINS[0]
 /** Gegner-Schlangen: rot (nicht im Shop) */
 export const GEGNER_SKIN: Skin = { id: 'gegner', name: 'Gegner', preis: 0, kopf: [232, 74, 60], schwanz: [128, 26, 34] }
@@ -53,6 +103,8 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   const vg = o.vergiftet ?? 0
   const farbe = (k: number, i: number): string => {
     if (skin.muster === 'regenbogen' && !vg) return `hsl(${(now / 12 + i * 14) % 360}, 72%, ${58 - k * 14}%)`
+    // Aurora: Gruen, Tuerkis, Violett wandern ueber den Koerper
+    if (skin.muster === 'aurora' && !vg) return `hsl(${150 + 70 * Math.sin(now / 900 + i * 0.35) + 40}, 70%, ${60 - k * 18}%)`
     const c = skin.kopf.map((v, j) => lerp(lerp(v, skin.schwanz[j], k), lerp(GIFT_KOPF[j], GIFT_SCHWANZ[j], k), vg))
     return `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`
   }
@@ -80,8 +132,8 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
 
   // Muster
   if (skin.muster === 'streifen') {
-    // Tiger: dunkle Querstreifen jedes zweite Glied
-    ctx.strokeStyle = 'rgba(40, 22, 10, 0.75)'
+    // Tiger/Zebra: dunkle Querstreifen jedes zweite Glied
+    ctx.strokeStyle = skin.musterFarbe ?? 'rgba(40, 22, 10, 0.75)'
     ctx.lineWidth = Math.max(1.5, cell * 0.12)
     for (let i = 1; i < n - 1; i += 2) {
       const a = pts[i]
@@ -107,6 +159,44 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
       ctx.beginPath()
       ctx.arc(px(pts[i].x) + off * w * 0.4, px(pts[i].y) - off * w * 0.3, cell * (0.04 + 0.03 * tw), 0, Math.PI * 2)
       ctx.fill()
+    }
+  } else if (skin.muster === 'punkte') {
+    // Leopard, Kaefer, Gift: Flecken
+    ctx.fillStyle = skin.musterFarbe ?? 'rgba(70, 40, 15, 0.8)'
+    for (let i = 1; i < n; i++) {
+      const off = ((i * 53) % 10) / 10 - 0.5
+      ctx.beginPath()
+      ctx.arc(px(pts[i].x) + off * w * 0.45, px(pts[i].y) - off * w * 0.35, w * (0.13 + ((i * 7) % 3) * 0.03), 0, Math.PI * 2)
+      ctx.fill()
+    }
+  } else if (skin.muster === 'glut') {
+    // Glut: helle Hitzewellen laufen den Koerper entlang
+    for (let i = 0; i < n - 1; i++) {
+      const p = 0.5 + 0.5 * Math.sin(now / 160 - i * 0.7)
+      ctx.strokeStyle = `rgba(255, 230, 120, ${0.15 + 0.45 * p * (1 - i / n)})`
+      ctx.lineWidth = w * 0.45
+      ctx.beginPath()
+      ctx.moveTo(px(pts[i].x), px(pts[i].y))
+      ctx.lineTo(px(pts[i + 1].x), px(pts[i + 1].y))
+      ctx.stroke()
+    }
+  } else if (skin.muster === 'funkeln') {
+    // Eis, Tiefsee, Diamant: kleine Kreuz-Funkeln
+    ctx.strokeStyle = skin.musterFarbe ?? '#FFFFFF'
+    ctx.lineWidth = Math.max(1, cell * 0.035)
+    for (let i = 1; i < n; i++) {
+      const tw = Math.max(0, Math.sin(now / 230 + i * 2.1))
+      if (tw < 0.3) continue
+      const r = cell * 0.12 * tw
+      const off = ((i * 37) % 10) / 10 - 0.5
+      const x = px(pts[i].x) + off * w * 0.4
+      const y = px(pts[i].y) - off * w * 0.3
+      ctx.beginPath()
+      ctx.moveTo(x - r, y)
+      ctx.lineTo(x + r, y)
+      ctx.moveTo(x, y - r)
+      ctx.lineTo(x, y + r)
+      ctx.stroke()
     }
   } else if (skin.muster === 'glanz') {
     // Gold: ein heller Glanz laeuft vom Kopf zum Schwanz
@@ -158,7 +248,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   ctx.beginPath()
   ctx.arc(hx, hy, w * 0.56, 0, Math.PI * 2)
   ctx.fill()
-  if (skin.id === 'gold' && !vg) {
+  if (skin.muster === 'glanz' && !vg) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
     ctx.beginPath()
     ctx.arc(hx - w * 0.15, hy - w * 0.18, w * 0.16, 0, Math.PI * 2)

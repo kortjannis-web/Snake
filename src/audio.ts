@@ -234,6 +234,25 @@ class Audio {
     this.noise(gross ? 0.6 : 0.25, 'lowpass', gross ? 500 : 380, gross ? 0.35 : 0.16, { to: 120, attack: 0.03 })
     this.tone(gross ? 90 : 120, gross ? 0.5 : 0.18, 'sine', gross ? 0.3 : 0.14, { to: 50 })
   }
+  /** Erz gefunden: Gold klingelt, Diamant funkelt hoeher */
+  fund(dia = false) {
+    const t = dia ? [1568, 2093, 2637, 3136] : [988, 1319, 1568]
+    t.forEach((f, i) => this.tone(f, 0.12, 'triangle', 0.12, { delay: i * 0.05 }))
+  }
+  /** Etwas gefressen (Fuettern) */
+  happs() {
+    this.tone(220, 0.08, 'square', 0.1, { to: 440, filter: 1800 })
+    this.noise(0.06, 'lowpass', 1200, 0.25, { delay: 0.04 })
+  }
+  /** Waende leuchten: neues Gebiet waehlen */
+  wahl() {
+    ;[523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.18, 'sine', 0.12, { delay: i * 0.07 }))
+  }
+  /** Erde freigelegt */
+  freigelegt() {
+    this.noise(0.5, 'lowpass', 700, 0.3, { to: 2400, attack: 0.05 })
+    this.tone(330, 0.3, 'triangle', 0.14, { to: 660, delay: 0.1 })
+  }
   /** Gegner eingekesselt: Plopp und helle Toene */
   besiegt() {
     this.noise(0.12, 'lowpass', 900, 0.3)

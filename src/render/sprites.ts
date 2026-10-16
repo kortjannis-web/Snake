@@ -775,6 +775,10 @@ export const POWER_FARBE: Record<string, string> = {
   zeitlupe: '#9B7BE0',
   geist: '#B8C4CC',
   schere: '#F29A4C',
+  fuettern: '#E0563E',
+  magnet: '#D8434A',
+  maulwurf: '#8A5A34',
+  gold: '#F2B824',
 }
 
 /** Power-up: leuchtende Kugel mit Symbol, schwebt leicht. warn = kurz vor dem Verschwinden */
@@ -853,6 +857,54 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.arc(-k * 0.55, k * 0.6, k * 0.25, 0, Math.PI * 2)
     ctx.moveTo(k * 0.8, k * 0.6)
     ctx.arc(k * 0.55, k * 0.6, k * 0.25, 0, Math.PI * 2)
+    ctx.stroke()
+  } else if (art === 'fuettern') {
+    // Offenes Maul mit Zaehnen
+    ctx.moveTo(k * 0.8, -k * 0.55)
+    ctx.lineTo(-k * 0.1, 0)
+    ctx.lineTo(k * 0.8, k * 0.55)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(-k * 0.05, 0, k * 0.85, Math.PI * 0.2, Math.PI * 1.8)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(-k * 0.25, -k * 0.45, k * 0.12, 0, Math.PI * 2)
+    ctx.fill()
+  } else if (art === 'magnet') {
+    ctx.arc(0, -k * 0.1, k * 0.6, Math.PI, 0, false)
+    ctx.moveTo(-k * 0.6, -k * 0.1)
+    ctx.lineTo(-k * 0.6, k * 0.8)
+    ctx.moveTo(k * 0.6, -k * 0.1)
+    ctx.lineTo(k * 0.6, k * 0.8)
+    ctx.stroke()
+  } else if (art === 'maulwurf') {
+    // Schaufel
+    ctx.moveTo(k * 0.7, -k * 0.9)
+    ctx.lineTo(-k * 0.15, k * 0.05)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(-k * 0.05, -k * 0.05)
+    ctx.lineTo(-k * 0.75, k * 0.35)
+    ctx.quadraticCurveTo(-k * 0.95, k * 0.95, -k * 0.35, k * 0.75)
+    ctx.closePath()
+    ctx.fill()
+  } else if (art === 'gold') {
+    // Goldener Apfel mit Stern-Glanz
+    ctx.arc(0, k * 0.1, k * 0.7, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = col
+    ctx.beginPath()
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5
+      const rr = i % 2 ? k * 0.18 : k * 0.42
+      ctx.lineTo(Math.cos(a) * rr, k * 0.1 + Math.sin(a) * rr)
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#fff'
+    ctx.beginPath()
+    ctx.moveTo(0, -k * 0.55)
+    ctx.lineTo(k * 0.15, -k * 0.95)
     ctx.stroke()
   }
   ctx.restore()
@@ -982,5 +1034,173 @@ export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, 
     ctx.strokeText('!', x, y - cell * 0.42)
     ctx.fillText('!', x, y - cell * 0.42)
     ctx.restore()
+  }
+}
+
+/** Eisfeld: hellblau, glatt, mit Glanzstreifen und Rissen. Nachbarfelder verbunden */
+export function drawEis(ctx: CanvasRenderingContext2D, cells: P[], cell: number, s: number, now: number) {
+  if (s <= 0 || !cells.length) return
+  const set = new Set(cells.map((c) => c.x * 10000 + c.y))
+  const sz = cell * 0.96 * s
+  const off = (cell - sz) / 2
+  for (const [farbe, i] of [['#E8F7FF', 0], ['#BFE6F7', sz * 0.07]] as const) {
+    ctx.fillStyle = farbe
+    for (const c of cells) {
+      rund(ctx, c.x * cell + off + i, c.y * cell + off + i, sz - 2 * i, sz - 2 * i, cell * 0.22)
+      ctx.fill()
+      if (set.has((c.x + 1) * 10000 + c.y)) ctx.fillRect((c.x + 0.5) * cell, c.y * cell + off + i, cell, sz - 2 * i)
+      if (set.has(c.x * 10000 + c.y + 1)) ctx.fillRect(c.x * cell + off + i, (c.y + 0.5) * cell, sz - 2 * i, cell)
+      if (set.has((c.x + 1) * 10000 + c.y) && set.has(c.x * 10000 + c.y + 1) && set.has((c.x + 1) * 10000 + c.y + 1))
+        ctx.fillRect((c.x + 0.5) * cell, (c.y + 0.5) * cell, cell, cell)
+    }
+  }
+  // Glanz wandert langsam ueber das Eis, feine Risse
+  ctx.lineCap = 'round'
+  for (const c of cells) {
+    const x = c.x * cell
+    const y = c.y * cell
+    const ph = ((now / 2600 + (c.x + c.y) * 0.13) % 1) * 1.6 - 0.3
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)'
+    ctx.lineWidth = Math.max(1, cell * 0.06)
+    ctx.beginPath()
+    ctx.moveTo(x + cell * (0.2 + ph * 0.5), y + cell * 0.25)
+    ctx.lineTo(x + cell * (0.05 + ph * 0.5), y + cell * 0.55)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(120, 170, 200, 0.45)'
+    ctx.lineWidth = Math.max(0.8, cell * 0.025)
+    const h = ((c.x * 13 + c.y * 7) % 5) / 5
+    ctx.beginPath()
+    ctx.moveTo(x + cell * (0.55 + h * 0.2), y + cell * 0.6)
+    ctx.lineTo(x + cell * 0.72, y + cell * (0.78 - h * 0.1))
+    ctx.lineTo(x + cell * 0.85, y + cell * 0.74)
+    ctx.stroke()
+  }
+}
+
+/** Erzbrocken: grauer Stein mit Gold- oder Diamantstuecken. glanz = 0..1 Funkeln */
+export function drawErz(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, art: 'gold' | 'dia', s: number, glanz = 0) {
+  if (s <= 0) return
+  const r = cell * 0.38 * s
+  ctx.fillStyle = '#6E6A66'
+  ctx.beginPath()
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2
+    const rr = r * (0.85 + ((i * 37) % 10) / 50)
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
+  }
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.12)'
+  ctx.beginPath()
+  ctx.ellipse(x - r * 0.3, y - r * 0.35, r * 0.4, r * 0.22, -0.4, 0, Math.PI * 2)
+  ctx.fill()
+  const farbe = art === 'gold' ? ['#FFE07A', '#E0A81E'] : ['#B9FBFF', '#3ED6E6']
+  for (const [dx, dy, g] of [[-0.35, 0.1, 0.24], [0.25, -0.25, 0.2], [0.2, 0.35, 0.18], [-0.05, -0.45, 0.13]] as const) {
+    const cx = x + dx * r
+    const cy = y + dy * r
+    const gr = g * r * 1.4
+    ctx.fillStyle = farbe[1]
+    ctx.beginPath()
+    if (art === 'dia') {
+      ctx.moveTo(cx, cy - gr)
+      ctx.lineTo(cx + gr * 0.8, cy)
+      ctx.lineTo(cx, cy + gr)
+      ctx.lineTo(cx - gr * 0.8, cy)
+    } else ctx.arc(cx, cy, gr * 0.8, 0, Math.PI * 2)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = farbe[0]
+    ctx.beginPath()
+    ctx.arc(cx - gr * 0.2, cy - gr * 0.25, gr * 0.3, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  if (glanz > 0) {
+    ctx.strokeStyle = `rgba(255, 255, 255, ${glanz})`
+    ctx.lineWidth = Math.max(1, cell * 0.04)
+    const sx = x + r * 0.35
+    const sy = y - r * 0.4
+    ctx.beginPath()
+    ctx.moveTo(sx - r * 0.25, sy)
+    ctx.lineTo(sx + r * 0.25, sy)
+    ctx.moveTo(sx, sy - r * 0.25)
+    ctx.lineTo(sx, sy + r * 0.25)
+    ctx.stroke()
+  }
+}
+
+/** Erde ausserhalb der Karte: dunkelbraun, nahe am Spielfeld heller (Erdkante).
+ *  ring = 1 direkt am Rand, 2 eins weiter, 0 tiefer. z = fester Zufall des Felds (0..1) */
+export function drawErdFeld(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ring: number, z: number) {
+  const basis = ring === 1 ? [92, 63, 38] : ring === 2 ? [70, 48, 30] : [44, 30, 20]
+  const v = (z - 0.5) * 10
+  ctx.fillStyle = `rgb(${basis[0] + v},${basis[1] + v * 0.7},${basis[2] + v * 0.5})`
+  ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
+  // Kruemel
+  ctx.fillStyle = ring === 1 ? 'rgba(130, 92, 58, 0.6)' : 'rgba(20, 12, 8, 0.35)'
+  for (let i = 0; i < 3; i++) {
+    const a = (z * 977 + i * 331) % 1
+    const b = (z * 613 + i * 197) % 1
+    ctx.fillRect(x + a * cell * 0.85, y + b * cell * 0.85, cell * 0.08, cell * 0.06)
+  }
+}
+
+/** Deko in der Erde: Stein, Kohle, Schlangenskelett, Lavatasche */
+export function drawErdDeko(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, art: 'stein' | 'kohle' | 'skelett' | 'lava', z: number, now: number) {
+  const cx = x + cell / 2
+  const cy = y + cell / 2
+  if (art === 'stein') {
+    ctx.fillStyle = '#6B6460'
+    ctx.beginPath()
+    ctx.ellipse(cx + (z - 0.5) * cell * 0.3, cy, cell * (0.18 + z * 0.12), cell * 0.14, z * 3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'
+    ctx.beginPath()
+    ctx.ellipse(cx + (z - 0.5) * cell * 0.3 - cell * 0.05, cy - cell * 0.04, cell * 0.07, cell * 0.04, 0, 0, Math.PI * 2)
+    ctx.fill()
+  } else if (art === 'kohle') {
+    ctx.fillStyle = '#161210'
+    for (let i = 0; i < 4; i++) {
+      const a = (z * 991 + i * 271) % 1
+      const b = (z * 457 + i * 389) % 1
+      ctx.beginPath()
+      ctx.arc(x + cell * (0.25 + a * 0.5), y + cell * (0.25 + b * 0.5), cell * (0.07 + ((a + b) % 0.06)), 0, Math.PI * 2)
+      ctx.fill()
+    }
+  } else if (art === 'skelett') {
+    // Wirbelsaeule in S-Form mit Rippen und kleinem Schaedel
+    ctx.strokeStyle = 'rgba(232, 222, 200, 0.85)'
+    ctx.fillStyle = 'rgba(232, 222, 200, 0.85)'
+    ctx.lineWidth = Math.max(1, cell * 0.05)
+    ctx.lineCap = 'round'
+    const pts: [number, number][] = []
+    for (let i = 0; i <= 6; i++) pts.push([x + cell * (0.12 + i * 0.12), cy + Math.sin(i * 1.1 + z * 6) * cell * 0.14])
+    ctx.beginPath()
+    pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)))
+    ctx.stroke()
+    for (let i = 1; i < 6; i++) {
+      const [px, py] = pts[i]
+      ctx.beginPath()
+      ctx.moveTo(px, py - cell * 0.09)
+      ctx.lineTo(px, py + cell * 0.09)
+      ctx.stroke()
+    }
+    const [hx, hy] = pts[6]
+    ctx.beginPath()
+    ctx.ellipse(hx + cell * 0.05, hy, cell * 0.08, cell * 0.06, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#2C1E14'
+    ctx.beginPath()
+    ctx.arc(hx + cell * 0.07, hy - cell * 0.02, cell * 0.018, 0, Math.PI * 2)
+    ctx.fill()
+  } else {
+    const p = 0.7 + 0.3 * Math.sin(now / 500 + z * 10)
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, cell * 0.45)
+    g.addColorStop(0, `rgba(255, 210, 90, ${p})`)
+    g.addColorStop(0.5, `rgba(240, 100, 30, ${0.85 * p})`)
+    g.addColorStop(1, 'rgba(120, 30, 10, 0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, cell * 0.42, cell * 0.3, z * 2, 0, Math.PI * 2)
+    ctx.fill()
   }
 }

@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde'
 
 export type Status = 'play' | 'over'
 
@@ -59,8 +59,8 @@ export type Haus = { cells: P[]; t: number; fenster: Fenster[]; licht: number; l
 export type Turm = { c: P; cells: P[]; dir: Dir; t: number; kegel: P[]; kegelT: number; altDir: Dir }
 
 /** Was in der Sandbox (Kreativ) auf die Karte kann */
-export type SandboxObjekt = 'mauer' | 'teich' | 'gift' | 'baum' | 'haus' | 'turm' | 'falle' | 'wolke' | 'frosch' | 'gegner' | 'lila' | 'ameise' | 'lava'
-export const SANDBOX_OBJEKTE: SandboxObjekt[] = ['mauer', 'teich', 'gift', 'baum', 'haus', 'turm', 'falle', 'wolke', 'frosch', 'gegner', 'lila', 'ameise', 'lava']
+export type SandboxObjekt = 'mauer' | 'teich' | 'gift' | 'baum' | 'haus' | 'turm' | 'falle' | 'wolke' | 'frosch' | 'gegner' | 'lila' | 'ameise' | 'lava' | 'eis'
+export const SANDBOX_OBJEKTE: SandboxObjekt[] = ['mauer', 'teich', 'gift', 'baum', 'haus', 'turm', 'falle', 'wolke', 'frosch', 'gegner', 'lila', 'ameise', 'lava', 'eis']
 /** Sandbox: eigene Kartengroesse (in Bloecken), Schlangenlaenge und Objekte.
  *  weiter = danach normal Level fuer Level, sonst bleibt die Welt so (nur der Apfel wandert) */
 export type Sandbox = { breite: number; hoehe: number; laenge: number; objekte: Partial<Record<SandboxObjekt, number>>; weiter: boolean }
@@ -77,7 +77,7 @@ export type Kreativ = {
 
 /** Power-ups: Schild (faengt einen Tod oder Rueckschlag ab), Zeitlupe, Geist (kurz durch Hindernisse),
  *  Schere (bis zum naechsten Apfel ein paar Glieder kuerzer) */
-export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere'
+export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere' | 'fuettern' | 'magnet' | 'maulwurf' | 'gold'
 export type Power = { p: P; t: number; until: number; art: PowerArt }
 
 /** Gegner-Schlange: rot, halb so schnell wie die Schlange, weicht ihr aus.
@@ -104,6 +104,11 @@ export type Gegner = {
 }
 
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }
+
+/** Eisfeld: bleibt liegen, darauf laesst sich nicht lenken */
+export type Eis = { cells: P[]; t: number }
+/** Freigelegtes Erz auf der Karte (Gold oder Diamant), einsammeln wie einen Apfel */
+export type Fund = { p: P; art: 'gold' | 'dia'; t: number }
 
 /** Lavasee: waechst alle paar Aepfel um ein Feld, bis er seine Groesse `ziel` erreicht hat.
  *  `t` je Feld = wann es dazukam */
@@ -147,7 +152,12 @@ export type GameEvent =
   | { type: 'house' }
   | { type: 'light' }
   | { type: 'tower' }
-  | { type: 'geld'; wert: number; p: P; quelle: 'apfel' | 'gegner' }
+  | { type: 'geld'; wert: number; p: P; quelle: 'apfel' | 'gegner' | 'erz' | 'futter' }
+  | { type: 'fund'; art: 'gold' | 'dia'; p: P; wert: number }
+  | { type: 'gefressen'; was: 'frosch' | 'ameise' | 'gegner'; p: P; wert: number }
+  | { type: 'wahl'; offen: number }
+  | { type: 'freigelegt'; dx: number; dy: number; anzahl: number }
+  | { type: 'eis' }
   | { type: 'gegner'; p: P; art: 'rot' | 'lila' }
   | { type: 'ameise'; p: P }
   | { type: 'ameiseAlarm'; p: P }
@@ -160,4 +170,4 @@ export type GameEvent =
   | { type: 'schild' }
   | { type: 'faktor'; faktor: number }
 
-export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lila' | 'ameise' | 'lava'
+export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lila' | 'ameise' | 'lava' | 'eis' | 'maulwurf'

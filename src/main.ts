@@ -22,7 +22,7 @@ import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
 import { config, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
-import { drawSkinVorschau, SKINS, skinVon } from './render/skins'
+import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME, SIDE, stufenName, unlockText } from './ui/texts'
@@ -310,6 +310,31 @@ function handle(e: GameEvent) {
     case 'lavaWachsen':
       if (nah(e.p, 0.5)) audio.lava()
       break
+    case 'fund':
+      audio.fund(e.art === 'dia')
+      haptic.success()
+      if (e.art === 'dia') toast('erz', 'Diamant!', `+${e.wert} Äpfel.`)
+      break
+    case 'gefressen':
+      audio.happs()
+      haptic.light()
+      break
+    case 'wahl':
+      if (e.offen > 0) {
+        audio.wahl()
+        toast('gebiet', 'Neues Gebiet wählen', 'Die Wände leuchten. Fahr gegen eine leuchtende Wand: dort kommt der neue Block hin.')
+      }
+      break
+    case 'freigelegt':
+      if (e.anzahl > 0) {
+        audio.freigelegt()
+        haptic.success()
+        toast('erde', 'Freigelegt', `${e.anzahl} Felder Erde sind jetzt Spielfeld.`)
+      }
+      break
+    case 'eis':
+      audio.click()
+      break
     case 'gegnerWeg':
       if (e.wert <= 0) break
       audio.besiegt()
@@ -411,7 +436,16 @@ function updateGeld(pop = false) {
 
 /* ================= Aktive Power-ups (Pillen oben links) ================= */
 
-const EFFEKT_ICON: Record<string, string> = { schild: 'Shield', zeitlupe: 'Hourglass', geist: 'Ghost', schere: 'Scissors' }
+const EFFEKT_ICON: Record<string, string> = {
+  schild: 'Shield',
+  zeitlupe: 'Hourglass',
+  geist: 'Ghost',
+  schere: 'Scissors',
+  fuettern: 'Utensils',
+  magnet: 'Magnet',
+  maulwurf: 'Shovel',
+  gold: 'Crown',
+}
 const effektEls = new Map<string, HTMLElement>()
 function updateEffekte() {
   const g = game
@@ -426,6 +460,10 @@ function updateEffekte() {
     for (const [art, bis, dauer] of [
       ['zeitlupe', e.zeitlupeBis, c.effektDauer],
       ['geist', e.geistBis, c.geistDauer],
+      ['fuettern', e.fuetternBis, c.fuetternDauer],
+      ['magnet', e.magnetBis, c.magnetDauer],
+      ['maulwurf', e.maulwurfBis, c.maulwurfDauer],
+      ['gold', e.goldBis, c.goldDauer],
     ] as const)
       if (g.time < bis) aktiv.push({ art, rest: Math.min(1, (bis - g.time) / (dauer * 1000)), text: `${Math.ceil((bis - g.time) / 1000)}` })
   }
@@ -459,7 +497,20 @@ function renderShop() {
   box.innerHTML = ''
   skinCanvas.length = 0
   for (const sk of SKINS) {
-    const hat = wallet.skins.includes(sk.id)
+    // Ueberschrift je Preisstufe
+    const stufe = STUFEN.find((st) => st.preis === sk.preis)
+    if (stufe && SKINS.find((o) => o.preis === sk.preis) === sk) {
+      const h = document.createElement('h3')
+      h.className = 'skin-stufe'
+      h.textContent = stufe.name
+      if (stufe.preis > 0) {
+        const pr = document.createElement('span')
+        pr.innerHTML = `<i class="apfel-ico"></i>${stufe.preis}`
+        h.append(pr)
+      }
+      box.append(h)
+    }
+    const hat = hatSkin(wallet.skins, sk.id)
     const an = wallet.skin === sk.id
     const card = document.createElement('button')
     card.className = 'skin'
@@ -486,7 +537,7 @@ function renderShop() {
 function kaufen(id: string) {
   audio.unlock()
   const sk = skinVon(id)
-  if (!wallet.skins.includes(id)) {
+  if (!hatSkin(wallet.skins, id)) {
     if (wallet.aepfel < sk.preis) {
       audio.nein()
       haptic.medium()

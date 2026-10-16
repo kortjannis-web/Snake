@@ -79,6 +79,12 @@ export const DEFAULTS = {
   turmFelder: 300,
   kegelLaenge: 6,
   kegelZurueck: 10,
+  // Eis
+  eisAb: 180,
+  eisAlle: 30,
+  eisMin: 4,
+  eisMax: 10,
+  eisFelder: 300,
   // Lava
   lavaAb: 270,
   lavaAlle: 30,
@@ -110,9 +116,22 @@ export const DEFAULTS = {
   powerAb: 10,
   powerChance: 18,
   powerDauer: 15,
-  effektDauer: 8,
+  effektDauer: 30,
+  zeitlupeProzent: 30,
   geistDauer: 6,
   schereLaenge: 5,
+  fuetternDauer: 20,
+  magnetDauer: 15,
+  magnetRadius: 2,
+  maulwurfAb: 100,
+  maulwurfDauer: 20,
+  grabWeite: 8,
+  goldDauer: 10,
+  // Erze unter der Erde (je 1000 Erdfelder) und ihr Wert in Aepfeln (mal Apfelwert)
+  erzGold: 12,
+  erzDia: 3,
+  goldWert: 3,
+  diaWert: 10,
   apfelWert: 1,
   apfelWertAlle: 50,
   // Ereignisse
@@ -278,11 +297,38 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'powerAb', label: 'Power-ups ab Level', min: 1, max: 10000 },
       { key: 'powerChance', label: 'Chance je Apfel auf ein Power-up', min: 0, max: 100, einheit: '%' },
       { key: 'powerDauer', label: 'Power-up liegt', min: 3, max: 120, einheit: 's' },
-      { key: 'effektDauer', label: 'Zeitlupe hält', min: 1, max: 60, einheit: 's' },
+      { key: 'effektDauer', label: 'Zeitlupe hält', min: 1, max: 120, einheit: 's' },
+      { key: 'zeitlupeProzent', label: 'Zeitlupe langsamer um', min: 5, max: 80, einheit: '%' },
       { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
       { key: 'schereLaenge', label: 'Schere kürzt bis zum nächsten Apfel um', min: 1, max: 50, einheit: 'Glieder' },
+      { key: 'fuetternDauer', label: 'Füttern (Tiere und Schlangen fressen) hält', min: 1, max: 120, einheit: 's' },
+      { key: 'magnetDauer', label: 'Magnet hält', min: 1, max: 120, einheit: 's' },
+      { key: 'magnetRadius', label: 'Magnet holt alles im Umkreis von', min: 1, max: 10, einheit: 'Feldern' },
+      { key: 'maulwurfAb', label: 'Maulwurf ab Level', min: 1, max: 10000 },
+      { key: 'maulwurfDauer', label: 'Maulwurf (graben) hält', min: 1, max: 120, einheit: 's' },
+      { key: 'grabWeite', label: 'Graben höchstens so weit hinaus', min: 1, max: 60, einheit: 'Felder' },
+      { key: 'goldDauer', label: 'Goldener Apfel (unbesiegbar) hält', min: 1, max: 60, einheit: 's' },
       { key: 'apfelWert', label: 'Ein Apfel ist wert', min: 0, max: 100, einheit: 'Äpfel' },
       { key: 'apfelWertAlle', label: 'Äpfel zählen einmal mehr alle', min: 1, max: 10000, einheit: 'Level' },
+    ],
+  },
+  {
+    gruppe: 'Erze unter der Erde',
+    felder: [
+      { key: 'erzGold', label: 'Golderz je 1000 Erdfelder', min: 0, max: 200 },
+      { key: 'erzDia', label: 'Diamant je 1000 Erdfelder', min: 0, max: 200 },
+      { key: 'goldWert', label: 'Golderz ist wert', min: 0, max: 100, einheit: '× Apfel' },
+      { key: 'diaWert', label: 'Diamant ist wert', min: 0, max: 500, einheit: '× Apfel' },
+    ],
+  },
+  {
+    gruppe: 'Eis',
+    felder: [
+      { key: 'eisAb', label: 'Ab Level', min: 1, max: 10000 },
+      { key: 'eisAlle', label: 'Neues Eisfeld alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'eisMin', label: 'Mindestens so groß', min: 1, max: 40, einheit: 'Felder' },
+      { key: 'eisMax', label: 'Höchstens so groß', min: 1, max: 40, einheit: 'Felder' },
+      { key: 'eisFelder', label: 'Höchstens ein Eisfeld je', min: 30, max: 5000, einheit: 'Felder' },
     ],
   },
   {
@@ -406,9 +452,46 @@ export const wolkenForm = (stage: number): P[] => {
  *  Mit jeder Stufe bekommt der Apfel eine andere Farbe (siehe APFEL_STUFEN in sprites.ts) */
 export const apfelFaktor = (c: Config, level: number) => 1 + Math.floor(level / Math.max(1, c.apfelWertAlle))
 
-export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere'] as const
-/** Zeitlupe: Takt so viel langsamer */
-export const ZEITLUPE = 1.55
+export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere', 'fuettern', 'magnet', 'maulwurf', 'gold'] as const
+/** Wie oft welches Power-up kommt (Gewicht). Goldener Apfel selten */
+export const POWER_GEWICHT: Record<(typeof POWER_ARTEN)[number], number> = {
+  schild: 3,
+  zeitlupe: 3,
+  geist: 2,
+  schere: 2,
+  fuettern: 2,
+  magnet: 3,
+  maulwurf: 2,
+  gold: 1,
+}
+/** Zeitlupe: Takt so viel laenger (30 % langsamer = Takt / 0,7) */
+export const zeitlupe = (c: Config) => 1 / Math.max(0.2, 1 - c.zeitlupeProzent / 100)
+
+export const neuesEis = (c: Config, level: number) => level >= c.eisAb && (level - c.eisAb) % c.eisAlle === 0
+export const eisMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.eisFelder))
+
+/** Fester Zufall je Feld (Weltkoordinaten): 0 bis 1, immer gleich fuer dasselbe Feld */
+export function feldZufall(x: number, y: number, salz = 0) {
+  let h = Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul((y | 0) + 0x3c6ef372, 0x165667b1) ^ Math.imul(salz + 1, 0x9e3779b9)
+  h ^= h >>> 15
+  h = Math.imul(h, 0x85ebca6b)
+  h ^= h >>> 13
+  h = Math.imul(h, 0xc2b2ae35)
+  h ^= h >>> 16
+  return (h >>> 0) / 4294967296
+}
+export type Erde = 'gold' | 'dia' | 'kohle' | 'stein' | 'skelett' | 'lava'
+/** Was steckt in diesem Erdfeld (Weltkoordinaten)? Gold und Diamant sind echte Funde, der Rest Deko */
+export function erdeBei(c: Config, x: number, y: number): Erde | null {
+  const z = feldZufall(x, y, 7) * 1000
+  if (z < c.erzDia) return 'dia'
+  if (z < c.erzDia + c.erzGold) return 'gold'
+  if (z < c.erzDia + c.erzGold + 9) return 'lava'
+  if (z < c.erzDia + c.erzGold + 9 + 6) return 'skelett'
+  if (z < c.erzDia + c.erzGold + 9 + 6 + 30) return 'kohle'
+  if (z < c.erzDia + c.erzGold + 9 + 6 + 30 + 60) return 'stein'
+  return null
+}
 
 /** Gegner: so viele gleichzeitig (ab gegnerAb 1, alle 100 Level einer mehr, hoechstens gegnerAnzahl) */
 export const gegnerMax = (c: Config, level: number) =>
@@ -437,6 +520,8 @@ export const unlocks = (c: Config) =>
     { what: 'lila', level: c.lilaAb },
     { what: 'ameise', level: c.ameiseAb },
     { what: 'lava', level: c.lavaAb },
+    { what: 'eis', level: c.eisAb },
+    { what: 'maulwurf', level: c.maulwurfAb },
     { what: 'baum', level: c.baumAb },
     { what: 'wolke', level: c.wolkeAb },
     { what: 'frosch', level: c.froschAb },

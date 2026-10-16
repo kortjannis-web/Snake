@@ -1336,6 +1336,24 @@ svg {
   gap: 12px;
 }
 
+.skin-stufe {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 2px 0;
+  font: 600 1.05rem/1.2 var(--serif);
+  color: var(--mint);
+}
+
+.skin-stufe span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 700 0.85rem/1 var(--sans);
+  color: #ff8a73;
+}
+
 .skin {
   display: grid;
   gap: 8px;
@@ -1448,6 +1466,18 @@ svg {
 }
 .effekt--schere {
   color: #f6b37a;
+}
+.effekt--fuettern {
+  color: #ff9a80;
+}
+.effekt--magnet {
+  color: #ff7f86;
+}
+.effekt--maulwurf {
+  color: #d9a575;
+}
+.effekt--gold {
+  color: #ffd45a;
 }
 .effekt--geist {
   color: #dfe7ec;
