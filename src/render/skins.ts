@@ -1,6 +1,6 @@
 /**
  * Skins der Schlange und ihre Zeichnung (Spiel und Shop-Vorschau nutzen dieselbe Funktion).
- * Klassik ist gratis, die anderen kosten Muenzen.
+ * Klassik ist gratis, die anderen kosten Aepfel.
  */
 import { STEP } from '../game/rules'
 import type { Dir, P } from '../game/types'
@@ -24,6 +24,8 @@ export const SKINS: Skin[] = [
   { id: 'regenbogen', name: 'Regenbogen', preis: 7500, kopf: [255, 255, 255], schwanz: [255, 255, 255], muster: 'regenbogen' },
 ]
 export const skinVon = (id: string) => SKINS.find((s) => s.id === id) ?? SKINS[0]
+/** Gegner-Schlangen: rot (nicht im Shop) */
+export const GEGNER_SKIN: Skin = { id: 'gegner', name: 'Gegner', preis: 0, kopf: [232, 74, 60], schwanz: [128, 26, 34] }
 
 const GIFT_KOPF: RGB = [126, 116, 60]
 const GIFT_SCHWANZ: RGB = [70, 52, 70]
@@ -35,6 +37,10 @@ export type SchlangeOpts = {
   vergiftet?: number
   zunge?: boolean
   blinzeln?: boolean
+  /** Boese Augenbrauen (Gegner) */
+  brauen?: boolean
+  /** 0..1: Pupillen weit, Brauen hochgezogen (Gegner auf der Flucht) */
+  angst?: number
 }
 
 /** Schlange zeichnen. pts = Glieder in Feldkoordinaten, Kopf zuerst (bereits weich interpoliert). */
@@ -181,8 +187,22 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
     if (o.blinzeln) continue
     ctx.fillStyle = '#16211d'
     ctx.beginPath()
-    ctx.arc(ex + d.x * cell * 0.06, ey + d.y * cell * 0.06, cell * 0.075, 0, Math.PI * 2)
+    ctx.arc(ex + d.x * cell * 0.06, ey + d.y * cell * 0.06, cell * (0.075 - 0.025 * (o.angst ?? 0)), 0, Math.PI * 2)
     ctx.fill()
+    if (o.brauen) {
+      // Braue vor dem Auge: innen tief (boese), auf der Flucht innen hochgezogen
+      const a = o.angst ?? 0
+      const q = { x: ox ? s : 0, y: oy ? s : 0 }
+      const vi = cell * (0.16 + 0.1 * a)
+      const va = cell * 0.22
+      ctx.beginPath()
+      ctx.moveTo(ex - q.x * cell * 0.1 + d.x * vi, ey - q.y * cell * 0.1 + d.y * vi)
+      ctx.lineTo(ex + q.x * cell * 0.1 + d.x * va, ey + q.y * cell * 0.1 + d.y * va)
+      ctx.strokeStyle = '#3A0A0E'
+      ctx.lineWidth = Math.max(1.4, cell * 0.06)
+      ctx.lineCap = 'round'
+      ctx.stroke()
+    }
   }
 }
 

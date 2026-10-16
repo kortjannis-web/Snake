@@ -14,17 +14,17 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
-import { muenzFaktor, SCHEMA, type ConfigKey } from './game/rules'
+import { apfelFaktor, SCHEMA, type ConfigKey } from './game/rules'
 import type { Dir, GameEvent, Side } from './game/types'
 import { haptic } from './haptics'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
-import { drawApfel } from './render/sprites'
+import { apfelFarben, drawApfel } from './render/sprites'
 import { config, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, SKINS, skinVon } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
-import { CAUSE, help, SIDE, unlockText } from './ui/texts'
+import { CAUSE, help, SIDE, stufenName, unlockText } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
 type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop'
@@ -186,6 +186,7 @@ function gameOver() {
     stats.time += performance.now() - startedAt
     stats.longest = Math.max(stats.longest, g.maxLen)
     stats.maxGebiete = Math.max(stats.maxGebiete, g.expansions)
+    stats.gegner += g.besiegt
     if (neu) stats.best = g.maxLevel
     saveStats()
   }
@@ -202,7 +203,7 @@ function gameOver() {
     $('over-time').textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
     const geld = $('over-geld')
     geld.hidden = istKreativ || g.verdient <= 0
-    geld.querySelector('b')!.textContent = `+${g.verdient} Münzen`
+    geld.querySelector('b')!.textContent = `+${g.verdient} ${g.verdient === 1 ? 'Apfel' : 'Äpfel'}`
     show('over', true)
     drawMini($<HTMLCanvasElement>('over-icon'), MINI_FOR_CAUSE[g.cause ?? 'rand'])
     if (neu) audio.record()
@@ -226,7 +227,7 @@ function handle(e: GameEvent) {
     case 'expand':
       audio.expand()
       haptic.success()
-      toast('gebiet', 'Neues Gebiet', `Ein neuer Block ist ${SIDE[e.side]} dazugekommen. Mehr Platz!`, e.side)
+      toast('gebiet', 'Neues Gebiet', `Ein neuer Block ist ${SIDE[e.side]} dazugekommen. Mehr Platz!`, { pfeil: e.side })
       break
     case 'unlock': {
       if (e.what === 'gebiet') break
@@ -281,17 +282,25 @@ function handle(e: GameEvent) {
     case 'pond':
       audio.pond()
       break
-    case 'coin':
-      // Im Kreativ-Modus gibt es kein Geld
+    case 'geld':
+      // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt
       if (!istKreativ) {
-        wallet.muenzen += e.wert
+        wallet.aepfel += e.wert
         saveWallet()
       }
-      if (!e.apfel) {
-        audio.coin()
-        haptic.light()
-      }
-      updateGeld(!e.apfel)
+      updateGeld(true)
+      break
+    case 'gegner': {
+      // Nur in der Naehe zu hoeren
+      const h = game!.body[0]
+      if (Math.abs(e.p.x - h.x) <= game!.screenW + 2 && Math.abs(e.p.y - h.y) <= game!.screenH + 2) audio.gegner()
+      break
+    }
+    case 'gegnerWeg':
+      if (e.wert <= 0) break
+      audio.besiegt()
+      haptic.success()
+      toast('gegner', 'Gegner eingekesselt!', istKreativ ? 'Er hatte keinen Ausweg mehr.' : `+${e.wert} Äpfel für ${e.laenge} Glieder.`)
       break
     case 'power':
       audio.power()
@@ -303,7 +312,7 @@ function handle(e: GameEvent) {
     case 'faktor':
       if (!istKreativ) {
         audio.milestone()
-        toast('muenze', `Münzen ×${e.faktor}`, `Ab jetzt zählt jede Münze ${e.faktor}-fach.`)
+        toast('apfel', `Äpfel ×${e.faktor}`, `Die Äpfel sind jetzt ${stufenName(e.faktor)} und ${e.faktor}-mal so viel wert.`, { stufe: e.faktor })
       }
       updateGeld()
       break
@@ -324,7 +333,7 @@ function handle(e: GameEvent) {
       }
       const n = e.von - e.auf
       const was = { wolke: 'In die Giftwolke geraten.', licht: 'Im Fensterlicht erwischt.', kegel: 'Vom Jägerturm entdeckt.' }[e.grund]
-      toast(e.grund === 'wolke' ? 'wolke' : e.grund === 'licht' ? 'haus' : 'turm', `−${n} Level`, `${was} Zurück auf Level ${e.auf}.`, undefined, true)
+      toast(e.grund === 'wolke' ? 'wolke' : e.grund === 'licht' ? 'haus' : 'turm', `−${n} Level`, `${was} Zurück auf Level ${e.auf}.`, { minus: true })
       break
     }
     case 'tree':
@@ -360,26 +369,28 @@ function updateHud(pop: boolean) {
   bar.title = `Neues Gebiet in ${c.gebietAlle - (lv % c.gebietAlle)} Level`
 }
 
-/** Muenzen in der Leiste (und im Startmenue) */
+/** Apfel-Vorrat in der Leiste (und im Startmenue). Das Apfel-Symbol hat die Farbe der aktuellen Stufe */
 function updateGeld(pop = false) {
   const el = $('hud-geld')
-  el.textContent = istKreativ ? '–' : String(wallet.muenzen)
-  const f = game && !istKreativ ? muenzFaktor(game.cfg, game.level) : 1
+  el.textContent = istKreativ ? '–' : String(wallet.aepfel)
+  const f = game ? apfelFaktor(game.cfg, game.level) : 1
   const fx = $('hud-faktor')
-  fx.hidden = f <= 1
+  fx.hidden = f <= 1 || istKreativ
   fx.textContent = `×${f}`
+  const farben = apfelFarben(f)
+  app.style.setProperty('--apfel', farben.length > 1 ? `linear-gradient(135deg, ${farben[0][1]}, ${farben[1][1]})` : farben[0][1])
   if (pop && !reduce) {
     el.classList.remove('pop')
     void el.offsetWidth
     el.classList.add('pop')
   }
-  $('home-geld').textContent = String(wallet.muenzen)
-  $('shop-geld').textContent = String(wallet.muenzen)
+  $('home-geld').textContent = String(wallet.aepfel)
+  $('shop-geld').textContent = String(wallet.aepfel)
 }
 
 /* ================= Aktive Power-ups (Pillen oben links) ================= */
 
-const EFFEKT_ICON: Record<string, string> = { schild: 'Shield', zeitlupe: 'Hourglass', magnet: 'Magnet', geist: 'Ghost' }
+const EFFEKT_ICON: Record<string, string> = { schild: 'Shield', zeitlupe: 'Hourglass', geist: 'Ghost', schere: 'Scissors' }
 const effektEls = new Map<string, HTMLElement>()
 function updateEffekte() {
   const g = game
@@ -388,10 +399,11 @@ function updateEffekte() {
   if (g && mode !== 'home') {
     const e = g.effekt
     if (e.schild > 0) aktiv.push({ art: 'schild', rest: 1, text: e.schild > 1 ? `×${e.schild}` : '' })
+    // Schere: bis zum naechsten Apfel kuerzer
+    if (e.schere > 0) aktiv.push({ art: 'schere', rest: 1, text: `−${e.schere}` })
     const c = g.cfg
     for (const [art, bis, dauer] of [
       ['zeitlupe', e.zeitlupeBis, c.effektDauer],
-      ['magnet', e.magnetBis, c.effektDauer],
       ['geist', e.geistBis, c.geistDauer],
     ] as const)
       if (g.time < bis) aktiv.push({ art, rest: Math.min(1, (bis - g.time) / (dauer * 1000)), text: `${Math.ceil((bis - g.time) / 1000)}` })
@@ -441,8 +453,8 @@ function renderShop() {
       setIcon(preis.querySelector('span')!, 'Check')
     } else if (hat) preis.textContent = 'Wählen'
     else {
-      preis.innerHTML = `<i class="muenze"></i>${sk.preis}`
-      if (wallet.muenzen < sk.preis) preis.classList.add('zu-teuer')
+      preis.innerHTML = `<i class="apfel-ico"></i>${sk.preis}`
+      if (wallet.aepfel < sk.preis) preis.classList.add('zu-teuer')
     }
     card.addEventListener('click', () => kaufen(sk.id))
     box.append(card)
@@ -454,7 +466,7 @@ function kaufen(id: string) {
   audio.unlock()
   const sk = skinVon(id)
   if (!wallet.skins.includes(id)) {
-    if (wallet.muenzen < sk.preis) {
+    if (wallet.aepfel < sk.preis) {
       audio.nein()
       haptic.medium()
       const card = $('skins').querySelector<HTMLElement>(`[data-id="${id}"]`)
@@ -463,7 +475,7 @@ function kaufen(id: string) {
       card?.classList.add('wackeln')
       return
     }
-    wallet.muenzen -= sk.preis
+    wallet.aepfel -= sk.preis
     wallet.skins.push(id)
     audio.kauf()
     haptic.success()
@@ -478,7 +490,8 @@ function kaufen(id: string) {
 
 const toastQueue: (() => void)[] = []
 let toastBusy = false
-function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string, pfeil?: Side, minus = false) {
+function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string, o: { pfeil?: Side; minus?: boolean; stufe?: number } = {}) {
+  const { pfeil, minus = false, stufe = 1 } = o
   const show = () => {
     const el = document.createElement('div')
     el.className = minus ? 'toast toast--minus' : 'toast'
@@ -487,7 +500,7 @@ function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string
     el.querySelector('b')!.textContent = title
     el.querySelector('span')!.textContent = text
     $('toasts').append(el)
-    drawMini(el.querySelector('canvas')!, mini, 0, pfeil as Side | undefined)
+    drawMini(el.querySelector('canvas')!, mini, 0, pfeil, stufe)
     setTimeout(() => el.classList.add('out'), 2900)
     setTimeout(() => {
       el.remove()
@@ -564,6 +577,7 @@ function renderStats() {
     ['Äpfel gesamt', String(stats.apples)],
     ['Längste Schlange', stats.longest ? String(stats.longest) : '–'],
     ['Größte Karte', stats.maxGebiete ? `+${stats.maxGebiete} Gebiete` : '–'],
+    ['Gegner eingekesselt', String(stats.gegner)],
     ['Spielzeit', min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`],
   ]
   $('stat-grid').innerHTML = rows.map(([k, v]) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`).join('')
@@ -676,13 +690,13 @@ $('k-minus1').addEventListener('click', () => game && springe(game.level - 1))
 $('k-plus1').addEventListener('click', () => game && springe(game.level + 1))
 $('k-plus10').addEventListener('click', () => game && springe(game.level + 10))
 $('k-springen').addEventListener('click', () => springe(Number(kInput('k-ziel').value) || 1))
-for (const art of ['falle', 'wolke', 'frosch'] as const)
+for (const art of ['falle', 'wolke', 'frosch', 'gegner'] as const)
   $(`k-${art}`).addEventListener('click', () => {
     if (!game) return
     audio.click()
     const ok = game.spawn(art)
     for (const e of game.drain()) handle(e)
-    if (!ok) toast(art === 'falle' ? 'falle' : art, 'Kein Platz', 'Gerade passt das nicht auf die Karte.')
+    if (!ok) toast(art, 'Kein Platz', art === 'gegner' ? 'Kein Platz oder schon genug Gegner unterwegs.' : 'Gerade passt das nicht auf die Karte.')
   })
 document.querySelectorAll<HTMLButtonElement>('[data-power]').forEach((b) =>
   b.addEventListener('click', () => {

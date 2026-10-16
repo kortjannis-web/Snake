@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner'
 
 export type Status = 'play' | 'over'
 
@@ -68,17 +68,37 @@ export type Kreativ = {
   laenge: number
 }
 
-/** Power-ups: Schild (faengt einen Tod oder Rueckschlag ab), Zeitlupe, Magnet (zieht Apfel und Muenzen an),
- *  Geist (kurz durch Hindernisse), Schere (Schlange kuerzer) */
-export type PowerArt = 'schild' | 'zeitlupe' | 'magnet' | 'geist' | 'schere'
-export type Muenze = { p: P; t: number; until: number; wert: number }
+/** Power-ups: Schild (faengt einen Tod oder Rueckschlag ab), Zeitlupe, Geist (kurz durch Hindernisse),
+ *  Schere (bis zum naechsten Apfel ein paar Glieder kuerzer) */
+export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere'
 export type Power = { p: P; t: number; until: number; art: PowerArt }
+
+/** Gegner-Schlange: rot, halb so schnell wie die Schlange, weicht ihr aus.
+ *  Eingekesselt stirbt sie, wer lange ueberlebt, wird laenger */
+export type Gegner = {
+  body: P[]
+  prev: P[]
+  dir: Dir
+  /** Erschienen */
+  t: number
+  /** Letzter Schritt (fuer die weiche Darstellung) */
+  last: number
+  /** Naechstes Glied mehr */
+  wachsAt: number
+  wachsRest: number
+  /** Zuletzt gewachsen (fuer ein kurzes Aufleuchten) */
+  wuchsT: number
+  /** Schritte in Folge eingekesselt */
+  eng: number
+  /** 0 ruhig bis 1 auf der Flucht (fuer die Augen) */
+  angst: number
+}
 
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }
 
 /** Ereignisse fuer Toene, Vibration und Anzeige */
 export type GameEvent =
-  | { type: 'eat'; level: number; p: P }
+  | { type: 'eat'; level: number; p: P; stufe: number }
   | { type: 'milestone'; level: number }
   | { type: 'expand'; side: Side; add: number; dx: number; dy: number }
   | { type: 'unlock'; what: Unlock; level: number }
@@ -97,10 +117,12 @@ export type GameEvent =
   | { type: 'house' }
   | { type: 'light' }
   | { type: 'tower' }
-  | { type: 'coin'; wert: number; p: P; apfel: boolean }
+  | { type: 'geld'; wert: number; p: P; quelle: 'apfel' | 'gegner' }
+  | { type: 'gegner'; p: P }
+  | { type: 'gegnerWeg'; p: P; laenge: number; wert: number }
   | { type: 'power'; art: PowerArt; p: P }
   | { type: 'powerEnde'; art: PowerArt }
   | { type: 'schild' }
   | { type: 'faktor'; faktor: number }
 
-export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm'
+export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner'

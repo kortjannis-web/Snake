@@ -3,17 +3,19 @@
  * kann groesser als der Bildschirm werden), neue Gebiete klappen Feld fuer
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
-import type { Game } from '../game/game'
+import { GEGNER_WEG, type Game } from '../game/game'
 import { FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
-import type { Funke, GameEvent, P } from '../game/types'
-import { drawSchlange, SKINS, type Skin } from './skins'
+import type { Funke, GameEvent, Gegner, P } from '../game/types'
+import { drawSchlange, GEGNER_SKIN, SKINS, type Skin } from './skins'
 import {
   C,
+  apfelFarbe,
+  apfelFarben,
+  apfelPartikel,
   backOut,
   clamp01,
   DIR_WINKEL,
   drawFrosch,
-  drawMuenze,
   drawPower,
   drawKegel,
   drawTurm,
@@ -44,7 +46,7 @@ export class Renderer {
   private cam = { x: 0, y: 0 }
   private camInit = false
   private funken: Funke[] = []
-  /** Aufsteigende Zahlen (+3) beim Einsammeln */
+  /** Aufsteigende Zahlen (+12) und Namen beim Einsammeln */
   private texte: { x: number; y: number; t: number; text: string; farbe: string }[] = []
   /** Minikarte unten links anzeigen */
   minikarte = true
@@ -82,6 +84,7 @@ export class Renderer {
   event(e: GameEvent, g: Game) {
     const cell = this.cell
     if (e.type === 'eat' && !this.reduce) {
+      const farben = apfelPartikel(e.stufe)
       for (let i = 0; i < 14; i++) {
         const ang = (Math.PI * 2 * i) / 14 + Math.random() * 0.4
         const sp = cell * (1.1 + Math.random() * 1.0)
@@ -91,7 +94,22 @@ export class Renderer {
           vx: Math.cos(ang) * sp,
           vy: Math.sin(ang) * sp - cell * 0.6,
           born: g.time,
-          c: C.partikel[i % C.partikel.length],
+          c: farben[i % farben.length],
+        })
+      }
+    } else if (e.type === 'gegnerWeg' && !this.reduce) {
+      // Gegner zerplatzt: rote Funken
+      const farben = ['#E84A3C', '#FF8A73', '#801A22', '#F5EFE6']
+      for (let i = 0; i < 18; i++) {
+        const ang = (Math.PI * 2 * i) / 18 + Math.random() * 0.3
+        const sp = cell * (1.3 + Math.random() * 1.3)
+        this.funken.push({
+          x: (e.p.x + 0.5) * cell,
+          y: (e.p.y + 0.5) * cell,
+          vx: Math.cos(ang) * sp,
+          vy: Math.sin(ang) * sp - cell * 0.5,
+          born: g.time,
+          c: farben[i % farben.length],
         })
       }
     } else if (e.type === 'expand') {
@@ -108,10 +126,10 @@ export class Renderer {
       })
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
-    } else if (e.type === 'coin' && !e.apfel) {
-      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: '#FFD34D' })
+    } else if (e.type === 'geld' && e.quelle === 'gegner') {
+      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: apfelFarben(g.apfelStufe())[0][0] })
     } else if (e.type === 'power') {
-      const name = { schild: 'Schild', zeitlupe: 'Zeitlupe', magnet: 'Magnet', geist: 'Geist', schere: 'Schere' }[e.art]
+      const name = { schild: 'Schild', zeitlupe: 'Zeitlupe', geist: 'Geist', schere: g.effekt.schere > 0 ? `Schere −${g.effekt.schere}` : 'Schere' }[e.art]
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
     } else if (e.type === 'setback') {
       if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
@@ -281,22 +299,17 @@ export class Renderer {
       drawFalle(ctx, px(f.p.x), px(f.p.y), cell, 1 - easeOut(clamp01((k - 0.5) * 2)), easeOut(clamp01(k * 4)))
     }
 
-    // Apfel und Giftaepfel
+    // Apfel (Farbe nach Wert) und Giftaepfel (tarnen sich in derselben Farbe)
+    const stufe = g.apfelStufe()
     const wipp = this.reduce ? 0 : Math.max(0, Math.sin(now / 260)) * cell * 0.05
-    drawApfel(ctx, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp)
-    for (const m of g.muenzen) {
-      if (!sicht(m.p)) continue
-      const s = this.reduce ? 1 : backOut(clamp01((now - m.t) / 340))
-      if (m.until - now < 2500 && Math.sin(now / 80) < -0.2) continue
-      drawMuenze(ctx, px(m.p.x), px(m.p.y), cell, s, now)
-    }
+    drawApfel(ctx, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, stufe)
     for (const pw of g.powers) {
       if (!sicht(pw.p)) continue
       drawPower(ctx, px(pw.p.x), px(pw.p.y), cell, pw.art, this.reduce ? 1 : backOut(clamp01((now - pw.t) / 380)), now, pw.until - now < 3000)
     }
     for (const gf of g.gift) {
       if (!sicht(gf.p)) continue
-      drawApfel(ctx, px(gf.p.x), px(gf.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - gf.t) / 340)), wipp * 0.6, gf.ecke)
+      drawApfel(ctx, px(gf.p.x), px(gf.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - gf.t) / 340)), wipp * 0.6, gf.ecke, stufe)
     }
 
     // Froesche: Anlauf 1 s vor dem Sprung, Sprung im Bogen, Drehen nach der Landung
@@ -316,6 +329,10 @@ export class Renderer {
       const ang = lerp(a0, a1, easeOut(clamp01((now - f.drehT) / 220)))
       drawFrosch(ctx, px(x), px(y), cell, ang, this.reduce ? 0 : anlauf, this.reduce || flug > 1 ? -1 : k, s, fade)
     }
+
+    // Gegner-Schlangen (und besiegte, die zerfallen)
+    for (const e of g.gegner) if (e.body.some((p) => sicht(p))) this.drawGegner(g, e, now)
+    for (const w of g.gegnerWeg) if (w.g.body.some((p) => sicht(p))) this.drawGegner(g, w.g, now, w.t)
 
     // Schlange
     if (n) this.drawSchlange(g, head, a)
@@ -417,27 +434,78 @@ export class Renderer {
     }
   }
 
-  /** Minikarte unten links: ganz klein, nur die Kartenform und die Schlange als Punkt.
+  /** Gegner-Schlange: rot, weich zwischen den Feldern, erscheint sanft. `weg` = besiegt seit */
+  private drawGegner(g: Game, e: Gegner, now: number, weg?: number) {
+    const { ctx, cell } = this
+    const n = e.body.length
+    const a = weg !== undefined || this.reduce ? 1 : clamp01((now - e.last) / g.gegnerSchrittzeit)
+    const ip = (i: number) => {
+      const p = e.prev[i]
+      const b = e.body[i]
+      return p ? { x: lerp(p.x, b.x, a), y: lerp(p.y, b.y, a) } : b
+    }
+    const pts: P[] = [ip(0), ...e.body.slice(1), ip(n - 1)]
+    const k = weg !== undefined ? clamp01((now - weg) / GEGNER_WEG) : 0
+    ctx.globalAlpha = (this.reduce ? 1 : clamp01((now - e.t) / 450)) * (1 - k)
+    drawSchlange(ctx, pts, cell * (1 - k * 0.3), e.dir, GEGNER_SKIN, now, {
+      tot: weg !== undefined,
+      brauen: true,
+      angst: e.angst,
+      blinzeln: weg === undefined && (now + e.t) % 3700 < 110,
+    })
+    ctx.globalAlpha = 1
+    // Gerade ein Glied laenger geworden: kurzer Schimmer um den Kopf
+    if (weg === undefined && now - e.wuchsT < 700) {
+      const t = (now - e.wuchsT) / 700
+      ctx.strokeStyle = `rgba(255, 138, 115, ${0.8 * (1 - t)})`
+      ctx.lineWidth = Math.max(1.5, cell * 0.06)
+      ctx.beginPath()
+      ctx.arc((pts[0].x + 0.5) * cell, (pts[0].y + 0.5) * cell, cell * (0.45 + 0.35 * t), 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+
+  /** Minikarte unten links: nur die Kartenblöcke. Grün der Block mit der Schlange,
+   *  in Apfelfarbe der Block mit dem Apfel (keine genauen Positionen).
    *  Erst sichtbar, wenn die Karte groesser als der Bildschirm ist */
   private drawMinikarte(g: Game, head: P) {
     if (g.blocks.length <= 2) return
     const { ctx, vh } = this
-    const max = 46
+    const max = 50
     const s = Math.min(max / g.w, max / g.h)
     const mw = g.w * s
     const mh = g.h * s
     const pad = 4
     const x0 = 10 + pad
     const y0 = vh - 10 - pad - mh
-    ctx.fillStyle = 'rgba(23, 21, 19, 0.5)'
+    ctx.fillStyle = 'rgba(23, 21, 19, 0.55)'
     rund(ctx, x0 - pad, y0 - pad, mw + pad * 2, mh + pad * 2, 6)
     ctx.fill()
-    ctx.fillStyle = 'rgba(245, 239, 230, 0.2)'
-    for (const b of g.blocks) ctx.fillRect(x0 + b.x * g.bw * s, y0 + b.y * g.bh * s, g.bw * s - 0.5, g.bh * s - 0.5)
-    ctx.fillStyle = '#8FD6BD'
-    ctx.beginPath()
-    ctx.arc(x0 + (head.x + 0.5) * s, y0 + (head.y + 0.5) * s, 2.2, 0, Math.PI * 2)
-    ctx.fill()
+    const block = (p: P) => ({ x: Math.floor(p.x / g.bw), y: Math.floor(p.y / g.bh) })
+    const sb = block({ x: Math.round(head.x), y: Math.round(head.y) })
+    const ab = block(g.apple.p)
+    const farbe = apfelFarbe(g.apfelStufe())
+    for (const b of g.blocks) {
+      const x = x0 + b.x * g.bw * s
+      const y = y0 + b.y * g.bh * s
+      const bw = g.bw * s - 1
+      const bh = g.bh * s - 1
+      const schlange = b.x === sb.x && b.y === sb.y
+      const apfel = b.x === ab.x && b.y === ab.y
+      ctx.fillStyle = schlange ? '#4CC38A' : apfel ? farbe : 'rgba(245, 239, 230, 0.2)'
+      ctx.fillRect(x, y, bw, bh)
+      if (!apfel) continue
+      // Apfel-Block mit hellem Rand (auch ein gruener Apfel bleibt so erkennbar);
+      // liegt der Apfel im Block der Schlange, steckt ein Kaestchen in Apfelfarbe darin
+      if (schlange) {
+        ctx.fillStyle = farbe
+        ctx.fillRect(x + bw * 0.28, y + bh * 0.28, bw * 0.44, bh * 0.44)
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+      ctx.lineWidth = 1
+      if (schlange) ctx.strokeRect(x + bw * 0.28, y + bh * 0.28, bw * 0.44, bh * 0.44)
+      else ctx.strokeRect(x + 0.5, y + 0.5, bw - 1, bh - 1)
+    }
   }
 
   /** Pfeil am Bildrand, wenn der Apfel ausserhalb liegt */
@@ -459,12 +527,13 @@ export class Renderer {
     ctx.beginPath()
     ctx.arc(0, 0, r, 0, Math.PI * 2)
     ctx.fill()
-    ctx.strokeStyle = 'rgba(242, 154, 76, 0.9)'
+    const farbe = apfelFarbe(g.apfelStufe())
+    ctx.strokeStyle = farbe
     ctx.lineWidth = 2
     ctx.stroke()
     // Spitze in Richtung Apfel
     ctx.rotate(ang)
-    ctx.fillStyle = '#F29A4C'
+    ctx.fillStyle = farbe
     ctx.beginPath()
     ctx.moveTo(r + 7, 0)
     ctx.lineTo(r - 1, -6)
@@ -472,6 +541,6 @@ export class Renderer {
     ctx.closePath()
     ctx.fill()
     ctx.restore()
-    drawApfel(ctx, cx, cy - r * 0.04, r * 1.45, 1)
+    drawApfel(ctx, cx, cy - r * 0.04, r * 1.45, 1, 0, undefined, g.apfelStufe())
   }
 }

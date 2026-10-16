@@ -24,7 +24,7 @@ export const DEFAULTS = {
   tempoMin: 68,
   wachsenJedes: 50,
   wachsenJedesZweite: 300,
-  gnade: 1.3,
+  gnade: 1.15,
   schutz: 2.2,
   // Mauern
   mauerAb: 8,
@@ -78,17 +78,22 @@ export const DEFAULTS = {
   turmFelder: 300,
   kegelLaenge: 6,
   kegelZurueck: 10,
-  // Power-ups und Muenzen
+  // Gegner-Schlangen
+  gegnerAb: 100,
+  gegnerMin: 6,
+  gegnerMax: 10,
+  gegnerAnzahl: 3,
+  gegnerWachsen: 20,
+  gegnerMaxLaenge: 8,
+  // Power-ups und Aepfel als Waehrung
   powerAb: 10,
   powerChance: 18,
   powerDauer: 15,
   effektDauer: 8,
   geistDauer: 6,
-  schereProzent: 30,
-  apfelMuenzen: 1,
-  muenzeChance: 25,
-  muenzeWert: 3,
-  muenzFaktorAlle: 50,
+  schereLaenge: 5,
+  apfelWert: 1,
+  apfelWertAlle: 50,
   // Ereignisse
   ereignis1Ab: 150,
   ereignis2Ab: 200,
@@ -114,7 +119,7 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'tempoMin', label: 'Höchstens so schnell (Takt)', min: 20, max: 100, einheit: '%' },
       { key: 'wachsenJedes', label: 'Wächst mit jedem Apfel bis Level', min: 0, max: 10000 },
       { key: 'wachsenJedesZweite', label: 'Danach mit jedem zweiten bis Level', min: 0, max: 10000 },
-      { key: 'gnade', label: 'Gnadenschritt', min: 1, max: 5, step: 0.1, einheit: 'Takte' },
+      { key: 'gnade', label: 'Gnadenschritt', min: 1, max: 5, step: 0.05, einheit: 'Takte' },
       { key: 'schutz', label: 'Schutz nach Rückschlag', min: 0, max: 10, step: 0.1, einheit: 's' },
     ],
   },
@@ -207,18 +212,27 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
     ],
   },
   {
-    gruppe: 'Power-ups und Münzen',
+    gruppe: 'Gegner-Schlangen',
+    felder: [
+      { key: 'gegnerAb', label: 'Ab Level', min: 1, max: 10000 },
+      { key: 'gegnerMin', label: 'Neue alle mindestens', min: 1, max: 100, einheit: 'Level' },
+      { key: 'gegnerMax', label: 'Neue alle höchstens', min: 1, max: 100, einheit: 'Level' },
+      { key: 'gegnerAnzahl', label: 'Höchstens gleichzeitig (+1 je 100 Level)', min: 0, max: 20 },
+      { key: 'gegnerWachsen', label: 'Wird ein Glied länger alle', min: 1, max: 600, einheit: 's' },
+      { key: 'gegnerMaxLaenge', label: 'Höchstens so lang', min: 3, max: 40, einheit: 'Glieder' },
+    ],
+  },
+  {
+    gruppe: 'Power-ups und Äpfel',
     felder: [
       { key: 'powerAb', label: 'Power-ups ab Level', min: 1, max: 10000 },
       { key: 'powerChance', label: 'Chance je Apfel auf ein Power-up', min: 0, max: 100, einheit: '%' },
       { key: 'powerDauer', label: 'Power-up liegt', min: 3, max: 120, einheit: 's' },
-      { key: 'effektDauer', label: 'Zeitlupe und Magnet halten', min: 1, max: 60, einheit: 's' },
+      { key: 'effektDauer', label: 'Zeitlupe hält', min: 1, max: 60, einheit: 's' },
       { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
-      { key: 'schereProzent', label: 'Schere kürzt um', min: 5, max: 90, einheit: '%' },
-      { key: 'apfelMuenzen', label: 'Münzen je Apfel', min: 0, max: 100 },
-      { key: 'muenzeChance', label: 'Chance je Apfel auf eine Goldmünze', min: 0, max: 100, einheit: '%' },
-      { key: 'muenzeWert', label: 'Goldmünze ist wert', min: 1, max: 1000, einheit: 'Münzen' },
-      { key: 'muenzFaktorAlle', label: 'Münzen zählen einmal mehr alle', min: 1, max: 10000, einheit: 'Level' },
+      { key: 'schereLaenge', label: 'Schere kürzt bis zum nächsten Apfel um', min: 1, max: 50, einheit: 'Glieder' },
+      { key: 'apfelWert', label: 'Ein Apfel ist wert', min: 0, max: 100, einheit: 'Äpfel' },
+      { key: 'apfelWertAlle', label: 'Äpfel zählen einmal mehr alle', min: 1, max: 10000, einheit: 'Level' },
     ],
   },
   {
@@ -295,13 +309,15 @@ export const neuerTurm = (c: Config, level: number) => level >= c.turmAb && (lev
 export const turmMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.turmFelder))
 
 /** Abstand bis zum naechsten Ereignis dieser Art (ab `haeufigerAb` je 1 Level kuerzer) */
-export const pause = (c: Config, art: 'falle' | 'wolke' | 'frosch', level: number): [number, number] => {
-  const [a, b] = art === 'falle' ? [c.falleMin, c.falleMax] : art === 'wolke' ? [c.wolkeMin, c.wolkeMax] : [c.froschMin, c.froschMax]
+export const pause = (c: Config, art: 'falle' | 'wolke' | 'frosch' | 'gegner', level: number): [number, number] => {
+  const [a, b] =
+    art === 'falle' ? [c.falleMin, c.falleMax] : art === 'wolke' ? [c.wolkeMin, c.wolkeMax] : art === 'frosch' ? [c.froschMin, c.froschMax] : [c.gegnerMin, c.gegnerMax]
   const k = level >= c.haeufigerAb ? 1 : 0
   const lo = Math.max(1, Math.min(a, b) - k)
   return [lo, Math.max(lo, Math.max(a, b) - k)]
 }
-export const ab = (c: Config, art: 'falle' | 'wolke' | 'frosch') => (art === 'falle' ? c.falleAb : art === 'wolke' ? c.wolkeAb : c.froschAb)
+export const ab = (c: Config, art: 'falle' | 'wolke' | 'frosch' | 'gegner') =>
+  art === 'falle' ? c.falleAb : art === 'wolke' ? c.wolkeAb : art === 'frosch' ? c.froschAb : c.gegnerAb
 export const mindestEreignisse = (c: Config, level: number) =>
   level >= c.ereignis3Ab ? 3 : level >= c.ereignis2Ab ? 2 : level >= c.ereignis1Ab ? 1 : 0
 
@@ -325,19 +341,21 @@ export const wolkenForm = (stage: number): P[] => {
   return out
 }
 
-/** Frosch: Sprung dauert so lange, 1 s vorher macht er sich bereit, 0,25 s nach der Landung dreht er ggf. */
-/** Muenzen zaehlen mehrfach: bis Level 49 einfach, ab 50 doppelt, ab 100 dreifach ... */
-export const muenzFaktor = (c: Config, level: number) => 1 + Math.floor(level / Math.max(1, c.muenzFaktorAlle))
+/** Aepfel sind die Waehrung und zaehlen mehrfach: bis Level 49 einfach, ab 50 doppelt, ab 100 dreifach ...
+ *  Mit jeder Stufe bekommt der Apfel eine andere Farbe (siehe APFEL_STUFEN in sprites.ts) */
+export const apfelFaktor = (c: Config, level: number) => 1 + Math.floor(level / Math.max(1, c.apfelWertAlle))
 
-/** So lange liegt eine Goldmuenze (ms), hoechstens so viele gleichzeitig */
-export const MUENZE_DAUER = 12_000
-export const MUENZE_MAX = 3
-export const POWER_ARTEN = ['schild', 'zeitlupe', 'magnet', 'geist', 'schere'] as const
+export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere'] as const
 /** Zeitlupe: Takt so viel langsamer */
 export const ZEITLUPE = 1.55
-/** Magnet: alle so viele ms ruecken Apfel und Muenzen ein Feld naeher */
-export const MAGNET_TAKT = 260
 
+/** Gegner: so viele gleichzeitig (ab gegnerAb 1, alle 100 Level einer mehr, hoechstens gegnerAnzahl) */
+export const gegnerMax = (c: Config, level: number) =>
+  level < c.gegnerAb ? 0 : Math.min(c.gegnerAnzahl, 1 + Math.floor((level - c.gegnerAb) / 100))
+/** Gegner bewegen sich halb so schnell wie die Schlange */
+export const GEGNER_TEMPO = 2
+
+/** Frosch: Sprung dauert so lange, 1 s vorher macht er sich bereit, 0,25 s nach der Landung dreht er ggf. */
 export const FROSCH_FLUG = 380
 export const FROSCH_ANLAUF = 1000
 export const FROSCH_DREHEN = 250
@@ -349,6 +367,7 @@ export const unlocks = (c: Config) =>
     { what: 'teich', level: c.teichAb },
     { what: 'gift', level: c.giftAb },
     { what: 'falle', level: c.falleAb },
+    { what: 'gegner', level: c.gegnerAb },
     { what: 'baum', level: c.baumAb },
     { what: 'wolke', level: c.wolkeAb },
     { what: 'frosch', level: c.froschAb },

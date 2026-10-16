@@ -1036,14 +1036,6 @@ svg {
   -webkit-user-select: text;
 }
 
-.seg--5 {
-  grid-template-columns: repeat(5, 1fr);
-}
-
-.seg--5 button {
-  font-size: 0.76rem;
-}
-
 .seg--4 {
   grid-template-columns: repeat(4, 1fr);
 }
@@ -1102,15 +1094,30 @@ svg {
   touch-action: pan-y;
 }
 
-/* ---------------- Muenzen, Shop, Power-ups ---------------- */
-.muenze {
+/* ---------------- Aepfel als Waehrung, Shop, Power-ups ---------------- */
+/* Kleiner Apfel; in der Leiste in der Farbe der aktuellen Stufe (--apfel) */
+.apfel-ico {
+  position: relative;
   display: inline-block;
   flex: none;
   width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff3b0 0 18%, #f6c343 40%, #d99a1e 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(150, 100, 20, 0.55);
+  height: 15px;
+  margin-top: 3px;
+  border-radius: 50% 50% 46% 46% / 56% 56% 44% 44%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.55) 0 12%, rgba(255, 255, 255, 0) 34%), var(--apfel, #e5463b);
+  box-shadow: inset -2px -2px 0 rgba(40, 0, 10, 0.2);
+}
+
+.apfel-ico::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  width: 7px;
+  height: 4px;
+  border-radius: 0 100% 0 100%;
+  background: #4fa65a;
+  transform: rotate(-14deg);
 }
 
 .hud__right {
@@ -1129,14 +1136,15 @@ svg {
   background: rgba(245, 239, 230, 0.06);
   font: 600 1rem/1 var(--sans);
   font-variant-numeric: tabular-nums;
-  color: #ffd34d;
+  color: var(--creme);
 }
 
 .hud__geld small {
   padding: 2px 5px;
   border-radius: 999px;
-  background: #ffd34d;
-  color: var(--mokka-tief);
+  background: var(--apfel, #e5463b);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
   font: 800 0.66rem/1 var(--sans);
 }
 
@@ -1159,14 +1167,14 @@ svg {
   border: 0;
   border-radius: 999px;
   background: rgba(245, 239, 230, 0.08);
-  color: #ffd34d;
+  color: var(--creme);
   font: 700 1.05rem/1 var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
-.geld-pille .muenze {
+.geld-pille .apfel-ico {
   width: 20px;
-  height: 20px;
+  height: 19px;
 }
 
 .geld-pille--still {
@@ -1192,7 +1200,7 @@ svg {
   align-items: center;
   gap: 8px;
   margin: 2px 0 4px;
-  color: #ffd34d;
+  color: #ff8a73;
   font: 700 0.95rem/1 var(--sans);
 }
 
@@ -1243,7 +1251,7 @@ svg {
   gap: 6px;
   padding: 0 4px;
   font: 700 0.9rem/1 var(--sans);
-  color: #ffd34d;
+  color: #ff8a73;
 }
 
 .skin[data-an] .skin__preis,
@@ -1312,8 +1320,8 @@ svg {
 .effekt--zeitlupe {
   color: #b9a2f0;
 }
-.effekt--magnet {
-  color: #ff8a80;
+.effekt--schere {
+  color: #f6b37a;
 }
 .effekt--geist {
   color: #dfe7ec;
