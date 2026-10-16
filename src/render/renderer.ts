@@ -12,6 +12,9 @@ import {
   clamp01,
   drawAmeise,
   drawApfel,
+  drawBaum,
+  drawHaus,
+  drawLicht,
   drawFalle,
   drawStein,
   drawTeich,
@@ -89,6 +92,8 @@ export class Renderer {
       })
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
+    } else if (e.type === 'setback') {
+      if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
     } else if (e.type === 'halt') {
       if (!this.reduce) this.shake = { until: g.time + 140, amp: cell * 0.07 }
     }
@@ -210,6 +215,19 @@ export class Renderer {
         drawStein(ctx, m.cells[i].x * cell, m.cells[i].y * cell, cell, s)
       }
 
+    // Baeume und Haeuser (bleiben), dazu das Licht aus den Fenstern
+    for (const b of g.baeume) {
+      if (!b.cells.some((c) => sicht(c, 3))) continue
+      drawBaum(ctx, b.root, b.dir, b.seite, cell, this.reduce ? 1 : backOut(clamp01((now - b.t) / 520)))
+    }
+    for (const h of g.haeuser) {
+      if (!h.cells.some((c) => sicht(c, 3))) continue
+      const f = h.fenster[h.licht]
+      const an = this.reduce ? 1 : clamp01((now - h.lichtT) / 450)
+      drawLicht(ctx, f.p, f.d, h.strahl.length, cell, an * clamp01((now - h.t) / 600), now)
+      drawHaus(ctx, h.cells, h.fenster, h.licht, h.kamin, cell, this.reduce ? 1 : backOut(clamp01((now - h.t) / 520)), now)
+    }
+
     // Fallen: ploppen auf, blinken kurz vor dem Ende, schnappen zu
     for (const f of g.fallen) {
       if (!sicht(f.p)) continue
@@ -309,6 +327,8 @@ export class Renderer {
     const kopf = C.kopf.map((v, j) => lerp(v, C.giftKopf[j], vergiftet))
     const schwanz = C.schwanz.map((v, j) => lerp(v, C.giftSchwanz[j], vergiftet))
     if (tot && !this.reduce && sinceDeath < 900) ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.cos(sinceDeath / 90))
+    // Nach einem Rueckschlag geschuetzt: blinkt
+    else if (!tot && now < g.schutzBis) ctx.globalAlpha = Math.sin(now / 55) > 0 ? 0.9 : 0.35
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
 

@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'wolke' | 'ameise'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'wolke' | 'ameise' | 'baum' | 'haus'
 
 export type Status = 'play' | 'over'
 
@@ -33,6 +33,14 @@ export type Wolke = {
 /** Ameise: laeuft alle paar Sekunden ein Feld geradeaus, verschwindet am Rand */
 export type Ameise = { p: P; from: P; dir: Dir; t: number; movedAt: number; nextAt: number; gone?: number }
 
+/** Liegender Tannenbaum: 1-1-2-1 Felder entlang `dir` (Stamm, Stamm, Krone breit, Spitze).
+ *  `seite` = auf welcher Seite die breite Kronenreihe ein Feld mehr hat */
+export type Baum = { cells: P[]; root: P; dir: Dir; seite: 1 | -1; t: number }
+/** Fenster: Wandfeld des Hauses und Richtung nach aussen */
+export type Fenster = { p: P; d: Dir }
+/** Haus: bleibt stehen. Vier Fenster (eins je Seite), eins davon leuchtet 2 Felder weit */
+export type Haus = { cells: P[]; t: number; fenster: Fenster[]; licht: number; lichtT: number; strahl: P[]; kamin: number }
+
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }
 
 /** Ereignisse fuer Toene, Vibration und Anzeige */
@@ -51,5 +59,9 @@ export type GameEvent =
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }
+  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' }
+  | { type: 'tree' }
+  | { type: 'house' }
+  | { type: 'light' }
 
-export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'ameise'
+export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'ameise' | 'baum' | 'haus'

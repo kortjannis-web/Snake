@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { autopilot } from '../src/game/autopilot'
 import { Game, key } from '../src/game/game'
 import * as R from '../src/game/rules'
-import type { GameEvent } from '../src/game/types'
+import type { Dir, GameEvent } from '../src/game/types'
 
 const SW = 12
 const SH = 25
@@ -221,5 +221,113 @@ describe('Spiel', () => {
     }
     const types = new Set(ev.map((e) => e.type))
     expect(types.has('ant') || types.has('cloud') || types.has('trap')).toBe(true)
+  })
+})
+
+describe('Rueckschlaege, Baeume und Haeuser', () => {
+  const leer = (g: Game) => {
+    g.mauern = []
+    g.teiche = []
+    g.gift = []
+    g.wolken = []
+    g.ameisen = []
+    g.fallen = []
+    g.baeume = []
+    g.haeuser = []
+  }
+
+  it('Giftwolke kostet 10 Level und ist nicht toedlich', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 4, startLevel: 160 })
+    leer(g)
+    g.body = [{ x: 5, y: 10 }, { x: 4, y: 10 }, { x: 3, y: 10 }, { x: 2, y: 10 }]
+    g.dir = 'r'
+    g.queue = []
+    g.apple.p = { x: 0, y: 0 }
+    g.wolken.push({ c: { x: 6, y: 10 }, t: 0, stage: 0, maxStage: 2, nextAt: 1e9, until: Infinity, cells: [{ x: 6, y: 10 }], pending: [], bornAt: [0] })
+    const ev: GameEvent[] = []
+    for (let i = 0; i < 4; i++) {
+      g.update(50)
+      ev.push(...g.drain())
+    }
+    expect(g.status).toBe('play')
+    expect(g.level).toBe(150)
+    expect(g.maxLevel).toBe(160)
+    expect(ev.some((e) => e.type === 'setback' && e.grund === 'wolke')).toBe(true)
+    // Geschuetzt: gleich danach kein zweiter Treffer
+    expect(g.schutzBis).toBeGreaterThan(g.time)
+  })
+
+  it('Nach einem Rueckschlag kommen Gebiet und Teich nicht doppelt', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 8, startLevel: 31 })
+    const exp = g.expansions
+    g.setback(5, 'licht')
+    expect(g.level).toBe(26)
+    for (let i = 0; i < 6; i++) {
+      leer(g)
+      const h = g.body[0]
+      const dir = g.dir
+      g.apple.p = { x: h.x + R.STEP[dir].x, y: h.y + R.STEP[dir].y }
+      if (!g.inside(g.apple.p)) break
+      for (let k = 0; k < 4 && g.level < 27 + i; k++) g.update(50)
+    }
+    expect(g.level).toBeGreaterThanOrEqual(30)
+    expect(g.expansions).toBe(exp)
+  })
+
+  it('Baum: 1-1-2-1 Felder, ab 100 alle 40 Level', () => {
+    expect([99, 100, 120, 140, 180, 181].map(R.neuerBaum)).toEqual([false, true, false, true, true, false])
+    for (let s = 1; s < 20; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 100 })
+      expect(g.baeume.length).toBe(1)
+      const b = g.baeume[0]
+      expect(b.cells).toHaveLength(5)
+      // genau eine Reihe ist doppelt breit
+      const d = R.STEP[b.dir]
+      const entlang = b.cells.map((c) => (c.x - b.root.x) * d.x + (c.y - b.root.y) * d.y)
+      expect(entlang.sort()).toEqual([0, 1, 2, 2, 3])
+      expect(g.gefahr(b.cells[3])).toBe('baum')
+    }
+  })
+
+  it('Haus: 2x3 oder mit Ecke, vier Fenster, Licht wechselt nach jedem Apfel', () => {
+    expect([209, 210, 240, 270].map(R.neuesHaus)).toEqual([false, true, true, true])
+    const groessen = new Set<number>()
+    for (let s = 1; s < 30; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 210 })
+      expect(g.haeuser.length).toBe(1)
+      const h = g.haeuser[0]
+      groessen.add(h.cells.length)
+      expect(h.fenster.map((f) => f.d).sort()).toEqual(['d', 'l', 'r', 'u'])
+      // Fenster liegt am Rand des Hauses, nach aussen
+      for (const f of h.fenster) {
+        expect(h.cells.some((c) => c.x === f.p.x && c.y === f.p.y)).toBe(true)
+        const vor = { x: f.p.x + R.STEP[f.d].x, y: f.p.y + R.STEP[f.d].y }
+        expect(h.cells.some((c) => c.x === vor.x && c.y === vor.y)).toBe(false)
+      }
+      expect(h.strahl.length).toBeLessThanOrEqual(2)
+      expect(g.gefahr(h.cells[0])).toBe('haus')
+    }
+    expect([...groessen].sort()).toEqual([10, 6])
+  })
+
+  it('Licht kostet 5 Level', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 3, startLevel: 215 })
+    const h = g.haeuser[0]
+    leer(g)
+    g.haeuser = [h]
+    const c = h.strahl[0]
+    expect(c).toBeDefined()
+    // Schlange so legen, dass der Kopf im naechsten Schritt ins Licht laeuft
+    const f = h.fenster[h.licht]
+    const quer: Dir = f.d === 'u' || f.d === 'd' ? 'r' : 'd'
+    const q = R.STEP[quer]
+    g.body = [1, 2, 3].map((k) => ({ x: c.x - q.x * k, y: c.y - q.y * k }))
+    g.dir = quer
+    g.queue = []
+    g.prev = []
+    g.apple.p = { x: -5, y: -5 }
+    for (let i = 0; i < 4 && g.level === 215; i++) g.update(50)
+    expect(g.status).toBe('play')
+    expect(g.level).toBe(210)
   })
 })

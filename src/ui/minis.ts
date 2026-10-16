@@ -1,8 +1,8 @@
 /** Kleine Bilder fuer Anleitung, Hinweise und Spielende (gleiche Zeichnungen wie im Spiel) */
 import type { Cause, Side } from '../game/types'
-import { C, drawAmeise, drawApfel, drawFalle, drawStein, drawTeich, drawWolkenFeld, rund } from '../render/sprites'
+import { C, drawAmeise, drawApfel, drawBaum, drawFalle, drawHaus, drawLicht, drawStein, drawTeich, drawWolkenFeld, rund } from '../render/sprites'
 
-export type Mini = 'apfel' | 'gift' | 'mauer' | 'teich' | 'gebiet' | 'falle' | 'wolke' | 'ameise' | 'schlange' | 'rand'
+export type Mini = 'apfel' | 'gift' | 'mauer' | 'teich' | 'gebiet' | 'falle' | 'wolke' | 'ameise' | 'schlange' | 'rand' | 'baum' | 'haus'
 
 export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 'top') {
   const dpr = Math.min(2.5, window.devicePixelRatio || 1)
@@ -97,6 +97,26 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
       }
       break
     }
+    case 'baum': {
+      // vier Felder lang: kleiner zeichnen, damit er ganz in die Kachel passt
+      const k = css / 4.4
+      ctx.save()
+      ctx.translate((css - 4 * k) / 2, (css - 2 * k) / 2 - k * 0.1)
+      drawBaum(ctx, { x: 0, y: 0 }, 'r', 1, k, 1)
+      ctx.restore()
+      break
+    }
+    case 'haus': {
+      const k = css / 4.2
+      ctx.save()
+      ctx.translate(k * 0.3, k * 0.9)
+      const cells = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }]
+      const f = [{ p: { x: 1, y: 0 }, d: 'u' as const }, { p: { x: 2, y: 1 }, d: 'r' as const }, { p: { x: 1, y: 1 }, d: 'd' as const }, { p: { x: 0, y: 0 }, d: 'l' as const }]
+      drawLicht(ctx, f[2].p, 'd', 1, k, 1, t)
+      drawHaus(ctx, cells, f, 2, 4, k, 1, t)
+      ctx.restore()
+      break
+    }
     case 'rand':
       ctx.fillStyle = '#1C5446'
       ctx.fillRect(cell * 2.2, 0, cell * 0.8, css)
@@ -114,4 +134,6 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   falle: 'falle',
   wolke: 'wolke',
   ameise: 'ameise',
+  baum: 'baum',
+  haus: 'haus',
 }

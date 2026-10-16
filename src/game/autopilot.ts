@@ -13,6 +13,9 @@ export function autopilot(g: Game): Dir | null {
   // Koerper ohne Schwanzende (das zieht weiter) und Giftaepfel sind zu
   g.body.slice(0, -1).forEach((p) => blocked.add(key(p.x, p.y)))
   g.gift.forEach((p) => blocked.add(key(p.p.x, p.p.y)))
+  // Wolken und Fensterlicht kosten Level: meiden
+  g.wolken.forEach((w) => [...w.cells, ...w.pending].forEach((p) => blocked.add(key(p.x, p.y))))
+  g.haeuser.forEach((h) => h.strahl.forEach((p) => blocked.add(key(p.x, p.y))))
   const frei = (c: P) => g.inside(c) && !blocked.has(key(c.x, c.y)) && g.gefahr(c, []) === null
   const moves = DIRS.filter((d) => d !== OPP[g.dir]).filter((d) => frei({ x: head.x + STEP[d].x, y: head.y + STEP[d].y }))
   if (!moves.length) return null

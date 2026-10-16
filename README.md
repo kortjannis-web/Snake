@@ -24,9 +24,19 @@ Level = gegessene Äpfel + 1. Alle Werte stehen in `src/game/rules.ts`.
 | 30 | **Neues Gebiet:** alle 30 Level wächst die Karte in eine zufällige Richtung um genau einen halben Bildschirm (immer gleiche Fläche, die Karte bleibt ein Rechteck). Ab Level 300 nicht mehr. Die Kamera folgt der Schlange, ein Pfeil am Rand zeigt den Apfel. |
 | 50 | **Giftäpfel:** sehen aus wie Äpfel, eine Ecke ist verschimmelt. Essen = Spielende. 1 bis 4 Stück, liegen nach jedem Apfel woanders. |
 | 100 | **Bärenfallen:** alle 4 bis 5 Level (ab 200 alle 3 bis 4) eine Falle 5 bis 8 Felder vor dem Kopf, genau in der Laufbahn. Bleibt 25 s. |
-| 150 | **Giftwolken:** alle 5 bis 7 Level (ab 250 alle 4 bis 6). Erst ein Feld, alle 5 s größer: Kreuz, 3 × 3, 3 × 3 mit Spitzen, 5 × 5 … (größte Stufe steigt mit dem Level), 1 s vorher pulsiert die nächste Stufe. Danach 5 s stehen, dann löst sie sich auf. |
+| 100 | **Bäume:** liegende Tanne aus 1-1-2-1 Feldern (Stamm, Stamm, Krone zwei breit, Spitze). Ab 100 alle 40 Level ein neuer (100, 140, 180 …), bleibt für immer. Berühren = Tod. |
+| 150 | **Giftwolken:** alle 5 bis 7 Level (ab 250 alle 4 bis 6). Erst ein Feld, alle 5 s größer: Kreuz, 3 × 3, 3 × 3 mit Spitzen, 5 × 5 … (größte Stufe steigt mit dem Level), 1 s vorher pulsiert die nächste Stufe. Danach 5 s stehen, dann löst sie sich auf. Hineingeraten = **10 Level zurück**. |
 | 200 | **Ameisen:** alle 6 bis 9 Level (ab 250 alle 5 bis 7). Laufen alle 3 s ein Feld geradeaus (ab 300 alle 2,4 s), biegen vor Hindernissen ab, warten vor der Schlange, klauen Äpfel und verschwinden am Rand. |
+| 210 | **Häuser:** 2 × 3 oder mit einer Ecke (Reihen 2-2-3-3), ab 210 alle 30 Level ein neues, bleiben stehen. Vier Fenster (eins je Seite), nach jedem Apfel leuchtet ein anderes, Licht 2 Felder weit. Haus berühren = Tod, ins Licht laufen = **5 Level zurück**. |
 | 150 / 200 / 300 | Mindestens 1 / 2 / 3 Gefahren (Falle, Wolke, Ameise) gleichzeitig unterwegs. |
+
+**Level zurück:** Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen
+war (mindestens 3 lang), das Tempo passt sich an, danach ist sie gut 2 s geschützt (blinkt).
+Karte, Teiche, Bäume und Häuser bleiben; was schon einmal erreicht war (neues Gebiet, Teich,
+Baum, Haus, Hinweise), kommt beim zweiten Erreichen nicht noch einmal. Rekord ist der höchste
+erreichte Level.
+
+Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 
 Neue Hindernisse schließen nie Bereiche ab und bauen keine Sackgassen; Mauern entstehen nie
 direkt vor dem Kopf. Läuft die Schlange gegen ein Hindernis, bleibt sie gut einen Takt stehen

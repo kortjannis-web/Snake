@@ -10,7 +10,7 @@
  */
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Cause, Dir, Falle, GameEvent, Gift, Mauer, P, Side, Status, Teich, Wolke } from './types'
+import type { Ameise, Baum, Cause, Dir, Falle, Fenster, GameEvent, Gift, Haus, Mauer, P, Side, Status, Teich, Wolke } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -50,6 +50,8 @@ export class Game {
   wolken: Wolke[] = []
   wolkenWeg: Wolke[] = []
   ameisen: Ameise[] = []
+  baeume: Baum[] = []
+  haeuser: Haus[] = []
 
   time = 0
   last = 0
@@ -57,6 +59,14 @@ export class Game {
   level = 1
   apples = 0
   maxLen = 3
+  /** Hoechster Level in dieser Runde (Rueckschlaege senken nur `level`) */
+  maxLevel = 1
+  /** Alle gegessenen Aepfel dieser Runde (auch die, deren Level verloren gingen) */
+  gegessen = 0
+  /** Nach einem Rueckschlag kurz geschuetzt (Wolke und Licht treffen nicht) */
+  schutzBis = 0
+  /** Verlorene Level durch Wolken und Licht */
+  zurueck = 0
   status: Status = 'play'
   cause: Cause | null = null
   deathAt = 0
@@ -67,6 +77,8 @@ export class Game {
 
   private next = { falle: R.FALLE_AB, wolke: R.WOLKE_AB, ameise: R.AMEISE_AB }
   private lastSpawn = -1e9
+  /** Faellige Baeume und Haeuser, die noch keinen Platz gefunden haben */
+  private offen = { baum: 0, haus: 0 }
 
   constructor(o: GameOpts) {
     this.screenW = o.screenW
@@ -89,7 +101,10 @@ export class Game {
     for (let l = 2; l <= start; l++) {
       this.level = l
       if (R.neuesGebiet(l)) this.expand()
+      if (R.neuerBaum(l)) this.offen.baum++
+      if (R.neuesHaus(l)) this.offen.haus++
     }
+    this.maxLevel = start
     this.apples = start - 1
     this.tick = R.takt(this.tempo, this.level)
     for (const k of ['falle', 'wolke', 'ameise'] as const) this.next[k] = Math.max(this.next[k], this.level + 1)
@@ -205,6 +220,35 @@ export class Game {
     this.wachsen()
     this.wolkenNachruecken()
     if (eats) this.eat(n)
+    else this.treffer(n)
+  }
+
+  /** Kopf in Giftwolke oder Fensterlicht: Level zurueck (nicht toedlich) */
+  private treffer(n: P) {
+    if (this.time < this.schutzBis) return
+    if (this.wolken.some((w) => w.cells.some((p) => same(p, n)))) this.setback(R.WOLKE_ZURUECK, 'wolke')
+    else if (this.imLicht(n)) this.setback(R.LICHT_ZURUECK, 'licht')
+  }
+
+  imLicht(n: P) {
+    return this.haeuser.some((h) => h.strahl.some((p) => same(p, n)))
+  }
+
+  /** n Level zurueck: Schlange wird um das kuerzer, was sie in diesen Leveln gewachsen war */
+  setback(n: number, grund: 'wolke' | 'licht') {
+    const von = this.level
+    const auf = Math.max(1, von - n)
+    let kuerzer = 0
+    for (let l = auf + 1; l <= von; l++) if (R.waechst(l)) kuerzer++
+    const len = Math.max(3, this.body.length - kuerzer)
+    this.body = this.body.slice(0, len)
+    this.prev = this.prev.slice(0, len)
+    this.level = auf
+    this.apples = auf - 1
+    this.zurueck += von - auf
+    this.tick = R.takt(this.tempo, this.level)
+    this.schutzBis = this.time + R.SCHUTZ
+    this.emit({ type: 'setback', von, auf, grund })
   }
 
   /** Was liegt auf diesem Feld (fuer den Kopf)? */
@@ -213,7 +257,8 @@ export class Game {
     if (this.mauern.some((m) => m.cells.slice(0, m.grown).some((p) => same(p, n)))) return 'mauer'
     if (this.teiche.some((t) => t.drying === undefined && t.cells.some((p) => same(p, n)))) return 'teich'
     if (this.fallen.some((f) => same(f.p, n))) return 'falle'
-    if (this.wolken.some((w) => w.cells.some((p) => same(p, n)))) return 'wolke'
+    if (this.baeume.some((b) => b.cells.some((p) => same(p, n)))) return 'baum'
+    if (this.haeuser.some((h) => h.cells.some((p) => same(p, n)))) return 'haus'
     if (this.ameisen.some((a) => a.gone === undefined && same(a.p, n))) return 'ameise'
     if (rest.some((p) => same(p, n))) return 'selbst'
     return null
@@ -230,22 +275,32 @@ export class Game {
   private eat(n: P) {
     this.ate = true
     this.apples++
+    this.gegessen++
     this.level++
+    // Nur beim ersten Erreichen eines Levels: neues Gebiet, Teich, Baum, Haus, Hinweise
+    const neu = this.level > this.maxLevel
+    if (neu) this.maxLevel = this.level
     this.emit({ type: 'eat', level: this.level, p: { ...n } })
-    if (this.level % 10 === 0) this.emit({ type: 'milestone', level: this.level })
-    for (const u of R.UNLOCKS) if (u.level === this.level) this.emit({ type: 'unlock', what: u.what, level: this.level })
-    if (R.neuesGebiet(this.level)) this.expand()
-    this.layout()
+    if (neu && this.level % 10 === 0) this.emit({ type: 'milestone', level: this.level })
+    if (neu) for (const u of R.UNLOCKS) if (u.level === this.level) this.emit({ type: 'unlock', what: u.what, level: this.level })
+    if (neu && R.neuesGebiet(this.level)) this.expand()
+    if (neu && R.neuerBaum(this.level)) this.offen.baum++
+    if (neu && R.neuesHaus(this.level)) this.offen.haus++
+    this.layout(neu)
     this.tick = R.takt(this.tempo, this.level)
   }
 
-  /** Nach jedem Apfel: Mauern neu, ggf. Teich, Apfel, Giftaepfel, Ereignisse */
-  private layout() {
+  /** Nach jedem Apfel: Mauern neu, ggf. Teich, Baum, Haus, Licht, Apfel, Giftaepfel, Ereignisse */
+  private layout(neu = true) {
     if (this.mauern.length) {
       this.weg.push(...this.mauern.map((m) => ({ cells: m.cells.slice(0, m.grown), t: this.time })))
       this.mauern = []
     }
-    if (R.neuerTeich(this.level)) this.neuerTeich(R.teichGroesse(this.level))
+    if (neu && R.neuerTeich(this.level)) this.neuerTeich(R.teichGroesse(this.level))
+    const felder = this.w * this.h
+    while (this.offen.baum > 0 && this.baeume.length < R.baumMax(felder) && this.neuerBaum()) this.offen.baum--
+    while (this.offen.haus > 0 && this.haeuser.length < R.hausMax(felder) && this.neuesHaus()) this.offen.haus--
+    this.lichtWechsel()
     const plan = R.mauern(this.level, this.w * this.h)
     for (const len of plan) this.neueMauer(len)
     if (plan.length) this.emit({ type: 'wall' })
@@ -309,6 +364,15 @@ export class Game {
       mv(a.p)
       mv(a.from)
     })
+    this.baeume.forEach((b) => {
+      b.cells.forEach(mv)
+      mv(b.root)
+    })
+    this.haeuser.forEach((h) => {
+      h.cells.forEach(mv)
+      h.fenster.forEach((f) => mv(f.p))
+      h.strahl.forEach(mv)
+    })
   }
 
   /* ================= Platz finden ================= */
@@ -330,6 +394,8 @@ export class Game {
     })
     this.ameisen.forEach((a) => a.gone === undefined && add(a.p))
     this.gift.forEach((g) => add(g.p))
+    this.baeume.forEach((b) => b.cells.forEach(add))
+    this.haeuser.forEach((h) => h.cells.forEach(add))
     return s
   }
 
@@ -425,7 +491,12 @@ export class Game {
     const head = this.body[0]
     // Ein Feld Luft zu anderen Mauern und Teichen
     const luft = new Set<number>()
-    for (const p of [...this.teiche.flatMap((t) => t.cells), ...this.mauern.flatMap((m) => m.cells)])
+    for (const p of [
+      ...this.teiche.flatMap((t) => t.cells),
+      ...this.mauern.flatMap((m) => m.cells),
+      ...this.baeume.flatMap((b) => b.cells),
+      ...this.haeuser.flatMap((h) => h.cells),
+    ])
       for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) luft.add(key(p.x + dx, p.y + dy))
     const wand = this.hindernisse()
     const seen = new Set<number>()
@@ -507,6 +578,8 @@ export class Game {
     // Kuenftige Wolkenstufe meiden (sonst wird der Apfel gleich verschluckt)
     for (const w of this.wolken)
       for (const o of R.wolkenForm(w.stage + 1)) wand.add(key(w.c.x + o.x, w.c.y + o.y))
+    // Nicht ins Fensterlicht
+    for (const h of this.haeuser) for (const p of h.strahl) wand.add(key(p.x, p.y))
     const reach = this.erreichbar(wand)
     const out: P[] = []
     for (let y = 0; y < this.h; y++)
@@ -565,6 +638,94 @@ export class Game {
       if (!wahl) break
       this.gift.push({ p: wahl, t: this.time, ecke: this.r.next() * Math.PI * 2 })
     }
+  }
+
+  /* ================= Baeume und Haeuser ================= */
+
+  /** Liegende Tanne (1-1-2-1) irgendwo mit Abstand, bleibt fuer immer */
+  private neuerBaum() {
+    const r = this.r
+    for (let versuch = 0; versuch < 500; versuch++) {
+      const dir = r.pick(DIRS)
+      const d = STEP[dir]
+      const seite = r.next() < 0.5 ? 1 : -1
+      const q = { x: -d.y * seite, y: d.x * seite }
+      const root = { x: r.int(0, this.w - 1), y: r.int(0, this.h - 1) }
+      const cells = R.BAUM_FORM.map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
+      if (!this.platzOk(cells, 'mauer')) continue
+      this.baeume.push({ cells, root, dir, seite: seite as 1 | -1, t: this.time })
+      this.emit({ type: 'tree' })
+      return true
+    }
+    return false
+  }
+
+  /** Haus (2x3 oder mit Ecke), gedreht/gespiegelt, mit vier Fenstern (eins je Seite) */
+  private neuesHaus() {
+    const r = this.r
+    for (let versuch = 0; versuch < 500; versuch++) {
+      let form = r.pick(R.HAUS_FORMEN).map((p) => ({ ...p }))
+      if (r.next() < 0.5) form = form.map((p) => ({ x: -p.x, y: p.y }))
+      for (let k = r.int(0, 3); k > 0; k--) form = form.map((p) => ({ x: -p.y, y: p.x }))
+      const mx = Math.min(...form.map((p) => p.x))
+      const my = Math.min(...form.map((p) => p.y))
+      form = form.map((p) => ({ x: p.x - mx, y: p.y - my }))
+      const bw = Math.max(...form.map((p) => p.x)) + 1
+      const bh = Math.max(...form.map((p) => p.y)) + 1
+      // Ein Feld Abstand zum Kartenrand, damit jedes Fenster nach draussen leuchten kann
+      if (this.w - bw - 2 < 1 || this.h - bh - 2 < 1) return false
+      const ox = r.int(1, this.w - bw - 1)
+      const oy = r.int(1, this.h - bh - 1)
+      const cells = form.map((p) => ({ x: p.x + ox, y: p.y + oy }))
+      if (!this.platzOk(cells, 'mauer')) continue
+      const drin = new Set(cells.map((c) => key(c.x, c.y)))
+      const fenster: Fenster[] = DIRS.map((d) => {
+        const rand = cells.filter((c) => !drin.has(key(c.x + STEP[d].x, c.y + STEP[d].y)))
+        return { p: { ...r.pick(rand) }, d }
+      })
+      this.haeuser.push({ cells, t: this.time, fenster, licht: r.int(0, 3), lichtT: this.time, strahl: [], kamin: r.int(0, cells.length - 1) })
+      this.strahlen(this.haeuser[this.haeuser.length - 1])
+      this.emit({ type: 'house' })
+      return true
+    }
+    return false
+  }
+
+  /** Lichtfelder vor dem leuchtenden Fenster (bis zu 2, endet an Rand, Haus oder Baum) */
+  private strahlen(h: Haus) {
+    const f = h.fenster[h.licht]
+    const fest = new Set<number>()
+    for (const o of this.haeuser) o.cells.forEach((c) => fest.add(key(c.x, c.y)))
+    for (const b of this.baeume) b.cells.forEach((c) => fest.add(key(c.x, c.y)))
+    h.strahl = []
+    for (let k = 1; k <= R.LICHT_WEITE; k++) {
+      const c = { x: f.p.x + STEP[f.d].x * k, y: f.p.y + STEP[f.d].y * k }
+      if (!this.inside(c) || fest.has(key(c.x, c.y))) break
+      h.strahl.push(c)
+    }
+  }
+
+  /** Nach jedem Apfel leuchtet in jedem Haus ein anderes Fenster. Moeglichst
+   *  keins, dessen Licht direkt vor dem Kopf liegt */
+  private lichtWechsel() {
+    if (!this.haeuser.length) return
+    const head = this.body[0]
+    for (const h of this.haeuser) {
+      const andere = this.r.shuffle([0, 1, 2, 3].filter((i) => i !== h.licht))
+      let wahl = andere[0]
+      for (const i of andere) {
+        h.licht = i
+        this.strahlen(h)
+        if (h.strahl.every((p) => manhattan(p, head) > 2)) {
+          wahl = i
+          break
+        }
+      }
+      h.licht = wahl
+      h.lichtT = this.time
+      this.strahlen(h)
+    }
+    this.emit({ type: 'light' })
   }
 
   /* ================= Ereignisse ================= */
@@ -736,6 +897,8 @@ export class Game {
         this.teiche.some((t) => t.cells.some((p) => same(p, c))) ||
         this.fallen.some((f) => same(f.p, c)) ||
         this.gift.some((g) => same(g.p, c)) ||
+        this.baeume.some((b) => b.cells.some((p) => same(p, c))) ||
+        this.haeuser.some((h) => h.cells.some((p) => same(p, c))) ||
         this.ameisen.some((o) => o !== a && o.gone === undefined && same(o.p, c))
       let dir = a.dir
       if (blockiert(n)) {

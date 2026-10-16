@@ -402,3 +402,219 @@ export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.fill()
   ctx.restore()
 }
+
+/** Liegende Tanne (1-1-2-1): Stamm mit Schnittflaeche, Krone als Dreieck in drei
+ *  Lagen. Gezeichnet entlang `dir`, die breite Kronenreihe auf `seite`. */
+export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, seite: number, cell: number, s: number) {
+  if (s <= 0) return
+  const u = cell
+  ctx.save()
+  ctx.translate((root.x + 0.5) * u, (root.y + 0.5) * u)
+  ctx.rotate(ROT[dir])
+  ctx.scale(1, seite)
+  // waechst aus dem Stamm heraus
+  ctx.scale(Math.min(1, s), Math.min(1, s))
+  // Schatten nach unten (unabhaengig von der Drehung)
+  const m = ctx.getTransform()
+  const k = Math.hypot(m.a, m.b)
+  ctx.shadowColor = 'rgba(12, 40, 32, 0.3)'
+  ctx.shadowOffsetY = u * 0.12 * k
+  // Stamm
+  const st = ctx.createLinearGradient(0, -0.22 * u, 0, 0.22 * u)
+  st.addColorStop(0, '#94653D')
+  st.addColorStop(1, '#5C3B22')
+  ctx.fillStyle = st
+  rund(ctx, -0.45 * u, -0.21 * u, 2.2 * u, 0.42 * u, 0.12 * u)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(40, 24, 12, 0.45)'
+  ctx.lineWidth = Math.max(1, u * 0.035)
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  for (const [x0, y0, l] of [[-0.1, -0.08, 0.5], [0.55, 0.06, 0.6], [1.0, -0.1, 0.35]]) {
+    ctx.moveTo(x0 * u, y0 * u)
+    ctx.lineTo((x0 + l) * u, y0 * u)
+  }
+  ctx.stroke()
+  ctx.shadowColor = 'transparent'
+  // Schnittflaeche mit Jahresringen
+  ctx.fillStyle = '#D8AE74'
+  ctx.beginPath()
+  ctx.ellipse(-0.45 * u, 0, 0.12 * u, 0.21 * u, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(120, 78, 40, 0.6)'
+  ctx.beginPath()
+  ctx.ellipse(-0.45 * u, 0, 0.06 * u, 0.11 * u, 0, 0, Math.PI * 2)
+  ctx.stroke()
+  // Krone: Reihe 2 doppelt breit, Reihe 3 die Spitze. Die Unterkante knickt
+  // zur Spitze ein, damit nichts ueber das freie Nachbarfeld ragt
+  const lagen: [number, string][] = [
+    [0, '#1F6B3A'],
+    [0.5, '#2A8148'],
+    [1.0, '#3A9A57'],
+  ]
+  ctx.shadowColor = 'rgba(12, 40, 32, 0.3)'
+  for (const [off, col] of lagen) {
+    if (off > 0) ctx.shadowColor = 'transparent'
+    const bx = (1.5 + off * 0.5) * u
+    const top = -0.47 * u + off * 0.16 * u
+    const bot = 1.47 * u - off * 0.42 * u
+    ctx.fillStyle = col
+    ctx.beginPath()
+    ctx.moveTo(bx, top)
+    ctx.lineTo(3.48 * u, 0)
+    ctx.lineTo((2.5 + off * 0.25) * u, (0.42 - off * 0.12) * u)
+    ctx.lineTo(bx, bot)
+    // Zacken an der Basis (Aeste)
+    ctx.lineTo(bx - 0.12 * u, (top + bot) / 2 + 0.3 * u)
+    ctx.lineTo(bx, (top + bot) / 2)
+    ctx.lineTo(bx - 0.12 * u, (top + bot) / 2 - 0.3 * u)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.shadowColor = 'transparent'
+  // Glanz an der oberen Kante
+  ctx.strokeStyle = 'rgba(200, 240, 190, 0.35)'
+  ctx.lineWidth = Math.max(1, u * 0.05)
+  ctx.beginPath()
+  ctx.moveTo(1.6 * u, -0.38 * u)
+  ctx.lineTo(3.3 * u, -0.02 * u)
+  ctx.stroke()
+  ctx.restore()
+}
+
+/** Haus von oben: Ziegeldach ueber alle Felder, Kamin mit Rauch, vier Fenster an
+ *  den Seiten. Das leuchtende Fenster ist gelb. s = Ploppen */
+export function drawHaus(
+  ctx: CanvasRenderingContext2D,
+  cells: P[],
+  fenster: { p: P; d: Dir }[],
+  licht: number,
+  kamin: number,
+  cell: number,
+  s: number,
+  now: number,
+) {
+  if (s <= 0) return
+  const u = cell
+  const set = new Set(cells.map((c) => c.x * 10000 + c.y))
+  const has = (x: number, y: number) => set.has(x * 10000 + y)
+  const xs = cells.map((c) => c.x)
+  const ys = cells.map((c) => c.y)
+  const cx = ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * u
+  const cy = ((Math.min(...ys) + Math.max(...ys) + 1) / 2) * u
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.scale(Math.min(1.05, s), Math.min(1.05, s))
+  ctx.translate(-cx, -cy)
+  // Schatten
+  ctx.fillStyle = 'rgba(12, 40, 32, 0.3)'
+  for (const c of cells) ctx.fillRect(c.x * u + 0.04 * u, c.y * u + 0.16 * u, u, u)
+  // Dach
+  const g = ctx.createLinearGradient(0, Math.min(...ys) * u, 0, (Math.max(...ys) + 1) * u)
+  g.addColorStop(0, '#C9654A')
+  g.addColorStop(1, '#A4462F')
+  ctx.fillStyle = g
+  for (const c of cells) ctx.fillRect(c.x * u - 0.3, c.y * u - 0.3, u + 0.6, u + 0.6)
+  // Ziegelreihen
+  ctx.strokeStyle = 'rgba(90, 30, 18, 0.28)'
+  ctx.lineWidth = Math.max(1, u * 0.04)
+  ctx.beginPath()
+  for (const c of cells)
+    for (const f of [0.33, 0.66]) {
+      ctx.moveTo(c.x * u + 0.06 * u, (c.y + f) * u)
+      ctx.lineTo((c.x + 1) * u - 0.06 * u, (c.y + f) * u)
+    }
+  ctx.stroke()
+  // Aussenkante: dunkler Rand, oben/links eine helle Lichtkante
+  ctx.lineCap = 'round'
+  for (const c of cells) {
+    const x = c.x * u
+    const y = c.y * u
+    const kanten: [boolean, number, number, number, number, string][] = [
+      [!has(c.x, c.y - 1), x, y, x + u, y, '#E9876A'],
+      [!has(c.x - 1, c.y), x, y, x, y + u, '#E9876A'],
+      [!has(c.x, c.y + 1), x, y + u, x + u, y + u, '#6E2A1C'],
+      [!has(c.x + 1, c.y), x + u, y, x + u, y + u, '#6E2A1C'],
+    ]
+    ctx.lineWidth = Math.max(1.5, u * 0.09)
+    for (const [an, x0, y0, x1, y1, col] of kanten) {
+      if (!an) continue
+      ctx.strokeStyle = col
+      ctx.beginPath()
+      ctx.moveTo(x0, y0)
+      ctx.lineTo(x1, y1)
+      ctx.stroke()
+    }
+  }
+  // Kamin mit Rauch
+  const k = cells[kamin] ?? cells[0]
+  const kx = (k.x + 0.32) * u
+  const ky = (k.y + 0.28) * u
+  ctx.fillStyle = '#4E3B30'
+  ctx.fillRect(kx - 0.14 * u, ky - 0.14 * u, 0.28 * u, 0.28 * u)
+  ctx.fillStyle = '#2A1F19'
+  ctx.fillRect(kx - 0.08 * u, ky - 0.08 * u, 0.16 * u, 0.16 * u)
+  for (let i = 0; i < 3; i++) {
+    const t = (now / 1600 + i / 3) % 1
+    ctx.fillStyle = `rgba(235, 230, 220, ${0.45 * (1 - t)})`
+    ctx.beginPath()
+    ctx.arc(kx + t * 0.35 * u, ky - t * 0.7 * u, (0.07 + t * 0.12) * u, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  // Fenster
+  fenster.forEach((f, i) => {
+    const d = STEP_LOCAL[f.d]
+    const fx = (f.p.x + 0.5 + d.x * 0.4) * u
+    const fy = (f.p.y + 0.5 + d.y * 0.4) * u
+    const w = (d.x ? 0.16 : 0.44) * u
+    const h = (d.x ? 0.44 : 0.16) * u
+    const an = i === licht
+    if (an) {
+      ctx.fillStyle = 'rgba(255, 209, 102, 0.45)'
+      ctx.beginPath()
+      ctx.arc(fx, fy, 0.38 * u, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = '#EFE3CF'
+    ctx.fillRect(fx - w / 2 - 0.04 * u, fy - h / 2 - 0.04 * u, w + 0.08 * u, h + 0.08 * u)
+    ctx.fillStyle = an ? '#FFD166' : '#33424D'
+    ctx.fillRect(fx - w / 2, fy - h / 2, w, h)
+  })
+  ctx.restore()
+}
+
+const STEP_LOCAL: Record<Dir, P> = { u: { x: 0, y: -1 }, d: { x: 0, y: 1 }, l: { x: -1, y: 0 }, r: { x: 1, y: 0 } }
+
+/** Lichtstrahl aus einem Fenster: wird nach aussen breiter und blasser, flackert leicht */
+export function drawLicht(ctx: CanvasRenderingContext2D, from: P, d: Dir, len: number, cell: number, a: number, now: number) {
+  if (len <= 0 || a <= 0) return
+  const u = cell
+  const s = STEP_LOCAL[d]
+  const x0 = (from.x + 0.5 + s.x * 0.5) * u
+  const y0 = (from.y + 0.5 + s.y * 0.5) * u
+  const x1 = x0 + s.x * len * u
+  const y1 = y0 + s.y * len * u
+  const px = -s.y
+  const py = s.x
+  const w0 = 0.24 * u
+  const w1 = 0.5 * u
+  const flacker = 0.88 + 0.12 * Math.sin(now / 90) * Math.sin(now / 37)
+  const g = ctx.createLinearGradient(x0, y0, x1, y1)
+  g.addColorStop(0, `rgba(255, 196, 64, ${0.9 * a * flacker})`)
+  g.addColorStop(1, `rgba(255, 196, 64, ${0.4 * a * flacker})`)
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.moveTo(x0 + px * w0, y0 + py * w0)
+  ctx.lineTo(x1 + px * w1, y1 + py * w1)
+  ctx.lineTo(x1 - px * w1, y1 - py * w1)
+  ctx.lineTo(x0 - px * w0, y0 - py * w0)
+  ctx.closePath()
+  ctx.fill()
+  // Lichtflecken auf dem Boden
+  ctx.fillStyle = `rgba(255, 210, 90, ${0.42 * a})`
+  for (let k = 1; k <= len; k++) {
+    ctx.beginPath()
+    ctx.ellipse(x0 + s.x * (k - 0.5) * u, y0 + s.y * (k - 0.5) * u, 0.42 * u, 0.42 * u, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}

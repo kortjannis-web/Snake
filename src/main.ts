@@ -152,19 +152,21 @@ function onDir(d: Dir) {
 function gameOver() {
   if (!game) return
   const g = game
-  const neu = g.level > stats.best && g.apples > startLevel - 1
-  stats.apples += g.apples - (startLevel - 1)
+  const neu = g.maxLevel > stats.best && g.gegessen > 0
+  stats.apples += g.gegessen
   stats.time += performance.now() - startedAt
   stats.longest = Math.max(stats.longest, g.maxLen)
   stats.maxGebiete = Math.max(stats.maxGebiete, g.expansions)
-  if (neu) stats.best = g.level
+  if (neu) stats.best = g.maxLevel
   saveStats()
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
     $('over-cause').textContent = g.cause ? CAUSE[g.cause] : ''
     $('over-level').textContent = String(g.level)
     $('over-record').hidden = !neu
-    $('over-apples').textContent = String(g.apples)
+    $('over-apples').textContent = String(g.gegessen)
+    $('over-max').hidden = g.maxLevel <= g.level
+    $('over-max').textContent = `Höchster Level: ${g.maxLevel}`
     $('over-len').textContent = String(g.body.length)
     const sec = Math.round((performance.now() - startedAt) / 1000)
     $('over-time').textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
@@ -239,6 +241,30 @@ function handle(e: GameEvent) {
     case 'pond':
       audio.pond()
       break
+    case 'setback': {
+      audio.setback()
+      haptic.heavy()
+      updateHud(false)
+      const el = $('hud-level')
+      if (!reduce) {
+        el.classList.remove('pop', 'down')
+        void el.offsetWidth
+        el.classList.add('down')
+      }
+      const n = e.von - e.auf
+      toast(e.grund === 'wolke' ? 'wolke' : 'haus', `−${n} Level`, e.grund === 'wolke' ? 'In die Giftwolke geraten. Zurück auf Level ' + e.auf + '.' : 'Im Fensterlicht erwischt. Zurück auf Level ' + e.auf + '.', undefined, true)
+      break
+    }
+    case 'tree':
+      audio.tree()
+      haptic.medium()
+      break
+    case 'house':
+      audio.house()
+      break
+    case 'light':
+      audio.light()
+      break
   }
 }
 
@@ -265,10 +291,10 @@ function updateHud(pop: boolean) {
 
 const toastQueue: (() => void)[] = []
 let toastBusy = false
-function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string, pfeil?: Side) {
-  toastQueue.push(() => {
+function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string, pfeil?: Side, minus = false) {
+  const show = () => {
     const el = document.createElement('div')
-    el.className = 'toast'
+    el.className = minus ? 'toast toast--minus' : 'toast'
     if (pfeil) el.dataset.side = pfeil
     el.innerHTML = `<canvas width="44" height="44"></canvas><div><b></b><span></span></div>`
     el.querySelector('b')!.textContent = title
@@ -281,7 +307,10 @@ function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string
       toastBusy = false
       nextToast()
     }, 3300)
-  })
+  }
+  // Rueckschlaege sofort zeigen (vor wartenden Hinweisen)
+  if (minus) toastQueue.unshift(show)
+  else toastQueue.push(show)
   nextToast()
 }
 function nextToast() {

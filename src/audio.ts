@@ -180,6 +180,29 @@ class Audio {
   record() {
     ;[523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.18, { delay: i * 0.1 }))
   }
+  /** Rueckschlag: absteigende Toene */
+  setback() {
+    ;[784, 659, 523, 392].forEach((f, i) => this.tone(f, 0.16, 'square', 0.08, { delay: i * 0.07, filter: 2200 }))
+    this.tone(220, 0.4, 'sine', 0.2, { to: 110, delay: 0.25 })
+  }
+  /** Baum faellt: dumpfer Schlag mit Rascheln */
+  tree() {
+    this.noise(0.35, 'bandpass', 2400, 0.16, { to: 900, attack: 0.05 })
+    this.tone(110, 0.3, 'sine', 0.35, { to: 55, delay: 0.18 })
+    this.noise(0.12, 'lowpass', 500, 0.3, { delay: 0.18 })
+  }
+  /** Haus steht: zwei Holzschlaege */
+  house() {
+    ;[0, 0.14].forEach((d) => {
+      this.tone(330, 0.08, 'triangle', 0.22, { to: 200, delay: d })
+      this.noise(0.05, 'bandpass', 1800, 0.12, { delay: d })
+    })
+  }
+  /** Licht wechselt: leises Klicken */
+  light() {
+    this.tone(1500, 0.03, 'square', 0.03, { filter: 3000 })
+    this.tone(2100, 0.05, 'sine', 0.04, { delay: 0.03 })
+  }
   start() {
     ;[392, 523, 659].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0.16, { delay: i * 0.06 }))
   }

@@ -100,6 +100,53 @@ export const wolkenForm = (stage: number): P[] => {
 export const ameiseTakt = (level: number) => (level >= 300 ? 2400 : 3000)
 export const AMEISE_SCHRITT = 420
 
+/* ---------------- Rueckschlaege ----------------
+ * Giftwolke beruehren: 10 Level zurueck. Licht aus einem Hausfenster: 5 Level
+ * zurueck. Danach ist die Schlange kurz geschuetzt (blinkt), damit sie
+ * herauskommt. Die Schlange wird dabei so viel kuerzer, wie sie in diesen
+ * Leveln gewachsen war. Karte, Baeume und Haeuser bleiben. */
+export const WOLKE_ZURUECK = 10
+export const LICHT_ZURUECK = 5
+export const SCHUTZ = 2200
+
+/* ---------------- Baeume (ab Level 100) ----------------
+ * Liegende Tanne, 1-1-2-1 Felder. Ab Level 100 alle 40 Level ein neuer
+ * (100, 140, 180 ...), bleibt fuer immer. Hoechstens einer je 150 Felder. */
+export const BAUM_AB = 100
+export const BAUM_ALLE = 40
+export const neuerBaum = (level: number) => level >= BAUM_AB && (level - BAUM_AB) % BAUM_ALLE === 0
+export const baumMax = (felder: number) => Math.max(1, Math.floor(felder / 150))
+/** Felder entlang der Achse (a) und quer dazu (q), Seite der breiten Reihe = +1 */
+export const BAUM_FORM: { a: number; q: number }[] = [
+  { a: 0, q: 0 },
+  { a: 1, q: 0 },
+  { a: 2, q: 0 },
+  { a: 2, q: 1 },
+  { a: 3, q: 0 },
+]
+
+/* ---------------- Haeuser (ab Level 210) ----------------
+ * 2x3 oder mit einer Ecke (Reihen 2, 2, 3, 3). Ab Level 210 alle 30 Level ein
+ * neues (210, 240, 270 ...), bleibt stehen. Hoechstens eins je 250 Felder.
+ * Vier Fenster, eins je Seite. Nach jedem Apfel leuchtet ein anderes, das
+ * Licht reicht 2 Felder nach aussen. */
+export const HAUS_AB = 210
+export const HAUS_ALLE = 30
+export const LICHT_WEITE = 2
+export const neuesHaus = (level: number) => level >= HAUS_AB && (level - HAUS_AB) % HAUS_ALLE === 0
+export const hausMax = (felder: number) => Math.max(1, Math.floor(felder / 250))
+export const HAUS_FORMEN: P[][] = [
+  // 2 breit, 3 hoch
+  [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
+  // mit Ecke: Reihen 2, 2, 3, 3
+  [
+    { x: 0, y: 0 }, { x: 1, y: 0 },
+    { x: 0, y: 1 }, { x: 1, y: 1 },
+    { x: 0, y: 2 }, { x: 1, y: 2 }, { x: 2, y: 2 },
+    { x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 },
+  ],
+]
+
 /** Gnadenschritt: so lange (in Takten) bleibt die Schlange vor einem Hindernis stehen */
 export const GNADE = 1.3
 
@@ -112,4 +159,6 @@ export const UNLOCKS = [
   { what: 'falle', level: FALLE_AB },
   { what: 'wolke', level: WOLKE_AB },
   { what: 'ameise', level: AMEISE_AB },
+  { what: 'baum', level: BAUM_AB },
+  { what: 'haus', level: HAUS_AB },
 ] as const
