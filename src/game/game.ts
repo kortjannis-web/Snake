@@ -38,6 +38,7 @@ const same = (a: P, b: P) => a.x === b.x && a.y === b.y
 const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 const cheb = (a: P, b: P) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
 const SIDE: Record<Dir, Side> = { u: 'top', d: 'bottom', l: 'left', r: 'right' }
+const istErz = (e: R.Erde | null): e is R.ErzArt => e === 'gold' || e === 'dia' || e === 'rubin' || e === 'opal'
 /** Schluessel fuer Weltkoordinaten (auch weit negativ) */
 const weltKey = (x: number, y: number) => (x + 100_000) * 200_003 + (y + 100_000)
 
@@ -85,6 +86,10 @@ export class Game {
   tunnel: P[] = []
   /** Offene Gebiets-Wahl: die Waende leuchten, beruehren baut dort einen Block an */
   wahl = 0
+  /** Bis dahin darf gewaehlt werden (danach kommt der Block zufaellig) */
+  wahlBis = 0
+  /** Aepfel seit dem letzten Power-up (Garantie) */
+  private ohnePower = 0
   /** Welt wird aufgebaut (Startlevel, Springen): keine Wahl, keine Funde */
   private aufbau = false
 
@@ -437,10 +442,10 @@ export class Game {
     if (fi >= 0) this.fundNehmen(this.funde.splice(fi, 1)[0].art, n)
   }
 
-  /** Erz eingesammelt: Gold = goldWert, Diamant = diaWert mal aktueller Apfel */
-  private fundNehmen(art: 'gold' | 'dia', p: P) {
+  /** Erz eingesammelt: Gold 3, Diamant 6, Rubin 10, Opal 20 mal aktueller Apfel */
+  private fundNehmen(art: R.ErzArt, p: P) {
     const c = this.cfg
-    const wert = Math.round((art === 'gold' ? c.goldWert : c.diaWert) * c.apfelWert * this.apfelStufe())
+    const wert = Math.round(R.erzWert(c, art) * c.apfelWert * this.apfelStufe())
     this.verdient += wert
     this.emit({ type: 'fund', art, p: { ...p }, wert })
     if (wert > 0) this.emit({ type: 'geld', wert, p: { ...p }, quelle: 'erz' })
@@ -450,10 +455,10 @@ export class Game {
   private fressen(n: P) {
     const c = this.cfg
     const stufe = this.apfelStufe()
-    const lohn = (was: 'frosch' | 'ameise' | 'gegner', anzahl: number) => {
+    const lohn = (was: 'frosch' | 'ameise' | 'gegner', anzahl: number, art?: 'rot' | 'lila') => {
       const wert = anzahl * c.apfelWert * stufe
       this.verdient += wert
-      this.emit({ type: 'gefressen', was, p: { ...n }, wert })
+      this.emit({ type: 'gefressen', was, p: { ...n }, wert, art })
       if (wert > 0) this.emit({ type: 'geld', wert, p: { ...n }, quelle: 'futter' })
     }
     const fi = this.froesche.findIndex((f) => f.gone === undefined && same(f.p, n))
@@ -473,7 +478,7 @@ export class Game {
       e.prev = e.body.map((p) => ({ ...p }))
       this.gegnerWeg.push({ g: e, t: this.time })
       this.besiegt++
-      lohn('gegner', e.body.length)
+      lohn('gegner', e.body.length, e.art)
     }
   }
 
@@ -502,6 +507,7 @@ export class Game {
     if (art === 'magnet') this.effekt.magnetBis = this.time + c.magnetDauer * 1000
     if (art === 'maulwurf') this.effekt.maulwurfBis = this.time + c.maulwurfDauer * 1000
     if (art === 'gold') this.effekt.goldBis = this.time + c.goldDauer * 1000
+    if (art === 'spitzhacke') this.erzSetzen()
     if (art === 'schere') {
       // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach
       const weg = Math.min(Math.max(0, Math.round(c.schereLaenge)), Math.max(0, this.body.length - 3))
@@ -524,6 +530,12 @@ export class Game {
       }
     }
     this.powers = this.powers.filter((p) => this.time < p.until)
+    // Gebiets-Wahl verpasst: der Block kommt an eine zufaellige Stelle
+    if (this.wahl > 0 && this.time >= this.wahlBis) {
+      this.wahl = 0
+      this.expand()
+      this.emit({ type: 'wahlVorbei' })
+    }
     const head = this.body[0]
     // Maulwurf vorbei, aber noch in der Erde: erstickt (Kreativ ohne Tod: Tunnel wird freigelegt)
     if (!this.inside(head) && !this.graebt()) {
@@ -668,6 +680,7 @@ export class Game {
       else {
         if (this.wahl > 0) this.expand()
         this.wahl = 1
+        this.wahlBis = this.time + c.wahlZeit * 1000
         this.emit({ type: 'wahl', offen: 1 })
       }
     }
@@ -705,7 +718,9 @@ export class Game {
     }
     this.bauten()
     const plan = R.mauern(this.cfg, this.level, this.felder())
-    for (const len of plan) this.neueMauer(len)
+    // Ein Platz-Kontext fuer alle Mauern dieser Runde (jede neue Mauer wird darin nachgetragen)
+    const ctx = plan.length ? this.platzKontext() : null
+    for (const len of plan) this.neueMauer(len, ctx!)
     if (plan.length) this.emit({ type: 'wall' })
     this.lichtWechsel()
     this.tuermeDrehen()
@@ -725,11 +740,37 @@ export class Game {
     const c = this.cfg
     const head = this.body[0]
     const nah = this.screenW + this.screenH
-    if (this.level >= c.powerAb && !this.powers.length && this.r.next() * 100 < c.powerChance) {
-      const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3))
-      const p = cand.length ? this.r.pick(cand) : null
-      if (p) this.powers.push({ p, t: this.time, until: this.time + c.powerDauer * 1000, art: this.powerWahl() })
+    if (this.level < c.powerAb || this.powers.length) return
+    // Garantie: spaetestens nach powerGarantie Aepfeln ohne Power-up kommt eins
+    this.ohnePower++
+    if (this.ohnePower < c.powerGarantie && this.r.next() * 100 >= c.powerChance) return
+    const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3))
+    const p = cand.length ? this.r.pick(cand) : null
+    if (!p) return
+    this.powers.push({ p, t: this.time, until: this.time + c.powerDauer * 1000, art: this.powerWahl() })
+    this.ohnePower = 0
+  }
+
+  /** Spitzhacke: ein zufaelliges Erz (Gold haeufig, Opal selten) irgendwo auf die Karte, in Reichweite */
+  private erzSetzen() {
+    const head = this.body[0]
+    const nah = this.screenW + this.screenH
+    let cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah)
+    if (!cand.length) cand = this.freieFelder(() => true)
+    if (!cand.length) return false
+    let z = this.r.next() * R.ERZ_ARTEN.reduce((s, a) => s + R.SPITZHACKE_GEWICHT[a], 0)
+    let art: R.ErzArt = 'gold'
+    for (const a of R.ERZ_ARTEN) {
+      z -= R.SPITZHACKE_GEWICHT[a]
+      if (z < 0) {
+        art = a
+        break
+      }
     }
+    const p = this.r.pick(cand)
+    this.funde.push({ p, art, t: this.time })
+    this.emit({ type: 'erzGesetzt', art, p: { ...p } })
+    return true
   }
 
   /** Welches Power-up? Nach Gewicht; Maulwurf erst ab maulwurfAb, Fuettern nur, wenn es etwas zu fressen gibt */
@@ -852,7 +893,7 @@ export class Game {
     const w = this.welt_(n)
     const erz = R.erdeBei(this.cfg, w.x, w.y)
     const k = weltKey(w.x, w.y)
-    if ((erz === 'gold' || erz === 'dia') && !this.abgebaut.has(k)) {
+    if (istErz(erz) && !this.abgebaut.has(k)) {
       this.abgebaut.add(k)
       this.fundNehmen(erz, n)
     }
@@ -926,7 +967,7 @@ export class Game {
       const w = this.welt_(c)
       const k = weltKey(w.x, w.y)
       const erz = R.erdeBei(this.cfg, w.x, w.y)
-      if ((erz !== 'gold' && erz !== 'dia') || this.abgebaut.has(k)) continue
+      if (!istErz(erz) || this.abgebaut.has(k)) continue
       this.abgebaut.add(k)
       if (this.aufSchlange(c)) {
         this.fundNehmen(erz, c)
@@ -1051,7 +1092,7 @@ export class Game {
 
   /** Breitensuche vom Kopf (der Koerper zaehlt als frei, er zieht ja weiter).
    *  Mit Typed Arrays, weil sie bei grossen Karten oft laeuft */
-  erreichbar(wand: Set<number>): { size: number; has: (k: number) => boolean } {
+  erreichbar(wand: Set<number>): { size: number; has: (k: number) => boolean; seen: Uint8Array; zu: Uint8Array } {
     const { w, h, mask } = this
     const zu = new Uint8Array(w * h)
     for (let i = 0; i < zu.length; i++) zu[i] = mask[i] ? 0 : 1
@@ -1086,6 +1127,8 @@ export class Game {
     }
     return {
       size,
+      seen,
+      zu,
       has: (k: number) => {
         const x = (k % 4096) - 1
         const y = Math.floor(k / 4096) - 1
@@ -1097,19 +1140,82 @@ export class Game {
   /** Neue Hindernis-Felder: schliessen nichts ab und bauen keine Sackgasse
    *  (freies Feld mit nur einem freien Nachbarn). Geprueft wird nur, was sich
    *  aendert, damit voruebergehende Gefahren (Wolken) nichts blockieren. */
-  private keinAbschluss(cells: P[], wand: Set<number>) {
-    const neu = new Set(wand)
-    for (const c of cells) neu.add(key(c.x, c.y))
+  private keinAbschluss(cells: P[], wand: Set<number>, vorher = this.erreichbar(wand)) {
+    const neu = new Set(cells.map((c) => key(c.x, c.y)))
+    const zu = (x: number, y: number) => !this.inside({ x, y }) || wand.has(key(x, y)) || neu.has(key(x, y))
+    const frei = (x: number, y: number) => DIRS.reduce((n, d) => n + (zu(x + STEP[d].x, y + STEP[d].y) ? 0 : 1), 0)
+    // Freie Nachbarn der neuen Felder: keine Sackgasse, und alle muessen untereinander verbunden bleiben
+    const nbs: number[] = []
     for (const c of cells)
       for (const d of DIRS) {
-        const nb = { x: c.x + STEP[d].x, y: c.y + STEP[d].y }
-        if (!this.inside(nb) || neu.has(key(nb.x, nb.y))) continue
-        if (this.freieNachbarn(nb, neu) <= 1) return false
+        const x = c.x + STEP[d].x
+        const y = c.y + STEP[d].y
+        if (zu(x, y)) continue
+        if (frei(x, y) <= 1) return false
+        const i = y * this.w + x
+        if (vorher.has(key(x, y)) && !nbs.includes(i)) nbs.push(i)
       }
-    const vorher = this.erreichbar(wand)
-    const nachher = this.erreichbar(neu)
-    const weg = cells.filter((c) => vorher.has(key(c.x, c.y))).length
-    return nachher.size === vorher.size - weg
+    if (nbs.length <= 1) return true
+    // Breitensuche vom ersten Nachbarn, bis alle anderen gefunden sind (meist nach wenigen Schritten)
+    const { w, h } = this
+    if (this.stempel.length !== w * h) this.stempel = new Int32Array(w * h)
+    const st = ++this.stempelNr
+    const ziel = new Set(nbs)
+    const q = [nbs[0]]
+    this.stempel[nbs[0]] = st
+    ziel.delete(nbs[0])
+    for (let qi = 0; qi < q.length && ziel.size; qi++) {
+      const i = q[qi]
+      const x = i % w
+      const y = (i - x) / w
+      for (const d of DIRS) {
+        const nx = x + STEP[d].x
+        const ny = y + STEP[d].y
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
+        const j = ny * w + nx
+        if (this.stempel[j] === st || zu(nx, ny)) continue
+        this.stempel[j] = st
+        ziel.delete(j)
+        q.push(j)
+      }
+    }
+    return ziel.size === 0
+  }
+  /** Besucht-Markierung fuer Breitensuchen (spart das Leeren je Suche) */
+  private stempel = new Int32Array(0)
+  private stempelNr = 0
+
+  /** Schlange als Menge, nur neu gebaut, wenn sie sich bewegt hat */
+  private schlangeMenge: { ref: P[]; n: number; hx: number; hy: number; tx: number; ty: number; set: Set<number> } | null = null
+  private koerperSet() {
+    const b = this.body
+    const m = this.schlangeMenge
+    const h = b[0]
+    const t = b[b.length - 1]
+    if (m && m.ref === b && m.n === b.length && m.hx === h.x && m.hy === h.y && m.tx === t.x && m.ty === t.y) return m.set
+    const set = new Set(b.map((p) => key(p.x, p.y)))
+    this.schlangeMenge = { ref: b, n: b.length, hx: h.x, hy: h.y, tx: t.x, ty: t.y, set }
+    return set
+  }
+
+  /** Was fuer neue Mauern, Teiche und Bauten gilt, einmal je Suche berechnet */
+  private platzKontext() {
+    const luft = new Set<number>()
+    for (const p of [
+      ...this.teiche.flatMap((t) => t.cells),
+      ...this.mauern.flatMap((m) => m.cells),
+      ...this.baeume.flatMap((b) => b.cells),
+      ...this.haeuser.flatMap((h) => h.cells),
+      ...this.tuerme.flatMap((t) => t.cells),
+      ...this.lava.flatMap((l) => l.cells),
+      ...this.eis.flatMap((e) => e.cells),
+    ])
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) luft.add(key(p.x + dx, p.y + dy))
+    const nah = new Set<number>()
+    for (const p of this.body) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) nah.add(key(p.x + dx, p.y + dy))
+    const besetzt = new Set<number>([key(this.apple.p.x, this.apple.p.y), ...this.powers.map((o) => key(o.p.x, o.p.y)), ...this.funde.map((f) => key(f.p.x, f.p.y)), ...this.eis.flatMap((e) => e.cells.map((c) => key(c.x, c.y)))])
+    const wand = this.hindernisse()
+    return { wand, luft, nah, besetzt, reach: this.erreichbar(wand) }
   }
 
   /** Liegt das Feld im Streifen (3 breit) vor dem Kopf in Blickrichtung? */
@@ -1124,39 +1230,25 @@ export class Game {
   }
 
   aufSchlange(c: P) {
-    return this.body.some((p) => same(p, c))
+    return this.koerperSet().has(key(c.x, c.y))
   }
 
   /** Gemeinsame Pruefung fuer Mauern, Teiche und Bauten */
-  private platzOk(cells: P[], art: 'mauer' | 'teich') {
+  private platzOk(cells: P[], art: 'mauer' | 'teich', ctx = this.platzKontext()) {
     const head = this.body[0]
-    // Ein Feld Luft zu anderen festen Hindernissen
-    const luft = new Set<number>()
-    for (const p of [
-      ...this.teiche.flatMap((t) => t.cells),
-      ...this.mauern.flatMap((m) => m.cells),
-      ...this.baeume.flatMap((b) => b.cells),
-      ...this.haeuser.flatMap((h) => h.cells),
-      ...this.tuerme.flatMap((t) => t.cells),
-      ...this.lava.flatMap((l) => l.cells),
-      ...this.eis.flatMap((e) => e.cells),
-    ])
-      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) luft.add(key(p.x + dx, p.y + dy))
-    const wand = this.hindernisse()
     const seen = new Set<number>()
     for (const c of cells) {
       const k = key(c.x, c.y)
-      if (!this.inside(c) || luft.has(k) || wand.has(k) || seen.has(k)) return false
+      // Ein Feld Luft zu anderen festen Hindernissen und zur Schlange
+      if (!this.inside(c) || ctx.luft.has(k) || ctx.wand.has(k) || seen.has(k) || ctx.besetzt.has(k) || ctx.nah.has(k)) return false
       seen.add(k)
-      if (same(c, this.apple.p) || this.powers.some((p) => same(p.p, c)) || this.funde.some((f) => same(f.p, c)) || this.aufEis(c)) return false
       if (art === 'teich' ? cheb(c, head) < 3 : manhattan(c, head) < 5) return false
-      if (this.body.some((p) => cheb(p, c) < 2)) return false
       if (this.imWeg(c)) return false
     }
-    return this.keinAbschluss(cells, wand)
+    return this.keinAbschluss(cells, ctx.wand, ctx.reach)
   }
 
-  private neueMauer(len: number) {
+  private neueMauer(len: number, ctx = this.platzKontext()) {
     const r = this.r
     for (let versuch = 0; versuch < 400; versuch++) {
       const spaet = versuch > 250
@@ -1172,8 +1264,13 @@ export class Game {
       }
       // Die ersten Versuche nur im Inneren (nicht am Rand)
       if (versuch < 220 && !cells.every((c) => this.innen(c))) continue
-      if (!this.platzOk(cells, 'mauer')) continue
+      if (!this.platzOk(cells, 'mauer', ctx)) continue
       this.mauern.push({ cells, grown: 0, t: [], next: this.time + 25 })
+      // Fuer die naechste Mauer: ist jetzt Hindernis mit einem Feld Luft
+      for (const c of cells) {
+        ctx.wand.add(key(c.x, c.y))
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) ctx.luft.add(key(c.x + dx, c.y + dy))
+      }
       return true
     }
     return false
@@ -1193,6 +1290,7 @@ export class Game {
 
   private neuerTeich(n: number) {
     const r = this.r
+    const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
       // Gelingt es lange nicht, etwas kleiner
       const size = Math.max(2, n - Math.floor(versuch / 120))
@@ -1204,7 +1302,7 @@ export class Game {
         const c = { x: von.x + d.x, y: von.y + d.y }
         if (!cells.some((o) => same(o, c))) cells.push(c)
       }
-      if (cells.length < size || !this.platzOk(cells, 'teich')) continue
+      if (cells.length < size || !this.platzOk(cells, 'teich', ctx)) continue
       this.teiche.push({ cells, t: this.time })
       this.emit({ type: 'pond' })
       // Zu viele Teiche: der aelteste trocknet aus
@@ -1223,15 +1321,22 @@ export class Game {
       for (const o of R.wolkenForm(w.stage + 1)) wand.add(key(w.c.x + o.x, w.c.y + o.y))
     for (const h of this.haeuser) for (const p of h.strahl) wand.add(key(p.x, p.y))
     for (const t of this.tuerme) for (const p of t.kegel) wand.add(key(p.x, p.y))
-    const reach = this.erreichbar(wand)
-    const item = new Set([...this.powers.map((p) => key(p.p.x, p.p.y)), ...this.funde.map((f) => key(f.p.x, f.p.y))])
+    const { seen, zu } = this.erreichbar(wand)
+    const { w, h } = this
+    const belegt = new Set([...this.powers.map((p) => key(p.p.x, p.p.y)), ...this.funde.map((f) => key(f.p.x, f.p.y)), key(this.apple.p.x, this.apple.p.y)])
+    const koerper = this.koerperSet()
     const out: P[] = []
-    for (let y = 0; y < this.h; y++)
-      for (let x = 0; x < this.w; x++) {
-        const c = { x, y }
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x
+        if (zu[i] || !seen[i]) continue
         const k = key(x, y)
-        if (!this.mask[y * this.w + x] || wand.has(k) || !reach.has(k) || item.has(k) || this.aufSchlange(c) || same(c, this.apple.p)) continue
-        if (this.freieNachbarn(c, wand) <= 1 || !extra(c)) continue
+        if (belegt.has(k) || koerper.has(k)) continue
+        // Keine Sackgasse: mindestens zwei freie Nachbarn
+        const frei = (x > 0 && !zu[i - 1] ? 1 : 0) + (x < w - 1 && !zu[i + 1] ? 1 : 0) + (y > 0 && !zu[i - w] ? 1 : 0) + (y < h - 1 && !zu[i + w] ? 1 : 0)
+        if (frei <= 1) continue
+        const c = { x, y }
+        if (!extra(c)) continue
         out.push(c)
       }
     return out
@@ -1261,31 +1366,36 @@ export class Game {
   private neueGifte() {
     this.gift = []
     const n = R.giftAnzahl(this.cfg, this.level)
-    for (let i = 0; i < n; i++) if (!this.neuesGift(i === 0)) break
+    if (!n) return
+    // Freie Felder nur einmal suchen; nach jedem Giftapfel fallen er und seine Nachbarn heraus
+    let basis = this.freieFelder(() => true)
+    for (let i = 0; i < n; i++) {
+      const g = this.neuesGift(i === 0, basis)
+      if (!g) break
+      basis = basis.filter((c) => manhattan(c, g) > 1)
+    }
   }
 
-  /** Ein Giftapfel mehr (gern nah am Apfel) */
-  private neuesGift(erster = false) {
+  /** Ein Giftapfel mehr (gern nah am Apfel). basis = schon gesuchte freie Felder */
+  private neuesGift(erster = false, basis?: P[]): P | null {
     const head = this.body[0]
     const nahApfel = erster && this.r.next() < 0.6
-    const ok = (c: P) =>
-      manhattan(c, head) >= 4 &&
-      !this.imWeg(c, 6) &&
-      cheb(c, this.apple.p) >= 2 &&
-      (!nahApfel || manhattan(c, this.apple.p) <= 5)
-    let cand = this.freieFelder(ok)
-    if (!cand.length && nahApfel) cand = this.freieFelder((c) => manhattan(c, head) >= 4 && !this.imWeg(c, 6) && cheb(c, this.apple.p) >= 2)
+    const grund = (c: P) => manhattan(c, head) >= 4 && !this.imWeg(c, 6) && cheb(c, this.apple.p) >= 2
+    const ok = (c: P) => grund(c) && (!nahApfel || manhattan(c, this.apple.p) <= 5)
+    let cand = basis ? basis.filter(ok) : this.freieFelder(ok)
+    if (!cand.length && nahApfel) cand = basis ? basis.filter(grund) : this.freieFelder(grund)
     // Ein Giftapfel ist ein Hindernis: darf nichts abschliessen
     let wahl: P | null = null
     const wand = this.hindernisse()
+    const vorher = this.erreichbar(wand)
     for (let v = 0; v < 30 && cand.length && !wahl; v++) {
       const c = this.r.pick(cand)
-      if (this.keinAbschluss([c], wand)) wahl = c
+      if (this.keinAbschluss([c], wand, vorher)) wahl = c
       else cand = cand.filter((o) => o !== c)
     }
-    if (!wahl) return false
+    if (!wahl) return null
     this.gift.push({ p: wahl, t: this.time, ecke: this.r.next() * Math.PI * 2 })
-    return true
+    return wahl
   }
 
   /* ================= Baeume, Haeuser, Tuerme ================= */
@@ -1293,6 +1403,7 @@ export class Game {
   /** Liegende Tanne (1-1-2-1) irgendwo mit Abstand, bleibt fuer immer */
   private neuerBaum() {
     const r = this.r
+    const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
       const dir = r.pick(DIRS)
       const d = STEP[dir]
@@ -1300,7 +1411,7 @@ export class Game {
       const q = { x: -d.y * seite, y: d.x * seite }
       const root = { x: r.int(0, this.w - 1), y: r.int(0, this.h - 1) }
       const cells = R.BAUM_FORM.map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
-      if (!this.platzOk(cells, 'mauer')) continue
+      if (!this.platzOk(cells, 'mauer', ctx)) continue
       this.baeume.push({ cells, root, dir, seite: seite as 1 | -1, t: this.time })
       this.emit({ type: 'tree' })
       return true
@@ -1312,6 +1423,7 @@ export class Game {
    *  danach 2x3 oder mit Ecke, gedreht/gespiegelt */
   private neuesHaus(klein = this.level < this.cfg.hausGrossAb) {
     const r = this.r
+    const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
       let form = (klein ? R.HUETTE_FORM : r.pick(R.HAUS_FORMEN)).map((p) => ({ ...p }))
       if (r.next() < 0.5) form = form.map((p) => ({ x: -p.x, y: p.y }))
@@ -1322,7 +1434,7 @@ export class Game {
       const ox = r.int(0, this.w - 1)
       const oy = r.int(0, this.h - 1)
       const cells = form.map((p) => ({ x: p.x + ox, y: p.y + oy }))
-      if (!this.platzOk(cells, 'mauer')) continue
+      if (!this.platzOk(cells, 'mauer', ctx)) continue
       const drin = new Set(cells.map((c) => key(c.x, c.y)))
       const fenster: Fenster[] = DIRS.map((d) => {
         const rand = cells.filter((c) => !drin.has(key(c.x + STEP[d].x, c.y + STEP[d].y)))
@@ -1389,10 +1501,11 @@ export class Game {
   /** Jaegerturm 2x2 mit Lichtkegel in eine zufaellige Richtung */
   private neuerTurm() {
     const r = this.r
+    const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
       const c = { x: r.int(0, this.w - 2), y: r.int(0, this.h - 2) }
       const cells = [c, { x: c.x + 1, y: c.y }, { x: c.x, y: c.y + 1 }, { x: c.x + 1, y: c.y + 1 }]
-      if (!this.platzOk(cells, 'mauer')) continue
+      if (!this.platzOk(cells, 'mauer', ctx)) continue
       const dir = r.pick(DIRS)
       const t: Turm = { c: { ...c }, cells, dir, t: this.time, kegel: [], kegelT: this.time, altDir: dir }
       this.tuerme.push(t)
@@ -1919,7 +2032,7 @@ export class Game {
     const dabei = e.body.some((g) => this.body.some((p) => cheb(p, g) <= 2))
     const wert = dabei ? e.body.length * this.cfg.apfelWert * this.apfelStufe() : 0
     if (dabei) this.besiegt++
-    this.emit({ type: 'gegnerWeg', p: kopf, laenge: e.body.length, wert })
+    this.emit({ type: 'gegnerWeg', p: kopf, laenge: e.body.length, wert, art: e.art })
     if (wert > 0) {
       this.verdient += wert
       this.emit({ type: 'geld', wert, p: kopf, quelle: 'gegner' })
@@ -1932,9 +2045,10 @@ export class Game {
   neuerLavaSee() {
     const c = this.cfg
     const r = this.r
+    const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 400; versuch++) {
       const p = { x: r.int(0, this.w - 1), y: r.int(0, this.h - 1) }
-      if (!this.platzOk([p], 'teich')) continue
+      if (!this.platzOk([p], 'teich', ctx)) continue
       const lo = Math.max(1, Math.min(c.lavaMin, c.lavaMax))
       this.lava.push({ cells: [p], t: [this.time], ziel: r.int(lo, Math.max(lo, c.lavaMin, c.lavaMax)) })
       this.emit({ type: 'lava', p: { ...p } })
@@ -1963,8 +2077,9 @@ export class Game {
           if (cheb(c, head) < 2 || this.imWeg(c, 3) || this.aufEis(c) || this.funde.some((f) => same(f.p, c))) continue
           cand.push(c)
         }
+      const vorher = this.erreichbar(wand)
       for (const c of this.r.shuffle(cand)) {
-        if (!this.keinAbschluss([c], wand)) continue
+        if (!this.keinAbschluss([c], wand, vorher)) continue
         l.cells.push(c)
         l.t.push(this.time)
         this.gift = this.gift.filter((g) => !same(g.p, c))
@@ -1983,6 +2098,9 @@ export class Game {
     const head = this.body[0]
     const wand = this.hindernisse()
     const reach = this.erreichbar(wand)
+    const nahe = new Set<number>()
+    const rr = c.ameiseRadius + 1
+    for (const b of this.body) for (let dx = -rr; dx <= rr; dx++) for (let dy = -rr; dy <= rr; dy++) nahe.add(key(b.x + dx, b.y + dy))
     const cand: P[] = []
     for (let y = 0; y < this.h; y++)
       for (let x = 0; x < this.w; x++) {
@@ -1990,7 +2108,7 @@ export class Game {
         const k = key(x, y)
         if (!this.mask[y * this.w + x] || wand.has(k) || !reach.has(k) || same(p, this.apple.p) || this.powers.some((o) => same(o.p, p))) continue
         if (manhattan(p, head) < 6 || this.imWeg(p, 8) || this.freieNachbarn(p, wand) < 3) continue
-        if (this.body.some((b) => cheb(b, p) <= c.ameiseRadius + 1)) continue
+        if (nahe.has(k)) continue
         cand.push(p)
       }
     if (!cand.length) return false
@@ -2128,7 +2246,7 @@ export class Game {
         case 'teich':
           return this.neuerTeich(r.int(2, 6))
         case 'gift':
-          return this.neuesGift()
+          return !!this.neuesGift()
         case 'baum':
           return this.neuerBaum()
         case 'haus':

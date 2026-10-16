@@ -77,7 +77,7 @@ export type Kreativ = {
 
 /** Power-ups: Schild (faengt einen Tod oder Rueckschlag ab), Zeitlupe, Geist (kurz durch Hindernisse),
  *  Schere (bis zum naechsten Apfel ein paar Glieder kuerzer) */
-export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere' | 'fuettern' | 'magnet' | 'maulwurf' | 'gold'
+export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere' | 'fuettern' | 'magnet' | 'maulwurf' | 'gold' | 'spitzhacke'
 export type Power = { p: P; t: number; until: number; art: PowerArt }
 
 /** Gegner-Schlange: rot, halb so schnell wie die Schlange, weicht ihr aus.
@@ -108,7 +108,7 @@ export type Funke = { x: number; y: number; vx: number; vy: number; born: number
 /** Eisfeld: bleibt liegen, darauf laesst sich nicht lenken */
 export type Eis = { cells: P[]; t: number }
 /** Freigelegtes Erz auf der Karte (Gold oder Diamant), einsammeln wie einen Apfel */
-export type Fund = { p: P; art: 'gold' | 'dia'; t: number }
+export type Fund = { p: P; art: 'gold' | 'dia' | 'rubin' | 'opal'; t: number }
 
 /** Lavasee: waechst alle paar Aepfel um ein Feld, bis er seine Groesse `ziel` erreicht hat.
  *  `t` je Feld = wann es dazukam */
@@ -153,8 +153,10 @@ export type GameEvent =
   | { type: 'light' }
   | { type: 'tower' }
   | { type: 'geld'; wert: number; p: P; quelle: 'apfel' | 'gegner' | 'erz' | 'futter' }
-  | { type: 'fund'; art: 'gold' | 'dia'; p: P; wert: number }
-  | { type: 'gefressen'; was: 'frosch' | 'ameise' | 'gegner'; p: P; wert: number }
+  | { type: 'fund'; art: 'gold' | 'dia' | 'rubin' | 'opal'; p: P; wert: number }
+  | { type: 'erzGesetzt'; art: 'gold' | 'dia' | 'rubin' | 'opal'; p: P }
+  | { type: 'wahlVorbei' }
+  | { type: 'gefressen'; was: 'frosch' | 'ameise' | 'gegner'; p: P; wert: number; art?: 'rot' | 'lila' }
   | { type: 'wahl'; offen: number }
   | { type: 'freigelegt'; dx: number; dy: number; anzahl: number }
   | { type: 'eis' }
@@ -164,7 +166,7 @@ export type GameEvent =
   | { type: 'ameiseWeg'; p: P }
   | { type: 'lava'; p: P }
   | { type: 'lavaWachsen'; p: P }
-  | { type: 'gegnerWeg'; p: P; laenge: number; wert: number }
+  | { type: 'gegnerWeg'; p: P; laenge: number; wert: number; art: 'rot' | 'lila' }
   | { type: 'power'; art: PowerArt; p: P }
   | { type: 'powerEnde'; art: PowerArt }
   | { type: 'schild' }

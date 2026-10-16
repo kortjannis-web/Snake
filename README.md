@@ -23,7 +23,7 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
 | 1 | Ein Bildschirm = zwei Kartenblöcke. Äpfel essen, die Schlange wächst (ab 50 jedes zweite, ab 300 jedes dritte Level). |
 | 8 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
 | 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
-| 20 | **Neues Gebiet** alle 20 Level bis Level 300: die Wände glühen, wo ein Block passt; dagegenfahren baut ihn genau dort an (sonst beim nächsten Mal zufällig). |
+| 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s (die letzten 5 blinken), wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. |
 | 50 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
 | 60 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 60 / 160 / 260). |
 | 100 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-2-1) alle 40 Level, bleiben. |
@@ -45,7 +45,8 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 **Äpfel als Währung und Skins:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
 Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel). Außerhalb der Karte ist Erde mit Steinen, Kohle,
-Skeletten, Lava, **Golderz (3 ×)** und **Diamant (10 ×)**. **Power-ups** ab Level 10: Schild, Zeitlupe (30 s, −30 %), Geist,
+Skeletten, Lava, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
+die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild, Zeitlupe (30 s, −30 %), Geist,
 Schere (5 Glieder weg, nur bis zum nächsten Apfel), Füttern (20 s Tiere und Gegner fressen), Magnet (15 s, holt alles im
 2-Felder-Umkreis sofort), goldener Apfel (10 s unbesiegbar, über sich selbst), ab Level 100 Maulwurf (20 s durch die Erde graben,
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:

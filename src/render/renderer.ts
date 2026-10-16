@@ -148,7 +148,7 @@ export class Renderer {
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
     } else if (e.type === 'fund') {
-      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: e.art === 'gold' ? '#FFD86B' : '#9DF6FF' })
+      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: { gold: '#FFD86B', dia: '#9DF6FF', rubin: '#FF7D8F', opal: '#E99CFF' }[e.art] })
     } else if (e.type === 'geld' && e.quelle === 'futter') {
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: '#FFB38A' })
     } else if (e.type === 'geld' && e.quelle === 'gegner') {
@@ -163,6 +163,7 @@ export class Renderer {
         magnet: 'Magnet',
         maulwurf: 'Maulwurf',
         gold: 'Unbesiegbar!',
+        spitzhacke: 'Erz!',
       }[e.art]
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
     } else if (e.type === 'setback') {
@@ -233,8 +234,8 @@ export class Renderer {
         drawErdFeld(ctx, x * cell, y * cell, cell, ring, z)
         const deko = erdeBei(g.cfg, wx, wy)
         if (!deko) continue
-        if (deko === 'gold' || deko === 'dia') {
-          if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9)
+        if (deko === 'gold' || deko === 'dia' || deko === 'rubin' || deko === 'opal') {
+          if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now)
         } else drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
 
@@ -276,8 +277,9 @@ export class Renderer {
         if (!drin(x + 1, y)) ctx.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
       }
 
-    // Neues Gebiet waehlen: die Waende, an die ein Block passt, gluehen
-    if (g.wahl > 0 && g.status === 'play') {
+    // Neues Gebiet waehlen: die Waende, an die ein Block passt, gluehen (die letzten 5 s blinken sie)
+    const blinkt = g.wahlBis - now < 5000 && !this.reduce && Math.sin(now / 70) < 0
+    if (g.wahl > 0 && g.status === 'play' && !blinkt) {
       const belegt = new Set(g.blocks.map((b) => b.x * 1000 + b.y))
       const puls = this.reduce ? 1 : 0.5 + 0.5 * Math.sin(now / 170)
       for (const b of g.blocks)
@@ -376,7 +378,7 @@ export class Renderer {
     for (const f of g.funde) {
       if (!sicht(f.p)) continue
       const hop = this.reduce ? 0 : Math.sin(now / 300 + f.p.x) * cell * 0.04
-      drawErz(ctx, px(f.p.x), px(f.p.y) - hop, cell, f.art, this.reduce ? 1 : backOut(clamp01((now - f.t) / 400)), this.reduce ? 0 : Math.max(0, Math.sin(now / 250 + f.p.y)))
+      drawErz(ctx, px(f.p.x), px(f.p.y) - hop, cell, f.art, this.reduce ? 1 : backOut(clamp01((now - f.t) / 400)), this.reduce ? 0 : Math.max(0, Math.sin(now / 250 + f.p.y)), now)
     }
     for (const gf of g.gift) {
       if (!sicht(gf.p)) continue

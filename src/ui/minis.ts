@@ -29,6 +29,8 @@ export type Mini =
   | 'magnet'
   | 'maulwurf'
   | 'gold'
+  | 'spitzhacke'
+  | 'erfolg'
   | 'schild'
   | 'zeitlupe'
   | 'geist'
@@ -82,6 +84,30 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     case 'ameise':
       drawAmeise(ctx, mid, mid + cell * 0.1, big * 0.9, -0.5, -1, 1, 1)
       break
+    case 'erfolg': {
+      // Medaille mit Stern
+      ctx.fillStyle = '#C0392B'
+      ctx.fillRect(mid - cell * 0.35, 0, cell * 0.25, mid)
+      ctx.fillStyle = '#2E86C1'
+      ctx.fillRect(mid + cell * 0.1, 0, cell * 0.25, mid)
+      const g = ctx.createRadialGradient(mid - cell * 0.2, mid + cell * 0.1, 0, mid, mid + cell * 0.3, cell * 0.9)
+      g.addColorStop(0, '#FFF1A8')
+      g.addColorStop(1, '#D89B1C')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(mid, mid + cell * 0.35, cell * 0.75, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#FFFFFF'
+      ctx.beginPath()
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI) / 5
+        const rr = i % 2 ? cell * 0.16 : cell * 0.38
+        ctx.lineTo(mid + Math.cos(a) * rr, mid + cell * 0.35 + Math.sin(a) * rr)
+      }
+      ctx.closePath()
+      ctx.fill()
+      break
+    }
     case 'eis':
       drawEis(ctx, [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 2, y: 1 }, { x: 1, y: 2 }], cell, 1, t + 1300)
       break
@@ -202,6 +228,7 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     case 'magnet':
     case 'maulwurf':
     case 'gold':
+    case 'spitzhacke':
     case 'geist':
     case 'schere':
       drawPower(ctx, mid, mid + cell * 0.1, big, kind, 1, 0)

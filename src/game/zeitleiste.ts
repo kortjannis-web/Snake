@@ -16,9 +16,9 @@ const bereich = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`)
 export const dauerhaft = (c: R.Config): string[] => [
   `Jedes Level ${String(c.tempoProLevel).replace('.', ',')} % schneller, bis höchstens ${c.tempoMin} % des Grundtakts.`,
   `Mauern stehen nach jedem Apfel woanders. Häuser wechseln nach jedem Apfel das Fenster, Türme drehen sich eine Vierteldrehung.`,
-  `Power-ups: nach jedem Apfel ${c.powerChance} % Chance (höchstens eins liegt), ${c.powerDauer} s lang. Gewichte: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2 (nur wenn Tiere da sind), Maulwurf 2 (ab Level ${c.maulwurfAb}), goldener Apfel 1.`,
-  `Neue Gebiete wählst du selbst: Alle ${c.gebietAlle} Level leuchten die Wände, wo ein Block passt. Berührst du eine, kommt dort der Block hin. Wer nicht wählt, bekommt ihn beim nächsten Mal zufällig.`,
-  `Unter der Erde: Golderz (${c.erzGold} je 1000 Felder, ×${c.goldWert} Apfel) und Diamant (${c.erzDia} je 1000, ×${c.diaWert} Apfel). Freilegen per Maulwurf oder neuem Gebiet.`,
+  `Power-ups: nach jedem Apfel ${c.powerChance} % Chance (höchstens eins liegt), spätestens nach ${c.powerGarantie} Äpfeln ohne eins, ${c.powerDauer} s lang. Gewichte: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2 (nur wenn Tiere da sind), Spitzhacke 2, Maulwurf 2 (ab Level ${c.maulwurfAb}), goldener Apfel 1.`,
+  `Neue Gebiete wählst du selbst: bis Level ${c.gebietBis} alle ${c.gebietAlle}, dann alle ${c.gebietAlle2}, ab ${c.gebietAb3} alle ${c.gebietAlle3} Level leuchten die Wände, wo ein Block passt. Du hast ${c.wahlZeit} s, eine zu berühren (die letzten 5 s blinken sie), sonst kommt der Block zufällig.`,
+  `Unter der Erde (je 1000 Felder): Golderz ${c.erzGold} (×${c.goldWert} Apfel), Diamant ${c.erzDia} (×${c.diaWert}), Rubin ${c.erzRubin} (×${c.rubinWert}), Opal ${c.erzOpal} (×${c.opalWert}). Freilegen per Maulwurf, neuem Gebiet oder Spitzhacke.`,
   `Zufällige Abstände: Fallen alle ${bereich(c.falleMin, c.falleMax)}, Wolken ${bereich(c.wolkeMin, c.wolkeMax)}, Frösche ${bereich(c.froschMin, c.froschMax)}, Gegner ${bereich(c.gegnerMin, c.gegnerMax)}, Ameisen ${bereich(c.ameiseMin, c.ameiseMax)} Level.`,
   `Lava breitet sich jeden ${c.lavaWachsen}. Apfel um ein Feld aus und hört bei ${bereich(Math.min(c.lavaMin, c.lavaMax), Math.max(c.lavaMin, c.lavaMax))} Feldern auf.`,
 ]
@@ -52,7 +52,8 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
       bloecke++
       add('karte', `Neues Gebiet wählen: Wände leuchten (jetzt ${bloecke} Blöcke).`)
     }
-    if (l === c.gebietBis && c.gebietAlle > 0) add('karte', 'Die Karte wächst nicht mehr.')
+    if (l === c.gebietBis) add('karte', `Neue Gebiete jetzt nur noch alle ${c.gebietAlle2} Level.`)
+    if (l === c.gebietAb3) add('karte', `Neue Gebiete jetzt nur noch alle ${c.gebietAlle3} Level.`)
     const felder = bloecke * feldProBlock
 
     // Schlange

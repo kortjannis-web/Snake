@@ -1479,6 +1479,92 @@ svg {
 .effekt--gold {
   color: #ffd45a;
 }
+.effekt--wahl {
+  color: #ffc46b;
+}
+.effekt--blink {
+  animation: blink-effekt 0.5s steps(2) infinite;
+}
+@keyframes blink-effekt {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Tagesrekord in der Leiste */
+#hud-heute {
+  font: 600 0.62rem/1 var(--sans);
+  color: var(--creme-leise);
+  white-space: nowrap;
+}
+#hud-heute:empty {
+  display: none;
+}
+.badge--heute {
+  background: rgba(255, 196, 107, 0.15);
+  color: #ffc46b;
+}
+
+/* Erfolge (Statistik) */
+.erfolge-titel {
+  margin: 18px 2px 8px;
+  font: 600 1.15rem/1.2 var(--serif);
+  color: var(--mint);
+}
+.erfolge {
+  display: grid;
+  gap: 8px;
+}
+.erfolg {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--mokka-karte);
+  opacity: 0.8;
+}
+.erfolg--fertig {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 212, 90, 0.5);
+}
+.erfolg__icon svg {
+  width: 26px;
+  height: 26px;
+  color: var(--creme-leise);
+}
+.erfolg--fertig .erfolg__icon svg {
+  color: #ffd45a;
+}
+.erfolg b {
+  display: block;
+  font: 600 0.95rem/1.2 var(--sans);
+}
+.erfolg small {
+  display: block;
+  margin: 2px 0 6px;
+  font: 500 0.78rem/1.3 var(--sans);
+  color: var(--creme-leise);
+}
+.erfolg i {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+.erfolg em {
+  display: block;
+  height: 100%;
+  background: #ffd45a;
+  transform-origin: left;
+}
+.erfolg__zahl {
+  font: 600 0.78rem/1 var(--sans);
+  color: var(--creme-leise);
+  font-variant-numeric: tabular-nums;
+}
 .effekt--geist {
   color: #dfe7ec;
 }

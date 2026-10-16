@@ -19,6 +19,10 @@ export const DEFAULTS = {
   // Karte
   gebietAlle: 20,
   gebietBis: 300,
+  gebietAlle2: 30,
+  gebietAb3: 500,
+  gebietAlle3: 50,
+  wahlZeit: 30,
   // Tempo und Wachsen
   tempoProLevel: 0.12,
   tempoMin: 68,
@@ -119,6 +123,7 @@ export const DEFAULTS = {
   effektDauer: 30,
   zeitlupeProzent: 30,
   geistDauer: 6,
+  powerGarantie: 8,
   schereLaenge: 5,
   fuetternDauer: 20,
   magnetDauer: 15,
@@ -130,8 +135,12 @@ export const DEFAULTS = {
   // Erze unter der Erde (je 1000 Erdfelder) und ihr Wert in Aepfeln (mal Apfelwert)
   erzGold: 12,
   erzDia: 3,
+  erzRubin: 1.5,
+  erzOpal: 0.5,
   goldWert: 3,
-  diaWert: 10,
+  diaWert: 6,
+  rubinWert: 10,
+  opalWert: 20,
   apfelWert: 1,
   apfelWertAlle: 50,
   // Ereignisse
@@ -148,8 +157,12 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
   {
     gruppe: 'Karte',
     felder: [
-      { key: 'gebietAlle', label: 'Neuer Kartenblock alle', min: 1, max: 500, einheit: 'Level' },
-      { key: 'gebietBis', label: 'Karte wächst bis Level', min: 0, max: 10000 },
+      { key: 'gebietAlle', label: 'Neues Gebiet alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'gebietBis', label: 'Ab Level seltener', min: 1, max: 10000 },
+      { key: 'gebietAlle2', label: 'Dann alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'gebietAb3', label: 'Ab Level noch seltener', min: 1, max: 10000 },
+      { key: 'gebietAlle3', label: 'Dann alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'wahlZeit', label: 'Zeit zum Wählen (Wand einreißen)', min: 5, max: 300, einheit: 's' },
     ],
   },
   {
@@ -297,6 +310,7 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'powerAb', label: 'Power-ups ab Level', min: 1, max: 10000 },
       { key: 'powerChance', label: 'Chance je Apfel auf ein Power-up', min: 0, max: 100, einheit: '%' },
       { key: 'powerDauer', label: 'Power-up liegt', min: 3, max: 120, einheit: 's' },
+      { key: 'powerGarantie', label: 'Spätestens ein Power-up nach', min: 1, max: 100, einheit: 'Äpfeln' },
       { key: 'effektDauer', label: 'Zeitlupe hält', min: 1, max: 120, einheit: 's' },
       { key: 'zeitlupeProzent', label: 'Zeitlupe langsamer um', min: 5, max: 80, einheit: '%' },
       { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
@@ -315,10 +329,14 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
   {
     gruppe: 'Erze unter der Erde',
     felder: [
-      { key: 'erzGold', label: 'Golderz je 1000 Erdfelder', min: 0, max: 200 },
-      { key: 'erzDia', label: 'Diamant je 1000 Erdfelder', min: 0, max: 200 },
+      { key: 'erzGold', label: 'Golderz je 1000 Erdfelder', min: 0, max: 200, step: 0.1 },
+      { key: 'erzDia', label: 'Diamant je 1000 Erdfelder', min: 0, max: 200, step: 0.1 },
+      { key: 'erzRubin', label: 'Rubin je 1000 Erdfelder', min: 0, max: 200, step: 0.1 },
+      { key: 'erzOpal', label: 'Opal je 1000 Erdfelder', min: 0, max: 200, step: 0.1 },
       { key: 'goldWert', label: 'Golderz ist wert', min: 0, max: 100, einheit: '× Apfel' },
       { key: 'diaWert', label: 'Diamant ist wert', min: 0, max: 500, einheit: '× Apfel' },
+      { key: 'rubinWert', label: 'Rubin ist wert', min: 0, max: 500, einheit: '× Apfel' },
+      { key: 'opalWert', label: 'Opal ist wert', min: 0, max: 1000, einheit: '× Apfel' },
     ],
   },
   {
@@ -347,8 +365,22 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
 export const takt = (c: Config, tempo: Tempo, level: number) =>
   TEMPO[tempo] * Math.max(c.tempoMin / 100, 1 - ((level - 1) * c.tempoProLevel) / 100)
 
-/** Neuer Kartenblock bei diesem Level? */
-export const neuesGebiet = (c: Config, level: number) => c.gebietAlle > 0 && level % c.gebietAlle === 0 && level < c.gebietBis
+/** Neues Gebiet: bis gebietBis alle gebietAlle Level, danach alle gebietAlle2, ab gebietAb3 alle gebietAlle3.
+ *  (Standard: alle 20 bis 300, dann alle 30 bis 500, dann alle 50) */
+export const neuesGebiet = (c: Config, level: number) => {
+  if (level <= 0) return false
+  if (level < c.gebietBis) return c.gebietAlle > 0 && level % c.gebietAlle === 0
+  if (level < c.gebietAb3) return (level - c.gebietBis) % Math.max(1, c.gebietAlle2) === 0
+  return (level - c.gebietAb3) % Math.max(1, c.gebietAlle3) === 0
+}
+/** Wie viele Level bis zum naechsten Gebiet, und wie lang der Abschnitt ist (fuer den Balken) */
+export const gebietFortschritt = (c: Config, level: number) => {
+  let n = level + 1
+  while (!neuesGebiet(c, n) && n < level + 1000) n++
+  let v = level
+  while (v > 0 && !neuesGebiet(c, v)) v--
+  return { rest: n - level, abschnitt: n - v }
+}
 
 /** Waechst die Schlange bei diesem Level? */
 export const waechst = (c: Config, level: number) =>
@@ -452,7 +484,7 @@ export const wolkenForm = (stage: number): P[] => {
  *  Mit jeder Stufe bekommt der Apfel eine andere Farbe (siehe APFEL_STUFEN in sprites.ts) */
 export const apfelFaktor = (c: Config, level: number) => 1 + Math.floor(level / Math.max(1, c.apfelWertAlle))
 
-export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere', 'fuettern', 'magnet', 'maulwurf', 'gold'] as const
+export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere', 'fuettern', 'magnet', 'maulwurf', 'gold', 'spitzhacke'] as const
 /** Wie oft welches Power-up kommt (Gewicht). Goldener Apfel selten */
 export const POWER_GEWICHT: Record<(typeof POWER_ARTEN)[number], number> = {
   schild: 3,
@@ -463,7 +495,13 @@ export const POWER_GEWICHT: Record<(typeof POWER_ARTEN)[number], number> = {
   magnet: 3,
   maulwurf: 2,
   gold: 1,
+  spitzhacke: 2,
 }
+/** Erze: welches die Spitzhacke setzt (Gewicht, je seltener desto wertvoller) */
+export type ErzArt = 'gold' | 'dia' | 'rubin' | 'opal'
+export const ERZ_ARTEN: ErzArt[] = ['gold', 'dia', 'rubin', 'opal']
+export const SPITZHACKE_GEWICHT: Record<ErzArt, number> = { gold: 60, dia: 25, rubin: 11, opal: 4 }
+export const erzWert = (c: Config, art: ErzArt) => (art === 'gold' ? c.goldWert : art === 'dia' ? c.diaWert : art === 'rubin' ? c.rubinWert : c.opalWert)
 /** Zeitlupe: Takt so viel laenger (30 % langsamer = Takt / 0,7) */
 export const zeitlupe = (c: Config) => 1 / Math.max(0.2, 1 - c.zeitlupeProzent / 100)
 
@@ -480,16 +518,14 @@ export function feldZufall(x: number, y: number, salz = 0) {
   h ^= h >>> 16
   return (h >>> 0) / 4294967296
 }
-export type Erde = 'gold' | 'dia' | 'kohle' | 'stein' | 'skelett' | 'lava'
+export type Erde = ErzArt | 'kohle' | 'stein' | 'skelett' | 'lava'
 /** Was steckt in diesem Erdfeld (Weltkoordinaten)? Gold und Diamant sind echte Funde, der Rest Deko */
 export function erdeBei(c: Config, x: number, y: number): Erde | null {
-  const z = feldZufall(x, y, 7) * 1000
-  if (z < c.erzDia) return 'dia'
-  if (z < c.erzDia + c.erzGold) return 'gold'
-  if (z < c.erzDia + c.erzGold + 9) return 'lava'
-  if (z < c.erzDia + c.erzGold + 9 + 6) return 'skelett'
-  if (z < c.erzDia + c.erzGold + 9 + 6 + 30) return 'kohle'
-  if (z < c.erzDia + c.erzGold + 9 + 6 + 30 + 60) return 'stein'
+  let z = feldZufall(x, y, 7) * 1000
+  for (const [art, anteil] of [['opal', c.erzOpal], ['rubin', c.erzRubin], ['dia', c.erzDia], ['gold', c.erzGold], ['lava', 9], ['skelett', 6], ['kohle', 30], ['stein', 60]] as const) {
+    if (z < anteil) return art
+    z -= anteil
+  }
   return null
 }
 

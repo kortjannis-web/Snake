@@ -14,14 +14,15 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
-import { apfelFaktor, SCHEMA, type ConfigKey } from './game/rules'
+import { apfelFaktor, gebietFortschritt, SCHEMA, type ConfigKey } from './game/rules'
+import { ERFOLGE, erfolgePruefen, stand, zaehle } from './erfolge'
 import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { config, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
+import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
@@ -152,6 +153,7 @@ function begin(d?: Dir) {
   startedAt = performance.now()
   if (!istKreativ) {
     stats.games++
+    erfolgeMelden()
     saveStats()
   }
   audio.start()
@@ -184,6 +186,9 @@ function gameOver() {
   const g = game
   // Kreativ-Runden zaehlen nicht
   const neu = !istKreativ && g.maxLevel > stats.best && g.gegessen > 0
+  // Tagesrekord (nur, wenn es nicht gleich der Rekord aller Zeiten ist)
+  const neuHeute = !istKreativ && !neu && g.maxLevel > heuteBest() && g.gegessen > 0
+  if (!istKreativ && g.gegessen > 0 && g.maxLevel > heuteBest()) stats.heute = { datum: heuteDatum(), best: g.maxLevel }
   if (!istKreativ) {
     stats.apples += g.gegessen
     stats.time += performance.now() - startedAt
@@ -191,6 +196,7 @@ function gameOver() {
     stats.maxGebiete = Math.max(stats.maxGebiete, g.expansions)
     stats.gegner += g.besiegt
     if (neu) stats.best = g.maxLevel
+    erfolgeMelden()
     saveStats()
   }
   overTimer = window.setTimeout(() => {
@@ -198,6 +204,7 @@ function gameOver() {
     $('over-cause').textContent = g.cause ? CAUSE[g.cause] : ''
     $('over-level').textContent = String(g.level)
     $('over-record').hidden = !neu
+    $('over-heute').hidden = !neuHeute
     $('over-apples').textContent = String(g.gegessen)
     $('over-max').hidden = g.maxLevel <= g.level
     $('over-max').textContent = `Höchster Level: ${g.maxLevel}`
@@ -216,8 +223,57 @@ function gameOver() {
 
 /* ================= Ereignisse -> Ton, Vibration, Anzeige ================= */
 
+/** Zaehler fuer Erfolge (nur echte Runden) */
+function zaehlen(e: GameEvent) {
+  if (istKreativ) return
+  switch (e.type) {
+    case 'gegnerWeg':
+      if (e.wert <= 0) return
+      zaehle('gegner')
+      if (e.art === 'lila') zaehle('lila')
+      break
+    case 'gefressen':
+      zaehle('gefressen')
+      if (e.was === 'ameise') zaehle('ameisen')
+      if (e.was === 'gegner') {
+        zaehle('gegner')
+        if (e.art === 'lila') zaehle('lila')
+      }
+      break
+    case 'ameiseWeg':
+      zaehle('ameisen')
+      break
+    case 'fund':
+      zaehle(e.art)
+      break
+    case 'wahl':
+      if (e.offen > 0) return
+      zaehle('gebiete')
+      break
+    case 'freigelegt':
+      zaehle('freigelegt', e.anzahl)
+      break
+    case 'power':
+      zaehle('powerups')
+      break
+    default:
+      return
+  }
+  erfolgeMelden()
+  saveStats()
+}
+
+/** Neu erreichte Erfolge anzeigen (Belohnungen gibt es noch keine) */
+function erfolgeMelden() {
+  for (const e of erfolgePruefen()) {
+    audio.record()
+    toast('erfolg', `Erfolg: ${e.titel}`, e.text)
+  }
+}
+
 function handle(e: GameEvent) {
   renderer.event(e, game!)
+  zaehlen(e)
   switch (e.type) {
     case 'eat':
       audio.eat(e.level)
@@ -310,10 +366,21 @@ function handle(e: GameEvent) {
     case 'lavaWachsen':
       if (nah(e.p, 0.5)) audio.lava()
       break
-    case 'fund':
-      audio.fund(e.art === 'dia')
+    case 'fund': {
+      audio.fund(e.art !== 'gold')
       haptic.success()
-      if (e.art === 'dia') toast('erz', 'Diamant!', `+${e.wert} Äpfel.`)
+      const name = { gold: '', dia: 'Diamant!', rubin: 'Rubin!', opal: 'Opal!' }[e.art]
+      if (name) toast('erz', name, `+${e.wert} Äpfel.`)
+      break
+    }
+    case 'erzGesetzt': {
+      const name = { gold: 'Golderz', dia: 'ein Diamant', rubin: 'ein Rubin', opal: 'ein Opal' }[e.art]
+      toast('erz', 'Spitzhacke', `Irgendwo liegt jetzt ${name}. Fahr drüber und grab es aus!`)
+      break
+    }
+    case 'wahlVorbei':
+      audio.powerEnde()
+      toast('gebiet', 'Zu spät', 'Der neue Block ist an eine zufällige Stelle gekommen.')
       break
     case 'gefressen':
       audio.happs()
@@ -407,12 +474,15 @@ function updateHud(pop: boolean) {
     el.classList.add('pop')
   }
   $('hud-best').textContent = stats.best ? String(stats.best) : '–'
+  // Tagesrekord: auch der laufende Versuch zaehlt schon mit
+  const heute = Math.max(heuteBest(), game && !istKreativ ? game.maxLevel : 0)
+  $('hud-heute').textContent = heute > 1 ? `heute ${heute}` : ''
   const c = game?.cfg ?? config
   const bar = $('hud-bar')
-  bar.hidden = lv >= c.gebietBis || c.gebietAlle <= 0
-  const k = (lv % c.gebietAlle) / c.gebietAlle
-  $('hud-bar-fill').style.transform = `scaleX(${k})`
-  bar.title = `Neues Gebiet in ${c.gebietAlle - (lv % c.gebietAlle)} Level`
+  const f = gebietFortschritt(c, lv)
+  bar.hidden = c.gebietAlle <= 0
+  $('hud-bar-fill').style.transform = `scaleX(${1 - f.rest / f.abschnitt})`
+  bar.title = `Neues Gebiet in ${f.rest} Level`
 }
 
 /** Apfel-Vorrat in der Leiste (und im Startmenue). Das Apfel-Symbol hat die Farbe der aktuellen Stufe */
@@ -445,6 +515,7 @@ const EFFEKT_ICON: Record<string, string> = {
   magnet: 'Magnet',
   maulwurf: 'Shovel',
   gold: 'Crown',
+  wahl: 'Flag',
 }
 const effektEls = new Map<string, HTMLElement>()
 function updateEffekte() {
@@ -456,6 +527,8 @@ function updateEffekte() {
     if (e.schild > 0) aktiv.push({ art: 'schild', rest: 1, text: e.schild > 1 ? `×${e.schild}` : '' })
     // Schere: bis zum naechsten Apfel kuerzer
     if (e.schere > 0) aktiv.push({ art: 'schere', rest: 1, text: `−${e.schere}` })
+    // Neues Gebiet waehlen: Countdown
+    if (g.wahl > 0) aktiv.push({ art: 'wahl', rest: Math.max(0, (g.wahlBis - g.time) / (g.cfg.wahlZeit * 1000)), text: `${Math.max(0, Math.ceil((g.wahlBis - g.time) / 1000))}` })
     const c = g.cfg
     for (const [art, bis, dauer] of [
       ['zeitlupe', e.zeitlupeBis, c.effektDauer],
@@ -484,6 +557,7 @@ function updateEffekte() {
     }
     const b = el.querySelector('b')!
     if (b.textContent !== a.text) b.textContent = a.text
+    el.classList.toggle('effekt--blink', a.art === 'wahl' && Number(a.text) <= 5)
     el.querySelector('i')!.style.transform = `scaleX(${a.rest})`
   }
 }
@@ -551,6 +625,8 @@ function kaufen(id: string) {
     wallet.skins.push(id)
     audio.kauf()
     haptic.success()
+    erfolgeMelden()
+    saveStats()
   } else audio.click()
   wallet.skin = id
   saveWallet()
@@ -601,7 +677,7 @@ function toastsClear() {
 /* ================= Startmenue ================= */
 
 function updateHome() {
-  $('home-best').textContent = stats.best ? `Bester Level: ${stats.best}` : 'Iss Äpfel, die Karte wächst mit.'
+  $('home-best').textContent = stats.best ? `Heute: ${heuteBest() || '–'} · Rekord: ${stats.best}` : 'Iss Äpfel, die Karte wächst mit.'
   updateGeld()
   const cv = $<HTMLCanvasElement>('home-apple')
   const ctx = cv.getContext('2d')!
@@ -645,6 +721,7 @@ function renderStats() {
   const min = Math.round(stats.time / 60000)
   const rows: [string, string][] = [
     ['Bester Level', stats.best ? String(stats.best) : '–'],
+    ['Heute', heuteBest() ? String(heuteBest()) : '–'],
     ['Spiele', String(stats.games)],
     ['Äpfel gesamt', String(stats.apples)],
     ['Längste Schlange', stats.longest ? String(stats.longest) : '–'],
@@ -653,6 +730,23 @@ function renderStats() {
     ['Spielzeit', min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`],
   ]
   $('stat-grid').innerHTML = rows.map(([k, v]) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`).join('')
+  // Erfolge mit Fortschritt
+  const box = $('erfolge')
+  box.innerHTML = ''
+  $('erfolge-titel').textContent = `Erfolge ${stats.erfolge.length} / ${ERFOLGE.length}`
+  for (const e of ERFOLGE) {
+    const fertig = stats.erfolge.includes(e.id)
+    const n = Math.min(e.ziel, stand(e.zaehler))
+    const el = document.createElement('div')
+    el.className = fertig ? 'erfolg erfolg--fertig' : 'erfolg'
+    el.innerHTML = `<span class="erfolg__icon"></span><div><b></b><small></small><i><em></em></i></div><span class="erfolg__zahl"></span>`
+    setIcon(el.querySelector('.erfolg__icon')!, fertig ? 'Medal' : 'Lock')
+    el.querySelector('b')!.textContent = e.titel
+    el.querySelector('small')!.textContent = e.text
+    ;(el.querySelector('em') as HTMLElement).style.transform = `scaleX(${n / e.ziel})`
+    el.querySelector('.erfolg__zahl')!.textContent = fertig ? '' : `${n}/${e.ziel}`
+    box.append(el)
+  }
 }
 
 function renderSettings() {
