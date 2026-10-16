@@ -39,6 +39,13 @@ import {
 } from './sprites'
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+const smooth = (t: number) => t * t * (3 - 2 * t)
+/** Kamera-Federn (1/ms): Rantasten langsam und weich, Blockwechsel zuegig, Graben dazwischen */
+const KAMERA_TAST = 0.0036
+const KAMERA_WECHSEL = 0.013
+const KAMERA_GRABEN = 0.008
+/** Ab so vielen Feldern vor dem Rand beginnt die Rantast-Kamera (ganz sanft) */
+const KAMERA_TAST_AB = 6
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement
@@ -50,6 +57,13 @@ export class Renderer {
   vh = 0
   cell = 20
   private cam = { x: 0, y: 0 }
+  /** Geschwindigkeit der Kamera (px/ms): sie faehrt wie an einer gedaempften Feder,
+   *  beschleunigt also sanft und bremst sanft ab, nie ruckartig */
+  private camV = { x: 0, y: 0 }
+  /** Weich nachgezogenes Ziel der Feder: so setzt auch die Beschleunigung sanft ein */
+  private camZiel = { x: 0, y: 0 }
+  /** Federhaerte (1/ms), gleitet weich zwischen langsamer Rantast- und schneller Wechsel-Kamera */
+  private camOmega = KAMERA_TAST
   private camInit = false
   /** Fester Ausschnitt (linke obere Ecke in Feldern, an Bloecken ausgerichtet) */
   private frame = { x: 0, y: 0 }
@@ -81,6 +95,7 @@ export class Renderer {
   /** Neues Spiel: Kamera springt sofort an die richtige Stelle */
   reset() {
     this.camInit = false
+    this.camV = { x: 0, y: 0 }
     this.funken = []
     this.texte = []
     this.shake = { until: 0, amp: 0 }
@@ -126,11 +141,15 @@ export class Renderer {
       // Alles ist um dx/dy gerutscht: Kamera mitnehmen, damit nichts springt
       this.cam.x += e.dx * cell
       this.cam.y += e.dy * cell
+      this.camZiel.x += e.dx * cell
+      this.camZiel.y += e.dy * cell
       this.frame.x += e.dx
       this.frame.y += e.dy
     } else if (e.type === 'freigelegt') {
       this.cam.x += e.dx * cell
       this.cam.y += e.dy * cell
+      this.camZiel.x += e.dx * cell
+      this.camZiel.y += e.dy * cell
       this.frame.x += e.dx
       this.frame.y += e.dy
       for (const f of [...this.funken, ...this.texte]) {
@@ -199,7 +218,7 @@ export class Renderer {
     const h0 = g.prev[0] ?? g.body[0]
     const head = { x: lerp(h0.x, g.body[0].x, a), y: lerp(h0.y, g.body[0].y, a) }
 
-    this.kamera(g, cell, dt, realNow)
+    this.kamera(g, cell, dt, realNow, head)
     let ox = Math.round(vw / 2 - this.cam.x)
     let oy = Math.round(vh / 2 - this.cam.y)
     if (now < this.shake.until) {
@@ -640,16 +659,14 @@ export class Renderer {
    *  weiter, tastet sich die Kamera langsam ein Stueck vor (Rantast-Kamera). Ist die Schlange
    *  unmittelbar davor, den Ausschnitt zu verlassen, faehrt die Kamera zuegig einen Block weiter
    *  (Wechsel-Kamera). Ist die Karte in einer Richtung kleiner als der Bildschirm: mittig. */
-  private kamera(g: Game, cell: number, dt: number, now: number) {
+  private kamera(g: Game, cell: number, dt: number, now: number, kopf: P) {
     const vwC = g.screenW
     const vhC = g.screenH
     const h = g.body[0]
     const d = STEP[g.queue[0] ?? g.dir]
     // In der Erde (Maulwurf): die Kamera folgt dem Kopf
     if (!g.inside(h) && this.camInit && !this.reduce) {
-      const k = 1 - Math.exp(-dt / 260)
-      this.cam.x += ((h.x + 0.5) * cell - this.cam.x) * k
-      this.cam.y += ((h.y + 0.5) * cell - this.cam.y) * k
+      this.feder((kopf.x + 0.5) * cell, (kopf.y + 0.5) * cell, KAMERA_GRABEN, dt)
       return
     }
     // Pro Achse: Startposition des Ausschnitts, Blockgroesse, Bloecke je Bildschirm, Kartengroesse
@@ -694,10 +711,12 @@ export class Renderer {
           ox = kannX ? d.x * blk * 0.5 : 0
           oy = kannY ? d.y * blk * 0.5 : 0
         }
-      } else if (rand <= 4) {
-        // Rantast-Kamera: je naeher am Rand, desto weiter schaut sie hinueber
+      } else {
+        // Rantast-Kamera: setzt schon 6 Felder vor dem Rand ganz leicht ein und wird weich staerker,
+        // je naeher der Kopf kommt (mit der fliessenden Kopfposition, nicht feldweise)
+        const randF = d.x > 0 ? this.frame.x + vwC - 1 - kopf.x : d.x < 0 ? kopf.x - this.frame.x : d.y > 0 ? this.frame.y + vhC - 1 - kopf.y : kopf.y - this.frame.y
         const max = Math.min(4, blk * 0.35)
-        const k = 1 - (rand - 1) / 4
+        const k = smooth(clamp01((KAMERA_TAST_AB - randF) / (KAMERA_TAST_AB - 1)))
         ox = kannX ? d.x * max * k : 0
         oy = kannY ? d.y * max * k : 0
       }
@@ -706,13 +725,31 @@ export class Renderer {
     const ty = (this.frame.y + vhC / 2 + oy) * cell
     if (!this.camInit || this.reduce) {
       this.cam = { x: tx, y: ty }
+      this.camZiel = { x: tx, y: ty }
+      this.camV = { x: 0, y: 0 }
       this.camInit = true
       return
     }
-    const tau = now < this.wechselBis ? 170 : 650
-    const k = 1 - Math.exp(-dt / tau)
-    this.cam.x += (tx - this.cam.x) * k
-    this.cam.y += (ty - this.cam.y) * k
+    this.feder(tx, ty, now < this.wechselBis ? KAMERA_WECHSEL : KAMERA_TAST, dt)
+  }
+
+  /** Kritisch gedaempfte Feder zu einem weich nachgezogenen Ziel: Geschwindigkeit und
+   *  Beschleunigung setzen sanft ein und klingen sanft aus, kein Ueberschwingen.
+   *  Auch die Federhaerte wechselt weich, damit es beim Umschalten nicht ruckt */
+  private feder(tx: number, ty: number, omega: number, dt: number) {
+    this.camOmega += (omega - this.camOmega) * (1 - Math.exp(-dt / 180))
+    const w = this.camOmega
+    // In kleinen Schritten rechnen, damit es auch bei langen Frames stabil bleibt
+    for (let rest = dt; rest > 0; rest -= 8) {
+      const h = Math.min(8, rest)
+      const kz = 1 - Math.exp(-h * w)
+      for (const a of ['x', 'y'] as const) {
+        this.camZiel[a] += ((a === 'x' ? tx : ty) - this.camZiel[a]) * kz
+        const acc = w * w * (this.camZiel[a] - this.cam[a]) - 2 * w * this.camV[a]
+        this.camV[a] += acc * h
+        this.cam[a] += this.camV[a] * h
+      }
+    }
   }
 
   /** Gegner-Schlange: rot, weich zwischen den Feldern, erscheint sanft. `weg` = besiegt seit */

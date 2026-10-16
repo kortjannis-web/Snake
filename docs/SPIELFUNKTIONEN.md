@@ -42,9 +42,10 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Erze** (je 1000 Erdfelder): **Golderz** 9 (= **3 ×** der aktuelle Apfelwert), **Diamant** 1,2 (**6 ×**), **Rubin** 0,5 (rot, **10 ×**), **Opal** 0,15 (leuchtet und schimmert zwischen Pink und Lila, **20 ×**).
 - **Erze freilegen:** Wird Erde zu Spielfeld (neuer Block, Maulwurf), liegen die Erze darin als Brocken auf der Karte. Drüberfahren gräbt sie aus. Jedes Erz gibt es nur einmal.
 - **Kamera (fest):** Die Kamera zeigt immer einen festen Ausschnitt von genau einem Bildschirm, an den Kartenblöcken ausgerichtet, auch wenn die Karte größer ist. Sie scrollt nicht mit.
-  - **Rantast-Kamera:** Läuft die Schlange auf den Rand des Ausschnitts zu und geht die Karte dort weiter, schiebt sich die Kamera ab 4 Feldern vor dem Rand langsam ein Stück hinüber (bis ca. ein Drittel Block, höchstens 4 Felder), je näher, desto weiter.
+  - **Rantast-Kamera:** Läuft die Schlange auf den Rand des Ausschnitts zu und geht die Karte dort weiter, setzt die Kamera schon ab 6 Feldern vor dem Rand ganz leicht ein und schiebt sich mit langsamem Einblenden ein Stück hinüber (bis ca. ein Drittel Block, höchstens 4 Felder), je näher, desto weiter. Gemessen an der fließenden Kopfposition, nicht Feld für Feld.
   - **Wechsel-Kamera:** Ist die Schlange unmittelbar davor (1 Feld), fährt die Kamera zügig zum neuen Block: Wo zwei Blöcke auf den Bildschirm passen (am Handy oben/unten), rückt sie einen Block weiter, die Schlange ist dann in der Mitte. Wo nur einer passt (am Handy links/rechts), fährt sie schon halb hinüber und beim Übertritt ganz.
   - Ist die Karte in einer Richtung kleiner als der Bildschirm (Sandbox), steht sie mittig. Mit „Bewegung reduzieren“ springt die Kamera ohne Fahrt.
+  - **Nie abrupt:** Die Kamera hängt an einer gedämpften Feder mit weich nachgezogenem Ziel. Geschwindigkeit und Beschleunigung setzen sanft ein und klingen sanft aus (Ease-in und Ease-out), auch beim Richtungswechsel und beim schnelleren Blockwechsel (ca. 0,6 s). Kein Überschwingen.
 - Der dünne Balken unter der Leiste zeigt, wie weit es noch bis zum nächsten Block ist.
 
 ## 5. Mauern (ab Level 8)
