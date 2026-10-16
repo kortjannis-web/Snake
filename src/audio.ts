@@ -215,6 +215,35 @@ class Audio {
     this.tone(1500, 0.03, 'square', 0.03, { filter: 3000 })
     this.tone(2100, 0.05, 'sine', 0.04, { delay: 0.03 })
   }
+  /** Muenze: zwei helle Toene */
+  coin() {
+    this.tone(1320, 0.07, 'square', 0.06, { filter: 5000 })
+    this.tone(1760, 0.16, 'square', 0.06, { delay: 0.06, filter: 5000 })
+  }
+  /** Power-up aufgehoben: aufsteigendes Funkeln */
+  power() {
+    ;[523, 784, 1047, 1568].forEach((f, i) => this.tone(f, 0.14, 'triangle', 0.13, { delay: i * 0.045 }))
+  }
+  /** Power-up laeuft aus */
+  powerEnde() {
+    this.tone(880, 0.25, 'triangle', 0.1, { to: 440 })
+  }
+  /** Schild bricht: Glas */
+  schild() {
+    this.noise(0.25, 'highpass', 4000, 0.25)
+    ;[2093, 2637, 3136].forEach((f, i) => this.tone(f, 0.12, 'sine', 0.07, { delay: i * 0.03 }))
+  }
+  /** Kauf im Shop */
+  kauf() {
+    this.tone(1046, 0.08, 'square', 0.07, { filter: 4000 })
+    this.tone(1318, 0.08, 'square', 0.07, { delay: 0.07, filter: 4000 })
+    this.tone(1568, 0.25, 'triangle', 0.12, { delay: 0.14 })
+  }
+  /** Zu wenig Muenzen */
+  nein() {
+    this.tone(220, 0.12, 'square', 0.06, { filter: 900 })
+    this.tone(180, 0.18, 'square', 0.06, { delay: 0.1, filter: 900 })
+  }
   start() {
     ;[392, 523, 659].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0.16, { delay: i * 0.06 }))
   }

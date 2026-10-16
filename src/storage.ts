@@ -61,3 +61,9 @@ const KKEY = 'snake.kreativ.v1'
 export type KreativEinst = Kreativ & { start: number }
 export const kreativ: KreativEinst = read(KKEY, { start: 100, tod: 'anhalten', rueckschlag: true, durchSelbst: false, wachsen: true, laenge: 3 } as KreativEinst)
 export const saveKreativ = () => write(KKEY, kreativ)
+
+/* ---------------- Muenzen und Skins ---------------- */
+const WKEY = 'snake.wallet.v1'
+export type Wallet = { muenzen: number; skins: string[]; skin: string }
+export const wallet: Wallet = read(WKEY, { muenzen: 0, skins: ['klassik'], skin: 'klassik' } as Wallet)
+export const saveWallet = () => write(WKEY, wallet)

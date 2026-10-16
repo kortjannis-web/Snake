@@ -20,13 +20,14 @@ import { haptic } from './haptics'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { drawApfel } from './render/sprites'
-import { config, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, settings, stats } from './storage'
+import { config, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
+import { drawSkinVorschau, SKINS, skinVon } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, SIDE, unlockText } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
-type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -38,6 +39,7 @@ const stage = $('stage')
 const canvas = $<HTMLCanvasElement>('board')
 const renderer = new Renderer(canvas)
 renderer.reduce = reduce
+renderer.skin = skinVon(wallet.skin)
 
 let mode: Mode = 'home'
 /** Offene Unterseiten (Optionen -> Master liegt ueber Optionen) */
@@ -103,6 +105,7 @@ function openPage(p: Page) {
   if (p === 'settings') renderSettings()
   if (p === 'kreativ') renderKreativ()
   if (p === 'master') renderMaster()
+  if (p === 'shop') renderShop()
   show(p, true)
 }
 function closePage() {
@@ -137,6 +140,7 @@ function newGame(alsKreativ = istKreativ) {
   // Steuerkreuz veraendert die Hoehe: danach neu messen
   requestAnimationFrame(resize)
   updateHud(false)
+  updateGeld()
   toastsClear()
 }
 
@@ -196,6 +200,9 @@ function gameOver() {
     $('over-len').textContent = String(g.body.length)
     const sec = Math.round((performance.now() - startedAt) / 1000)
     $('over-time').textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+    const geld = $('over-geld')
+    geld.hidden = istKreativ || g.verdient <= 0
+    geld.querySelector('b')!.textContent = `+${g.verdient} Münzen`
     show('over', true)
     drawMini($<HTMLCanvasElement>('over-icon'), MINI_FOR_CAUSE[g.cause ?? 'rand'])
     if (neu) audio.record()
@@ -274,6 +281,29 @@ function handle(e: GameEvent) {
     case 'pond':
       audio.pond()
       break
+    case 'coin':
+      // Im Kreativ-Modus gibt es kein Geld
+      if (!istKreativ) {
+        wallet.muenzen += e.wert
+        saveWallet()
+      }
+      if (!e.apfel) {
+        audio.coin()
+        haptic.light()
+      }
+      updateGeld(!e.apfel)
+      break
+    case 'power':
+      audio.power()
+      haptic.success()
+      break
+    case 'powerEnde':
+      audio.powerEnde()
+      break
+    case 'schild':
+      audio.schild()
+      haptic.medium()
+      break
     case 'setback': {
       audio.setback()
       haptic.heavy()
@@ -322,6 +352,116 @@ function updateHud(pop: boolean) {
   bar.title = `Neues Gebiet in ${c.gebietAlle - (lv % c.gebietAlle)} Level`
 }
 
+/** Muenzen in der Leiste (und im Startmenue) */
+function updateGeld(pop = false) {
+  const el = $('hud-geld')
+  el.textContent = istKreativ ? '–' : String(wallet.muenzen)
+  if (pop && !reduce) {
+    el.classList.remove('pop')
+    void el.offsetWidth
+    el.classList.add('pop')
+  }
+  $('home-geld').textContent = String(wallet.muenzen)
+  $('shop-geld').textContent = String(wallet.muenzen)
+}
+
+/* ================= Aktive Power-ups (Pillen oben links) ================= */
+
+const EFFEKT_ICON: Record<string, string> = { schild: 'Shield', zeitlupe: 'Hourglass', magnet: 'Magnet', geist: 'Ghost' }
+const effektEls = new Map<string, HTMLElement>()
+function updateEffekte() {
+  const g = game
+  const box = $('effekte')
+  const aktiv: { art: string; rest: number; text: string }[] = []
+  if (g && mode !== 'home') {
+    const e = g.effekt
+    if (e.schild > 0) aktiv.push({ art: 'schild', rest: 1, text: e.schild > 1 ? `×${e.schild}` : '' })
+    const c = g.cfg
+    for (const [art, bis, dauer] of [
+      ['zeitlupe', e.zeitlupeBis, c.effektDauer],
+      ['magnet', e.magnetBis, c.effektDauer],
+      ['geist', e.geistBis, c.geistDauer],
+    ] as const)
+      if (g.time < bis) aktiv.push({ art, rest: Math.min(1, (bis - g.time) / (dauer * 1000)), text: `${Math.ceil((bis - g.time) / 1000)}` })
+  }
+  for (const [art, el] of effektEls)
+    if (!aktiv.some((a) => a.art === art)) {
+      el.remove()
+      effektEls.delete(art)
+    }
+  for (const a of aktiv) {
+    let el = effektEls.get(a.art)
+    if (!el) {
+      el = document.createElement('div')
+      el.className = `effekt effekt--${a.art}`
+      el.innerHTML = '<span></span><b></b><i></i>'
+      setIcon(el.querySelector('span')!, EFFEKT_ICON[a.art])
+      box.append(el)
+      effektEls.set(a.art, el)
+    }
+    const b = el.querySelector('b')!
+    if (b.textContent !== a.text) b.textContent = a.text
+    el.querySelector('i')!.style.transform = `scaleX(${a.rest})`
+  }
+}
+
+/* ================= Shop ================= */
+
+const skinCanvas: { cv: HTMLCanvasElement; id: string }[] = []
+function renderShop() {
+  updateGeld()
+  const box = $('skins')
+  box.innerHTML = ''
+  skinCanvas.length = 0
+  for (const sk of SKINS) {
+    const hat = wallet.skins.includes(sk.id)
+    const an = wallet.skin === sk.id
+    const card = document.createElement('button')
+    card.className = 'skin'
+    card.dataset.id = sk.id
+    if (an) card.dataset.an = ''
+    if (!hat) card.dataset.zu = ''
+    card.innerHTML = `<canvas></canvas><span class="skin__name"></span><span class="skin__preis"></span>`
+    card.querySelector('.skin__name')!.textContent = sk.name
+    const preis = card.querySelector('.skin__preis') as HTMLElement
+    if (an) {
+      preis.innerHTML = '<span></span>Aktiv'
+      setIcon(preis.querySelector('span')!, 'Check')
+    } else if (hat) preis.textContent = 'Wählen'
+    else {
+      preis.innerHTML = `<i class="muenze"></i>${sk.preis}`
+      if (wallet.muenzen < sk.preis) preis.classList.add('zu-teuer')
+    }
+    card.addEventListener('click', () => kaufen(sk.id))
+    box.append(card)
+    skinCanvas.push({ cv: card.querySelector('canvas')!, id: sk.id })
+  }
+}
+
+function kaufen(id: string) {
+  audio.unlock()
+  const sk = skinVon(id)
+  if (!wallet.skins.includes(id)) {
+    if (wallet.muenzen < sk.preis) {
+      audio.nein()
+      haptic.medium()
+      const card = $('skins').querySelector<HTMLElement>(`[data-id="${id}"]`)
+      card?.classList.remove('wackeln')
+      void card?.offsetWidth
+      card?.classList.add('wackeln')
+      return
+    }
+    wallet.muenzen -= sk.preis
+    wallet.skins.push(id)
+    audio.kauf()
+    haptic.success()
+  } else audio.click()
+  wallet.skin = id
+  saveWallet()
+  renderer.skin = sk
+  renderShop()
+}
+
 /* ================= Hinweise ================= */
 
 const toastQueue: (() => void)[] = []
@@ -365,6 +505,7 @@ function toastsClear() {
 
 function updateHome() {
   $('home-best').textContent = stats.best ? `Bester Level: ${stats.best}` : 'Iss Äpfel, die Karte wächst mit.'
+  updateGeld()
   const cv = $<HTMLCanvasElement>('home-apple')
   const ctx = cv.getContext('2d')!
   const dpr = Math.min(2.5, window.devicePixelRatio || 1)
@@ -531,6 +672,13 @@ for (const art of ['falle', 'wolke', 'frosch'] as const)
     for (const e of game.drain()) handle(e)
     if (!ok) toast(art === 'falle' ? 'falle' : art, 'Kein Platz', 'Gerade passt das nicht auf die Karte.')
   })
+document.querySelectorAll<HTMLButtonElement>('[data-power]').forEach((b) =>
+  b.addEventListener('click', () => {
+    if (!game) return
+    game.powerAn(b.dataset.power as Parameters<Game['powerAn']>[0])
+    for (const e of game.drain()) handle(e)
+  }),
+)
 $('btn-kreativ-start').addEventListener('click', () => {
   audio.unlock()
   audio.click()
@@ -751,6 +899,8 @@ function frame(now: number) {
     }
     renderer.draw(game)
   }
+  updateEffekte()
+  if (page() === 'shop') for (const s of skinCanvas) drawSkinVorschau(s.cv, skinVon(s.id), now)
   requestAnimationFrame(frame)
 }
 

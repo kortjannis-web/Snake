@@ -1,8 +1,8 @@
 /** Kleine Bilder fuer Anleitung, Hinweise und Spielende (gleiche Zeichnungen wie im Spiel) */
 import type { Cause, Side } from '../game/types'
-import { C, drawApfel, drawBaum, drawFalle, drawFrosch, drawHaus, drawKegel, drawLicht, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
+import { C, drawApfel, drawBaum, drawFalle, drawFrosch, drawHaus, drawKegel, drawLicht, drawMuenze, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
 
-export type Mini = 'apfel' | 'gift' | 'mauer' | 'teich' | 'gebiet' | 'falle' | 'wolke' | 'frosch' | 'schlange' | 'rand' | 'baum' | 'haus' | 'turm'
+export type Mini = 'apfel' | 'gift' | 'mauer' | 'teich' | 'gebiet' | 'falle' | 'wolke' | 'frosch' | 'schlange' | 'rand' | 'baum' | 'haus' | 'turm' | 'muenze' | 'schild' | 'zeitlupe' | 'magnet' | 'geist' | 'schere'
 
 export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 'top') {
   const dpr = Math.min(2.5, window.devicePixelRatio || 1)
@@ -124,6 +124,16 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
       ctx.restore()
       break
     }
+    case 'muenze':
+      drawMuenze(ctx, mid, mid, big, 1, 0)
+      break
+    case 'schild':
+    case 'zeitlupe':
+    case 'magnet':
+    case 'geist':
+    case 'schere':
+      drawPower(ctx, mid, mid + cell * 0.1, big, kind, 1, 0)
+      break
     case 'rand':
       ctx.fillStyle = '#1C5446'
       ctx.fillRect(cell * 2.2, 0, cell * 0.8, css)

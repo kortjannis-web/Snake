@@ -68,6 +68,12 @@ export type Kreativ = {
   laenge: number
 }
 
+/** Power-ups: Schild (faengt einen Tod oder Rueckschlag ab), Zeitlupe, Magnet (zieht Apfel und Muenzen an),
+ *  Geist (kurz durch Hindernisse), Schere (Schlange kuerzer) */
+export type PowerArt = 'schild' | 'zeitlupe' | 'magnet' | 'geist' | 'schere'
+export type Muenze = { p: P; t: number; until: number; wert: number }
+export type Power = { p: P; t: number; until: number; art: PowerArt }
+
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }
 
 /** Ereignisse fuer Toene, Vibration und Anzeige */
@@ -91,5 +97,9 @@ export type GameEvent =
   | { type: 'house' }
   | { type: 'light' }
   | { type: 'tower' }
+  | { type: 'coin'; wert: number; p: P; apfel: boolean }
+  | { type: 'power'; art: PowerArt; p: P }
+  | { type: 'powerEnde'; art: PowerArt }
+  | { type: 'schild' }
 
 export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm'

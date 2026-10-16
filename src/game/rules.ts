@@ -78,6 +78,16 @@ export const DEFAULTS = {
   turmFelder: 300,
   kegelLaenge: 6,
   kegelZurueck: 10,
+  // Power-ups und Muenzen
+  powerAb: 10,
+  powerChance: 18,
+  powerDauer: 15,
+  effektDauer: 8,
+  geistDauer: 6,
+  schereProzent: 30,
+  apfelMuenzen: 1,
+  muenzeChance: 25,
+  muenzeWert: 3,
   // Ereignisse
   ereignis1Ab: 150,
   ereignis2Ab: 200,
@@ -196,6 +206,20 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
     ],
   },
   {
+    gruppe: 'Power-ups und Münzen',
+    felder: [
+      { key: 'powerAb', label: 'Power-ups ab Level', min: 1, max: 10000 },
+      { key: 'powerChance', label: 'Chance je Apfel auf ein Power-up', min: 0, max: 100, einheit: '%' },
+      { key: 'powerDauer', label: 'Power-up liegt', min: 3, max: 120, einheit: 's' },
+      { key: 'effektDauer', label: 'Zeitlupe und Magnet halten', min: 1, max: 60, einheit: 's' },
+      { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
+      { key: 'schereProzent', label: 'Schere kürzt um', min: 5, max: 90, einheit: '%' },
+      { key: 'apfelMuenzen', label: 'Münzen je Apfel', min: 0, max: 100 },
+      { key: 'muenzeChance', label: 'Chance je Apfel auf eine Goldmünze', min: 0, max: 100, einheit: '%' },
+      { key: 'muenzeWert', label: 'Goldmünze ist wert', min: 1, max: 1000, einheit: 'Münzen' },
+    ],
+  },
+  {
     gruppe: 'Ereignisse (Fallen, Wolken, Frösche)',
     felder: [
       { key: 'ereignis1Ab', label: 'Mindestens 1 unterwegs ab Level', min: 1, max: 10000 },
@@ -300,6 +324,15 @@ export const wolkenForm = (stage: number): P[] => {
 }
 
 /** Frosch: Sprung dauert so lange, 1 s vorher macht er sich bereit, 0,25 s nach der Landung dreht er ggf. */
+/** So lange liegt eine Goldmuenze (ms), hoechstens so viele gleichzeitig */
+export const MUENZE_DAUER = 12_000
+export const MUENZE_MAX = 3
+export const POWER_ARTEN = ['schild', 'zeitlupe', 'magnet', 'geist', 'schere'] as const
+/** Zeitlupe: Takt so viel langsamer */
+export const ZEITLUPE = 1.55
+/** Magnet: alle so viele ms ruecken Apfel und Muenzen ein Feld naeher */
+export const MAGNET_TAKT = 260
+
 export const FROSCH_FLUG = 380
 export const FROSCH_ANLAUF = 1000
 export const FROSCH_DREHEN = 250

@@ -6,12 +6,15 @@
 import type { Game } from '../game/game'
 import { FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Funke, GameEvent, P } from '../game/types'
+import { drawSchlange, SKINS, type Skin } from './skins'
 import {
   C,
   backOut,
   clamp01,
   DIR_WINKEL,
   drawFrosch,
+  drawMuenze,
+  drawPower,
   drawKegel,
   drawTurm,
   drawApfel,
@@ -33,6 +36,7 @@ export class Renderer {
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
   reduce = false
+  skin: Skin = SKINS[0]
   private dpr = 1
   vw = 0
   vh = 0
@@ -40,6 +44,10 @@ export class Renderer {
   private cam = { x: 0, y: 0 }
   private camInit = false
   private funken: Funke[] = []
+  /** Aufsteigende Zahlen (+3) beim Einsammeln */
+  private texte: { x: number; y: number; t: number; text: string; farbe: string }[] = []
+  /** Minikarte unten links anzeigen */
+  minikarte = true
   private shake = { until: 0, amp: 0 }
   private lastReal = 0
 
@@ -62,6 +70,7 @@ export class Renderer {
   reset() {
     this.camInit = false
     this.funken = []
+    this.texte = []
     this.shake = { until: 0, amp: 0 }
   }
 
@@ -93,8 +102,17 @@ export class Renderer {
         f.x += e.dx * cell
         f.y += e.dy * cell
       })
+      this.texte.forEach((f) => {
+        f.x += e.dx * cell
+        f.y += e.dy * cell
+      })
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
+    } else if (e.type === 'coin' && !e.apfel) {
+      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: '#FFD34D' })
+    } else if (e.type === 'power') {
+      const name = { schild: 'Schild', zeitlupe: 'Zeitlupe', magnet: 'Magnet', geist: 'Geist', schere: 'Schere' }[e.art]
+      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
     } else if (e.type === 'setback') {
       if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
     } else if (e.type === 'halt') {
@@ -266,6 +284,16 @@ export class Renderer {
     // Apfel und Giftaepfel
     const wipp = this.reduce ? 0 : Math.max(0, Math.sin(now / 260)) * cell * 0.05
     drawApfel(ctx, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp)
+    for (const m of g.muenzen) {
+      if (!sicht(m.p)) continue
+      const s = this.reduce ? 1 : backOut(clamp01((now - m.t) / 340))
+      if (m.until - now < 2500 && Math.sin(now / 80) < -0.2) continue
+      drawMuenze(ctx, px(m.p.x), px(m.p.y), cell, s, now)
+    }
+    for (const pw of g.powers) {
+      if (!sicht(pw.p)) continue
+      drawPower(ctx, px(pw.p.x), px(pw.p.y), cell, pw.art, this.reduce ? 1 : backOut(clamp01((now - pw.t) / 380)), now, pw.until - now < 3000)
+    }
     for (const gf of g.gift) {
       if (!sicht(gf.p)) continue
       drawApfel(ctx, px(gf.p.x), px(gf.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - gf.t) / 340)), wipp * 0.6, gf.ecke)
@@ -331,115 +359,85 @@ export class Renderer {
     }
     ctx.globalAlpha = 1
 
+    // Aufsteigende Zahlen und Namen
+    this.texte = this.texte.filter((t) => now - t.t < 900)
+    ctx.textAlign = 'center'
+    ctx.font = `700 ${Math.round(cell * 0.45)}px "Libre Franklin", system-ui, sans-serif`
+    for (const t of this.texte) {
+      const k = (now - t.t) / 900
+      ctx.globalAlpha = 1 - k * k
+      ctx.lineWidth = 3
+      ctx.strokeStyle = 'rgba(23, 21, 19, 0.7)'
+      ctx.strokeText(t.text, t.x, t.y - k * cell)
+      ctx.fillStyle = t.farbe
+      ctx.fillText(t.text, t.x, t.y - k * cell)
+    }
+    ctx.globalAlpha = 1
+
     // Apfel ausserhalb des Bildes: Pfeil am Rand
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
     if (g.status === 'play') this.drawZeiger(g, ox, oy, now)
+    if (this.minikarte) this.drawMinikarte(g, head)
   }
 
   private drawSchlange(g: Game, head: P, a: number) {
     const { ctx, cell } = this
     const now = g.time
-    const px = (v: number) => (v + 0.5) * cell
     const n = g.body.length
     const tp = g.prev[n - 1]
     const tl = g.body[n - 1]
     const tail = tp ? { x: lerp(tp.x, tl.x, a), y: lerp(tp.y, tl.y, a) } : tl
     const pts: P[] = [head, ...g.body.slice(1), tail]
-    const w = cell * 0.74
     const tot = g.status === 'over'
     const sinceDeath = now - g.deathAt
-    const vergiftet = g.cause === 'gift' ? clamp01(sinceDeath / 600) : 0
-    const kopf = C.kopf.map((v, j) => lerp(v, C.giftKopf[j], vergiftet))
-    const schwanz = C.schwanz.map((v, j) => lerp(v, C.giftSchwanz[j], vergiftet))
     if (tot && !this.reduce && sinceDeath < 900) ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.cos(sinceDeath / 90))
     // Nach einem Rueckschlag geschuetzt: blinkt
     else if (!tot && now < g.schutzBis) ctx.globalAlpha = Math.sin(now / 55) > 0 ? 0.9 : 0.35
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-
-    // Schatten
-    ctx.strokeStyle = 'rgba(12, 40, 32, 0.22)'
-    ctx.lineWidth = w
-    ctx.beginPath()
-    pts.forEach((p, i) => (i ? ctx.lineTo(px(p.x), px(p.y) + cell * 0.12) : ctx.moveTo(px(p.x), px(p.y) + cell * 0.12)))
-    ctx.stroke()
-
-    // Koerper vom Schwanz zum Kopf
-    for (let i = pts.length - 2; i >= 0; i--) {
-      const k = pts.length > 2 ? i / (pts.length - 2) : 0
-      const col = kopf.map((v, j) => Math.round(lerp(v, schwanz[j], k)))
-      ctx.strokeStyle = `rgb(${col[0]},${col[1]},${col[2]})`
-      ctx.lineWidth = w * (1 - k * 0.18)
-      ctx.beginPath()
-      ctx.moveTo(px(pts[i].x), px(pts[i].y))
-      ctx.lineTo(px(pts[i + 1].x), px(pts[i + 1].y))
-      ctx.stroke()
-    }
-    // Lichtkante auf dem Ruecken
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.13)'
-    ctx.lineWidth = w * 0.22
-    ctx.beginPath()
-    pts.slice(0, Math.min(pts.length, 60)).forEach((p, i) => (i ? ctx.lineTo(px(p.x) - cell * 0.08, px(p.y) - cell * 0.1) : ctx.moveTo(px(p.x) - cell * 0.08, px(p.y) - cell * 0.1)))
-    ctx.stroke()
-
-    const hx = px(head.x)
-    const hy = px(head.y)
-    const d = STEP[g.dir]
-
-    // Zunge: zuengelt ab und zu kurz
-    if (!tot && !this.reduce && now % 2800 < 220) {
-      const l = cell * (0.45 + 0.1 * Math.sin(now / 30))
-      const bx = hx + d.x * w * 0.5
-      const by = hy + d.y * w * 0.5
-      const ex = bx + d.x * l
-      const ey = by + d.y * l
-      ctx.strokeStyle = '#D9443A'
-      ctx.lineWidth = Math.max(1.2, cell * 0.05)
-      ctx.beginPath()
-      ctx.moveTo(bx, by)
-      ctx.lineTo(ex, ey)
-      ctx.moveTo(ex, ey)
-      ctx.lineTo(ex + d.x * cell * 0.1 + d.y * cell * 0.08, ey + d.y * cell * 0.1 + d.x * cell * 0.08)
-      ctx.moveTo(ex, ey)
-      ctx.lineTo(ex + d.x * cell * 0.1 - d.y * cell * 0.08, ey + d.y * cell * 0.1 - d.x * cell * 0.08)
-      ctx.stroke()
-    }
-
-    ctx.fillStyle = `rgb(${kopf.map(Math.round).join(',')})`
-    ctx.beginPath()
-    ctx.arc(hx, hy, w * 0.56, 0, Math.PI * 2)
-    ctx.fill()
-    const ox = d.y !== 0 ? cell * 0.2 : 0
-    const oy = d.x !== 0 ? cell * 0.2 : 0
-    // Blinzeln alle paar Sekunden
-    const blink = !tot && now % 4300 < 120
-    for (const s of [-1, 1]) {
-      const ex = hx + ox * s + d.x * cell * 0.1
-      const ey = hy + oy * s + d.y * cell * 0.1
-      if (tot) {
-        ctx.strokeStyle = '#16211d'
-        ctx.lineWidth = Math.max(1.5, cell * 0.06)
-        const r = cell * 0.1
-        ctx.beginPath()
-        ctx.moveTo(ex - r, ey - r)
-        ctx.lineTo(ex + r, ey + r)
-        ctx.moveTo(ex + r, ey - r)
-        ctx.lineTo(ex - r, ey + r)
-        ctx.stroke()
-        continue
-      }
-      ctx.fillStyle = '#fff'
-      ctx.beginPath()
-      if (blink) ctx.ellipse(ex, ey, cell * 0.15, cell * 0.03, d.x ? Math.PI / 2 : 0, 0, Math.PI * 2)
-      else ctx.arc(ex, ey, cell * 0.15, 0, Math.PI * 2)
-      ctx.fill()
-      if (blink) continue
-      ctx.fillStyle = '#16211d'
-      ctx.beginPath()
-      ctx.arc(ex + d.x * cell * 0.06, ey + d.y * cell * 0.06, cell * 0.075, 0, Math.PI * 2)
-      ctx.fill()
-    }
+    // Geist (Power-up): durchscheinend, kurz vor dem Ende flackernd
+    else if (!tot && now < g.effekt.geistBis) ctx.globalAlpha = g.effekt.geistBis - now < 1500 && Math.sin(now / 70) > 0 ? 0.75 : 0.45
+    drawSchlange(ctx, pts, cell, g.dir, this.skin, now, {
+      tot,
+      vergiftet: g.cause === 'gift' ? clamp01(sinceDeath / 600) : 0,
+      zunge: !tot && !this.reduce && now % 2800 < 220,
+      blinzeln: !tot && now % 4300 < 120,
+    })
     ctx.globalAlpha = 1
+    // Schild: Blase um den Kopf
+    if (!tot && g.effekt.schild > 0) {
+      const hx = (head.x + 0.5) * cell
+      const hy = (head.y + 0.5) * cell
+      const p = 0.5 + 0.5 * Math.sin(now / 240)
+      ctx.strokeStyle = `rgba(120, 200, 255, ${0.55 + 0.3 * p})`
+      ctx.lineWidth = Math.max(2, cell * 0.08)
+      ctx.beginPath()
+      ctx.arc(hx, hy, cell * (0.62 + 0.04 * p), 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(120, 200, 255, 0.12)'
+      ctx.fill()
+    }
+  }
+
+  /** Minikarte unten links: ganz klein, nur die Kartenform und die Schlange als Punkt.
+   *  Erst sichtbar, wenn die Karte groesser als der Bildschirm ist */
+  private drawMinikarte(g: Game, head: P) {
+    if (g.blocks.length <= 2) return
+    const { ctx, vh } = this
+    const max = 46
+    const s = Math.min(max / g.w, max / g.h)
+    const mw = g.w * s
+    const mh = g.h * s
+    const pad = 4
+    const x0 = 10 + pad
+    const y0 = vh - 10 - pad - mh
+    ctx.fillStyle = 'rgba(23, 21, 19, 0.5)'
+    rund(ctx, x0 - pad, y0 - pad, mw + pad * 2, mh + pad * 2, 6)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(245, 239, 230, 0.2)'
+    for (const b of g.blocks) ctx.fillRect(x0 + b.x * g.bw * s, y0 + b.y * g.bh * s, g.bw * s - 0.5, g.bh * s - 0.5)
+    ctx.fillStyle = '#8FD6BD'
+    ctx.beginPath()
+    ctx.arc(x0 + (head.x + 0.5) * s, y0 + (head.y + 0.5) * s, 2.2, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   /** Pfeil am Bildrand, wenn der Apfel ausserhalb liegt */

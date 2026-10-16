@@ -732,3 +732,136 @@ export function drawKegel(ctx: CanvasRenderingContext2D, cells: P[], mitte: { x:
   }
   ctx.restore()
 }
+
+/** Goldmuenze, dreht sich langsam (Breite schwankt), mit Glanz */
+export function drawMuenze(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, s: number, now: number) {
+  if (s <= 0) return
+  const r = cell * 0.3 * s
+  const dreh = Math.abs(Math.cos(now / 420))
+  const rx = r * (0.25 + 0.75 * dreh)
+  const hop = Math.max(0, Math.sin(now / 300)) * cell * 0.06
+  ctx.fillStyle = 'rgba(12, 40, 32, 0.22)'
+  ctx.beginPath()
+  ctx.ellipse(x, y + r * 0.95, r * 0.8, r * 0.25, 0, 0, Math.PI * 2)
+  ctx.fill()
+  y -= hop
+  ctx.fillStyle = '#B9861E'
+  ctx.beginPath()
+  ctx.ellipse(x + r * 0.08 * dreh, y + r * 0.06, rx, r, 0, 0, Math.PI * 2)
+  ctx.fill()
+  const g = ctx.createLinearGradient(x - rx, y - r, x + rx, y + r)
+  g.addColorStop(0, '#FFE58A')
+  g.addColorStop(0.5, '#F6C343')
+  g.addColorStop(1, '#D99A1E')
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.ellipse(x, y, rx, r, 0, 0, Math.PI * 2)
+  ctx.fill()
+  if (dreh > 0.4) {
+    ctx.strokeStyle = 'rgba(150, 100, 20, 0.6)'
+    ctx.lineWidth = Math.max(1, cell * 0.04)
+    ctx.beginPath()
+    ctx.ellipse(x, y, rx * 0.65, r * 0.65, 0, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
+  ctx.beginPath()
+  ctx.ellipse(x - rx * 0.35, y - r * 0.4, rx * 0.18, r * 0.22, -0.4, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+export const POWER_FARBE: Record<string, string> = {
+  schild: '#4FA8E8',
+  zeitlupe: '#9B7BE0',
+  magnet: '#E5544A',
+  geist: '#B8C4CC',
+  schere: '#F29A4C',
+}
+
+/** Power-up: leuchtende Kugel mit Symbol, schwebt leicht. warn = kurz vor dem Verschwinden */
+export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, art: string, s: number, now: number, warn = false) {
+  if (s <= 0) return
+  if (warn && Math.sin(now / 80) < -0.2) return
+  const r = cell * 0.4 * s
+  const hop = Math.sin(now / 380) * cell * 0.06
+  const col = POWER_FARBE[art] ?? '#fff'
+  ctx.fillStyle = 'rgba(12, 40, 32, 0.22)'
+  ctx.beginPath()
+  ctx.ellipse(x, y + r * 0.95, r * 0.75, r * 0.22, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.save()
+  ctx.translate(x, y - hop - cell * 0.05)
+  // Schein
+  const glow = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 1.5)
+  glow.addColorStop(0, col + 'aa')
+  glow.addColorStop(1, col + '00')
+  ctx.fillStyle = glow
+  ctx.beginPath()
+  ctx.arc(0, 0, r * 1.5, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = col
+  ctx.beginPath()
+  ctx.arc(0, 0, r, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+  ctx.lineWidth = Math.max(1.5, cell * 0.05)
+  ctx.stroke()
+  // Symbol
+  ctx.strokeStyle = '#fff'
+  ctx.fillStyle = '#fff'
+  ctx.lineWidth = Math.max(1.5, r * 0.16)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  const k = r * 0.55
+  ctx.beginPath()
+  if (art === 'schild') {
+    ctx.moveTo(0, -k)
+    ctx.lineTo(k * 0.85, -k * 0.6)
+    ctx.quadraticCurveTo(k * 0.8, k * 0.6, 0, k)
+    ctx.quadraticCurveTo(-k * 0.8, k * 0.6, -k * 0.85, -k * 0.6)
+    ctx.closePath()
+    ctx.stroke()
+  } else if (art === 'zeitlupe') {
+    // Sanduhr
+    ctx.moveTo(-k * 0.6, -k)
+    ctx.lineTo(k * 0.6, -k)
+    ctx.lineTo(-k * 0.6, k)
+    ctx.lineTo(k * 0.6, k)
+    ctx.closePath()
+    ctx.stroke()
+  } else if (art === 'magnet') {
+    ctx.arc(0, -k * 0.1, k * 0.6, Math.PI, 0, false)
+    ctx.moveTo(-k * 0.6, -k * 0.1)
+    ctx.lineTo(-k * 0.6, k * 0.8)
+    ctx.moveTo(k * 0.6, -k * 0.1)
+    ctx.lineTo(k * 0.6, k * 0.8)
+    ctx.stroke()
+  } else if (art === 'geist') {
+    ctx.moveTo(-k * 0.7, k * 0.9)
+    ctx.lineTo(-k * 0.7, -k * 0.1)
+    ctx.arc(0, -k * 0.1, k * 0.7, Math.PI, 0, false)
+    ctx.lineTo(k * 0.7, k * 0.9)
+    ctx.lineTo(k * 0.35, k * 0.6)
+    ctx.lineTo(0, k * 0.9)
+    ctx.lineTo(-k * 0.35, k * 0.6)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = col
+    ctx.beginPath()
+    ctx.arc(-k * 0.28, -k * 0.15, k * 0.14, 0, Math.PI * 2)
+    ctx.arc(k * 0.28, -k * 0.15, k * 0.14, 0, Math.PI * 2)
+    ctx.fill()
+  } else if (art === 'schere') {
+    ctx.moveTo(-k * 0.7, -k * 0.8)
+    ctx.lineTo(k * 0.5, k * 0.4)
+    ctx.moveTo(k * 0.7, -k * 0.8)
+    ctx.lineTo(-k * 0.5, k * 0.4)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(-k * 0.55, k * 0.6, k * 0.25, 0, Math.PI * 2)
+    ctx.moveTo(k * 0.8, k * 0.6)
+    ctx.arc(k * 0.55, k * 0.6, k * 0.25, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.restore()
+}

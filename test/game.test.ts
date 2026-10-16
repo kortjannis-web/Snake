@@ -378,3 +378,78 @@ describe('Kreativ-Modus', () => {
     expect(g.expansions).toBe(11)
   })
 })
+
+describe('Muenzen und Power-ups', () => {
+  const frisch = (seed = 1) => {
+    const g = new Game({ screenW: SW, screenH: SH, seed, cfg: { powerChance: 0, muenzeChance: 0 } })
+    leer(g)
+    g.muenzen = []
+    g.powers = []
+    g.apple.p = { x: 0, y: 0 }
+    return g
+  }
+  const schritte = (g: Game, n: number) => {
+    const ev: GameEvent[] = []
+    for (let i = 0; i < n * 4; i++) {
+      g.update(g.takt / 4 + 1)
+      ev.push(...g.drain())
+    }
+    return ev
+  }
+
+  it('Apfel bringt eine Muenze, Goldmuenze ihren Wert', () => {
+    const g = frisch()
+    const h = g.body[0]
+    g.apple.p = { x: h.x + 1, y: h.y }
+    g.muenzen.push({ p: { x: h.x + 2, y: h.y }, t: 0, until: 1e9, wert: 3 })
+    const ev = schritte(g, 2)
+    const coins = ev.filter((e) => e.type === 'coin')
+    expect(coins.map((e) => (e as { wert: number }).wert).sort()).toEqual([1, 3])
+    expect(g.verdient).toBe(4)
+  })
+
+  it('Schild faengt einen Aufprall ab', () => {
+    const g = frisch()
+    const h = g.body[0]
+    g.mauern.push({ cells: [{ x: h.x + 1, y: h.y }], grown: 1, t: [0], next: 0 })
+    g.powerAn('schild')
+    const ev = schritte(g, 3)
+    expect(g.status).toBe('play')
+    expect(g.effekt.schild).toBe(0)
+    expect(ev.some((e) => e.type === 'schild')).toBe(true)
+  })
+
+  it('Zeitlupe macht den Takt laenger', () => {
+    const g = frisch()
+    const vorher = g.takt
+    g.powerAn('zeitlupe')
+    expect(g.takt).toBeCloseTo(vorher * R.ZEITLUPE)
+  })
+
+  it('Magnet zieht den Apfel heran', () => {
+    const g = frisch()
+    const h = g.body[0]
+    g.apple.p = { x: h.x + 2, y: 1 }
+    const dist = () => Math.abs(g.apple.p.x - g.body[0].x) + Math.abs(g.apple.p.y - g.body[0].y)
+    const vorher = dist()
+    g.powerAn('magnet')
+    for (let i = 0; i < 5; i++) {
+      g.time += R.MAGNET_TAKT + 1
+      ;(g as unknown as { effekteTakt: () => void }).effekteTakt()
+    }
+    expect(dist()).toBe(vorher - 5)
+  })
+
+  it('Geist laeuft durch Mauern, Schere kuerzt', () => {
+    const g = frisch()
+    const h = g.body[0]
+    g.mauern.push({ cells: [{ x: h.x + 1, y: h.y }], grown: 1, t: [0], next: 0 })
+    g.powerAn('geist')
+    schritte(g, 2)
+    expect(g.status).toBe('play')
+    expect(g.body[0].x).toBeGreaterThan(h.x + 1)
+    g.body = Array.from({ length: 20 }, (_, i) => ({ x: Math.max(0, g.body[0].x - i), y: g.body[0].y }))
+    g.powerAn('schere')
+    expect(g.body.length).toBe(14)
+  })
+})

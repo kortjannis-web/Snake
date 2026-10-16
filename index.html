@@ -22,9 +22,15 @@
           <small>Level</small>
           <b id="hud-level">1</b>
         </div>
-        <div class="hud__best" aria-label="Rekord">
-          <span data-icon="Trophy"></span>
-          <b id="hud-best">0</b>
+        <div class="hud__right">
+          <div class="hud__geld" aria-label="Münzen">
+            <i class="muenze" aria-hidden="true"></i>
+            <b id="hud-geld">0</b>
+          </div>
+          <div class="hud__best" aria-label="Rekord">
+            <span data-icon="Trophy"></span>
+            <b id="hud-best">0</b>
+          </div>
         </div>
         <div class="hud__bar" id="hud-bar" aria-hidden="true"><i id="hud-bar-fill"></i></div>
       </header>
@@ -36,6 +42,7 @@
           <span class="ready__t" id="ready-text">Wischen zum Starten</span>
         </div>
         <div class="toasts" id="toasts" aria-live="polite"></div>
+        <div class="effekte" id="effekte" aria-live="polite"></div>
       </main>
 
       <nav class="dpad no-swipe" id="dpad" hidden aria-label="Steuerkreuz">
@@ -49,6 +56,7 @@
       <section class="screen screen--home" id="home" data-open>
         <div class="home">
           <div class="home__top">
+            <button class="geld-pille" data-go="shop" aria-label="Münzen und Skins"><i class="muenze" aria-hidden="true"></i><b id="home-geld">0</b></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
           <div class="home__brand">
@@ -60,7 +68,8 @@
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
             <button class="btn btn--ghost" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
             <p class="home__best" id="home-best"></p>
-            <div class="home__row">
+            <div class="home__row home__row--4">
+              <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Skins</button>
               <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
               <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
               <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
@@ -99,6 +108,7 @@
             <div><b id="over-len">3</b><small>Länge</small></div>
             <div><b id="over-time">0:00</b><small>Zeit</small></div>
           </div>
+          <span class="verdient" id="over-geld" hidden><i class="muenze" aria-hidden="true"></i><b></b></span>
           <button class="btn btn--play" id="btn-again"><span data-icon="RotateCcw"></span>Nochmal</button>
           <button class="btn btn--ghost" id="btn-menu"><span data-icon="House"></span>Hauptmenü</button>
         </div>
@@ -188,6 +198,14 @@
                 <button id="k-wolke">Wolke</button>
                 <button id="k-frosch">Frosch</button>
               </div>
+              <div class="opt__row"><span data-icon="Shield"></span><span class="opt__t">Power-up sofort</span></div>
+              <div class="seg seg--5">
+                <button data-power="schild">Schild</button>
+                <button data-power="zeitlupe">Zeit</button>
+                <button data-power="magnet">Magnet</button>
+                <button data-power="geist">Geist</button>
+                <button data-power="schere">Schere</button>
+              </div>
             </div>
             <div class="opt opt--col">
               <div class="opt__row"><span data-icon="Skull"></span><span class="opt__t">Hindernisse<small>Tödlich, nur anhalten oder als Geist durch alles hindurch</small></span></div>
@@ -209,6 +227,21 @@
             </div>
             <button class="btn btn--play" id="btn-kreativ-start"><span data-icon="Play"></span>Kreativ starten</button>
             <p class="fine">Kreativ-Runden zählen nicht für Rekord und Statistik.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Shop: Skins fuer Muenzen -->
+      <section class="screen screen--page" id="shop">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Skins</h2>
+            <span class="geld-pille geld-pille--still"><i class="muenze" aria-hidden="true"></i><b id="shop-geld">0</b></span>
+          </header>
+          <div class="page__body">
+            <p class="hinweis">Jeder Apfel bringt 1 Münze, Goldmünzen auf der Karte mehr. Im Kreativ-Modus gibt es keine Münzen.</p>
+            <div class="skins" id="skins"></div>
           </div>
         </div>
       </section>

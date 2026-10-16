@@ -1,6 +1,6 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.2.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.3.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
@@ -133,6 +133,31 @@ Stand: Version 1.2.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Fallen, Wolken und Frösche haben eigene Abstände (siehe oben), die ab Level 200 bzw. 250 kürzer werden.
 - Zusätzlich gilt: **ab Level 150 ist immer mindestens eine** dieser Gefahren unterwegs, **ab 200 mindestens zwei, ab 300 drei**. Fehlt eine, kommt nach ca. 2,5 s eine neue, bevorzugt die Art, die gerade am seltensten ist.
 
+## 14a. Münzen, Power-ups, Skins, Minikarte
+
+**Münzen (Spielgeld, keine echten Käufe)**
+- Jeder Apfel bringt **1 Münze**. Nach jedem Apfel liegt mit **25 % Chance** eine **Goldmünze (3 Münzen)** auf der Karte, höchstens 3 gleichzeitig, sie liegt 12 s (blinkt am Ende) und dreht sich.
+- Einsammeln: mit dem Kopf drüberfahren, „+3“ steigt auf, Klingeln. Der Magnet zieht sie an.
+- Kontostand oben in der Leiste, im Startmenü (antippen öffnet den Shop) und im Shop. Auf dem Spielende-Bildschirm „+N Münzen“.
+- Im Kreativ-Modus gibt es keine Münzen.
+
+**Power-ups (ab Level 10)**
+- Nach jedem Apfel mit **18 % Chance** liegt ein Power-up auf der Karte (höchstens eins), 15 s lang, blinkt in den letzten 3 s. Leuchtende Kugel mit Symbol.
+- **Schild** (blau): fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Bis zu 3 sammeln sich. Blaue Blase um den Kopf. Nicht am Kartenrand.
+- **Zeitlupe** (lila): 8 s lang ein gutes Drittel langsamer.
+- **Magnet** (rot): 8 s lang rückt der Apfel alle 0,26 s ein Feld näher, Goldmünzen in der Nähe auch.
+- **Geist** (grau): 6 s lang durch alle Hindernisse und die eigene Schlange, keine Rückschläge; die Schlange ist durchscheinend und flackert kurz vor dem Ende.
+- **Schere** (orange): sofort 30 % kürzer (mindestens 3 Glieder bleiben).
+- Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken.
+- Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
+
+**Skins (Startmenü → Skins)**
+- Klassik (gratis), **Koralle** 60, **Nacht** 150 (funkelnde Sterne), **Tiger** 300 (Streifen), **Gold** 600 (laufender Glanz), **Regenbogen** 1000 (Farben wandern über den Körper).
+- Antippen kauft (wenn genug Münzen) und wählt aus, gekaufte Skins lassen sich jederzeit wechseln. Zu wenig Münzen: Karte wackelt.
+
+**Minikarte**
+- Winzig unten links (ca. 50 px), nur die Kartenblöcke ganz blass und die Schlange als Punkt. Erscheint erst, wenn die Karte größer als ein Bildschirm ist.
+
 ## 15. Fairness-Regeln (für alle Hindernisse)
 
 - Kein neues Hindernis schließt einen Bereich ab: alle freien Felder bleiben vom Kopf aus erreichbar.
@@ -181,5 +206,5 @@ Stand: Version 1.2.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Web-App (PWA):** offline spielbar, installierbar („Zum Home-Bildschirm“), Vollbild. Veröffentlichung über GitHub Pages (einmalig in den Einstellungen aktivieren).
 - **Speicher:** Rekord, Statistik und Einstellungen nur auf dem Gerät.
 - **Leistung:** Gezeichnet wird nur der sichtbare Teil der Karte. Neue Hindernisse zu platzieren dauert auch auf der größten Karte nur wenige Millisekunden.
-- **Tests:** 26 automatische Tests der Spiellogik (Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Bäume, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, lange Spiele bis über Level 300 mit Autopilot).
+- **Tests:** 31 automatische Tests der Spiellogik (Regeln, Kartenblöcke, Gnadenschritt, Giftapfel, Fallen, Wolken, Frösche, Bäume, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Münzen und Power-ups, lange Spiele bis über Level 300 mit Autopilot).
 - **Zum Ausprobieren:** Kreativ-Modus (siehe 16a). In der Web-Fassung zusätzlich `?level=210` und `?auto=1` (Autopilot).
