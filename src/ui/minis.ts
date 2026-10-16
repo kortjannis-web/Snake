@@ -1,7 +1,7 @@
 /** Kleine Bilder fuer Anleitung, Hinweise und Spielende (gleiche Zeichnungen wie im Spiel) */
 import type { Cause, Side } from '../game/types'
-import { drawSchlange, GEGNER_SKIN } from '../render/skins'
-import { C, drawApfel, drawBaum, drawFalle, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
+import { drawSchlange, GEGNER_SKIN, LILA_SKIN } from '../render/skins'
+import { C, drawAmeise, drawApfel, drawBaum, drawFalle, drawLava, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
 
 export type Mini =
   | 'apfel'
@@ -19,6 +19,9 @@ export type Mini =
   | 'haus'
   | 'turm'
   | 'gegner'
+  | 'lila'
+  | 'ameise'
+  | 'lava'
   | 'schild'
   | 'zeitlupe'
   | 'geist'
@@ -62,6 +65,19 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
       ctx.restore()
       break
     }
+    case 'lila': {
+      ctx.save()
+      ctx.translate(0, cell * 0.1)
+      drawSchlange(ctx, [{ x: 2.1, y: 1 }, { x: 1.1, y: 1 }, { x: 1.1, y: 2 }, { x: 0.1, y: 2 }, { x: -0.9, y: 2 }], cell, 'r', LILA_SKIN, t, { brauen: 2 })
+      ctx.restore()
+      break
+    }
+    case 'ameise':
+      drawAmeise(ctx, mid, mid + cell * 0.1, big * 0.9, -0.5, -1, 1, 1)
+      break
+    case 'lava':
+      drawLava(ctx, [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 1 }], [0, 0, 0, 0], cell, t + 10000, true)
+      break
     case 'gift':
       drawApfel(ctx, mid, mid, big, 1, 0, -0.7)
       break
@@ -184,4 +200,5 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   baum: 'baum',
   haus: 'haus',
   gegner: 'gegner',
+  lava: 'lava',
 }

@@ -25,10 +25,15 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
 | 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
 | 20 | **Neuer Kartenblock** (halber Bildschirm) alle 20 Level an einer zufälligen freien Stelle, wie bei Minecraft, bis Level 300. |
 | 50 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
-| 100 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-2-1) alle 40 Level, bleiben. **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 100 / 200 / 300). |
+| 60 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 60 / 160 / 260). |
+| 100 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-2-1) alle 40 Level, bleiben. |
+| 120 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
+| 130 | **Hütten** (2 × 2, Licht 1 Feld) alle 30 Level, ab 210 große Häuser. |
 | 150 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
 | 200 | **Frösche** (höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
-| 210 | **Häuser** (2 × 3 oder mit Ecke) alle 30 Level, vier Fenster, Licht 2 Felder (nie auf die Schlange, zugebaut = dunkel). Haus = Tod, Licht = **5 Level zurück**. |
+| 210 | **Große Häuser** (2 × 3 oder mit Ecke) statt Hütten, vier Fenster, Licht 2 Felder (nie auf die Schlange, zugebaut = dunkel). Haus = Tod, Licht = **5 Level zurück**. |
+| 240 | **Ameisen** chillen, kommen im 2-Felder-Umkreis langsam auf dich zu, Biss −3 Level, der Kopf zertritt sie. |
+| 270 | **Lava**: alle 30 Level ein See, beginnt mit 1 Feld, wächst jeden 2. Apfel um eins, hört bei 6–15 auf. Tödlich. |
 | 315 | **Jägertürme** (2 × 2) alle 40 Level, Lichtkegel 2 × 6, dreht jede Runde im Uhrzeigersinn, Schlange wirft Schatten. Turm = Tod, Kegel = **10 Level zurück**. |
 | 150 / 200 / 300 | Mindestens 1 / 2 / 3 Ereignisse (Falle, Wolke, Frosch) gleichzeitig. |
 
@@ -44,7 +49,11 @@ grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
 **Kreativ-Modus:** Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,
 Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im Spiel Level springen und
-Ereignisse auslösen. Zählt nicht für den Rekord.
+jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
+normal weiter. Zählt nicht für den Rekord.
+
+**Kamera:** fester Ausschnitt (ein Bildschirm), tastet sich am Rand langsam vor und fährt beim Übertritt zum
+neuen Block. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 

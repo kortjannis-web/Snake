@@ -3,10 +3,10 @@
  * kann groesser als der Bildschirm werden), neue Gebiete klappen Feld fuer
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
-import { GEGNER_WEG, type Game } from '../game/game'
+import { AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
 import { FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Funke, GameEvent, Gegner, P } from '../game/types'
-import { drawSchlange, GEGNER_SKIN, SKINS, type Skin } from './skins'
+import { drawSchlange, GEGNER_SKIN, LILA_SKIN, SKINS, type Skin } from './skins'
 import {
   C,
   apfelFarbe,
@@ -15,7 +15,9 @@ import {
   backOut,
   clamp01,
   DIR_WINKEL,
+  drawAmeise,
   drawFrosch,
+  drawLava,
   drawPower,
   drawKegel,
   drawTurm,
@@ -45,6 +47,10 @@ export class Renderer {
   cell = 20
   private cam = { x: 0, y: 0 }
   private camInit = false
+  /** Fester Ausschnitt (linke obere Ecke in Feldern, an Bloecken ausgerichtet) */
+  private frame = { x: 0, y: 0 }
+  /** Bis wann die schnelle Wechsel-Kamera laeuft */
+  private wechselBis = 0
   private funken: Funke[] = []
   /** Aufsteigende Zahlen (+12) und Namen beim Einsammeln */
   private texte: { x: number; y: number; t: number; text: string; farbe: string }[] = []
@@ -116,6 +122,8 @@ export class Renderer {
       // Alles ist um dx/dy gerutscht: Kamera mitnehmen, damit nichts springt
       this.cam.x += e.dx * cell
       this.cam.y += e.dy * cell
+      this.frame.x += e.dx
+      this.frame.y += e.dy
       this.funken.forEach((f) => {
         f.x += e.dx * cell
         f.y += e.dy * cell
@@ -145,8 +153,6 @@ export class Renderer {
     this.lastReal = realNow
     const now = g.time
     const cell = (this.cell = this.cellFor(g))
-    const W = g.w * cell
-    const H = g.h * cell
     const px = (v: number) => (v + 0.5) * cell
 
     // Schlange (weich zwischen den Feldern)
@@ -155,20 +161,7 @@ export class Renderer {
     const h0 = g.prev[0] ?? g.body[0]
     const head = { x: lerp(h0.x, g.body[0].x, a), y: lerp(h0.y, g.body[0].y, a) }
 
-    // Kamera: etwas voraus schauen, an den Kartenrand geklemmt
-    const look = STEP[g.dir]
-    let tx = px(head.x) + look.x * cell * 2
-    let ty = px(head.y) + look.y * cell * 2
-    tx = W <= vw ? W / 2 : Math.min(W - vw / 2, Math.max(vw / 2, tx))
-    ty = H <= vh ? H / 2 : Math.min(H - vh / 2, Math.max(vh / 2, ty))
-    if (!this.camInit || this.reduce) {
-      this.cam = { x: tx, y: ty }
-      this.camInit = true
-    } else {
-      const k = 1 - Math.exp(-dt / 170)
-      this.cam.x += (tx - this.cam.x) * k
-      this.cam.y += (ty - this.cam.y) * k
-    }
+    this.kamera(g, cell, dt, realNow)
     let ox = Math.round(vw / 2 - this.cam.x)
     let oy = Math.round(vh / 2 - this.cam.y)
     if (now < this.shake.until) {
@@ -240,6 +233,9 @@ export class Renderer {
         ctx.fillStyle = C.hell
         ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
       }
+
+    // Lava
+    for (const l of g.lava) if (l.cells.some((c) => sicht(c))) drawLava(ctx, l.cells, l.t, cell, now, this.reduce)
 
     // Teiche (trocknen ggf. aus)
     for (const t of g.teiche) {
@@ -328,6 +324,22 @@ export class Renderer {
       while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
       const ang = lerp(a0, a1, easeOut(clamp01((now - f.drehT) / 220)))
       drawFrosch(ctx, px(x), px(y), cell, ang, this.reduce ? 0 : anlauf, this.reduce || flug > 1 ? -1 : k, s, fade)
+    }
+
+    // Ameisen: krabbeln Feld fuer Feld, Ausrufezeichen wenn sie die Schlange bemerkt haben
+    for (const am of g.ameisen) {
+      if (!sicht(am.p)) continue
+      const k = this.reduce ? 1 : easeOut(clamp01((now - am.schrittT) / 260))
+      const x = lerp(am.from.x, am.p.x, k)
+      const y = lerp(am.from.y, am.p.y, k)
+      const lauf = k < 1 ? (now / 160) % 1 : -1
+      const alarm = am.alarm >= 0 ? 0.6 + 0.4 * Math.sin(now / 90) : 0
+      drawAmeise(ctx, px(x), px(y), cell, DIR_WINKEL[am.dir], lauf, this.reduce ? 1 : backOut(clamp01((now - am.t) / 380)), alarm)
+    }
+    for (const am of g.ameisenWeg) {
+      if (!sicht(am.p)) continue
+      const k = clamp01((now - am.t) / AMEISE_WEG)
+      drawAmeise(ctx, px(am.p.x), px(am.p.y), cell * (1 + k * 0.4), DIR_WINKEL[am.dir], -1, 1, 0, 1 - k)
     }
 
     // Gegner-Schlangen (und besiegte, die zerfallen)
@@ -434,11 +446,84 @@ export class Renderer {
     }
   }
 
+  /** Kamera mit festem Ausschnitt (ein Bildschirm, an den Kartenbloecken ausgerichtet), auch wenn
+   *  die Karte groesser ist. Laeuft die Schlange auf den Rand des Ausschnitts zu und geht es dort
+   *  weiter, tastet sich die Kamera langsam ein Stueck vor (Rantast-Kamera). Ist die Schlange
+   *  unmittelbar davor, den Ausschnitt zu verlassen, faehrt die Kamera zuegig einen Block weiter
+   *  (Wechsel-Kamera). Ist die Karte in einer Richtung kleiner als der Bildschirm: mittig. */
+  private kamera(g: Game, cell: number, dt: number, now: number) {
+    const vwC = g.screenW
+    const vhC = g.screenH
+    const h = g.body[0]
+    const d = STEP[g.queue[0] ?? g.dir]
+    // Pro Achse: Startposition des Ausschnitts, Blockgroesse, Bloecke je Bildschirm, Kartengroesse
+    const achse = (pos: number, blk: number, view: number, total: number, alt: number | null) => {
+      if (total <= view) return (total - view) / 2
+      const max = total - view
+      if (alt !== null && pos >= alt && pos < alt + view) return Math.min(max, Math.max(0, alt))
+      const b = Math.floor(pos / blk)
+      const nb = Math.round(view / blk)
+      // Zwei Bloecke je Bildschirm: so, dass der Kopf eher in der Mitte ist
+      const start = nb >= 2 && pos - b * blk < blk / 2 ? (b - 1) * blk : b * blk
+      return Math.min(max, Math.max(0, start))
+    }
+    if (!this.camInit) {
+      this.frame = { x: achse(h.x, g.bw, vwC, g.w, null), y: achse(h.y, g.bh, vhC, g.h, null) }
+    } else {
+      // Kopf aus dem Ausschnitt (z. B. Sprung im Kreativ-Modus): passenden Ausschnitt suchen
+      const fx = achse(h.x, g.bw, vwC, g.w, this.frame.x)
+      const fy = achse(h.y, g.bh, vhC, g.h, this.frame.y)
+      if (fx !== this.frame.x || fy !== this.frame.y) {
+        this.frame = { x: fx, y: fy }
+        this.wechselBis = now + 700
+      }
+    }
+    // Abstand zum Rand des Ausschnitts in Laufrichtung, und geht es dahinter weiter?
+    const rand = d.x > 0 ? this.frame.x + vwC - 1 - h.x : d.x < 0 ? h.x - this.frame.x : d.y > 0 ? this.frame.y + vhC - 1 - h.y : h.y - this.frame.y
+    const weiter = (k: number) => g.inside({ x: h.x + d.x * k, y: h.y + d.y * k })
+    const kannX = g.w > vwC && d.x !== 0
+    const kannY = g.h > vhC && d.y !== 0
+    let ox = 0
+    let oy = 0
+    if ((kannX || kannY) && weiter(rand + 1)) {
+      const blk = kannX ? g.bw : g.bh
+      if (rand <= 1) {
+        // Wechsel-Kamera: zwei Bloecke je Bildschirm -> einen Block weiter (der Kopf landet in der Mitte).
+        // Ein Block je Bildschirm -> schon halb hinueber, beim Uebertritt dann ganz
+        this.wechselBis = now + 700
+        if (Math.round((kannX ? vwC : vhC) / blk) >= 2) {
+          if (kannX) this.frame.x = Math.min(g.w - vwC, Math.max(0, this.frame.x + d.x * g.bw))
+          if (kannY) this.frame.y = Math.min(g.h - vhC, Math.max(0, this.frame.y + d.y * g.bh))
+        } else {
+          ox = kannX ? d.x * blk * 0.5 : 0
+          oy = kannY ? d.y * blk * 0.5 : 0
+        }
+      } else if (rand <= 4) {
+        // Rantast-Kamera: je naeher am Rand, desto weiter schaut sie hinueber
+        const max = Math.min(4, blk * 0.35)
+        const k = 1 - (rand - 1) / 4
+        ox = kannX ? d.x * max * k : 0
+        oy = kannY ? d.y * max * k : 0
+      }
+    }
+    const tx = (this.frame.x + vwC / 2 + ox) * cell
+    const ty = (this.frame.y + vhC / 2 + oy) * cell
+    if (!this.camInit || this.reduce) {
+      this.cam = { x: tx, y: ty }
+      this.camInit = true
+      return
+    }
+    const tau = now < this.wechselBis ? 170 : 650
+    const k = 1 - Math.exp(-dt / tau)
+    this.cam.x += (tx - this.cam.x) * k
+    this.cam.y += (ty - this.cam.y) * k
+  }
+
   /** Gegner-Schlange: rot, weich zwischen den Feldern, erscheint sanft. `weg` = besiegt seit */
   private drawGegner(g: Game, e: Gegner, now: number, weg?: number) {
     const { ctx, cell } = this
     const n = e.body.length
-    const a = weg !== undefined || this.reduce ? 1 : clamp01((now - e.last) / g.gegnerSchrittzeit)
+    const a = weg !== undefined || this.reduce ? 1 : clamp01((now - e.last) / g.schrittzeitVon(e))
     const ip = (i: number) => {
       const p = e.prev[i]
       const b = e.body[i]
@@ -447,9 +532,10 @@ export class Renderer {
     const pts: P[] = [ip(0), ...e.body.slice(1), ip(n - 1)]
     const k = weg !== undefined ? clamp01((now - weg) / GEGNER_WEG) : 0
     ctx.globalAlpha = (this.reduce ? 1 : clamp01((now - e.t) / 450)) * (1 - k)
-    drawSchlange(ctx, pts, cell * (1 - k * 0.3), e.dir, GEGNER_SKIN, now, {
+    const lila = e.art === 'lila'
+    drawSchlange(ctx, pts, cell * (1 - k * 0.3), e.dir, lila ? LILA_SKIN : GEGNER_SKIN, now, {
       tot: weg !== undefined,
-      brauen: true,
+      brauen: lila ? 2 : true,
       angst: e.angst,
       blinzeln: weg === undefined && (now + e.t) % 3700 < 110,
     })

@@ -220,6 +220,20 @@ class Audio {
     this.noise(0.32, 'highpass', 3800, 0.1, { attack: 0.06 })
     this.tone(196, 0.18, 'sawtooth', 0.05, { to: 160, filter: 900, delay: 0.05 })
   }
+  /** Ameise bemerkt die Schlange: kurzes Kribbeln */
+  ameise() {
+    ;[0, 0.05, 0.1].forEach((d) => this.noise(0.03, 'bandpass', 5200, 0.12, { delay: d }))
+  }
+  /** Ameise zertreten */
+  zertreten() {
+    this.noise(0.08, 'lowpass', 1400, 0.3)
+    this.tone(260, 0.07, 'square', 0.06, { to: 120, filter: 1500 })
+  }
+  /** Lava bricht aus oder breitet sich aus: dumpfes Blubbern */
+  lava(gross = false) {
+    this.noise(gross ? 0.6 : 0.25, 'lowpass', gross ? 500 : 380, gross ? 0.35 : 0.16, { to: 120, attack: 0.03 })
+    this.tone(gross ? 90 : 120, gross ? 0.5 : 0.18, 'sine', gross ? 0.3 : 0.14, { to: 50 })
+  }
   /** Gegner eingekesselt: Plopp und helle Toene */
   besiegt() {
     this.noise(0.12, 'lowpass', 900, 0.3)
