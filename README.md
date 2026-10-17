@@ -59,7 +59,10 @@ jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wäh
 normal weiter. Zählt nicht für den Rekord.
 
 **Kamera** (Optionen): **Fest** klebt immer am Kopf der Schlange. **Dynamisch** (Standard) fliegt wie eine Drohne
-hinterher: an einer weichen Feder knapp vor dem Kopf, beim Abbiegen in lockeren Bögen statt Ecken. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
+hinterher: an einer weichen Feder knapp vor dem Kopf, beim Abbiegen in lockeren Bögen statt Ecken. **Bereich** hat einen
+festen Ausschnitt und nimmt Öffnungen (wo die Karte weitergeht) je nach Abstand früh und weich vorweg, bis zu einem
+Drittel des neuen Bereichs; man sieht immer mindestens ca. 5 Felder voraus, der Wechsel in den nächsten Ausschnitt gleitet
+mit Ease. **Rauszoomen** (Schalter): alle 30 Level ein kleines Stück mehr im Bild. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 

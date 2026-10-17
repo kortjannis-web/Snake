@@ -170,12 +170,14 @@
               </div>
             </div>
             <div class="opt opt--col">
-              <div class="opt__row"><span data-icon="Video"></span><span class="opt__t">Kamera<small>Fest: klebt immer an der Schlange. Dynamisch: fliegt wie eine Drohne in weichen Bögen hinterher</small></span></div>
-              <div class="seg seg--2" id="opt-kamera" role="radiogroup">
+              <div class="opt__row"><span data-icon="Video"></span><span class="opt__t">Kamera<small>Fest: klebt immer an der Schlange. Dynamisch: fliegt wie eine Drohne in weichen Bögen hinterher. Bereich: steht still und nimmt neue Bereiche früh und weich vorweg</small></span></div>
+              <div class="seg" id="opt-kamera" role="radiogroup">
                 <button data-v="fix" role="radio">Fest</button>
                 <button data-v="dynamisch" role="radio">Dynamisch</button>
+                <button data-v="bereich" role="radio">Bereich</button>
               </div>
             </div>
+            <label class="opt"><span data-icon="ZoomOut"></span><span class="opt__t">Rauszoomen<small>Alle 30 Level zeigt die Kamera ein kleines Stück mehr</small></span><input type="checkbox" id="opt-zoom" class="switch" /></label>
             <button class="btn btn--ghost" data-go="master"><span data-icon="SlidersHorizontal"></span>Master-Einstellungen</button>
             <button class="btn btn--danger" id="btn-reset"><span data-icon="Trash2"></span>Statistik zurücksetzen</button>
             <p class="fine">Snake Endlos · Version <span id="version"></span></p>
