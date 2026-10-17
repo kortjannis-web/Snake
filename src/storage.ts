@@ -83,7 +83,6 @@ function ladeConfig(): Config {
     // Aeltere Fassung speicherte alle Zahlen: umbenannte uebernehmen, alte Standards vergessen
     const alt: Record<string, unknown> = read(CKEY_ALT, {})
     roh = { ...alt, apfelWert: alt.apfelMuenzen, apfelWertAlle: alt.muenzFaktorAlle }
-    if (alt.gnade === 1.3) delete roh.gnade
   }
   for (const k of Object.keys(DEFAULTS) as (keyof Config)[]) {
     const v = roh[k]

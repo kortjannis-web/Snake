@@ -15,8 +15,8 @@ export type Steuerung = 'wischen' | 'zeichnen'
 
 /** Zeichnen: so weit (px) muss die Linie gehen und hoechstens so schraeg (Grad
  *  neben der Achse) sein, damit sie als Richtung zaehlt. Schraeger = keine Wende */
-export const ZEICHNEN_WEG = 26
-export const ZEICHNEN_WINKEL = 28
+export const ZEICHNEN_WEG = 18
+export const ZEICHNEN_WINKEL = 32
 const ZEICHNEN_TAN = Math.tan((ZEICHNEN_WINKEL * Math.PI) / 180)
 
 export type InputHandlers = {

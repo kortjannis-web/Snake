@@ -39,13 +39,12 @@ import {
 } from './sprites'
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
-const smooth = (t: number) => t * t * (3 - 2 * t)
-/** Kamera-Federn (1/ms): Rantasten langsam und weich, Blockwechsel zuegig, Graben dazwischen */
-const KAMERA_TAST = 0.0036
+/** Sehr weiche S-Kurve (flacher Anfang und flaches Ende) */
+const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
+/** Kamera-Federn (1/ms): Rantasten sehr langsam und weich, Blockwechsel zuegig, Graben dazwischen */
+const KAMERA_TAST = 0.0022
 const KAMERA_WECHSEL = 0.013
 const KAMERA_GRABEN = 0.008
-/** Ab so vielen Feldern vor dem Rand beginnt die Rantast-Kamera (ganz sanft) */
-const KAMERA_TAST_AB = 6
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement
@@ -696,8 +695,20 @@ export class Renderer {
     const weiter = (k: number) => g.inside({ x: h.x + d.x * k, y: h.y + d.y * k })
     const kannX = g.w > vwC && d.x !== 0
     const kannY = g.h > vhC && d.y !== 0
-    let ox = 0
-    let oy = 0
+    // Rantast-Kamera (Vorbereiten): haengt nur an der fliessenden Kopfposition, nicht an der
+    // Laufrichtung, damit Abbiegen nichts ruckeln laesst. Sobald der Kopf das letzte Drittel des
+    // Ausschnitts betritt und die Karte dahinter weitergeht, lehnt sich die Kamera ganz sanft hinueber
+    const lehnen = (pos: number, start: number, view: number, total: number, blk: number, dahinter: (seite: 1 | -1) => boolean) => {
+      if (total <= view) return 0
+      const drittel = view / 3
+      const max = Math.min(4, blk * 0.35)
+      const zuPlus = start + view - 1 - pos
+      const zuMinus = pos - start
+      const k = (abstand: number) => smoother(clamp01((drittel - abstand) / (drittel - 1)))
+      return max * ((dahinter(1) ? k(zuPlus) : 0) - (dahinter(-1) ? k(zuMinus) : 0))
+    }
+    let ox = lehnen(kopf.x, this.frame.x, vwC, g.w, g.bw, (s) => g.inside({ x: s > 0 ? this.frame.x + vwC : this.frame.x - 1, y: h.y }))
+    let oy = lehnen(kopf.y, this.frame.y, vhC, g.h, g.bh, (s) => g.inside({ x: h.x, y: s > 0 ? this.frame.y + vhC : this.frame.y - 1 }))
     if ((kannX || kannY) && weiter(rand + 1)) {
       const blk = kannX ? g.bw : g.bh
       if (rand <= 1) {
@@ -708,17 +719,9 @@ export class Renderer {
           if (kannX) this.frame.x = Math.min(g.w - vwC, Math.max(0, this.frame.x + d.x * g.bw))
           if (kannY) this.frame.y = Math.min(g.h - vhC, Math.max(0, this.frame.y + d.y * g.bh))
         } else {
-          ox = kannX ? d.x * blk * 0.5 : 0
-          oy = kannY ? d.y * blk * 0.5 : 0
+          if (kannX) ox = d.x * blk * 0.5
+          if (kannY) oy = d.y * blk * 0.5
         }
-      } else {
-        // Rantast-Kamera: setzt schon 6 Felder vor dem Rand ganz leicht ein und wird weich staerker,
-        // je naeher der Kopf kommt (mit der fliessenden Kopfposition, nicht feldweise)
-        const randF = d.x > 0 ? this.frame.x + vwC - 1 - kopf.x : d.x < 0 ? kopf.x - this.frame.x : d.y > 0 ? this.frame.y + vhC - 1 - kopf.y : kopf.y - this.frame.y
-        const max = Math.min(4, blk * 0.35)
-        const k = smooth(clamp01((KAMERA_TAST_AB - randF) / (KAMERA_TAST_AB - 1)))
-        ox = kannX ? d.x * max * k : 0
-        oy = kannY ? d.y * max * k : 0
       }
     }
     const tx = (this.frame.x + vwC / 2 + ox) * cell

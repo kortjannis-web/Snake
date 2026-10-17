@@ -2,7 +2,7 @@
  * Spiellogik Endlos-Modus (und Kreativ-Modus), ohne Darstellung (laeuft auch im Test).
  *
  * Grundlage ist das Snake aus dem Hero-Telefon der Website: weicher Takt,
- * gepufferte Eingaben, Sofort-Wende, Gnadenschritt, Mauern Feld fuer Feld,
+ * gepufferte Eingaben, Sofort-Wende, Mauern Feld fuer Feld,
  * Teiche, keine Sackgassen und alle freien Felder bleiben erreichbar.
  *
  * Karte: besteht aus Bloecken von je einem halben Bildschirm (am Handy fast
@@ -303,7 +303,7 @@ export class Game {
    *  Sofort-Wende im ersten Drittel eines Schritts (wie im Telefon) */
   turn(d: Dir, sofort = true) {
     if (this.status !== 'play') return
-    // Auf Eis laesst sich nicht lenken (ausser beim Gnadenschritt vor einem Hindernis)
+    // Auf Eis laesst sich nicht lenken (ausser im Kreativ-Modus, wenn die Schlange vor einem Hindernis steht)
     if (!this.halt && this.aufEis(this.body[0])) return
     if (
       sofort &&
@@ -363,7 +363,7 @@ export class Game {
     const grows = fest ? this.body.length < fest : this.wachsRest > 0
     const rest = grows ? this.body : this.body.slice(0, -1)
 
-    // Giftapfel essen: sofort vorbei (kein Gnadenschritt, man hat ihn ja gegessen)
+    // Giftapfel essen: sofort vorbei
     let gi = this.gift.findIndex((g) => same(g.p, n))
     if (gi >= 0 && !this.geist() && (!k || k.tod === 'an')) {
       if (this.schildBrechen()) {
@@ -393,14 +393,7 @@ export class Game {
         this.prev = this.body.map((p) => ({ ...p }))
         return
       }
-      // Gegen Rand oder Mauer gekracht: sofort vorbei. Sonst erster Anlauf: stehen bleiben, abbiegen rettet noch
-      if (!this.halt && cause !== 'rand' && cause !== 'mauer') {
-        this.halt = true
-        this.prev = this.body.map((p) => ({ ...p }))
-        this.last += this.takt * (this.cfg.gnade - 1)
-        this.emit({ type: 'halt' })
-        return
-      }
+      // Gegen jedes Hindernis: sofort vorbei (kein Gnadenschritt)
       this.prev = this.body.map((p) => ({ ...p }))
       this.die(cause)
       return
