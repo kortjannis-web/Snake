@@ -57,7 +57,7 @@ Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im S
 jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
 normal weiter. Zählt nicht für den Rekord.
 
-**Kamera:** fester Ausschnitt (ein Bildschirm), tastet sich am Rand langsam vor und fährt beim Übertritt zum
+**Kamera:** fester Ausschnitt (ein Bildschirm), tastet sich am Rand sanft eingeblendet vor und fährt beim Übertritt weich (Ease-in/out) zum
 neuen Block. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
