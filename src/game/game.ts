@@ -262,6 +262,7 @@ export class Game {
     if (this.gnade && this.time >= this.gnade.bis) this.nachGnade()
     if (this.status !== 'play') return
     this.effekteTakt()
+    this.baeumeTakt()
     this.wachsen()
     this.wolkenTakt()
     this.froschTakt()
@@ -372,8 +373,8 @@ export class Game {
       const neu = this.wahlAn(n)
       if (neu) n = neu
     }
-    // Maulwurf: ausserhalb der Karte durch die Erde graben (bis grabWeite)
-    const graben = !this.inside(n) && this.graebt() && this.grabbar(n)
+    // Maulwurf: ausserhalb der Karte durch die Erde graben (beliebig weit)
+    const graben = !this.inside(n) && this.graebt()
     // Fuettern: Tiere und Gegner werden gefressen statt gerammt
     if (this.frisst()) this.fressen(n)
     const eats = same(n, this.apple.p)
@@ -543,9 +544,12 @@ export class Game {
     if (art === 'magnet') this.effekt.magnetBis = this.time + c.magnetDauer * 1000
     if (art === 'maulwurf') this.effekt.maulwurfBis = this.time + c.maulwurfDauer * 1000
     if (art === 'spitzhacke') this.erzSetzen()
-    if (art === 'schere') {
-      // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach
-      const weg = Math.min(Math.max(0, Math.round(c.schereLaenge)), Math.max(0, this.body.length - 3))
+    if (art === 'schere' || art === 'goldschere') {
+      // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach.
+      // Die goldene schneidet viel mehr ab (goldSchereMin bis goldSchereMax)
+      const lo = Math.min(c.goldSchereMin, c.goldSchereMax)
+      const soll = art === 'schere' ? c.schereLaenge : this.r.int(Math.round(lo), Math.round(Math.max(c.goldSchereMin, c.goldSchereMax)))
+      const weg = Math.min(Math.max(0, Math.round(soll)), Math.max(0, this.body.length - 3))
       const len = this.body.length - weg
       if (weg > 0) this.abgeschnitten.push({ cells: this.body.slice(len).map((q) => ({ ...q })), von: len, laenge: this.body.length, t: this.time })
       this.body = this.body.slice(0, len)
@@ -812,7 +816,10 @@ export class Game {
   /** Welches Power-up? Nach Gewicht; Maulwurf erst ab maulwurfAb, Fuettern nur, wenn es etwas zu fressen gibt */
   private powerWahl(): PowerArt {
     const tiere = this.aktiveFroesche.length + this.ameisen.length + this.gegner.length > 0
-    const arten = R.POWER_ARTEN.filter((a) => (a !== 'maulwurf' || this.level >= this.cfg.maulwurfAb) && (a !== 'fuettern' || tiere))
+    const c = this.cfg
+    const arten = R.POWER_ARTEN.filter(
+      (a) => (a !== 'maulwurf' || this.level >= c.maulwurfAb) && (a !== 'goldschere' || this.level >= c.goldSchereAb) && (a !== 'fuettern' || tiere),
+    )
     let z = this.r.next() * arten.reduce((s, a) => s + R.POWER_GEWICHT[a], 0)
     for (const a of arten) {
       z -= R.POWER_GEWICHT[a]
@@ -917,12 +924,6 @@ export class Game {
     return { x: n.x + this.ursprung.x - vorher.x, y: n.y + this.ursprung.y - vorher.y }
   }
 
-  /** Darf hier gegraben werden? (Erde bis grabWeite um die Karte herum) */
-  private grabbar(n: P) {
-    const g = this.cfg.grabWeite
-    return n.x >= -g && n.y >= -g && n.x < this.w + g && n.y < this.h + g
-  }
-
   /** Ein Feld Erde gegraben: Tunnel merken, Erz darin gleich einsammeln */
   private graben(n: P) {
     if (!this.tunnel.some((t) => same(t, n))) this.tunnel.push({ ...n })
@@ -938,11 +939,21 @@ export class Game {
   /** Zurueck aus der Erde: der Tunnel und alles, was er mit der Karte einschliesst, wird Karte */
   private freilegen() {
     if (!this.tunnel.length) return
-    const g = this.cfg.grabWeite + 1
-    const x0 = -g
-    const y0 = -g
-    const W = this.w + 2 * g
-    const H = this.h + 2 * g
+    // Rechteck um Karte und Tunnel, mit einem Feld Rand zum Fluten
+    let x0 = 0
+    let y0 = 0
+    let x1 = this.w
+    let y1 = this.h
+    for (const t of this.tunnel) {
+      x0 = Math.min(x0, t.x)
+      y0 = Math.min(y0, t.y)
+      x1 = Math.max(x1, t.x + 1)
+      y1 = Math.max(y1, t.y + 1)
+    }
+    x0--
+    y0--
+    const W = x1 + 1 - x0
+    const H = y1 + 1 - y0
     const wand = new Uint8Array(W * H)
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.mask[y * this.w + x]) wand[(y - y0) * W + (x - x0)] = 1
     for (const t of this.tunnel) if (t.x >= x0 && t.y >= y0 && t.x < x0 + W && t.y < y0 + H) wand[(t.y - y0) * W + (t.x - x0)] = 1
@@ -1437,21 +1448,71 @@ export class Game {
 
   /* ================= Baeume, Haeuser, Tuerme ================= */
 
-  /** Liegende Tanne (1-1-3-1, symmetrisch) irgendwo mit Abstand, bleibt fuer immer */
-  private neuerBaum() {
+  /** Tanne irgendwo mit Abstand, bleibt fuer immer. Im Spiel steht sie erst (Plus) und kippt nach
+   *  baumKippMin bis baumKippMax Sekunden um; beim Aufbau der Welt liegt sie schon (1-1-3-1) */
+  private neuerBaum(stehend = !this.aufbau) {
     const r = this.r
+    const c = this.cfg
     const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
       const dir = r.pick(DIRS)
-      const d = STEP[dir]
-      const q = { x: -d.y, y: d.x }
       const root = { x: r.int(0, this.w - 1), y: r.int(0, this.h - 1) }
-      const cells = R.BAUM_FORM.map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
+      const cells = stehend ? R.BAUM_STEHEND.map((o) => ({ x: root.x + o.x, y: root.y + o.y })) : this.baumLiegend(root, dir)
       if (!this.platzOk(cells, 'mauer', ctx)) continue
-      this.baeume.push({ cells, root, dir, t: this.time })
-      this.emit({ type: 'tree' })
+      const lo = Math.min(c.baumKippMin, c.baumKippMax) * 1000
+      const hi = Math.max(c.baumKippMin, c.baumKippMax) * 1000
+      const kippBei = stehend ? this.time + r.int(Math.round(lo), Math.round(hi)) : null
+      this.baeume.push({ cells, root, dir, t: this.time, kippBei, fallT: -1e9, gelandet: true })
       return true
     }
+    return false
+  }
+
+  /** Felder einer liegenden Tanne (1-1-3-1) ab dem Stamm `root` in Richtung `dir` */
+  private baumLiegend(root: P, dir: Dir) {
+    const d = STEP[dir]
+    const q = { x: -d.y, y: d.x }
+    return R.BAUM_FORM.map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
+  }
+
+  /** Stehende Baeume kippen, wenn ihre Zeit um ist. Gelandet: dumpfer Schlag */
+  private baeumeTakt() {
+    for (const b of this.baeume) {
+      if (b.kippBei !== null && this.time >= b.kippBei) this.baumKippen(b)
+      if (!b.gelandet && this.time >= b.fallT + R.BAUM_FALL) {
+        b.gelandet = true
+        this.emit({ type: 'tree', p: { ...b.root } })
+      }
+    }
+  }
+
+  /** Der Baum faellt in eine zufaellige Richtung, in der er Platz hat: nie auf die Schlange (auch
+   *  nicht knapp vor oder neben ihren Kopf), nie auf andere Hindernisse, Tiere, Apfel oder Power-ups,
+   *  und er schliesst nichts ab. Ist ringsum alles belegt (die Schlange haelt ihn auf), wartet er
+   *  und versucht es kurz darauf wieder */
+  private baumKippen(b: Baum) {
+    const wand = this.hindernisse()
+    for (const c of b.cells) wand.delete(key(c.x, c.y))
+    const belegt = new Set([this.apple.p, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.eis.flatMap((e) => e.cells)].map((p) => key(p.x, p.y)))
+    const head = this.body[0]
+    const frei = (c: P) => {
+      const k = key(c.x, c.y)
+      return this.inside(c) && !wand.has(k) && !belegt.has(k) && !this.aufSchlange(c) && manhattan(c, head) > 2 && !this.imWeg(c, 3)
+    }
+    let vorher: ReturnType<Game['erreichbar']> | null = null
+    for (const dir of this.r.shuffle([...DIRS])) {
+      const cells = this.baumLiegend(b.root, dir)
+      if (!cells.every(frei)) continue
+      vorher ??= this.erreichbar(wand)
+      if (!this.keinAbschluss(cells, wand, vorher)) continue
+      b.cells = cells
+      b.dir = dir
+      b.kippBei = null
+      b.fallT = this.time
+      b.gelandet = false
+      return true
+    }
+    b.kippBei = this.time + 500
     return false
   }
 

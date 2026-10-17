@@ -378,13 +378,19 @@ export function drawWolkenKern(ctx: CanvasRenderingContext2D, cx: number, cy: nu
 const ROT: Record<Dir, number> = { r: 0, d: Math.PI / 2, l: Math.PI, u: -Math.PI / 2 }
 
 /** Liegende Tanne (1-1-3-1): Stamm mit Schnittflaeche, Krone als Dreieck in drei
- *  Lagen, symmetrisch. Gezeichnet entlang `dir`. */
-export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, cell: number, s: number) {
-  if (s <= 0) return
+ *  Lagen, symmetrisch. Gezeichnet entlang `dir`. `kipp` (0 bis 1) = beim Umfallen: so weit
+ *  ist sie von oben gesehen schon ausgestreckt (am Stammende festgehalten) */
+export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, cell: number, s: number, kipp = 1) {
+  if (s <= 0 || kipp <= 0) return
   const u = cell
   ctx.save()
   ctx.translate((root.x + 0.5) * u, (root.y + 0.5) * u)
   ctx.rotate(ROT[dir])
+  if (kipp < 1) {
+    ctx.translate(-0.45 * u, 0)
+    ctx.scale(kipp, 1)
+    ctx.translate(0.45 * u, 0)
+  }
   // waechst aus dem Stamm heraus
   ctx.scale(Math.min(1, s), Math.min(1, s))
   // Schatten nach unten (unabhaengig von der Drehung)
@@ -462,6 +468,49 @@ export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, cell:
   ctx.moveTo(2.6 * u, -0.38 * u)
   ctx.lineTo(3.3 * u, -0.06 * u)
   ctx.stroke()
+  ctx.restore()
+}
+
+/** Stehende Tanne von oben: die Krone als Plus (Stern mit vier Spitzen in die Nachbarfelder) in
+ *  drei Lagen, in der Mitte die Spitze. `off` = Versatz in Feldern (beim Umfallen) */
+export function drawBaumStehend(ctx: CanvasRenderingContext2D, root: P, cell: number, s: number, off: P = { x: 0, y: 0 }) {
+  if (s <= 0) return
+  const u = cell
+  ctx.save()
+  ctx.translate((root.x + 0.5 + off.x) * u, (root.y + 0.5 + off.y) * u)
+  ctx.scale(s, s)
+  const lagen: [number, string][] = [
+    [1, '#1F6B3A'],
+    [0.72, '#2A8148'],
+    [0.45, '#3A9A57'],
+  ]
+  ctx.shadowColor = 'rgba(12, 40, 32, 0.32)'
+  const m = ctx.getTransform()
+  ctx.shadowOffsetY = u * 0.16 * Math.hypot(m.a, m.b)
+  for (const [k, col] of lagen) {
+    const spitze = 1.45 * u * k
+    const ecke = 0.64 * u * k
+    ctx.fillStyle = col
+    ctx.beginPath()
+    for (let i = 0; i < 4; i++) {
+      const w = (i * Math.PI) / 2
+      // Spitze, kleiner Zacken (Ast), Ecke zwischen zwei Spitzen
+      ctx.lineTo(Math.cos(w) * spitze, Math.sin(w) * spitze)
+      const z = w + Math.PI / 8
+      ctx.lineTo(Math.cos(z) * spitze * 0.62, Math.sin(z) * spitze * 0.62)
+      ctx.lineTo(Math.cos(w + Math.PI / 4) * ecke, Math.sin(w + Math.PI / 4) * ecke)
+      const z2 = w + (Math.PI * 3) / 8
+      ctx.lineTo(Math.cos(z2) * spitze * 0.62, Math.sin(z2) * spitze * 0.62)
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.shadowColor = 'transparent'
+  }
+  // Spitze in der Mitte
+  ctx.fillStyle = '#5DBB74'
+  ctx.beginPath()
+  ctx.arc(0, 0, u * 0.13, 0, Math.PI * 2)
+  ctx.fill()
   ctx.restore()
 }
 
@@ -784,6 +833,7 @@ export const POWER_FARBE: Record<string, string> = {
   zeitlupe: '#9B7BE0',
   geist: '#B8C4CC',
   schere: '#F29A4C',
+  goldschere: '#F5C518',
   fuettern: '#E0563E',
   magnet: '#D8434A',
   maulwurf: '#8A5A34',
@@ -856,7 +906,7 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.arc(-k * 0.28, -k * 0.15, k * 0.14, 0, Math.PI * 2)
     ctx.arc(k * 0.28, -k * 0.15, k * 0.14, 0, Math.PI * 2)
     ctx.fill()
-  } else if (art === 'schere') {
+  } else if (art === 'schere' || art === 'goldschere') {
     ctx.moveTo(-k * 0.7, -k * 0.8)
     ctx.lineTo(k * 0.5, k * 0.4)
     ctx.moveTo(k * 0.7, -k * 0.8)
@@ -906,6 +956,18 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.moveTo(-k * 0.65, -k * 0.35)
     ctx.quadraticCurveTo(k * 0.15, -k * 1.0, k * 0.9, -k * 0.15)
     ctx.stroke()
+  }
+  // Goldene Schere: funkelt
+  if (art === 'goldschere') {
+    const f = 0.75 + 0.25 * Math.sin(now / 160)
+    ctx.beginPath()
+    for (let i = 0; i < 8; i++) {
+      const w = (i * Math.PI) / 4
+      const rr = (i % 2 ? 0.1 : 0.32) * r * f
+      ctx.lineTo(r * 0.72 + Math.cos(w) * rr, -r * 0.72 + Math.sin(w) * rr)
+    }
+    ctx.closePath()
+    ctx.fill()
   }
   ctx.restore()
 }

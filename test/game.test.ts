@@ -259,6 +259,69 @@ describe('Baeume, Haeuser, Tuerme', () => {
     }
   })
 
+  /** Leere Karte mit einem stehenden Baum (Stamm bei 6,6), der bei 1 s kippen will */
+  const mitBaum = () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 2, cfg: { powerChance: 0 } })
+    leer(g)
+    g.powers = []
+    g.apple.p = { x: 0, y: 0 }
+    const root = { x: 6, y: 6 }
+    g.baeume.push({ cells: R.BAUM_STEHEND.map((o) => ({ x: root.x + o.x, y: root.y + o.y })), root, dir: 'r', t: 0, kippBei: 1000, fallT: -1e9, gelandet: true })
+    return g
+  }
+  const baumTakt = (g: Game) => (g as unknown as { baeumeTakt: () => void }).baeumeTakt()
+
+  it('Baum steht im Spiel erst als Plus und kippt nach 10 bis 60 s', () => {
+    for (let s = 1; s <= 10; s++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed: s })
+      leer(g)
+      expect((g as unknown as { neuerBaum: () => boolean }).neuerBaum()).toBe(true)
+      const b = g.baeume[0]
+      expect(b.kippBei).not.toBeNull()
+      expect(b.kippBei! - g.time).toBeGreaterThanOrEqual(10_000)
+      expect(b.kippBei! - g.time).toBeLessThanOrEqual(60_000)
+      expect(b.cells.map((c) => `${c.x - b.root.x},${c.y - b.root.y}`).sort()).toEqual(['-1,0', '0,-1', '0,0', '0,1', '1,0'])
+      expect(g.gefahr(b.root)).toBe('baum')
+    }
+  })
+
+  it('Baum faellt langsam um, nie auf die Schlange, und liegt dann 1-1-3-1', () => {
+    const g = mitBaum()
+    g.time = 1000
+    baumTakt(g)
+    const b = g.baeume[0]
+    expect(b.kippBei).toBeNull()
+    expect(b.fallT).toBe(1000)
+    expect(b.cells).toHaveLength(6)
+    const d = R.STEP[b.dir]
+    expect(b.cells.map((c) => (c.x - b.root.x) * d.x + (c.y - b.root.y) * d.y).sort()).toEqual([0, 1, 2, 2, 2, 3])
+    for (const c of b.cells) expect(g.aufSchlange(c)).toBe(false)
+    g.drain()
+    g.time = 1000 + R.BAUM_FALL - 10
+    baumTakt(g)
+    expect(g.drain().some((e) => e.type === 'tree')).toBe(false)
+    g.time = 1000 + R.BAUM_FALL
+    baumTakt(g)
+    expect(g.drain().some((e) => e.type === 'tree')).toBe(true)
+  })
+
+  it('Liegt die Schlange rundherum, haelt sie den Baum auf', () => {
+    const g = mitBaum()
+    // In jeder Richtung liegt ein Glied genau dort, wo die Krone landen wuerde
+    g.body = [{ x: 1, y: 20 }, { x: 6, y: 4 }, { x: 8, y: 6 }, { x: 6, y: 8 }, { x: 4, y: 6 }]
+    g.time = 1000
+    baumTakt(g)
+    const b = g.baeume[0]
+    expect(b.kippBei).toBe(1500)
+    expect(b.cells).toHaveLength(5)
+    // Schlange weg: jetzt faellt er
+    g.body = [{ x: 1, y: 20 }, { x: 1, y: 19 }, { x: 1, y: 18 }]
+    g.time = 1500
+    baumTakt(g)
+    expect(b.kippBei).toBeNull()
+    expect(b.cells).toHaveLength(6)
+  })
+
   it('Nach dem Baum ist das Haus das naechste Neue', () => {
     const neu = R.unlocks(C)
       .map((u) => u)
@@ -601,6 +664,32 @@ describe('Aepfel als Waehrung und Power-ups', () => {
     expect(g.effekt.schere).toBe(0)
     schritte(g, 10)
     expect(g.body.length).toBe(13)
+  })
+
+  it('Goldene Schere: 15 bis 20 Glieder weg, bis zum naechsten Apfel, erst ab Level 50', () => {
+    const laengen = new Set<number>()
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = frisch(seed)
+      g.body = Array.from({ length: 30 }, (_, i) => ({ x: 20 - i, y: 5 }))
+      g.prev = g.body.map((p) => ({ ...p }))
+      g.powerAn('goldschere')
+      expect(g.effekt.schere).toBeGreaterThanOrEqual(15)
+      expect(g.effekt.schere).toBeLessThanOrEqual(20)
+      expect(g.body.length).toBe(30 - g.effekt.schere)
+      laengen.add(g.effekt.schere)
+    }
+    expect(laengen.size).toBeGreaterThan(3)
+    const kurz = frisch()
+    kurz.body = Array.from({ length: 10 }, (_, i) => ({ x: 12 - i, y: 5 }))
+    kurz.powerAn('goldschere')
+    expect(kurz.body.length).toBe(3)
+    const wahl = (g: Game) => {
+      const arten = new Set<string>()
+      for (let i = 0; i < 600; i++) arten.add((g as unknown as { powerWahl: () => string }).powerWahl())
+      return arten
+    }
+    expect(wahl(new Game({ screenW: SW, screenH: SH, seed: 2, startLevel: 49 })).has('goldschere')).toBe(false)
+    expect(wahl(new Game({ screenW: SW, screenH: SH, seed: 2, startLevel: 60 })).has('goldschere')).toBe(true)
   })
 
   it('Schere laesst mindestens 3 Glieder', () => {
@@ -1223,6 +1312,29 @@ describe('Neue Power-ups', () => {
     expect(g.tunnel).toHaveLength(0)
     // Gang (6 Felder: 3 raus, 2 runter, 1 zurueck vor dem Rand) + eingeschlossene 2 x 1
     expect(g.felder()).toBeGreaterThan(vorher + 6)
+  })
+
+  it('Maulwurf: kein Limit, wie weit man hinausgraebt', () => {
+    const g = welt(3)
+    const y = 5
+    g.body = [{ x: g.w - 1, y }, { x: g.w - 2, y }, { x: g.w - 3, y }]
+    g.prev = []
+    g.dir = 'r'
+    g.queue = []
+    g.powerAn('maulwurf')
+    const weit = 25
+    for (let i = 0; i < weit; i++) einSchritt(g)
+    expect(g.status).toBe('play')
+    expect(g.body[0].x).toBe(g.w - 1 + weit)
+    const breiteVorher = g.w
+    // Zurueck auf die Karte: der lange Gang wird Spielfeld
+    g.turn('d', false)
+    einSchritt(g)
+    g.turn('l', false)
+    for (let i = 0; i < weit + 1 && g.status === 'play' && g.tunnel.length; i++) einSchritt(g)
+    expect(g.status).toBe('play')
+    expect(g.tunnel).toHaveLength(0)
+    expect(g.w).toBeGreaterThanOrEqual(breiteVorher + weit)
   })
 
   it('Maulwurf vorbei, noch in der Erde: Spielende', () => {

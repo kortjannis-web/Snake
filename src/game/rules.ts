@@ -55,6 +55,8 @@ export const DEFAULTS = {
   baumAb: 90,
   baumAlle: 40,
   baumFelder: 150,
+  baumKippMin: 10,
+  baumKippMax: 60,
   // Giftwolken
   wolkeAb: 135,
   wolkeMin: 5,
@@ -126,12 +128,14 @@ export const DEFAULTS = {
   geistDauer: 6,
   powerGarantie: 8,
   schereLaenge: 5,
+  goldSchereAb: 50,
+  goldSchereMin: 15,
+  goldSchereMax: 20,
   fuetternDauer: 20,
   magnetDauer: 15,
   magnetRadius: 2,
   maulwurfAb: 90,
   maulwurfDauer: 20,
-  grabWeite: 8,
   // Erze unter der Erde (je 1000 Erdfelder) und ihr Wert in Aepfeln (mal Apfelwert)
   erzGold: 9,
   erzDia: 1.2,
@@ -219,6 +223,8 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'baumAb', label: 'Ab Level', min: 1, max: 10000 },
       { key: 'baumAlle', label: 'Neuer Baum alle', min: 1, max: 500, einheit: 'Level' },
       { key: 'baumFelder', label: 'Höchstens ein Baum je', min: 20, max: 5000, einheit: 'Felder' },
+      { key: 'baumKippMin', label: 'Steht, bevor er kippt, mindestens', min: 1, max: 600, einheit: 's' },
+      { key: 'baumKippMax', label: 'Steht, bevor er kippt, höchstens', min: 1, max: 600, einheit: 's' },
     ],
   },
   {
@@ -316,12 +322,14 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'zeitlupeProzent', label: 'Zeitlupe langsamer um', min: 5, max: 80, einheit: '%' },
       { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
       { key: 'schereLaenge', label: 'Schere kürzt bis zum nächsten Apfel um', min: 1, max: 50, einheit: 'Glieder' },
+      { key: 'goldSchereAb', label: 'Goldene Schere ab Level', min: 1, max: 10000 },
+      { key: 'goldSchereMin', label: 'Goldene Schere kürzt mindestens um', min: 1, max: 200, einheit: 'Glieder' },
+      { key: 'goldSchereMax', label: 'Goldene Schere kürzt höchstens um', min: 1, max: 200, einheit: 'Glieder' },
       { key: 'fuetternDauer', label: 'Füttern (Tiere und Schlangen fressen, durch sich selbst) hält', min: 1, max: 120, einheit: 's' },
       { key: 'magnetDauer', label: 'Magnet hält', min: 1, max: 120, einheit: 's' },
       { key: 'magnetRadius', label: 'Magnet holt alles im Umkreis von', min: 1, max: 10, einheit: 'Feldern' },
       { key: 'maulwurfAb', label: 'Maulwurf ab Level', min: 1, max: 10000 },
       { key: 'maulwurfDauer', label: 'Maulwurf (graben) hält', min: 1, max: 120, einheit: 's' },
-      { key: 'grabWeite', label: 'Graben höchstens so weit hinaus', min: 1, max: 60, einheit: 'Felder' },
       { key: 'apfelWert', label: 'Ein Apfel ist wert', min: 0, max: 100, einheit: 'Äpfel' },
       { key: 'apfelWertAlle', label: 'Äpfel zählen einmal mehr alle', min: 1, max: 10000, einheit: 'Level' },
     ],
@@ -410,6 +418,10 @@ export const giftAnzahl = (c: Config, level: number) =>
 
 export const neuerBaum = (c: Config, level: number) => level >= c.baumAb && (level - c.baumAb) % c.baumAlle === 0
 export const baumMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.baumFelder))
+/** Stehende Tanne von oben: ein Plus um den Stamm */
+export const BAUM_STEHEND: P[] = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]
+/** So lange (ms) faellt ein Baum um */
+export const BAUM_FALL = 1600
 /** Liegende Tanne 1-1-3-1 (symmetrisch): Felder entlang der Achse (a) und quer dazu (q) */
 export const BAUM_FORM: { a: number; q: number }[] = [
   { a: 0, q: 0 },
@@ -485,13 +497,14 @@ export const wolkenForm = (stage: number): P[] => {
  *  Mit jeder Stufe bekommt der Apfel eine andere Farbe (siehe APFEL_STUFEN in sprites.ts) */
 export const apfelFaktor = (c: Config, level: number) => 1 + Math.floor(level / Math.max(1, c.apfelWertAlle))
 
-export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere', 'fuettern', 'magnet', 'maulwurf', 'spitzhacke'] as const
+export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere', 'goldschere', 'fuettern', 'magnet', 'maulwurf', 'spitzhacke'] as const
 /** Wie oft welches Power-up kommt (Gewicht) */
 export const POWER_GEWICHT: Record<(typeof POWER_ARTEN)[number], number> = {
   schild: 3,
   zeitlupe: 3,
   geist: 2,
   schere: 2,
+  goldschere: 1,
   fuettern: 2,
   magnet: 3,
   maulwurf: 2,

@@ -431,8 +431,11 @@ function handle(e: GameEvent) {
       break
     }
     case 'tree':
-      audio.tree()
-      haptic.medium()
+      // Baum schlaegt auf: nur in der Naehe hoer- und spuerbar
+      if (nah(e.p, 1)) {
+        audio.tree()
+        haptic.medium()
+      }
       break
     case 'house':
       audio.house()

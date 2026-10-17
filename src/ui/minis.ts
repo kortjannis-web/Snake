@@ -34,6 +34,7 @@ export type Mini =
   | 'zeitlupe'
   | 'geist'
   | 'schere'
+  | 'goldschere'
 
 /** stufe = Apfelfarbe (fuer 'apfel') */
 export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 'top', stufe = 1) {
@@ -229,6 +230,7 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     case 'spitzhacke':
     case 'geist':
     case 'schere':
+    case 'goldschere':
       drawPower(ctx, mid, mid + cell * 0.1, big, kind, 1, 0)
       break
     case 'rand':

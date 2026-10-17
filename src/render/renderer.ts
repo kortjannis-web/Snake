@@ -4,7 +4,7 @@
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
 import { AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
-import { erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
+import { BAUM_FALL, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Funke, GameEvent, Gegner, P } from '../game/types'
 import { drawSchlange, GEGNER_SKIN, LILA_SKIN, SKINS, type Skin } from './skins'
 import {
@@ -27,6 +27,7 @@ import {
   drawTurm,
   drawApfel,
   drawBaum,
+  drawBaumStehend,
   drawHaus,
   drawLicht,
   drawFalle,
@@ -169,27 +170,34 @@ export class Renderer {
         zeitlupe: 'Zeitlupe',
         geist: 'Geist',
         schere: g.effekt.schere > 0 ? `Schere −${g.effekt.schere}` : 'Schere',
+        goldschere: g.effekt.schere > 0 ? `Goldschere −${g.effekt.schere}` : 'Goldschere',
         fuettern: 'Füttern!',
         magnet: 'Magnet',
         maulwurf: 'Maulwurf',
         spitzhacke: 'Erz!',
       }[e.art]
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
-      // Schere: an der Schnittstelle spritzen helle Funken, das Bild zuckt kurz
-      const schnitt = e.art === 'schere' ? g.abgeschnitten[g.abgeschnitten.length - 1] : undefined
+      // Schere: an der Schnittstelle spritzen helle Funken (goldene: goldene), das Bild zuckt kurz
+      const gold = e.art === 'goldschere'
+      const schnitt = e.art === 'schere' || gold ? g.abgeschnitten[g.abgeschnitten.length - 1] : undefined
       if (schnitt && schnitt.t === g.time && !this.reduce) {
         const c = schnitt.cells[0]
-        for (let i = 0; i < 12; i++) {
-          const ang = (Math.PI * 2 * i) / 12 + Math.random() * 0.4
+        for (let i = 0; i < (gold ? 20 : 12); i++) {
+          const ang = (Math.PI * 2 * i) / (gold ? 20 : 12) + Math.random() * 0.4
           const sp = cell * (0.9 + Math.random() * 0.9)
-          this.funken.push({ x: (c.x + 0.5) * cell, y: (c.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: i % 2 ? '#FFFFFF' : '#C9D3DC' })
+          const farbe = gold ? (i % 2 ? '#FFE08A' : '#F2B824') : i % 2 ? '#FFFFFF' : '#C9D3DC'
+          this.funken.push({ x: (c.x + 0.5) * cell, y: (c.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: farbe })
         }
-        this.shake = { until: g.time + 220, amp: cell * 0.1 }
+        this.shake = { until: g.time + 220, amp: cell * (gold ? 0.14 : 0.1) }
       }
     } else if (e.type === 'setback') {
       if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
     } else if (e.type === 'halt') {
       if (!this.reduce) this.shake = { until: g.time + 140, amp: cell * 0.07 }
+    } else if (e.type === 'tree') {
+      // Baum schlaegt auf: kurzes Beben, wenn man es sieht
+      const nah = Math.abs((e.p.x + 0.5) * cell - this.cam.x) < this.vw / 2 + 3 * cell && Math.abs((e.p.y + 0.5) * cell - this.cam.y) < this.vh / 2 + 3 * cell
+      if (nah && !this.reduce) this.shake = { until: g.time + 260, amp: cell * 0.09 }
     }
   }
 
@@ -346,10 +354,31 @@ export class Renderer {
         drawStein(ctx, m.cells[i].x * cell, m.cells[i].y * cell, cell, s)
       }
 
-    // Baeume und Haeuser (bleiben), dazu das Licht aus den Fenstern
+    // Baeume und Haeuser (bleiben), dazu das Licht aus den Fenstern.
+    // Baeume stehen erst (von oben ein Plus) und fallen dann langsam um
     for (const b of g.baeume) {
       if (!b.cells.some((c) => sicht(c, 3))) continue
-      drawBaum(ctx, b.root, b.dir, cell, this.reduce ? 1 : backOut(clamp01((now - b.t) / 520)))
+      const s = this.reduce ? 1 : backOut(clamp01((now - b.t) / 520))
+      if (b.kippBei !== null) {
+        drawBaumStehend(ctx, b.root, cell, s)
+        continue
+      }
+      const p = this.reduce ? 1 : clamp01((now - b.fallT) / BAUM_FALL)
+      if (p >= 1) {
+        drawBaum(ctx, b.root, b.dir, cell, s)
+        continue
+      }
+      // Faellt: immer schneller (wie mit Schwerkraft). Von oben gesehen wird der liegende Baum
+      // laenger (sin des Kippwinkels), die Krone von oben wandert mit und verschwindet.
+      // Sein Schatten zeigt sofort, wo er landet
+      const k = Math.sin((Math.PI / 2) * p * p)
+      ctx.fillStyle = `rgba(12, 40, 32, ${0.2 * clamp01(p * 6) * (1 - k * 0.6)})`
+      for (const c of b.cells) ctx.fillRect(c.x * cell, c.y * cell, cell, cell)
+      drawBaum(ctx, b.root, b.dir, cell, 1, k)
+      const d = STEP[b.dir]
+      ctx.globalAlpha = 1 - k
+      drawBaumStehend(ctx, b.root, cell, 1, { x: d.x * k * 2, y: d.y * k * 2 })
+      ctx.globalAlpha = 1
     }
     for (const h of g.haeuser) {
       if (!h.cells.some((c) => sicht(c, 3))) continue
