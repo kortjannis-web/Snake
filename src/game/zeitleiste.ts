@@ -16,7 +16,7 @@ const bereich = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`)
 export const dauerhaft = (c: R.Config): string[] => [
   `Jedes Level ${String(c.tempoProLevel).replace('.', ',')} % schneller, bis höchstens ${c.tempoMin} % des Grundtakts.`,
   `Mauern stehen nach jedem Apfel woanders. Häuser wechseln nach jedem Apfel das Fenster, Türme drehen sich eine Vierteldrehung.`,
-  `Power-ups: nach jedem Apfel ${c.powerChance} % Chance (höchstens eins liegt), spätestens nach ${c.powerGarantie} Äpfeln ohne eins, ${c.powerDauer} s lang. Gewichte: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2 (nur wenn Tiere da sind), Spitzhacke 2, Maulwurf 2 (ab Level ${c.maulwurfAb}), goldener Apfel 1.`,
+  `Power-ups: nach jedem Apfel ${c.powerChance} % Chance (höchstens eins liegt), spätestens nach ${c.powerGarantie} Äpfeln ohne eins, ${c.powerDauer} s lang. Gewichte: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2 (nur wenn Tiere da sind), Spitzhacke 2, Maulwurf 2 (ab Level ${c.maulwurfAb}), goldene Schere 1 (ab Level ${c.goldSchereAb}).`,
   `Neue Gebiete wählst du selbst: bis Level ${c.gebietBis} alle ${c.gebietAlle}, dann alle ${c.gebietAlle2}, ab ${c.gebietAb3} alle ${c.gebietAlle3} Level leuchten die Wände, wo ein Block passt. Du hast ${c.wahlZeit} s, eine zu berühren (die letzten 5 s blinken sie), sonst kommt der Block zufällig.`,
   `Unter der Erde (je 1000 Felder): Golderz ${c.erzGold} (×${c.goldWert} Apfel), Diamant ${c.erzDia} (×${c.diaWert}), Rubin ${c.erzRubin} (×${c.rubinWert}), Opal ${c.erzOpal} (×${c.opalWert}). Freilegen per Maulwurf, neuem Gebiet oder Spitzhacke.`,
   `Zufällige Abstände: Fallen alle ${bereich(c.falleMin, c.falleMax)}, Wolken ${bereich(c.wolkeMin, c.wolkeMax)}, Frösche ${bereich(c.froschMin, c.froschMax)}, Gegner ${bereich(c.gegnerMin, c.gegnerMax)}, Ameisen ${bereich(c.ameiseMin, c.ameiseMax)} Level.`,
@@ -63,8 +63,9 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
       tempoMinErreicht = true
       add('schlange', `Höchsttempo erreicht (${c.tempoMin} % des Grundtakts).`)
     }
-    if (l === c.powerAb) add('apfel', `Power-ups: Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, goldener Apfel (${c.powerChance} % je Apfel).`)
+    if (l === c.powerAb) add('apfel', `Power-ups: Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, Spitzhacke (${c.powerChance} % je Apfel).`)
     if (l === c.maulwurfAb) add('apfel', `Power-up Maulwurf: ${c.maulwurfDauer} s durch die Erde graben.`)
+    if (l === c.goldSchereAb) add('apfel', `Power-up goldene Schere: ${Math.min(c.goldSchereMin, c.goldSchereMax)}–${Math.max(c.goldSchereMin, c.goldSchereMax)} Glieder weg (bis zum nächsten Apfel).`)
 
     // Apfelwert
     const f = R.apfelFaktor(c, l)
@@ -125,7 +126,7 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
     // Bauten (bleiben stehen, wenn Platz ist)
     if (R.neuerBaum(c, l) && baeume < R.baumMax(c, felder)) {
       baeume++
-      add('bau', `Baum ${baeume}.`)
+      add('bau', `Baum ${baeume} (steht erst, kippt nach ${Math.min(c.baumKippMin, c.baumKippMax)}–${Math.max(c.baumKippMin, c.baumKippMax)} s um).`)
     }
     if (l === c.hausGrossAb) add('bau', 'Ab jetzt große Häuser statt Hütten.')
     if (R.neuesHaus(c, l) && haeuser < R.hausMax(c, felder)) {

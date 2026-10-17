@@ -47,8 +47,10 @@ export type Frosch = {
   gone?: number
 }
 
-/** Liegender Tannenbaum: 1-1-3-1 Felder entlang `dir` (Stamm, Stamm, Krone breit, Spitze), symmetrisch */
-export type Baum = { cells: P[]; root: P; dir: Dir; t: number }
+/** Tannenbaum. Erst steht er (von oben ein Plus um `root`), bis `kippBei` (null = liegt schon).
+ *  Dann faellt er ab `fallT` langsam in Richtung `dir` und liegt danach 1-1-3-1 Felder entlang
+ *  `dir` (Stamm, Stamm, Krone breit, Spitze), symmetrisch. `gelandet` = Aufschlag schon gemeldet */
+export type Baum = { cells: P[]; root: P; dir: Dir; t: number; kippBei: number | null; fallT: number; gelandet: boolean }
 /** Fenster: Wandfeld des Hauses und Richtung nach aussen */
 export type Fenster = { p: P; d: Dir }
 /** Haus: bleibt stehen. Vier Fenster (eins je Seite), eins davon leuchtet 2 Felder weit */
@@ -75,8 +77,8 @@ export type Kreativ = {
 }
 
 /** Power-ups: Schild (ein Leben mehr: faengt einen Tod oder Rueckschlag ab), Zeitlupe, Geist (kurz durch Hindernisse),
- *  Schere (bis zum naechsten Apfel ein paar Glieder kuerzer), Fuettern (Tiere fressen, durch sich selbst) */
-export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere' | 'fuettern' | 'magnet' | 'maulwurf' | 'spitzhacke'
+ *  Schere (bis zum naechsten Apfel ein paar Glieder kuerzer, die goldene viel mehr), Fuettern (Tiere fressen, durch sich selbst) */
+export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere' | 'goldschere' | 'fuettern' | 'magnet' | 'maulwurf' | 'spitzhacke'
 export type Power = { p: P; t: number; until: number; art: PowerArt }
 
 /** Gegner-Schlange: rot, halb so schnell wie die Schlange, weicht ihr aus.
@@ -149,7 +151,7 @@ export type GameEvent =
   | { type: 'wall' }
   | { type: 'pond' }
   | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' }
-  | { type: 'tree' }
+  | { type: 'tree'; p: P }
   | { type: 'house' }
   | { type: 'light' }
   | { type: 'tower' }

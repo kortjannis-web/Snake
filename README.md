@@ -26,7 +26,7 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
 | 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s (die letzten 5 blinken), wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. |
 | 45 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
 | 55 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 55 / 155 / 255). Schiebt man sich bis 3 Felder vor sie, lenken sie nicht mehr rechtzeitig und zerplatzen an der Schlange. |
-| 90 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-3-1, symmetrisch) alle 40 Level, bleiben. **Maulwurf** als Power-up. |
+| 90 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** alle 40 Level: stehen erst als Plus, kippen nach 10–60 s langsam um (nie auf die Schlange, sie kann sie aufhalten) und liegen dann 1-1-3-1. **Maulwurf** als Power-up. |
 | 100 | **Hütten** (2 × 2, Licht 1 Feld) alle 30 Level, ab 190 große Häuser. Das nächste Neue nach dem Baum. |
 | 110 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
 | 135 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
@@ -48,8 +48,8 @@ Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel)
 Skeletten, Lava, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
 die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 9: Schild (ein Leben mehr,
 läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,
-Schere (5 Glieder weg, nur bis zum nächsten Apfel), Füttern (20 s Tiere und Gegner fressen und durch sich selbst), Magnet (15 s, holt alles im
-2-Felder-Umkreis sofort), ab Level 90 Maulwurf (20 s durch die Erde graben,
+Schere (5 Glieder weg, nur bis zum nächsten Apfel), ab Level 50 selten die goldene Schere (15–20 Glieder weg), Füttern (20 s Tiere und Gegner fressen und durch sich selbst), Magnet (15 s, holt alles im
+2-Felder-Umkreis sofort), ab Level 90 Maulwurf (20 s durch die Erde graben, ohne Grenze,
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
