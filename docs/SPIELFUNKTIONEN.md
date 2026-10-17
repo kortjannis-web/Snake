@@ -1,6 +1,6 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.11.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
@@ -40,10 +40,17 @@ Stand: Version 1.11.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, glühende **Lavataschen**, **Golderz** (ca. 0,9 %) und selten **Diamanten** (ca. 0,12 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf.
 - **Erze** (je 1000 Erdfelder): **Golderz** 9 (= **3 ×** der aktuelle Apfelwert), **Diamant** 1,2 (**6 ×**), **Rubin** 0,5 (rot, **10 ×**), **Opal** 0,15 (leuchtet und schimmert zwischen Pink und Lila, **20 ×**).
 - **Erze freilegen:** Wird Erde zu Spielfeld (neuer Block, Maulwurf), liegen die Erze darin als Brocken auf der Karte. Drüberfahren gräbt sie aus. Jedes Erz gibt es nur einmal.
-- **Kamera (zwei Einstellungen, Optionen → Kamera):** Ein Bildschirm zeigt immer gleich viele Felder.
-  - **Fest:** klebt immer genau am Kopf der Schlange, die Schlange ist stets in der Mitte.
-  - **Dynamisch (Standard):** fliegt wie eine **Drohne**, losgelöst von der Schlange. Sie hängt an einer kritisch gedämpften Feder mit weich nachgezogenem Ziel, das in Laufrichtung vor dem Kopf liegt. So weit, dass sie im Lauf knapp (ca. 1,5 Felder) vor dem Kopf schwebt, egal wie schnell die Schlange ist. Biegt die Schlange ab, springt nur dieses Ziel: Die Kamera selbst behält ihren Schwung und fliegt in einem **lockeren Bogen** hinüber, nie um eine Ecke. Geschwindigkeit und Beschleunigung setzen sanft ein und klingen sanft aus, kein Überschwingen. Steht die Schlange (Spielende, am Rand angehalten), gleitet sie zum Kopf. In der Pause steht sie still.
-  - Mit „Bewegung reduzieren“ ist die Kamera immer fest.
+- **Sichtfeld:** Die Kamera zeigt je Richtung **2 Felder mehr** als ein Bildschirm der Spiellogik (am Handy hochkant z. B. ca. 14 × 25 statt 12 × 23). Die Schlange wirkt dadurch etwas kleiner, Karte und Blöcke bleiben gleich.
+- **Kamera (zwei Einstellungen, Optionen → Kamera):**
+  - **Bereich (Standard):** arbeitet in drei Schichten, darauf folgt die Kamera an einer zweistufigen, kritisch gedämpften Feder (**Gummiseil an einem Gummiseil**: weich anfahren, weich abbremsen, kein Überschwingen).
+    1. **Kasten:** Der Ausschnitt ist so groß wie das Bild, an den Kartenblöcken ausgerichtet, und steht. Überschreitet der Kopf seinen Rand (die Schwelle), kommt der nächste Ausschnitt (einen Block weiter). Passt die Karte in einer Richtung ganz ins Bild, steht die Kamera dort mittig still.
+    2. **Vorwegnehmen:** Eine **Öffnung** ist eine Stelle, an der die Karte hinter dem Rand des Ausschnitts weitergeht, auch hinter Erde oder um die Ecke (bis 6 Felder neben dem Ausschnitt). Sobald der Kopf **über die Mittellinie** hinaus auf eine Öffnung zukommt, lehnt sich die Kamera hinüber, **je näher, desto mehr**: An der Schwelle steht sie **halb im neuen Bereich** und ist dort noch in Fahrt, damit der Wechsel ohne Halt durchgeht. Den Rest gleitet sie nach dem Wechsel in **1,1 s mit Ease-in/out** hinüber (genauso beim Graben in die Erde, beim Zurückkommen und wenn die Karte wächst, dann passend zur Welle, mit der der neue Block aufklappt).
+       **Gummiseil zur Laufrichtung:** Fährt die Schlange auf eine Öffnung zu, zieht sie voll, quer etwas weniger, fährt sie weg, nur halb. Die Kamera passt sich so in Echtzeit an jede Entscheidung an (Richtung inklusive der schon gewischten nächsten Richtung, weich nachgezogen).
+    3. **Mindestabstand zum Bildrand**, überall dort, wo in der Nähe Karte ist (auch hinter Erde oder um die Ecke): in Laufrichtung **ca. 6½ ganze Felder**, quer ca. 6, nach hinten ca. 5½. Die Feder hängt im Lauf etwas hinterher. Damit das nie Sicht kostet, läuft eine **Geister-Feder** mit, dieselbe Feder, die nur dem Kopf folgt: Um so viel, wie sie hinterherhängt, rücken die Grenzen mit (auch beim Abbiegen und Umkehren genau richtig, ohne Rückkopplung, also ohne Aufschaukeln). Als **letzte Sicherung** bleiben zu jeder Seite immer **mindestens 5 ganze Felder** am Kopf vorbei sichtbar; sie greift nur selten (z. B. direkt nach schnellem Abbiegen), setzt weich ein und ist sonst genau null.
+    In Simulationen (Autopilot, alle Tempos, Level 1 bis 420) bleibt der Kopf zu jeder Seite mit Karte praktisch immer mindestens 5 ganze Felder vom Bildrand weg, im schnellsten Fall nie weniger als 4½.
+  - **Dynamisch:** fliegt wie eine **Drohne**, losgelöst von der Schlange. Sie hängt an einer kritisch gedämpften Feder mit weich nachgezogenem Ziel, das in Laufrichtung vor dem Kopf liegt. So weit, dass sie im Lauf knapp (ca. 1,5 Felder) vor dem Kopf schwebt, egal wie schnell die Schlange ist. Biegt die Schlange ab, springt nur dieses Ziel: Die Kamera selbst behält ihren Schwung und fliegt in einem **lockeren Bogen** hinüber, nie um eine Ecke. Steht die Schlange (Spielende, am Rand angehalten), gleitet sie zum Kopf. In der Pause steht sie still.
+  - Mit „Bewegung reduzieren“ (Systemeinstellung) haftet die Kamera immer genau am Kopf.
+  - Die frühere Einstellung „Fest“ und das Rauszoomen alle 30 Level gibt es nicht mehr. Wer „Fest“ oder „Dynamisch“ gespeichert hatte, startet einmalig mit „Bereich“.
 - Der dünne Balken unter der Leiste zeigt, wie weit es noch bis zum nächsten Block ist.
 
 ## 5. Mauern (ab Level 8)
@@ -245,7 +252,7 @@ Stand: Version 1.11.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Spielende:** wackelndes Bild der Todesursache, Text (z. B. „Gegen einen Baum gelaufen“), erreichter Level, ggf. „Höchster Level“, Abzeichen „Neuer Rekord“ mit Fanfare, Äpfel, Länge, Zeit. Knöpfe „Nochmal“ und „Hauptmenü“.
 - **Anleitung:** alle Elemente mit Bild, „ab Level …“ und Erklärung.
 - **Statistik:** bester Level, Spiele, Äpfel gesamt, längste Schlange, größte Karte, eingekesselte Gegner, Spielzeit.
-- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Tempo (Langsam/Normal/Schnell), Kamera (Fest/Dynamisch), Statistik zurücksetzen, Versionsnummer.
+- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Tempo (Langsam/Normal/Schnell), Kamera (Bereich/Dynamisch), Statistik zurücksetzen, Versionsnummer.
 - **Android-Zurücktaste:** Spiel → Pause, Pause → weiter, Unterseite → zurück, Startmenü → App schließen.
 
 ## 16-1. Tagesrekord und Erfolge
