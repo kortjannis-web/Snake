@@ -57,6 +57,9 @@ type Sicht = {
 export const GEGNER_WEG = 700
 /** So lange sieht man eine zertretene Ameise (ms) */
 export const AMEISE_WEG = 600
+/** Abgeschnittener Schwanz: so lange liegt er (ms), dann verblasst er so lange */
+export const ABGESCHNITTEN_LIEGT = 1000
+export const ABGESCHNITTEN_WEG = 300
 
 export class Game {
   readonly cfg: R.Config
@@ -131,10 +134,11 @@ export class Game {
   statisch = false
   /** Power-ups auf der Karte */
   powers: Power[] = []
-  /** Aktive Power-ups: Schild (Anzahl, je ein Leben mehr, laeuft nicht ab), bis wann die anderen wirken,
-   *  Schere = so viele Glieder kommen mit dem naechsten Apfel zurueck */
-  effekt = { schild: 0, zeitlupeBis: 0, geistBis: 0, schere: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0 }
-  /** Von der Schere abgeschnittene Glieder (fallen ab und verschwinden) */
+  /** Aktive Power-ups: Schild (Anzahl, je ein Leben mehr, laeuft nicht ab), bis wann die anderen wirken */
+  effekt = { schild: 0, zeitlupeBis: 0, geistBis: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0 }
+  /** Maulwurf: so viele Schritte braucht der Kopf mindestens zurueck auf ein freies Kartenfeld */
+  rueckSchritte = 0
+  /** Von der Schere abgeschnittene Glieder (bleiben kurz liegen und verschwinden) */
   abgeschnitten: { cells: P[]; von: number; laenge: number; t: number }[] = []
   /** Gegner-Schlangen und besiegte (zerfallen gerade) */
   gegner: Gegner[] = []
@@ -250,7 +254,7 @@ export class Game {
     this.time += Math.min(dt, 100)
     this.weg = this.weg.filter((m) => this.time - m.t < 240)
     this.teiche = this.teiche.filter((t) => t.drying === undefined || this.time - t.drying < 1500)
-    this.abgeschnitten = this.abgeschnitten.filter((a) => this.time - a.t < 1400)
+    this.abgeschnitten = this.abgeschnitten.filter((a) => this.time - a.t < ABGESCHNITTEN_LIEGT + ABGESCHNITTEN_WEG)
     if (this.status !== 'play') return
     // Nach einem Haenger nicht mehrere Schritte nachholen
     if (this.time - this.last > this.takt * 3) this.last = this.time - this.takt
@@ -443,7 +447,10 @@ export class Game {
     if (fest && this.body.length > fest) this.body.pop()
     if (grows && !fest && this.wachsRest > 0) this.wachsRest--
     this.maxLen = Math.max(this.maxLen, this.body.length)
-    if (graben) this.graben(n)
+    if (graben) {
+      this.graben(n)
+      this.rueckSchritte = this.rueckweg()
+    }
     // Zurueck auf der Karte: Tunnel und eingeschlossene Erde werden freigelegt
     else if (this.tunnel.length && this.inside(n)) this.freilegen()
     // Ameise unter dem Kopf: zertreten
@@ -545,16 +552,15 @@ export class Game {
     if (art === 'maulwurf') this.effekt.maulwurfBis = this.time + c.maulwurfDauer * 1000
     if (art === 'spitzhacke') this.erzSetzen()
     if (art === 'schere' || art === 'goldschere') {
-      // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach.
-      // Die goldene schneidet viel mehr ab (goldSchereMin bis goldSchereMax)
-      const lo = Math.min(c.goldSchereMin, c.goldSchereMax)
-      const soll = art === 'schere' ? c.schereLaenge : this.r.int(Math.round(lo), Math.round(Math.max(c.goldSchereMin, c.goldSchereMax)))
-      const weg = Math.min(Math.max(0, Math.round(soll)), Math.max(0, this.body.length - 3))
+      // Dauerhaft: so viel Schwanz, wie in den letzten schereLevel (goldene: goldSchereLevel) Leveln
+      // gewachsen ist. Mindestens 3 Glieder bleiben
+      const n = Math.round(art === 'schere' ? c.schereLevel : c.goldSchereLevel)
+      const soll = R.gewachsen(c, this.level - n, this.level)
+      const weg = Math.min(soll, Math.max(0, this.body.length - 3))
       const len = this.body.length - weg
       if (weg > 0) this.abgeschnitten.push({ cells: this.body.slice(len).map((q) => ({ ...q })), von: len, laenge: this.body.length, t: this.time })
       this.body = this.body.slice(0, len)
       this.prev = this.prev.slice(0, len)
-      this.effekt.schere += weg
     }
     this.emit({ type: 'power', art, p: { ...p } })
   }
@@ -635,8 +641,7 @@ export class Game {
 
   private kuerzen(auf: number, von: number) {
     if (this.kreativ && !this.kreativ.wachsen) return
-    let kuerzer = 0
-    for (let l = auf + 1; l <= von; l++) if (R.waechst(this.cfg, l)) kuerzer++
+    let kuerzer = R.gewachsen(this.cfg, auf, von)
     const ausRest = Math.min(this.wachsRest, kuerzer)
     this.wachsRest -= ausRest
     kuerzer -= ausRest
@@ -687,12 +692,6 @@ export class Game {
     const neu = this.level > this.maxLevel
     if (neu) this.maxLevel = this.level
     if (this.waechstJetzt(this.level)) this.wachsRest++
-    // Schere wirkt nur einen Apfel lang: die Glieder wachsen wieder nach
-    if (this.effekt.schere > 0) {
-      this.wachsRest += this.effekt.schere
-      this.effekt.schere = 0
-      this.emit({ type: 'powerEnde', art: 'schere' })
-    }
     this.emit({ type: 'eat', level: this.level, p: { ...n }, stufe })
     if (this.cfg.apfelWert > 0) {
       const wert = this.cfg.apfelWert * stufe
@@ -922,6 +921,53 @@ export class Game {
     this.wahl = Math.max(0, this.wahl - 1)
     this.emit({ type: 'wahl', offen: this.wahl })
     return { x: n.x + this.ursprung.x - vorher.x, y: n.y + this.ursprung.y - vorher.y }
+  }
+
+  /** Maulwurf: Schritte vom Kopf zurueck auf ein freies Kartenfeld. Breitensuche durch die Erde,
+   *  der eigene Koerper (ohne das Schwanzende, das weiterzieht) ist im Weg, Hindernisse auf der
+   *  Karte auch. Kein Weg: Infinity */
+  private rueckweg() {
+    const b = this.body
+    const head = b[0]
+    const x0 = Math.min(0, head.x) - 2
+    const y0 = Math.min(0, head.y) - 2
+    const W = Math.max(this.w, head.x + 1) + 2 - x0
+    const H = Math.max(this.h, head.y + 1) + 2 - y0
+    const zu = new Uint8Array(W * H)
+    for (let i = 1; i < b.length - 1; i++) zu[(b[i].y - y0) * W + (b[i].x - x0)] = 1
+    const wand = this.hindernisse()
+    const dist = new Int32Array(W * H).fill(-1)
+    const q = new Int32Array(W * H)
+    let qh = 0
+    let qt = 0
+    const s0 = (head.y - y0) * W + (head.x - x0)
+    dist[s0] = 0
+    q[qt++] = s0
+    while (qh < qt) {
+      const i = q[qh++]
+      const x = (i % W) + x0
+      const y = Math.floor(i / W) + y0
+      for (const d of DIRS) {
+        const nx = x + STEP[d].x
+        const ny = y + STEP[d].y
+        if (nx < x0 || ny < y0 || nx >= x0 + W || ny >= y0 + H) continue
+        const j = (ny - y0) * W + (nx - x0)
+        if (dist[j] >= 0 || zu[j]) continue
+        dist[j] = dist[i] + 1
+        if (this.inside({ x: nx, y: ny })) {
+          if (!wand.has(key(nx, ny))) return dist[j]
+          continue
+        }
+        q[qt++] = j
+      }
+    }
+    return Infinity
+  }
+
+  /** Warndreieck beim Graben: die Zeit reicht nur noch knapp (grabWarnung Sekunden Luft) zurueck auf die Karte */
+  grabWarnung() {
+    if (!this.graebt() || this.inside(this.body[0]) || this.status !== 'play') return false
+    return this.effekt.maulwurfBis - this.time < this.rueckSchritte * this.takt + this.cfg.grabWarnung * 1000
   }
 
   /** Ein Feld Erde gegraben: Tunnel merken, Erz darin gleich einsammeln */

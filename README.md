@@ -48,8 +48,8 @@ Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel)
 Skeletten, Lava, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
 die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 9: Schild (ein Leben mehr,
 läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,
-Schere (5 Glieder weg, nur bis zum nächsten Apfel), ab Level 50 selten die goldene Schere (15–20 Glieder weg), Füttern (20 s Tiere und Gegner fressen und durch sich selbst), Magnet (15 s, holt alles im
-2-Felder-Umkreis sofort), ab Level 90 Maulwurf (20 s durch die Erde graben, ohne Grenze,
+Schere (schneidet dauerhaft ab, was in 3 Leveln gewachsen ist, das Stück liegt noch 1 s), ab Level 50 selten die goldene Schere (8 Level), Füttern (20 s Tiere und Gegner fressen und durch sich selbst), Magnet (15 s, holt alles im
+2-Felder-Umkreis sofort), ab Level 90 Maulwurf (20 s durch die Erde graben, ohne Grenze, Warndreieck, wenn du in 2 s umkehren musst,
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
