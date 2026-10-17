@@ -1,9 +1,9 @@
 /** Einstellungen und Statistik, nur auf dem Geraet (localStorage) */
 import { DEFAULTS, type Config, type Tempo } from './game/rules'
 import type { Kreativ, Sandbox } from './game/types'
-import type { Steuerung } from './input'
+import type { KameraArt } from './render/renderer'
 
-export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; steuerung: Steuerung }
+export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt }
 export type Stats = {
   best: number
   games: number
@@ -27,7 +27,7 @@ export type Stats = {
 const SKEY = 'snake.settings.v1'
 const TKEY = 'snake.stats.v1'
 
-export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, steuerung: 'wischen' })
+export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, kamera: 'dynamisch' })
 export const defaultStats = (): Stats => ({ best: 0, games: 0, apples: 0, time: 0, longest: 0, maxGebiete: 0, gegner: 0, heute: { datum: '', best: 0 }, zaehler: {}, erfolge: [], seen: [] })
 
 /** Heutiges Datum (Geraetezeit) */
@@ -56,6 +56,9 @@ function write(k: string, v: unknown) {
 }
 
 export const settings: Settings = read(SKEY, defaultSettings())
+// Frueher gab es zwei Fingermodi (Wischen / Zeichnen), jetzt nur noch einen
+delete (settings as Partial<Record<'steuerung', unknown>>).steuerung
+if (settings.kamera !== 'fix' && settings.kamera !== 'dynamisch') settings.kamera = 'dynamisch'
 export const stats: Stats = read(TKEY, defaultStats())
 export const saveSettings = () => write(SKEY, settings)
 export const saveStats = () => write(TKEY, stats)

@@ -1,6 +1,6 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.9.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
@@ -13,14 +13,13 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 
 ## 2. Steuerung
 
-- **Handy:** Wischen auf dem ganzen Bildschirm. Mehrere Richtungen in einem Wisch gehen (Finger nicht absetzen).
-- **Zeichnen (Schalter unten links oder in den Optionen):** Finger liegen lassen und eine Linie ziehen, die Schlange fährt in die Richtung, in die du zeichnest. Gezählt wird ab **18 px** Weg (spricht schnell an), und die Linie darf höchstens **32°** von waagrecht oder senkrecht abweichen; schräge Striche lösen keine Wende aus.
-- **Unten links:** der kleine Schalter Wischen/Zeichnen (Hand bzw. Linie) und rechts daneben ein kleiner **Pause-Knopf**. Die Minikarte sitzt darüber.
+- **Handy: ein einziger Fingermodus.** Wischen auf dem ganzen Bildschirm, kurz oder mit liegendem Finger zum Durchdrücken: Finger nicht absetzen und weiterziehen, jede neue Linie ist die nächste Richtung. Gezählt wird ab **18 px** Weg (spricht schnell an), und die Linie darf höchstens **32°** von waagrecht oder senkrecht abweichen; schräge Striche lösen keine Wende aus. (Früher gab es Wischen und Zeichnen getrennt, das ist jetzt eins.)
+- **Unten links:** ein kleiner **Pause-Knopf**. Die Minikarte sitzt darüber.
 - **PC:** Pfeiltasten oder WASD. Esc oder P = Pause, Enter oder Leertaste startet nach dem Spielende neu.
 - **Steuerkreuz (Option):** vier Tasten unter dem Spielfeld statt Wischen.
 - **Eingabepuffer:** Bis zu drei schnelle Richtungswechsel werden gemerkt und nacheinander ausgeführt.
 - **Sofort-Wende:** Kommt ein Richtungswechsel im ersten Drittel eines Schritts, gilt er sofort und nicht erst ab dem nächsten Feld. Das fühlt sich direkter an.
-- **Kein Gnadenschritt mehr:** Wer gegen ein Hindernis fährt (Kartenrand, Mauer, eigener Körper, Teich, Falle, Frosch, Gegner-Schlange, Baum, Haus, Jägerturm, Lava), ist **sofort** tot, ohne Pause. Schild und Geist schützen weiterhin. Nur im Kreativ-Modus mit „anhalten“ bleibt die Schlange stehen.
+- **10 ms Reaktionszeit:** Wer gegen ein Hindernis fährt (Kartenrand, Mauer, eigener Körper, Teich, Giftapfel, Falle, Frosch, Gegner-Schlange, Baum, Haus, Jägerturm, Lava), bleibt noch **10 ms** davor stehen (einstellbar: Master-Einstellungen → Schlange → Reaktionszeit). Wer in dieser Zeit abbiegt, ist gerettet; sonst ist es vorbei. Kein ganzer Gnadenschritt. Schild und Geist schützen weiterhin. Nur im Kreativ-Modus mit „anhalten“ bleibt die Schlange stehen.
 
 ## 3. Äpfel
 
@@ -41,11 +40,10 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, glühende **Lavataschen**, **Golderz** (ca. 0,9 %) und selten **Diamanten** (ca. 0,12 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf.
 - **Erze** (je 1000 Erdfelder): **Golderz** 9 (= **3 ×** der aktuelle Apfelwert), **Diamant** 1,2 (**6 ×**), **Rubin** 0,5 (rot, **10 ×**), **Opal** 0,15 (leuchtet und schimmert zwischen Pink und Lila, **20 ×**).
 - **Erze freilegen:** Wird Erde zu Spielfeld (neuer Block, Maulwurf), liegen die Erze darin als Brocken auf der Karte. Drüberfahren gräbt sie aus. Jedes Erz gibt es nur einmal.
-- **Kamera (fest):** Die Kamera zeigt immer einen festen Ausschnitt von genau einem Bildschirm, an den Kartenblöcken ausgerichtet, auch wenn die Karte größer ist. Sie scrollt nicht mit.
-  - **Rantast-Kamera (Vorbereiten):** Sobald der Kopf das **letzte Drittel des Ausschnitts** betritt und die Karte dahinter weitergeht, lehnt sich die Kamera ganz sanft hinüber (bis ca. ein Drittel Block, höchstens 4 Felder), je näher am Rand, desto weiter. Sehr weiche S-Kurve (flacher Anfang, flaches Ende) und eine besonders ruhige Feder. Hängt nur an der fließenden Kopfposition, nicht an der Laufrichtung, damit Abbiegen nichts ruckeln lässt.
-  - **Wechsel-Kamera:** Ist die Schlange unmittelbar davor (1 Feld), fährt die Kamera zügig zum neuen Block: Wo zwei Blöcke auf den Bildschirm passen (am Handy oben/unten), rückt sie einen Block weiter, die Schlange ist dann in der Mitte. Wo nur einer passt (am Handy links/rechts), fährt sie schon halb hinüber und beim Übertritt ganz.
-  - Ist die Karte in einer Richtung kleiner als der Bildschirm (Sandbox), steht sie mittig. Mit „Bewegung reduzieren“ springt die Kamera ohne Fahrt.
-  - **Nie abrupt:** Die Kamera hängt an einer gedämpften Feder mit weich nachgezogenem Ziel. Geschwindigkeit und Beschleunigung setzen sanft ein und klingen sanft aus (Ease-in und Ease-out), auch beim Richtungswechsel und beim schnelleren Blockwechsel (ca. 0,6 s). Kein Überschwingen.
+- **Kamera (zwei Einstellungen, Optionen → Kamera):** Ein Bildschirm zeigt immer gleich viele Felder.
+  - **Fest:** klebt immer genau am Kopf der Schlange, die Schlange ist stets in der Mitte.
+  - **Dynamisch (Standard):** fliegt wie eine **Drohne**, losgelöst von der Schlange. Sie hängt an einer kritisch gedämpften Feder mit weich nachgezogenem Ziel, das in Laufrichtung vor dem Kopf liegt. So weit, dass sie im Lauf knapp (ca. 1,5 Felder) vor dem Kopf schwebt, egal wie schnell die Schlange ist. Biegt die Schlange ab, springt nur dieses Ziel: Die Kamera selbst behält ihren Schwung und fliegt in einem **lockeren Bogen** hinüber, nie um eine Ecke. Geschwindigkeit und Beschleunigung setzen sanft ein und klingen sanft aus, kein Überschwingen. Steht die Schlange (Spielende, am Rand angehalten), gleitet sie zum Kopf. In der Pause steht sie still.
+  - Mit „Bewegung reduzieren“ ist die Kamera immer fest.
 - Der dünne Balken unter der Leiste zeigt, wie weit es noch bis zum nächsten Block ist.
 
 ## 5. Mauern (ab Level 8)
@@ -63,25 +61,25 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Größe steigt langsam: 2, 2, 3, 3, 4, 4, 5 … bis 12 Felder, als zusammenhängende Wasserfläche mit Ufer und Wellen.
 - Sind mehr Teiche da, als die Karte verträgt (ca. einer je 220 Felder, mindestens 2), trocknet der älteste aus.
 
-## 7. Giftäpfel (ab Level 50)
+## 7. Giftäpfel (ab Level 45)
 
 - Sehen aus wie normale Äpfel (auch in derselben Farbe), sind aber **an einer Ecke verschimmelt** (brauner Faulfleck mit graugrünem Schimmel und hellem Flaum). Daran erkennt man sie.
 - **Essen = sofort Spielende**. Die Schlange färbt sich dabei kränklich.
-- Anzahl: 1 ab Level 50, dann alle 60 Level einer mehr, höchstens 4.
+- Anzahl: 1 ab Level 45, dann alle 60 Level einer mehr, höchstens 4.
 - Liegen nach jedem Apfel woanders, einer davon gern in der Nähe des echten Apfels. Nie direkt vor dem Kopf (6 Felder in Laufrichtung frei).
 
-## 8. Bärenfallen (ab Level 100)
+## 8. Bärenfallen (ab Level 90)
 
 - Etwa **alle 4 bis 5 Level** (ab Level 200 alle 3 bis 4) erscheint eine Falle **genau in der Bahn**, in die die Schlange gerade läuft, **5 bis 8 Felder vor dem Kopf**.
 - Metallischer Klack beim Erscheinen, orangener Warnring, sie pulsiert kurz.
 - Bleibt 25 Sekunden, blinkt in den letzten 3 Sekunden und schnappt dann zu.
 - Hineinlaufen = sofort Tod.
 
-## 8a. Gegner-Schlangen (ab Level 60, lila ab 120)
+## 8a. Gegner-Schlangen (ab Level 55, lila ab 110)
 
 - **Rote Schlangen mit bösen Augenbrauen**, beim Erscheinen **3 oder 4 Glieder** lang. Sie tauchen weit weg vom Kopf auf (mindestens ca. 6 bis 12 Felder, nie in der Laufrichtung), immer dort, wo die Schlange hinkommt, mit genug Platz drumherum. Leises Zischen.
-- **Ab und zu:** ab Level 60 etwa alle **6 bis 10 Level** eine neue (ab Level 250 je 1 Level früher). Gleichzeitig höchstens **1** (ab Level 60), **2** (ab 160), **3** (ab 260).
-- **Lila Gegner (ab Level 120):** Jeder neue Gegner ist mit **25 %** lila (also seltener als rot). Lila startet mit **5 Gliedern**, ist **20 % schneller** als rot (ein Schritt je 1,67 statt 2 Takte), wird bis **10** lang und schaut **noch böser**: dicke, steile Brauen, gelbliche Augen mit roten Pupillen. Die KI rechnet mit ihrem Tempo, sie entkommt also öfter. Einkesseln bringt so viele Äpfel, wie sie lang ist.
+- **Ab und zu:** ab Level 55 etwa alle **6 bis 10 Level** eine neue (ab Level 250 je 1 Level früher). Gleichzeitig höchstens **1** (ab Level 55), **2** (ab 155), **3** (ab 255).
+- **Lila Gegner (ab Level 110):** Jeder neue Gegner ist mit **25 %** lila (also seltener als rot). Lila startet mit **5 Gliedern**, ist **20 % schneller** als rot (ein Schritt je 1,67 statt 2 Takte), wird bis **10** lang und schaut **noch böser**: dicke, steile Brauen, gelbliche Augen mit roten Pupillen. Die KI rechnet mit ihrem Tempo, sie entkommt also öfter. Einkesseln bringt so viele Äpfel, wie sie lang ist.
 - **Halb so schnell** wie die Schlange (ein Schritt je zwei Takte der Schlange). Zeitlupe bremst nur die eigene Schlange.
 - **Weichen immer aus, so gut es geht.** Die KI bewertet bei jedem Schritt jede freie Richtung:
   - **Sicheres Gebiet:** wie viele Felder sie erreicht, bevor die Schlange dort sein kann (Breitensuche von beiden Köpfen, sie ist ja halb so schnell). Das ist der wichtigste Wert: so flieht sie in offene Bereiche und schlüpft durch Lücken, bevor sie sich schließen.
@@ -89,32 +87,33 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
   - **Abstand zur Schlange** (echter Weg, nicht Luftlinie), nie direkt vor oder neben den Kopf.
   - **Bewegungsfreiheit** (freie Nachbarfelder), gern geradeaus, ein wenig Zufall.
   - Ist die Schlange weit weg (mehr als ca. 14 Schritte), schlängelt sie gemütlich herum. Wird sie gejagt, ziehen die Augenbrauen hoch und die Pupillen werden klein.
-- Sie laufen nie in die Schlange, in Hindernisse (Mauern, Teiche, Fallen, Bäume, Häuser, Türme, Frösche, Giftäpfel, Giftwolken), in andere Gegner oder über den Rand. Läuft eine über den Apfel, rollt er woandershin.
+- Sie laufen nie in Hindernisse (Mauern, Teiche, Fallen, Bäume, Häuser, Türme, Frösche, Giftäpfel, Giftwolken), in andere Gegner oder über den Rand. Läuft eine über den Apfel, rollt er woandershin.
+- **3 Felder Reaktionszeit:** Schiebt sich die Schlange plötzlich **bis zu 3 Felder direkt vor** einen Gegner (genau in seine Laufrichtung, frei dazwischen), schafft er es nicht mehr rechtzeitig zu lenken: Er fährt stur geradeaus weiter (die Augen werden panisch) und **zerplatzt an der Schlange**. Das bringt so viele Äpfel, wie er lang ist (mal Apfelwert). Ist die Schlange bis dahin schon vorbei, lenkt er danach wieder normal. Ab 4 Feldern hat er Zeit und weicht aus (einstellbar: Master-Einstellungen → Gegner-Schlangen).
 - **Eingekesselt = tot:** Hat sie keinen freien Zug mehr, oder ist ihr ganzer Bereich kaum größer als sie selbst (zwei Schritte hintereinander), zerplatzt sie in rote Funken. Solange es einen Ausweg gibt, versucht sie sich zu befreien.
 - **Belohnung:** Hat die Schlange sie eingekesselt (der eigene Körper ist höchstens 2 Felder entfernt), bringt sie **so viele Äpfel, wie sie lang ist, mal Apfelwert** (siehe 14a). Plopp und Fanfare, „+N“ steigt auf. Zählt in der Statistik („Gegner eingekesselt“).
 - **Werden länger:** Wer überlebt, wird **alle 20 Sekunden ein Glied länger**, höchstens **8**. Ein kurzer Schimmer um den Kopf zeigt es. Längere Gegner bringen mehr, versperren aber auch mehr Platz.
 - **Mit dem Kopf hineinfahren = Tod** (sofort; Schild fängt es ab, Geist fährt hindurch). Giftwolken wachsen nicht über sie, sondern warten wie bei der Schlange.
 - Im Kreativ-Modus lässt sich eine Gegner-Schlange sofort auslösen (bis zur eingestellten Höchstzahl).
 
-## 9. Bäume (ab Level 100)
+## 9. Bäume (ab Level 90)
 
-- Ein **umgefallener Tannenbaum**, 5 Felder: **1-1-2-1** entlang seiner Richtung, also zwei Felder Stamm, dann die Krone zwei Felder breit, dann die Spitze. Die Krone ist das Dreieck, der Stamm hat eine Schnittfläche mit Jahresringen.
-- Ab Level 100 **alle 40 Level ein neuer** (100, 140, 180, 220 …). Er **bleibt für immer** liegen.
-- Liegt in zufälliger Richtung und Ausrichtung, mit Abstand zur Schlange, nie vor dem Kopf, schließt nie einen Bereich ab.
+- Ein **umgefallener Tannenbaum**, 6 Felder, **symmetrisch**: **1-1-3-1** entlang seiner Richtung, also zwei Felder Stamm, dann die Krone drei Felder breit (ein Feld zu jeder Seite), dann die Spitze. Die Krone ist das Dreieck, der Stamm hat eine Schnittfläche mit Jahresringen.
+- Ab Level 90 **alle 40 Level ein neuer** (90, 130, 170, 210 …). Er **bleibt für immer** liegen. Als Nächstes Neues nach dem Baum kommen die Hütten (Level 100).
+- Liegt in zufälliger Richtung, mit Abstand zur Schlange, nie vor dem Kopf, schließt nie einen Bereich ab.
 - Höchstens einer je ca. 150 Felder. Ist die Karte voll, kommt keiner mehr dazu.
 - Berühren = sofort Tod. Dumpfer Schlag mit Rascheln, wenn er fällt.
 
-## 10. Giftwolken (ab Level 150)
+## 10. Giftwolken (ab Level 135)
 
 - Etwa **alle 5 bis 7 Level** (ab Level 250 alle 4 bis 6) entsteht eine Wolke auf einem Feld.
 - **Alle 5 Sekunden wird sie größer:** 1 Feld → Kreuz (Feld oben, unten, links, rechts dazu) → 3 × 3 (die Ecken dazu) → 3 × 3 mit Spitzen → 5 × 5 → 5 × 5 mit Spitzen.
-- Wie groß sie maximal wird, steigt mit dem Level: bis 3 × 3 (Level 150), mit Spitzen (200), 5 × 5 (250), 5 × 5 mit Spitzen (300).
+- Wie groß sie maximal wird, steigt mit dem Level: bis 3 × 3 (Level 135), mit Spitzen (185), 5 × 5 (235), 5 × 5 mit Spitzen (285).
 - **1 Sekunde vor dem Wachsen** pulsieren gestrichelte Kreise dort, wo sie gleich hinwächst. Zischgeräusch.
 - Nach der größten Stufe bleibt sie 5 Sekunden und löst sich dann auf.
 - Wächst sie auf die Schlange, kommen diese Felder erst dazu, wenn die Schlange weg ist. Den Apfel schiebt sie woanders hin, Giftäpfel verschwinden darin.
 - **Hineingeraten = 10 Level zurück** (siehe Rückschläge).
 
-## 11. Frösche (ab Level 200)
+## 11. Frösche (ab Level 180)
 
 - Etwa **alle 2 bis 3 Level** springt ein Frosch auf die Karte (ab Level 250 öfter), **höchstens 6 gleichzeitig**. So sind oft 4 oder mehr unterwegs.
 - Er schaut in eine Richtung und **hüpft alle 3 Sekunden ein Feld** weit.
@@ -126,10 +125,10 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Über den Kartenrand hüpft er weg und verschwindet.
 - Die Schlange kann gegen ihn laufen = sofort Tod.
 
-## 12. Hütten und Häuser (ab Level 130)
+## 12. Hütten und Häuser (ab Level 100)
 
-- **Früher als bisher, dafür klein angefangen:** Ab Level 130 kommen **Hütten** (2 × 2 Felder, Licht 1 Feld weit, ein Feld weniger als beim Haus). Ab Level 210 kommen **große Häuser**: **2 × 3 Felder** oder **mit einer Ecke** (Reihen 2, 2, 3, 3 Felder, also 10 Felder), zufällig gedreht und gespiegelt.
-- **Alle 30 Level eins** (130, 160, 190 Hütten, 220, 250 … Häuser). Es **bleibt stehen**. Höchstens eins je ca. 250 Felder.
+- **Direkt nach dem Baum das nächste Neue, klein angefangen:** Ab Level 100 kommen **Hütten** (2 × 2 Felder, Licht 1 Feld weit, ein Feld weniger als beim Haus). Ab Level 190 kommen **große Häuser**: **2 × 3 Felder** oder **mit einer Ecke** (Reihen 2, 2, 3, 3 Felder, also 10 Felder), zufällig gedreht und gespiegelt.
+- **Alle 30 Level eins** (100, 130, 160 Hütten, 190, 220 … Häuser). Es **bleibt stehen**. Höchstens eins je ca. 250 Felder.
 - Von oben gesehen: Ziegeldach, Kamin mit Rauch.
 - **Vier Fenster**, eins an jeder Seite (oben, unten, links, rechts).
 - **Nach jedem Apfel wechselt das Licht:** In jedem Haus leuchtet dann ein anderes Fenster gelb. Das Licht strahlt **2 Felder weit** nach außen (endet früher am Kartenrand, an einem Haus, Baum oder Turm).
@@ -138,23 +137,23 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Haus berühren = Tod** (sofort).
 - **Ins Licht laufen = 5 Level zurück.**
 
-## 12a. Jägertürme (ab Level 315)
+## 12a. Jägertürme (ab Level 285)
 
 - Runder Steinturm mit Zinnen, **2 × 2 Felder**, oben ein Scheinwerfer.
-- Ab Level 315 **alle 40 Level ein neuer** (315, 355, 395 …), bleibt stehen. Höchstens einer je ca. 300 Felder.
+- Ab Level 285 **alle 40 Level ein neuer** (285, 325, 365 …), bleibt stehen. Höchstens einer je ca. 300 Felder.
 - **Lichtkegel:** 2 Felder breit, **6 Felder lang**, in die Richtung, in die der Scheinwerfer zeigt.
 - **Jede Runde (nach jedem Apfel) dreht er sich eine Vierteldrehung im Uhrzeigersinn** (oben → rechts → unten → links). Der Scheinwerfer schwenkt sichtbar mit.
 - Der Kegel endet am Kartenrand, an Häusern, Bäumen und anderen Türmen. **Die Schlange wirft Schatten:** Liegt sie in der neuen Richtung, endet der Kegel vor ihr. So gibt es nie einen Sofort-Treffer, trotzdem dreht der Turm immer weiter.
 - Im Kegel = **10 Level zurück**, Turm berühren = sofort Tod.
 
-## 12a2. Eis (ab Level 180)
+## 12a2. Eis (ab Level 165)
 
-- Ab Level 180 **alle 30 Level ein Eisfeld** (180, 210, 240 …), **4 bis 10 Felder** groß, zusammenhängend, bleibt liegen. Höchstens eins je ca. 300 Felder.
+- Ab Level 165 **alle 30 Level ein Eisfeld** (165, 195, 225 …), **4 bis 10 Felder** groß, zusammenhängend, bleibt liegen. Höchstens eins je ca. 300 Felder.
 - Hellblau mit wanderndem Glanz und feinen Rissen.
 - **Auf Eis kann man nicht lenken:** Solange der Kopf auf Eis ist, rutscht die Schlange geradeaus, gedrückte Richtungen verfallen. Erst wieder auf normalem Boden lenkt man.
 - Fair: Eis liegt nie am Kartenrand und hat ein Feld Abstand zu festen Hindernissen. Läuft man trotzdem auf etwas zu, ist es sofort vorbei: rechtzeitig vor dem Eis abbiegen.
 
-## 12b. Ameisen (ab Level 240)
+## 12b. Ameisen (ab Level 215)
 
 - Kleine braune Ameise (Kopf, Brust, Hinterleib, sechs Beine, Fühler). Alle **8 bis 12 Level** setzt sich eine irgendwohin, mit Abstand zur Schlange, höchstens **4** gleichzeitig. Sie bleiben, bis man sie zertritt.
 - **Chillt** an ihrem Platz. Kommt irgendein Glied der Schlange in ihren **Umkreis von 2 Feldern** (auch schräg), bemerkt sie dich: rotes **Ausrufezeichen**, leises Kribbeln. Einen Takt später krabbelt sie **langsam** (ein Feld alle 0,8 s) auf das nächste Glied zu, **bis du wieder raus bist**. Dann geht sie zurück nach Hause.
@@ -162,9 +161,9 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Sie läuft nie in die Schlange oder in Hindernisse. **Der Kopf zertritt sie** (sie verschwindet, kein Tod): so kann man sich wehren.
 - Gerade lange Schlangen, die neben einer Ameise entlangziehen, werden erwischt.
 
-## 12c. Lava (ab Level 270)
+## 12c. Lava (ab Level 245)
 
-- Alle **30 Level** bricht ein **Lavasee** aus (270, 300, 330 …), höchstens einer je ca. 300 Felder. Er beginnt mit **einem Feld**.
+- Alle **30 Level** bricht ein **Lavasee** aus (245, 275, 305 …), höchstens einer je ca. 300 Felder. Er beginnt mit **einem Feld**.
 - **Jeden 2. Apfel** breitet sich jeder unfertige See um **ein Feld in eine zufällige Richtung** aus. Nie in die Schlange, nie direkt vor oder neben den Kopf, nie über den Apfel, und es wird nichts abgeschlossen (keine Sackgassen).
 - Jeder See hat eine zufällige Endgröße zwischen **6 und 15 Feldern**, dann hört er auf. Er bleibt liegen.
 - Glühend orange mit dunkler Kruste, Hitzeschein und Blasen, dumpfes Blubbern beim Ausbrechen.
@@ -193,20 +192,20 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - Vorrat oben in der Leiste, im Startmenü (antippen öffnet den Shop) und im Shop. Auf dem Spielende-Bildschirm „+N Äpfel“. Münzen aus früheren Fassungen wurden 1:1 zu Äpfeln.
 - Im Kreativ-Modus wird nichts gesammelt.
 
-**Power-ups (ab Level 10)**
+**Power-ups (ab Level 9)**
 - Nach jedem Apfel mit **18 % Chance** liegt ein Power-up auf der Karte (höchstens eins), 15 s lang, blinkt in den letzten 3 s. Leuchtende Kugel mit Symbol.
-- **Schild** (blau): fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Bis zu 3 sammeln sich. **Hält 20 s** (ein neuer Schild setzt die Zeit zurück), Countdown oben links, die letzten 3 s blinken Pille und Blase. Blaue Blase um den Kopf. Nicht am Kartenrand.
+- **Schild** (blau): **ein Leben mehr.** Fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Am **Kartenrand** bleibt sie stehen (kurzes Wackeln), bis du abbiegst. Bis zu 3 sammeln sich, sie **laufen nicht ab**. Angezeigt nur **oben rechts im Spielfeld** als kleines blaues Schild-Symbol (ab zwei mit „×2“, „×3“), nicht mehr als Blase um die Schlange.
 - **Garantie:** Spätestens nach **8 Äpfeln** ohne Power-up kommt eins (einstellbar).
-- Welches Power-up kommt, ist gewichtet: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2, Spitzhacke 2, Maulwurf 2, goldener Apfel 1 (von 20).
+- Welches Power-up kommt, ist gewichtet: Schild 3, Zeitlupe 3, Magnet 3, Geist 2, Schere 2, Füttern 2, Spitzhacke 2, Maulwurf 2 (von 19).
 - **Spitzhacke** (grau): legt sofort **ein zufälliges Erz** irgendwo in deiner Nähe auf die Karte (Gold 72 %, Diamant 19 %, Rubin 7 %, Opal 2 %). Drüberfahren gräbt es aus.
 - **Zeitlupe** (lila): **30 s** lang **30 % langsamer**.
-- **Füttern** (rot, Maul): **20 s** lang frisst du **Frösche, Ameisen und Gegner-Schlangen** (rot und lila), statt dich an ihnen zu stoßen. Frosch = 2, Ameise = 1, Gegner = so viele Äpfel, wie er lang ist (alles mal Apfelwert). Roter Schein um den Kopf. Kommt nur, wenn gerade Tiere oder Gegner da sind.
+- **Füttern** (rot, Maul): **20 s** lang frisst du **Frösche, Ameisen und Gegner-Schlangen** (rot und lila), statt dich an ihnen zu stoßen, und fährst **durch dich selbst** hindurch (Mauern und andere Hindernisse bleiben tödlich). Frosch = 2, Ameise = 1, Gegner = so viele Äpfel, wie er lang ist (alles mal Apfelwert). Roter Schein um den Kopf. Kommt nur, wenn gerade Tiere oder Gegner da sind.
 - **Magnet** (rot, Hufeisen): **15 s** lang wird alles Gute im **Umkreis von 2 Feldern** (auch schräg) **sofort eingesammelt**, ohne Umweg, als wärst du drübergefahren: Apfel (zählt als gegessen), Power-ups, Erze. Gestrichelter Kreis zeigt die Reichweite.
-- **Maulwurf** (braun, Schaufel, **ab Level 100**): **20 s** lang kannst du dich **durch die Erde graben**, bis 8 Felder um die Karte herum. Erze im Weg sammelst du sofort ein. Erdkrümel fliegen, die Kamera folgt dir unter die Erde. **Kommst du zurück auf die Karte, wird dein Gang und alles, was er zusammen mit der Karte einschließt, zu Spielfeld** (Klang „Freigelegt“). Ist die Zeit um und der Kopf steckt noch in der Erde: **Spielende** („In der Erde stecken geblieben“).
-- **Goldener Apfel** (gold, selten): **10 s unbesiegbar**: kein Tod, keine Rückschläge, du fährst durch alles und **über dich selbst**. Mauersteine, Fallen und Giftäpfel im Weg werden weggeräumt, Tiere und Gegner gefressen. Goldener Schein um den ganzen Körper.
+- **Maulwurf** (braun, Schaufel, **ab Level 90**): **20 s** lang kannst du dich **durch die Erde graben**, bis 8 Felder um die Karte herum. Erze im Weg sammelst du sofort ein. Erdkrümel fliegen, die Kamera folgt dir unter die Erde. **Kommst du zurück auf die Karte, wird dein Gang und alles, was er zusammen mit der Karte einschließt, zu Spielfeld** (Klang „Freigelegt“). Ist die Zeit um und der Kopf steckt noch in der Erde: **Spielende** („In der Erde stecken geblieben“).
+- **Goldener Apfel** (unbesiegbar): **gibt es nicht mehr**, er war vom Geist kaum zu unterscheiden. Das Fressen von Tieren und das Fahren durch sich selbst steckt jetzt im Füttern.
 - **Geist** (grau): 6 s lang durch alle Hindernisse und die eigene Schlange, keine Rückschläge; die Schlange ist durchscheinend und flackert kurz vor dem Ende.
 - **Schere** (orange): nimmt **5 Glieder, aber nur für einen Apfel lang**. Mit dem nächsten Apfel wachsen sie wieder nach (mindestens 3 Glieder bleiben). Solange zeigt eine Pille „−5“. Die abgeschnittenen Glieder **fallen sichtbar ab**: weiße Schnittlinie mit Funken, sie blitzen auf, springen auseinander, fallen herunter und verblassen.
-- Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken.
+- Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken (Schilde oben rechts, siehe oben).
 - Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
 
 **Skins (Startmenü → Skins)**
@@ -242,7 +241,7 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Spielende:** wackelndes Bild der Todesursache, Text (z. B. „Gegen einen Baum gelaufen“), erreichter Level, ggf. „Höchster Level“, Abzeichen „Neuer Rekord“ mit Fanfare, Äpfel, Länge, Zeit. Knöpfe „Nochmal“ und „Hauptmenü“.
 - **Anleitung:** alle Elemente mit Bild, „ab Level …“ und Erklärung.
 - **Statistik:** bester Level, Spiele, Äpfel gesamt, längste Schlange, größte Karte, eingekesselte Gegner, Spielzeit.
-- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Zeichnen, Tempo (Langsam/Normal/Schnell), Statistik zurücksetzen, Versionsnummer.
+- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Tempo (Langsam/Normal/Schnell), Kamera (Fest/Dynamisch), Statistik zurücksetzen, Versionsnummer.
 - **Android-Zurücktaste:** Spiel → Pause, Pause → weiter, Unterseite → zurück, Startmenü → App schließen.
 
 ## 16-1. Tagesrekord und Erfolge
@@ -266,14 +265,14 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
   - **Objekte:** Anzahl je Art: Mauer, Teich, Giftapfel, Baum, Haus, Turm, Falle, Wolke, Frosch, Gegner rot, Gegner lila, Ameise, Lava, Eis (je 0 bis 50, so viele wie Platz haben).
   - **Danach:** „Bleibt so“ = nichts Neues kommt dazu, Mauern bleiben stehen, nur der Apfel wandert (Mechaniken laufen weiter: Licht wechselt, Türme drehen, Lava wächst, Gegner wachsen, Wolken und Fallen laufen ab). „Normal weiter“ = ab dem Startlevel geht es weiter wie im echten Spiel.
   - Der Startlevel bestimmt dabei Tempo, Apfelwert und was als Nächstes kommt.
-- **Im Spiel** (Pause → Kreativ-Optionen): **jedes Objekt sofort dazu** (alle 14 Arten, ohne Level- und Anzahlgrenzen), jedes Power-up sofort (auch Füttern, Magnet, Maulwurf, goldener Apfel) und **„Alles von der Karte“**.
+- **Im Spiel** (Pause → Kreativ-Optionen): **jedes Objekt sofort dazu** (alle 14 Arten, ohne Level- und Anzahlgrenzen), jedes Power-up sofort (auch Füttern, Magnet, Maulwurf) und **„Alles von der Karte“**.
 - Kreativ-Runden zählen nicht für Rekord und Statistik. In der Leiste steht „Level · Kreativ“.
 
 ## 16b. Master-Einstellungen
 
 - Optionen → Master-Einstellungen: **jede Zahl des Spiels** ist einstellbar, nach Gruppen: Karte (Block alle N Level, bis Level), Schlange (Tempo, Wachsen, Schutzzeit), Mauern, Teiche, Giftäpfel, Bärenfallen, Bäume, Giftwolken, Frösche (Häufigkeit, Sprungtakt, Wende-Chance, Höchstzahl), Gegner-Schlangen (ab Level, Häufigkeit, Höchstzahl, Wachsen, Höchstlänge), Power-ups und Äpfel (Chance, Dauer, Schere, Apfelwert), Häuser (Häufigkeit, Lichtweite, Strafe), Jägertürme (Häufigkeit, Kegellänge, Strafe), Ereignisse (Mindestanzahl ab Level, früher häufiger).
 - **Zeitleiste** ganz oben (aufklappbar): was bei welchem Level kommt, aus den aktuellen Zahlen berechnet, bis Level 500. Jede kleinste Änderung hat einen Eintrag (neuer Block, Mauerlänge, Teichgröße, Anzahl Giftäpfel, Apfelwert und Farbe, Wachsen, Höchsttempo, Ereignisse, Höchstzahl Gegner, Wolkenstufe, jeder Baum, jede Hütte, jedes Haus, jeder Turm, jeder Lavasee …), farbig nach Art. Darüber die dauerhaften Regeln (Tempo je Level, zufällige Abstände, Power-up-Chance). Ändert man eine Zahl, ändert sich die Zeitleiste sofort.
-- Neue Gruppen: Gegner-Schlangen (mit lila), Ameisen, Lava, Eis, Erze unter der Erde, Häuser mit „Große Häuser ab Level“; bei den Power-ups Dauer von Füttern, Magnet (und Reichweite), Maulwurf (und Grabweite), goldener Apfel und Zeitlupe (und um wie viel %).
+- Neue Gruppen: Gegner-Schlangen (mit lila), Ameisen, Lava, Eis, Erze unter der Erde, Häuser mit „Große Häuser ab Level“; bei den Power-ups Dauer von Füttern, Magnet (und Reichweite), Maulwurf (und Grabweite) und Zeitlupe (und um wie viel %); Reaktionszeit vor dem Aufprall (Schlange) und Reaktionsweite der Gegner.
 - Gilt ab dem nächsten Spiel, auch im Kreativ-Modus. „Alles auf Standard“ setzt zurück. Gespeichert wird nur, was vom Standard abweicht: neue Standardwerte gelten so für alle. Die Anleitung rechnet mit den eingestellten Werten.
 
 ## 17. Töne, Musik, Vibration
@@ -288,5 +287,5 @@ Stand: Version 1.7.0 (16.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in
 - **Web-App (PWA):** offline spielbar, installierbar („Zum Home-Bildschirm“), Vollbild. Veröffentlichung über GitHub Pages (einmalig in den Einstellungen aktivieren).
 - **Speicher:** Rekord, Statistik und Einstellungen nur auf dem Gerät.
 - **Leistung:** Gezeichnet wird nur der sichtbare Teil der Karte. Der Aufbau nach jedem Apfel (Mauern, Giftäpfel, Apfel, Power-ups) wurde stark beschleunigt: Schlange als Nachschlage-Tabelle statt Durchsuchen, Platz-Prüfungen nur einmal je Runde, Verbindungsprüfung, die früh abbricht, freie Felder nur einmal je Apfel gesucht. Ab Level 200 im Mittel 2,7 statt 11,4 ms je Apfel-Takt (am PC gemessen), Spitzen 15 statt 38 ms.
-- **Tests:** 82 automatische Tests (neu: Schild läuft ab, jedes Hindernis sofort tödlich, Schere wirft Glieder ab; Spitzhacke, Rubin und Opal, Power-up-Garantie, Gebiets-Wahl mit Zeitlimit, Gebiete nach 300; Füttern, goldener Apfel, Magnet, Maulwurf mit Freilegen und Ersticken, Erze, Gebiet wählen, Eis; außerdem Regeln, Kartenblöcke, Giftapfel, Fallen, Wolken, Frösche, Gegner-Schlangen rot und lila mit Ausweichen, Tempo, Einkesseln, Befreien und Wachsen, Ameisen, Lava, Sandbox, Zeitleiste, Bäume, Hütten, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Äpfel als Währung, Power-ups und Schere, lange Spiele bis über Level 300 mit Autopilot).
+- **Tests:** 89 automatische Tests (neu: Schild als Leben ohne Ablauf und Halt am Kartenrand, 10 ms Reaktionszeit, Gegner zerplatzen bei bis zu 3 Feldern, Baum 1-1-3-1, Haus nach dem Baum, Füttern durch sich selbst, kein goldener Apfel; davor Schere wirft Glieder ab; Spitzhacke, Rubin und Opal, Power-up-Garantie, Gebiets-Wahl mit Zeitlimit, Gebiete nach 300; Füttern, goldener Apfel, Magnet, Maulwurf mit Freilegen und Ersticken, Erze, Gebiet wählen, Eis; außerdem Regeln, Kartenblöcke, Giftapfel, Fallen, Wolken, Frösche, Gegner-Schlangen rot und lila mit Ausweichen, Tempo, Einkesseln, Befreien und Wachsen, Ameisen, Lava, Sandbox, Zeitleiste, Bäume, Hütten, Häuser, Licht, Türme, Rückschläge, Kreativ-Modus, Äpfel als Währung, Power-ups und Schere, lange Spiele bis über Level 300 mit Autopilot).
 - **Zum Ausprobieren:** Kreativ-Modus (siehe 16a). In der Web-Fassung zusätzlich `?level=210` und `?auto=1` (Autopilot).

@@ -24,18 +24,18 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
 | 8 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
 | 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
 | 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s (die letzten 5 blinken), wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. |
-| 50 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
-| 60 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 60 / 160 / 260). |
-| 100 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-2-1) alle 40 Level, bleiben. |
-| 120 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
-| 130 | **Hütten** (2 × 2, Licht 1 Feld) alle 30 Level, ab 210 große Häuser. |
-| 150 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
-| 180 | **Eis** (4–10 Felder) alle 30 Level, bleibt; darauf kann man nicht lenken. |
-| 200 | **Frösche** (höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
-| 210 | **Große Häuser** (2 × 3 oder mit Ecke) statt Hütten, vier Fenster, Licht 2 Felder (nie auf die Schlange, zugebaut = dunkel). Haus = Tod, Licht = **5 Level zurück**. |
-| 240 | **Ameisen** chillen, kommen im 2-Felder-Umkreis langsam auf dich zu, Biss −3 Level, der Kopf zertritt sie. |
-| 270 | **Lava**: alle 30 Level ein See, beginnt mit 1 Feld, wächst jeden 2. Apfel um eins, hört bei 6–15 auf. Tödlich. |
-| 315 | **Jägertürme** (2 × 2) alle 40 Level, Lichtkegel 2 × 6, dreht jede Runde im Uhrzeigersinn, Schlange wirft Schatten. Turm = Tod, Kegel = **10 Level zurück**. |
+| 45 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
+| 55 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 55 / 155 / 255). Schiebt man sich bis 3 Felder vor sie, lenken sie nicht mehr rechtzeitig und zerplatzen an der Schlange. |
+| 90 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** (liegende Tanne 1-1-3-1, symmetrisch) alle 40 Level, bleiben. **Maulwurf** als Power-up. |
+| 100 | **Hütten** (2 × 2, Licht 1 Feld) alle 30 Level, ab 190 große Häuser. Das nächste Neue nach dem Baum. |
+| 110 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
+| 135 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
+| 165 | **Eis** (4–10 Felder) alle 30 Level, bleibt; darauf kann man nicht lenken. |
+| 180 | **Frösche** (höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
+| 190 | **Große Häuser** (2 × 3 oder mit Ecke) statt Hütten, vier Fenster, Licht 2 Felder (nie auf die Schlange, zugebaut = dunkel). Haus = Tod, Licht = **5 Level zurück**. |
+| 215 | **Ameisen** chillen, kommen im 2-Felder-Umkreis langsam auf dich zu, Biss −3 Level, der Kopf zertritt sie. |
+| 245 | **Lava**: alle 30 Level ein See, beginnt mit 1 Feld, wächst jeden 2. Apfel um eins, hört bei 6–15 auf. Tödlich. |
+| 285 | **Jägertürme** (2 × 2) alle 40 Level, Lichtkegel 2 × 6, dreht jede Runde im Uhrzeigersinn, Schlange wirft Schatten. Turm = Tod, Kegel = **10 Level zurück**. |
 | 150 / 200 / 300 | Mindestens 1 / 2 / 3 Ereignisse (Falle, Wolke, Frosch) gleichzeitig. |
 
 **Level zurück:** Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen war,
@@ -46,9 +46,10 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
 Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel). Außerhalb der Karte ist Erde mit Steinen, Kohle,
 Skeletten, Lava, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
-die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild (20 s), Zeitlupe (30 s, −30 %), Geist,
-Schere (5 Glieder weg, nur bis zum nächsten Apfel), Füttern (20 s Tiere und Gegner fressen), Magnet (15 s, holt alles im
-2-Felder-Umkreis sofort), goldener Apfel (10 s unbesiegbar, über sich selbst), ab Level 100 Maulwurf (20 s durch die Erde graben,
+die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 9: Schild (ein Leben mehr,
+läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,
+Schere (5 Glieder weg, nur bis zum nächsten Apfel), Füttern (20 s Tiere und Gegner fressen und durch sich selbst), Magnet (15 s, holt alles im
+2-Felder-Umkreis sofort), ab Level 90 Maulwurf (20 s durch die Erde graben,
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
@@ -57,16 +58,17 @@ Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im S
 jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
 normal weiter. Zählt nicht für den Rekord.
 
-**Kamera:** fester Ausschnitt (ein Bildschirm), bereitet ab dem letzten Drittel des Ausschnitts sanft den nächsten Bereich vor und fährt beim Übertritt weich (Ease-in/out) zum
-neuen Block. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
+**Kamera** (Optionen): **Fest** klebt immer am Kopf der Schlange. **Dynamisch** (Standard) fliegt wie eine Drohne
+hinterher: an einer weichen Feder knapp vor dem Kopf, beim Abbiegen in lockeren Bögen statt Ecken. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 
 Neue Hindernisse schließen nie Bereiche ab und bauen keine Sackgassen; Mauern entstehen nie
-direkt vor dem Kopf. Gegen jedes Hindernis (auch Rand und Mauern) ist es sofort vorbei, ohne Pause.
+direkt vor dem Kopf. Gegen jedes Hindernis (auch Rand und Mauern) ist es vorbei, nach nur 10 ms Reaktionszeit:
+wer in diesem Moment noch abbiegt, ist gerettet.
 
-**Steuerung:** Wischen oder Zeichnen (Finger liegen lassen, die Schlange folgt der Linie; ab 18 px
-und höchstens 32° schräg). Umschalten mit dem kleinen Schalter unten links, daneben ein kleiner Pause-Knopf.
+**Steuerung:** ein Fingermodus: wischen, auch mehrmals ohne abzusetzen (Finger liegen lassen und weiterziehen;
+ab 18 px und höchstens 32° schräg). Unten links ein kleiner Pause-Knopf.
 
 ## Entwickeln
 

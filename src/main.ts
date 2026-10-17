@@ -154,22 +154,7 @@ function readyText() {
     ? 'Pfeiltaste drücken zum Starten'
     : settings.dpad
       ? 'Tippe eine Richtung zum Starten'
-      : settings.steuerung === 'zeichnen'
-        ? 'Linie ziehen zum Starten'
-        : 'Wischen zum Starten'
-}
-
-/** Schalter unten links: Wischen oder Zeichnen */
-function updateSteuerung() {
-  const an = settings.steuerung === 'zeichnen'
-  $('btn-steuerung').setAttribute('aria-checked', String(an))
-  $<HTMLInputElement>('opt-zeichnen').checked = an
-}
-function setSteuerung(an: boolean) {
-  settings.steuerung = an ? 'zeichnen' : 'wischen'
-  applySettings()
-  updateSteuerung()
-  if (mode === 'ready') readyText()
+      : 'Wischen zum Starten'
 }
 
 function begin(d?: Dir) {
@@ -509,14 +494,12 @@ function updateGeld(pop = false) {
 /* ================= Aktive Power-ups (Pillen oben links) ================= */
 
 const EFFEKT_ICON: Record<string, string> = {
-  schild: 'Shield',
   zeitlupe: 'Hourglass',
   geist: 'Ghost',
   schere: 'Scissors',
   fuettern: 'Utensils',
   magnet: 'Magnet',
   maulwurf: 'Shovel',
-  gold: 'Crown',
   wahl: 'Flag',
 }
 const effektEls = new Map<string, HTMLElement>()
@@ -526,10 +509,6 @@ function updateEffekte() {
   const aktiv: { art: string; rest: number; text: string }[] = []
   if (g && mode !== 'home') {
     const e = g.effekt
-    if (e.schild > 0) {
-      const rest = Math.max(0, e.schildBis - g.time)
-      aktiv.push({ art: 'schild', rest: Math.min(1, rest / (g.cfg.schildDauer * 1000)), text: `${e.schild > 1 ? `×${e.schild} ` : ''}${Math.ceil(rest / 1000)}` })
-    }
     // Schere: bis zum naechsten Apfel kuerzer
     if (e.schere > 0) aktiv.push({ art: 'schere', rest: 1, text: `−${e.schere}` })
     // Neues Gebiet waehlen: Countdown
@@ -541,7 +520,6 @@ function updateEffekte() {
       ['fuettern', e.fuetternBis, c.fuetternDauer],
       ['magnet', e.magnetBis, c.magnetDauer],
       ['maulwurf', e.maulwurfBis, c.maulwurfDauer],
-      ['gold', e.goldBis, c.goldDauer],
     ] as const)
       if (g.time < bis) aktiv.push({ art, rest: Math.min(1, (bis - g.time) / (dauer * 1000)), text: `${Math.ceil((bis - g.time) / 1000)}` })
   }
@@ -562,8 +540,27 @@ function updateEffekte() {
     }
     const b = el.querySelector('b')!
     if (b.textContent !== a.text) b.textContent = a.text
-    el.classList.toggle('effekt--blink', (a.art === 'wahl' && Number(a.text) <= 5) || (a.art === 'schild' && a.rest * g!.cfg.schildDauer <= 3))
+    el.classList.toggle('effekt--blink', a.art === 'wahl' && Number(a.text) <= 5)
     el.querySelector('i')!.style.transform = `scaleX(${a.rest})`
+  }
+  updateSchild()
+}
+
+/** Schilde (je ein Leben mehr) oben rechts: ein Schild-Symbol, ab zwei mit Anzahl */
+let schildVorher = -1
+function updateSchild() {
+  const n = game && mode !== 'home' ? game.effekt.schild : 0
+  if (n === schildVorher) return
+  const el = $('hud-schild')
+  const neu = n > schildVorher && schildVorher >= 0
+  schildVorher = n
+  el.hidden = n <= 0
+  el.querySelector('b')!.textContent = n > 1 ? `×${n}` : ''
+  el.setAttribute('aria-label', n === 1 ? '1 Schild' : `${n} Schilde`)
+  if (neu && !reduce) {
+    el.classList.remove('pop')
+    void el.offsetWidth
+    el.classList.add('pop')
   }
 }
 
@@ -760,15 +757,16 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
-  updateSteuerung()
-  $('opt-tempo')
-    .querySelectorAll<HTMLButtonElement>('button')
-    .forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === settings.tempo)))
+  for (const [id, v] of [['opt-tempo', settings.tempo], ['opt-kamera', settings.kamera]])
+    $(id)
+      .querySelectorAll<HTMLButtonElement>('button')
+      .forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === v)))
 }
 
 function applySettings() {
   audio.sfxOn = settings.sound
   audio.setMusic(settings.music)
+  renderer.kameraArt = settings.kamera
   saveSettings()
 }
 
@@ -1046,15 +1044,6 @@ $('btn-pause-klein').addEventListener('click', () => {
   audio.click()
   pause()
 })
-$('btn-steuerung').addEventListener('click', () => {
-  audio.unlock()
-  audio.click()
-  setSteuerung(settings.steuerung !== 'zeichnen')
-})
-$<HTMLInputElement>('opt-zeichnen').addEventListener('change', (e) => {
-  audio.click()
-  setSteuerung((e.target as HTMLInputElement).checked)
-})
 $('btn-resume').addEventListener('click', resume)
 $('btn-restart').addEventListener('click', () => {
   audio.click()
@@ -1111,6 +1100,16 @@ $('opt-tempo')
       audio.click()
     }),
   )
+$('opt-kamera')
+  .querySelectorAll<HTMLButtonElement>('button')
+  .forEach((b) =>
+    b.addEventListener('click', () => {
+      settings.kamera = b.dataset.v as typeof settings.kamera
+      applySettings()
+      renderSettings()
+      audio.click()
+    }),
+  )
 $('btn-reset').addEventListener('click', () => {
   if (!confirm('Statistik und Rekord wirklich löschen?')) return
   resetStats()
@@ -1122,7 +1121,6 @@ $('btn-reset').addEventListener('click', () => {
 
 bindInput(app, {
   dir: onDir,
-  steuerung: () => settings.steuerung,
   pause: () => {
     audio.unlock()
     if (page()) return closePage()
@@ -1136,7 +1134,6 @@ bindInput(app, {
   enabled: () => !page() && (mode === 'ready' || mode === 'play'),
 })
 bindDpad($('dpad'), onDir)
-updateSteuerung()
 // Spielende: Enter oder Leertaste startet neu
 window.addEventListener('keydown', (e) => {
   if (mode === 'over' && $('over').hasAttribute('data-open') && !page() && (e.key === 'Enter' || e.key === ' ')) {

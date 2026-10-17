@@ -1,8 +1,8 @@
 /**
- * Steuerung: Wischen auf dem ganzen Bildschirm (mehrere Wischer ohne
- * Absetzen moeglich, wie im Telefon) oder Zeichnen (Finger bleibt unten,
- * die Schlange folgt der gezeichneten Linie), Pfeiltasten/WASD, optional
- * ein Steuerkreuz am unteren Rand.
+ * Steuerung: ein Fingermodus auf dem ganzen Bildschirm. Kurz wischen oder
+ * den Finger liegen lassen und weiterziehen (durchdruecken): jede klare
+ * waagrechte oder senkrechte Linie ist eine Richtung, schraege Striche
+ * zaehlen nicht. Dazu Pfeiltasten/WASD und optional ein Steuerkreuz.
  */
 import type { Dir } from './game/types'
 
@@ -11,17 +11,14 @@ const KEYS: Record<string, Dir> = {
   w: 'u', s: 'd', a: 'l', d: 'r', W: 'u', S: 'd', A: 'l', D: 'r',
 }
 
-export type Steuerung = 'wischen' | 'zeichnen'
-
-/** Zeichnen: so weit (px) muss die Linie gehen und hoechstens so schraeg (Grad
- *  neben der Achse) sein, damit sie als Richtung zaehlt. Schraeger = keine Wende */
-export const ZEICHNEN_WEG = 18
-export const ZEICHNEN_WINKEL = 32
-const ZEICHNEN_TAN = Math.tan((ZEICHNEN_WINKEL * Math.PI) / 180)
+/** So weit (px) muss die Linie gehen und hoechstens so schraeg (Grad neben der
+ *  Achse) sein, damit sie als Richtung zaehlt. Schraeger = keine Wende */
+export const WISCH_WEG = 18
+export const WISCH_WINKEL = 32
+const WISCH_TAN = Math.tan((WISCH_WINKEL * Math.PI) / 180)
 
 export type InputHandlers = {
   dir: (d: Dir) => void
-  steuerung: () => Steuerung
   pause: () => void
   /** Tippen ohne Wischen (z. B. zum Starten) */
   tap: () => void
@@ -44,24 +41,18 @@ export function bindInput(surface: HTMLElement, h: InputHandlers) {
       const dy = e.clientY - t.y
       const ax = Math.abs(dx)
       const ay = Math.abs(dy)
-      if (h.steuerung() === 'zeichnen') {
-        // Zeichnen: erst ab einer Mindestlaenge, und nur wenn die Linie klar waagrecht oder senkrecht ist
-        const weg = Math.hypot(dx, dy)
-        if (weg < ZEICHNEN_WEG) return
-        if (e.cancelable) e.preventDefault()
-        if (Math.min(ax, ay) <= Math.max(ax, ay) * ZEICHNEN_TAN) {
-          t = { x: e.clientX, y: e.clientY, id: t.id, moved: true }
-          h.dir(ax > ay ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'd' : 'u')
-        } else if (weg > ZEICHNEN_WEG * 2.5) {
-          // Lange schraege Linie: verwerfen und von hier neu messen
-          t = { x: e.clientX, y: e.clientY, id: t.id, moved: true }
-        }
-        return
-      }
-      if (Math.max(ax, ay) < 18) return
+      // Erst ab einer Mindestlaenge, und nur wenn die Linie klar waagrecht oder senkrecht ist.
+      // Danach wird von hier aus neu gemessen: so geht es ohne Absetzen weiter
+      const weg = Math.hypot(dx, dy)
+      if (weg < WISCH_WEG) return
       if (e.cancelable) e.preventDefault()
-      t = { x: e.clientX, y: e.clientY, id: t.id, moved: true }
-      h.dir(ax > ay ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'd' : 'u')
+      if (Math.min(ax, ay) <= Math.max(ax, ay) * WISCH_TAN) {
+        t = { x: e.clientX, y: e.clientY, id: t.id, moved: true }
+        h.dir(ax > ay ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'd' : 'u')
+      } else if (weg > WISCH_WEG * 2.5) {
+        // Lange schraege Linie: verwerfen und von hier neu messen
+        t = { x: e.clientX, y: e.clientY, id: t.id, moved: true }
+      }
     },
     { passive: false },
   )

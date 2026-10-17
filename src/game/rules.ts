@@ -29,6 +29,7 @@ export const DEFAULTS = {
   wachsenJedes: 50,
   wachsenJedesZweite: 300,
   schutz: 2.2,
+  gnade: 10,
   // Mauern
   mauerAb: 8,
   mauerSchritt: 8,
@@ -40,22 +41,22 @@ export const DEFAULTS = {
   teichMaxGroesse: 12,
   teichFelder: 220,
   // Giftaepfel
-  giftAb: 50,
+  giftAb: 45,
   giftAlle: 60,
   giftMax: 4,
   // Fallen
-  falleAb: 100,
+  falleAb: 90,
   falleMin: 4,
   falleMax: 5,
   falleDauer: 25,
   falleAbstandMin: 5,
   falleAbstandMax: 8,
   // Baeume
-  baumAb: 100,
+  baumAb: 90,
   baumAlle: 40,
   baumFelder: 150,
   // Giftwolken
-  wolkeAb: 150,
+  wolkeAb: 135,
   wolkeMin: 5,
   wolkeMax: 7,
   wolkeTakt: 5,
@@ -63,40 +64,40 @@ export const DEFAULTS = {
   wolkeStufeMax: 5,
   wolkeZurueck: 10,
   // Froesche
-  froschAb: 200,
+  froschAb: 180,
   froschMin: 2,
   froschMax: 3,
   froschSprung: 3,
   froschWende: 20,
   froschAnzahl: 6,
   // Haeuser: erst kleine Huetten, ab hausGrossAb richtige Haeuser
-  hausAb: 130,
-  hausGrossAb: 210,
+  hausAb: 100,
+  hausGrossAb: 190,
   hausAlle: 30,
   hausFelder: 250,
   lichtWeite: 2,
   lichtZurueck: 5,
   // Jaegertuerme
-  turmAb: 315,
+  turmAb: 285,
   turmAlle: 40,
   turmFelder: 300,
   kegelLaenge: 6,
   kegelZurueck: 10,
   // Eis
-  eisAb: 180,
+  eisAb: 165,
   eisAlle: 30,
   eisMin: 4,
   eisMax: 10,
   eisFelder: 300,
   // Lava
-  lavaAb: 270,
+  lavaAb: 245,
   lavaAlle: 30,
   lavaWachsen: 2,
   lavaMin: 6,
   lavaMax: 15,
   lavaFelder: 300,
   // Ameisen
-  ameiseAb: 240,
+  ameiseAb: 215,
   ameiseMin: 8,
   ameiseMax: 12,
   ameiseAnzahl: 4,
@@ -104,34 +105,33 @@ export const DEFAULTS = {
   ameiseTakt: 0.8,
   ameiseZurueck: 3,
   // Gegner-Schlangen
-  gegnerAb: 60,
+  gegnerAb: 55,
   gegnerMin: 6,
   gegnerMax: 10,
   gegnerAnzahl: 3,
   gegnerWachsen: 20,
   gegnerMaxLaenge: 8,
-  lilaAb: 120,
+  lilaAb: 110,
   lilaChance: 25,
   lilaLaenge: 5,
   lilaTempo: 20,
   lilaMaxLaenge: 10,
+  gegnerReaktion: 3,
   // Power-ups und Aepfel als Waehrung
-  powerAb: 10,
+  powerAb: 9,
   powerChance: 18,
   powerDauer: 15,
   effektDauer: 30,
   zeitlupeProzent: 30,
   geistDauer: 6,
-  schildDauer: 20,
   powerGarantie: 8,
   schereLaenge: 5,
   fuetternDauer: 20,
   magnetDauer: 15,
   magnetRadius: 2,
-  maulwurfAb: 100,
+  maulwurfAb: 90,
   maulwurfDauer: 20,
   grabWeite: 8,
-  goldDauer: 10,
   // Erze unter der Erde (je 1000 Erdfelder) und ihr Wert in Aepfeln (mal Apfelwert)
   erzGold: 9,
   erzDia: 1.2,
@@ -173,6 +173,7 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'wachsenJedes', label: 'Wächst mit jedem Apfel bis Level', min: 0, max: 10000 },
       { key: 'wachsenJedesZweite', label: 'Danach mit jedem zweiten bis Level', min: 0, max: 10000 },
       { key: 'schutz', label: 'Schutz nach Rückschlag', min: 0, max: 10, step: 0.1, einheit: 's' },
+      { key: 'gnade', label: 'Reaktionszeit vor dem Aufprall', min: 0, max: 500, einheit: 'ms' },
     ],
   },
   {
@@ -278,6 +279,7 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'lilaLaenge', label: 'Lila startet mit', min: 3, max: 30, einheit: 'Glieder' },
       { key: 'lilaTempo', label: 'Lila schneller als Rot', min: 0, max: 200, einheit: '%' },
       { key: 'lilaMaxLaenge', label: 'Lila höchstens so lang', min: 3, max: 40, einheit: 'Glieder' },
+      { key: 'gegnerReaktion', label: 'Schiebt sich die Schlange so nah vor einen Gegner, lenkt er nicht mehr rechtzeitig', min: 0, max: 10, einheit: 'Felder' },
     ],
   },
   {
@@ -313,15 +315,13 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'effektDauer', label: 'Zeitlupe hält', min: 1, max: 120, einheit: 's' },
       { key: 'zeitlupeProzent', label: 'Zeitlupe langsamer um', min: 5, max: 80, einheit: '%' },
       { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
-      { key: 'schildDauer', label: 'Schild hält', min: 1, max: 300, einheit: 's' },
       { key: 'schereLaenge', label: 'Schere kürzt bis zum nächsten Apfel um', min: 1, max: 50, einheit: 'Glieder' },
-      { key: 'fuetternDauer', label: 'Füttern (Tiere und Schlangen fressen) hält', min: 1, max: 120, einheit: 's' },
+      { key: 'fuetternDauer', label: 'Füttern (Tiere und Schlangen fressen, durch sich selbst) hält', min: 1, max: 120, einheit: 's' },
       { key: 'magnetDauer', label: 'Magnet hält', min: 1, max: 120, einheit: 's' },
       { key: 'magnetRadius', label: 'Magnet holt alles im Umkreis von', min: 1, max: 10, einheit: 'Feldern' },
       { key: 'maulwurfAb', label: 'Maulwurf ab Level', min: 1, max: 10000 },
       { key: 'maulwurfDauer', label: 'Maulwurf (graben) hält', min: 1, max: 120, einheit: 's' },
       { key: 'grabWeite', label: 'Graben höchstens so weit hinaus', min: 1, max: 60, einheit: 'Felder' },
-      { key: 'goldDauer', label: 'Goldener Apfel (unbesiegbar) hält', min: 1, max: 60, einheit: 's' },
       { key: 'apfelWert', label: 'Ein Apfel ist wert', min: 0, max: 100, einheit: 'Äpfel' },
       { key: 'apfelWertAlle', label: 'Äpfel zählen einmal mehr alle', min: 1, max: 10000, einheit: 'Level' },
     ],
@@ -410,10 +410,11 @@ export const giftAnzahl = (c: Config, level: number) =>
 
 export const neuerBaum = (c: Config, level: number) => level >= c.baumAb && (level - c.baumAb) % c.baumAlle === 0
 export const baumMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.baumFelder))
-/** Liegende Tanne 1-1-2-1: Felder entlang der Achse (a) und quer dazu (q) */
+/** Liegende Tanne 1-1-3-1 (symmetrisch): Felder entlang der Achse (a) und quer dazu (q) */
 export const BAUM_FORM: { a: number; q: number }[] = [
   { a: 0, q: 0 },
   { a: 1, q: 0 },
+  { a: 2, q: -1 },
   { a: 2, q: 0 },
   { a: 2, q: 1 },
   { a: 3, q: 0 },
@@ -484,8 +485,8 @@ export const wolkenForm = (stage: number): P[] => {
  *  Mit jeder Stufe bekommt der Apfel eine andere Farbe (siehe APFEL_STUFEN in sprites.ts) */
 export const apfelFaktor = (c: Config, level: number) => 1 + Math.floor(level / Math.max(1, c.apfelWertAlle))
 
-export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere', 'fuettern', 'magnet', 'maulwurf', 'gold', 'spitzhacke'] as const
-/** Wie oft welches Power-up kommt (Gewicht). Goldener Apfel selten */
+export const POWER_ARTEN = ['schild', 'zeitlupe', 'geist', 'schere', 'fuettern', 'magnet', 'maulwurf', 'spitzhacke'] as const
+/** Wie oft welches Power-up kommt (Gewicht) */
 export const POWER_GEWICHT: Record<(typeof POWER_ARTEN)[number], number> = {
   schild: 3,
   zeitlupe: 3,
@@ -494,7 +495,6 @@ export const POWER_GEWICHT: Record<(typeof POWER_ARTEN)[number], number> = {
   fuettern: 2,
   magnet: 3,
   maulwurf: 2,
-  gold: 1,
   spitzhacke: 2,
 }
 /** Erze: welches die Spitzhacke setzt (Gewicht, je seltener desto wertvoller) */

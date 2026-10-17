@@ -98,7 +98,12 @@ export class Game {
   dir: Dir = 'r'
   prevDir: Dir = 'r'
   ate = false
+  /** Steht still: Kreativ vor einem Hindernis, oder ein Schild hat sie am Kartenrand angehalten */
   halt = false
+  /** Reaktionszeit: der Kopf steht vor einem Hindernis, bis `bis` darf noch gelenkt werden */
+  gnade: { cause: Cause; bis: number } | null = null
+  /** Gerade laeuft der Schritt nach der Reaktionszeit (dann keine zweite) */
+  private gnadeVorbei = false
   queue: Dir[] = []
   /** So viele Schritte bleibt das Schwanzende noch stehen (Wachsen) */
   wachsRest = 0
@@ -126,9 +131,9 @@ export class Game {
   statisch = false
   /** Power-ups auf der Karte */
   powers: Power[] = []
-  /** Aktive Power-ups: Schild (Anzahl, haelt bis schildBis), bis wann die anderen wirken,
+  /** Aktive Power-ups: Schild (Anzahl, je ein Leben mehr, laeuft nicht ab), bis wann die anderen wirken,
    *  Schere = so viele Glieder kommen mit dem naechsten Apfel zurueck */
-  effekt = { schild: 0, schildBis: 0, zeitlupeBis: 0, geistBis: 0, schere: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0, goldBis: 0 }
+  effekt = { schild: 0, zeitlupeBis: 0, geistBis: 0, schere: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0 }
   /** Von der Schere abgeschnittene Glieder (fallen ab und verschwinden) */
   abgeschnitten: { cells: P[]; von: number; laenge: number; t: number }[] = []
   /** Gegner-Schlangen und besiegte (zerfallen gerade) */
@@ -249,10 +254,12 @@ export class Game {
     if (this.status !== 'play') return
     // Nach einem Haenger nicht mehrere Schritte nachholen
     if (this.time - this.last > this.takt * 3) this.last = this.time - this.takt
-    while (this.status === 'play' && this.time - this.last >= this.takt) {
+    while (this.status === 'play' && !this.gnade && this.time - this.last >= this.takt) {
       this.last += this.takt
       this.step()
     }
+    // Reaktionszeit vorbei, ohne zu lenken: jetzt prallt sie auf
+    if (this.gnade && this.time >= this.gnade.bis) this.nachGnade()
     if (this.status !== 'play') return
     this.effekteTakt()
     this.wachsen()
@@ -275,17 +282,17 @@ export class Game {
     return this.time < this.effekt.zeitlupeBis ? this.tick * R.zeitlupe(this.cfg) : this.tick
   }
 
-  /** Geist: durch Hindernisse (Kreativ, Power-up Geist oder goldener Apfel) */
+  /** Geist: durch Hindernisse (Kreativ oder Power-up Geist) */
   geist() {
-    return this.kreativ?.tod === 'geist' || this.time < this.effekt.geistBis || this.unbesiegbar()
+    return this.kreativ?.tod === 'geist' || this.time < this.effekt.geistBis
   }
-  /** Goldener Apfel: nichts kann der Schlange etwas anhaben, sie faehrt auch ueber sich selbst */
-  unbesiegbar() {
-    return this.time < this.effekt.goldBis
-  }
-  /** Fuettern (oder goldener Apfel): Tiere und andere Schlangen fressen */
+  /** Fuettern: Tiere und andere Schlangen fressen, dabei auch durch sich selbst hindurch */
   frisst() {
-    return this.time < this.effekt.fuetternBis || this.unbesiegbar()
+    return this.time < this.effekt.fuetternBis
+  }
+  /** Darf der Kopf ueber den eigenen Koerper? (Kreativ oder Fuettern) */
+  private durchSelbst() {
+    return !!this.kreativ?.durchSelbst || this.frisst()
   }
   /** Maulwurf: durch die Erde graben */
   graebt() {
@@ -305,6 +312,19 @@ export class Game {
     if (this.status !== 'play') return
     // Auf Eis laesst sich nicht lenken (ausser im Kreativ-Modus, wenn die Schlange vor einem Hindernis steht)
     if (!this.halt && this.aufEis(this.body[0])) return
+    // Reaktionszeit vor dem Aufprall: Abbiegen rettet (nicht in den Hals, nicht noch einmal geradeaus)
+    if (this.gnade) {
+      const h = this.body[0]
+      const hals = this.body[1]
+      if (d === this.dir || (hals && h.x + STEP[d].x === hals.x && h.y + STEP[d].y === hals.y)) return
+      this.gnade = null
+      this.queue = [d]
+      this.last = this.time
+      this.gnadeVorbei = true
+      this.step()
+      this.gnadeVorbei = false
+      return
+    }
     if (
       sofort &&
       !this.queue.length &&
@@ -354,9 +374,8 @@ export class Game {
     }
     // Maulwurf: ausserhalb der Karte durch die Erde graben (bis grabWeite)
     const graben = !this.inside(n) && this.graebt() && this.grabbar(n)
-    // Fuettern / goldener Apfel: Tiere und Gegner werden gefressen statt gerammt
+    // Fuettern: Tiere und Gegner werden gefressen statt gerammt
     if (this.frisst()) this.fressen(n)
-    if (this.unbesiegbar()) this.zerschlagen(n)
     const eats = same(n, this.apple.p)
     // Wachsen: das Schwanzende bleibt stehen. Kreativ mit fester Laenge: auf die Laenge bringen
     const fest = k && !k.wachsen ? Math.max(1, Math.floor(k.laenge)) : 0
@@ -370,6 +389,8 @@ export class Game {
         this.gift.splice(gi, 1)
         gi = -1
       } else {
+        this.prev = this.body.map((p) => ({ ...p }))
+        if (this.aufschieben('gift')) return
         this.body.unshift(n)
         this.body.pop()
         this.gift.splice(gi, 1)
@@ -379,12 +400,27 @@ export class Game {
     }
 
     let cause: Cause | null = graben
-      ? !k?.durchSelbst && !this.geist() && rest.some((p) => same(p, n))
+      ? !this.durchSelbst() && !this.geist() && rest.some((p) => same(p, n))
         ? 'selbst'
         : null
       : (this.gefahr(n, rest) ?? (gi >= 0 && k?.tod === 'anhalten' && !this.geist() ? 'gift' : null))
-    // Schild: faengt den Aufprall ab, kurz danach gleitet die Schlange hindurch (nicht am Kartenrand)
-    if (cause && cause !== 'rand' && (!k || k.tod === 'an') && this.schildBrechen()) cause = this.gefahr(n, rest)
+    // Schild = ein Leben mehr: faengt den Aufprall ab, kurz danach gleitet die Schlange hindurch.
+    // Am Kartenrand geht das nicht: dort bleibt sie stehen, bis man abbiegt
+    if (cause && (!k || k.tod === 'an')) {
+      if (cause === 'rand' && this.halt) {
+        this.prev = this.body.map((p) => ({ ...p }))
+        return
+      }
+      if (this.schildBrechen()) {
+        if (cause === 'rand') {
+          this.halt = true
+          this.prev = this.body.map((p) => ({ ...p }))
+          this.emit({ type: 'halt' })
+          return
+        }
+        cause = this.gefahr(n, rest)
+      }
+    }
     if (cause) {
       // Kreativ: nicht sterben, nur stehen bleiben
       if (k && k.tod !== 'an') {
@@ -393,13 +429,15 @@ export class Game {
         this.prev = this.body.map((p) => ({ ...p }))
         return
       }
-      // Gegen jedes Hindernis: sofort vorbei (kein Gnadenschritt)
+      // Gegen jedes Hindernis: vorbei, aber erst nach einer kurzen Reaktionszeit
       this.prev = this.body.map((p) => ({ ...p }))
+      if (this.aufschieben(cause)) return
       this.die(cause)
       return
     }
     this.halt = false
     this.body.unshift(n)
+    this.gegnerUeberrascht(n)
     if (!grows) this.body.pop()
     if (fest && this.body.length > fest) this.body.pop()
     if (grows && !fest && this.wachsRest > 0) this.wachsRest--
@@ -419,6 +457,23 @@ export class Game {
     this.einsammeln(n)
     if (eats) this.eat(n)
     else this.treffer(n)
+  }
+
+  /** Aufprall: erst nach der Reaktionszeit (cfg.gnade ms) vorbei, bis dahin rettet Abbiegen.
+   *  Gibt false, wenn sie schon abgelaufen ist (dann gleich sterben) */
+  private aufschieben(cause: Cause) {
+    if (this.gnadeVorbei || this.cfg.gnade <= 0) return false
+    this.gnade = { cause, bis: this.time + this.cfg.gnade }
+    return true
+  }
+
+  /** Reaktionszeit ohne Lenken vorbei: noch einmal geradeaus (ist der Weg jetzt frei, geht es weiter) */
+  private nachGnade() {
+    this.gnade = null
+    this.last = this.time
+    this.gnadeVorbei = true
+    this.step()
+    this.gnadeVorbei = false
   }
 
   /** Schild verbrauchen (falls vorhanden): kurz Geist, damit die Schlange hindurchgleitet */
@@ -478,34 +533,15 @@ export class Game {
     }
   }
 
-  /** Goldener Apfel: Mauersteine, Fallen und Giftaepfel im Weg werden weggeraeumt */
-  private zerschlagen(n: P) {
-    for (const m of this.mauern) {
-      const i = m.cells.findIndex((p) => same(p, n))
-      if (i < 0) continue
-      this.weg.push({ cells: [{ ...n }], t: this.time })
-      m.cells.splice(i, 1)
-      m.t.splice(i, 1)
-      if (i < m.grown) m.grown--
-    }
-    this.mauern = this.mauern.filter((m) => m.cells.length)
-    const fi = this.fallen.findIndex((f) => same(f.p, n))
-    if (fi >= 0) this.fallenWeg.push({ p: { ...n }, t: this.time }), this.fallen.splice(fi, 1)
-    this.gift = this.gift.filter((g) => !same(g.p, n))
-  }
-
   powerAn(art: PowerArt, p: P = this.body[0]) {
     const c = this.cfg
-    if (art === 'schild') {
-      this.effekt.schild = Math.min(3, this.effekt.schild + 1)
-      this.effekt.schildBis = this.time + c.schildDauer * 1000
-    }
+    // Schild: ein Leben mehr (hoechstens 3), laeuft nicht ab
+    if (art === 'schild') this.effekt.schild = Math.min(3, this.effekt.schild + 1)
     if (art === 'zeitlupe') this.effekt.zeitlupeBis = this.time + c.effektDauer * 1000
     if (art === 'geist') this.effekt.geistBis = this.time + c.geistDauer * 1000
     if (art === 'fuettern') this.effekt.fuetternBis = this.time + c.fuetternDauer * 1000
     if (art === 'magnet') this.effekt.magnetBis = this.time + c.magnetDauer * 1000
     if (art === 'maulwurf') this.effekt.maulwurfBis = this.time + c.maulwurfDauer * 1000
-    if (art === 'gold') this.effekt.goldBis = this.time + c.goldDauer * 1000
     if (art === 'spitzhacke') this.erzSetzen()
     if (art === 'schere') {
       // Nur fuer einen Apfel: die Glieder wachsen mit dem naechsten Apfel wieder nach
@@ -522,13 +558,7 @@ export class Game {
   /** Laufende Power-ups: Magnet holt, Maulwurf endet (in der Erde = Tod), abgelaufene verschwinden */
   private effekteTakt() {
     const e = this.effekt
-    // Schild haelt nicht ewig
-    if (e.schild > 0 && this.time >= e.schildBis) {
-      e.schild = 0
-      e.schildBis = 0
-      this.emit({ type: 'powerEnde', art: 'schild' })
-    }
-    for (const art of ['zeitlupe', 'geist', 'fuettern', 'magnet', 'maulwurf', 'gold'] as const) {
+    for (const art of ['zeitlupe', 'geist', 'fuettern', 'magnet', 'maulwurf'] as const) {
       const feld = `${art}Bis` as const
       if (e[feld] > 0 && this.time >= e[feld]) {
         e[feld] = 0
@@ -614,7 +644,6 @@ export class Game {
   /** Was liegt auf diesem Feld (fuer den Kopf)? */
   gefahr(n: P, rest: P[] = this.body): Cause | null {
     if (!this.inside(n)) return 'rand'
-    const k = this.kreativ
     if (this.geist()) return null
     if (this.mauern.some((m) => m.cells.slice(0, m.grown).some((p) => same(p, n)))) return 'mauer'
     if (this.teiche.some((t) => t.drying === undefined && t.cells.some((p) => same(p, n)))) return 'teich'
@@ -625,11 +654,12 @@ export class Game {
     if (this.tuerme.some((t) => t.cells.some((p) => same(p, n)))) return 'turm'
     if (this.lava.some((l) => l.cells.some((p) => same(p, n)))) return 'lava'
     if (this.aufGegner(n)) return 'gegner'
-    if (!k?.durchSelbst && rest.some((p) => same(p, n))) return 'selbst'
+    if (!this.durchSelbst() && rest.some((p) => same(p, n))) return 'selbst'
     return null
   }
 
   private die(cause: Cause) {
+    this.gnade = null
     this.status = 'over'
     this.cause = cause
     this.deathAt = this.time
@@ -1407,19 +1437,18 @@ export class Game {
 
   /* ================= Baeume, Haeuser, Tuerme ================= */
 
-  /** Liegende Tanne (1-1-2-1) irgendwo mit Abstand, bleibt fuer immer */
+  /** Liegende Tanne (1-1-3-1, symmetrisch) irgendwo mit Abstand, bleibt fuer immer */
   private neuerBaum() {
     const r = this.r
     const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
       const dir = r.pick(DIRS)
       const d = STEP[dir]
-      const seite = r.next() < 0.5 ? 1 : -1
-      const q = { x: -d.y * seite, y: d.x * seite }
+      const q = { x: -d.y, y: d.x }
       const root = { x: r.int(0, this.w - 1), y: r.int(0, this.h - 1) }
       const cells = R.BAUM_FORM.map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
       if (!this.platzOk(cells, 'mauer', ctx)) continue
-      this.baeume.push({ cells, root, dir, seite: seite as 1 | -1, t: this.time })
+      this.baeume.push({ cells, root, dir, t: this.time })
       this.emit({ type: 'tree' })
       return true
     }
@@ -1874,11 +1903,35 @@ export class Game {
         wuchsT: -1e9,
         eng: 0,
         angst: 0,
+        stur: 0,
       })
       this.emit({ type: 'gegner', p: { ...c }, art })
       return true
     }
     return false
+  }
+
+  /** Schiebt sich der Kopf bis zu `gegnerReaktion` Felder direkt vor einen Gegner (in seiner
+   *  Laufrichtung, frei dazwischen), kann er nicht mehr rechtzeitig lenken: er faehrt stur
+   *  geradeaus weiter, meist in die Schlange hinein */
+  private gegnerUeberrascht(n: P) {
+    const weit = Math.round(this.cfg.gegnerReaktion)
+    if (weit <= 0 || !this.gegner.length) return
+    let wand: Set<number> | null = null
+    for (const e of this.gegner) {
+      if (e.stur > 0) continue
+      const h = e.body[0]
+      const d = STEP[e.dir]
+      const vor = (n.x - h.x) * d.x + (n.y - h.y) * d.y
+      if (vor < 1 || vor > weit || (n.x - h.x) * d.y - (n.y - h.y) * d.x !== 0) continue
+      wand ??= this.hindernisse()
+      let frei = true
+      for (let i = 1; i < vor && frei; i++) {
+        const p = { x: h.x + d.x * i, y: h.y + d.y * i }
+        if (!this.inside(p) || wand.has(key(p.x, p.y)) || this.aufSchlange(p)) frei = false
+      }
+      if (frei) e.stur = vor
+    }
   }
 
   private gegnerTakt() {
@@ -1985,6 +2038,30 @@ export class Game {
       return s.wand.has(k) || schlange.has(k) || andere.has(k)
     }
     const zu = (p: P) => fremd(p) || eigen.has(key(p.x, p.y))
+    const ziehen = (d: Dir, p: P) => {
+      e.dir = d
+      e.body.unshift({ ...p })
+      if (e.wachsRest > 0) e.wachsRest--
+      else e.body.pop()
+      // Laeuft sie ueber den Apfel, rollt er woandershin
+      if (same(p, this.apple.p)) this.neuerApfel()
+    }
+
+    // Ueberrascht (die Schlange hat sich knapp vor sie geschoben): stur geradeaus, notfalls hinein
+    if (e.stur > 0) {
+      e.stur--
+      e.angst = 1
+      const p = { x: head.x + STEP[e.dir].x, y: head.y + STEP[e.dir].y }
+      if (schlange.has(key(p.x, p.y))) {
+        this.gegnerBesiegt(e)
+        return
+      }
+      if (!zu(p)) {
+        ziehen(e.dir, p)
+        return
+      }
+      e.stur = 0
+    }
     const moves = DIRS.map((d) => ({ d, p: { x: head.x + STEP[d].x, y: head.y + STEP[d].y } })).filter((m) => !zu(m.p))
 
     // Eingekesselt? Der ganze Bereich (mit ihr selbst) ist kaum groesser als sie: dann ist es vorbei
@@ -2021,12 +2098,7 @@ export class Game {
         best = m
       }
     }
-    e.dir = best.d
-    e.body.unshift({ ...best.p })
-    if (e.wachsRest > 0) e.wachsRest--
-    else e.body.pop()
-    // Laeuft sie ueber den Apfel, rollt er woandershin
-    if (same(best.p, this.apple.p)) this.neuerApfel()
+    ziehen(best.d, best.p)
   }
 
   /** Gegner eingekesselt: zerfaellt. Hat die Schlange ihn eingekesselt (sie ist ganz nah),
