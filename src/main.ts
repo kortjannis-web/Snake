@@ -757,7 +757,6 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
-  $<HTMLInputElement>('opt-zoom').checked = settings.zoom
   for (const [id, v] of [['opt-tempo', settings.tempo], ['opt-kamera', settings.kamera]])
     $(id)
       .querySelectorAll<HTMLButtonElement>('button')
@@ -768,7 +767,6 @@ function applySettings() {
   audio.sfxOn = settings.sound
   audio.setMusic(settings.music)
   renderer.kameraArt = settings.kamera
-  renderer.zoomAn = settings.zoom
   saveSettings()
 }
 
@@ -1085,7 +1083,7 @@ document.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => b.addEventLis
 }))
 document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', closePage))
 
-for (const k of ['sound', 'music', 'vibration', 'dpad', 'zoom'] as const)
+for (const k of ['sound', 'music', 'vibration', 'dpad'] as const)
   $<HTMLInputElement>(`opt-${k}`).addEventListener('change', (e) => {
     settings[k] = (e.target as HTMLInputElement).checked
     applySettings()

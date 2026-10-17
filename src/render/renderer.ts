@@ -44,23 +44,23 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
 /** Weiches Maximum: wie Math.max, nur ohne Knick an der Uebergabestelle */
 const weichMax = (a: number, b: number, k: number) => (a + b + Math.sqrt((a - b) * (a - b) + k * k)) / 2
-/** Kamera: fest am Kopf, als Drohne, die weich und in lockeren Boegen hinterherfliegt,
- *  oder als Bereich-Kamera mit festem Ausschnitt, die neue Bereiche frueh und weich vorwegnimmt */
-export type KameraArt = 'fix' | 'dynamisch' | 'bereich'
+/** Kamera: Bereich-Kamera mit festem Ausschnitt, die neue Bereiche frueh und weich vorwegnimmt,
+ *  oder Drohne, die weich und in lockeren Boegen hinterherfliegt */
+export type KameraArt = 'bereich' | 'dynamisch'
+/** Die Kamera zeigt je Richtung so viele Felder mehr als ein Bildschirm der Spiellogik */
+const MEHR_SICHT = 2
 /** Drohnen-Kamera: Federhaerte (1/ms) und wie weit sie vor dem Kopf schwebt (Felder) */
 const DROHNE = 0.0038
 const DROHNE_VORAUS = 1.5
-/** Bereich-Kamera: Federhaerte (1/ms), Dauer des weichen Wechsels in den neuen Ausschnitt (ms)
- *  und wie viele Felder man mindestens in eine Oeffnung sieht, auf die man zufaehrt */
+/** Bereich-Kamera: Federhaerte (1/ms) und Dauer des weichen Wechsels in den neuen Ausschnitt (ms) */
 const BEREICH = 0.013
 const BEREICH_WECHSEL = 1100
-const BEREICH_SICHT = 7
-/** Rauszoomen (Option): alle 30 Level 3 % mehr Felder je Richtung, hoechstens 10 Stufen */
-const ZOOM_LEVEL = 30
-const ZOOM_STUFE = 0.03
-const ZOOM_MAX = 10
-/** Federhaerte des Zooms (1/ms): ca. 1,5 s weich hinein und weich hinaus */
-const ZOOM_FEDER = 0.0035
+/** Mindestabstand Kopf (Mitte) zum Bildrand in Feldern, wo Karte ist: auf der Seite, von der die
+ *  Schlange wegfaehrt, und auf der, auf die sie zufaehrt (quer dazwischen) */
+const RAND_HINTEN = 6
+const RAND_VORN = 7.2
+/** Letzte Sicherung in Laufrichtung (Felder ab Kopfmitte): 5 ganze Felder vor dem Kopf */
+const RAND_SICHER = 5.5
 /** Seite des Ausschnitts je Achse und Richtung */
 const SEITE: Record<'x' | 'y', Record<1 | -1, Dir>> = { x: { 1: 'r', [-1]: 'l' }, y: { 1: 'd', [-1]: 'u' } }
 
@@ -73,7 +73,7 @@ export class Renderer {
   vw = 0
   vh = 0
   cell = 20
-  kameraArt: KameraArt = 'dynamisch'
+  kameraArt: KameraArt = 'bereich'
   private cam = { x: 0, y: 0 }
   /** Geschwindigkeit der Kamera (px/ms): sie faehrt wie an einer gedaempften Feder,
    *  beschleunigt also sanft und bremst sanft ab, nie ruckartig */
@@ -97,15 +97,14 @@ export class Renderer {
   private uhr = 0
   /** Weich nachgezogene Laufrichtung je Seite (0 weg, 1 darauf zu) in zwei Stufen, und Tempo (Felder/ms) */
   private bRicht: Record<Dir, [number, number]> = { u: [0, 0], d: [0, 0], l: [0, 0], r: [0, 0] }
-  private bTempo = 0
+  /** Geister-Feder (Felder): dieselbe Feder wie die Kamera, nur dass sie dem Kopf folgt. Wie weit
+   *  sie hinter dem Kopf haengt, so weit haengt auch die Kamera hinterher, wenn sie dem Kopf folgen
+   *  muss, auch beim Abbiegen und Umkehren (haengt nicht von der Kamera ab, schaukelt also nichts auf) */
+  private geist = { x: 0, y: 0, zx: 0, zy: 0, vx: 0, vy: 0 }
   /** Weich nachgezogene Verschiebung durch die Sicherung (px, zwei Stufen je Achse) */
   private sichtGlatt = { x: [0, 0], y: [0, 0] }
-  /** Alle 30 Level ein Stueck rauszoomen */
-  zoomAn = true
-  /** Zoom-Animation: Massstab des Bildes (1 = Ruhe) und seine Geschwindigkeit */
-  private zoomS = 1
-  private zoomV = 0
-  private zoomStufe = -1
+  /** Was die Sicherung zu jeder Seite mindestens sehen will (Felder ab Kopfmitte) */
+  private sichtNoetig = { x: { plus: 0, minus: 0 }, y: { plus: 0, minus: 0 } }
   private funken: Funke[] = []
   /** Aufsteigende Zahlen (+12) und Namen beim Einsammeln */
   private texte: { x: number; y: number; t: number; text: string; farbe: string }[] = []
@@ -135,29 +134,18 @@ export class Renderer {
     this.camV = { x: 0, y: 0 }
     this.frameOk = false
     this.sichtGlatt = { x: [0, 0], y: [0, 0] }
-    this.zoomStufe = -1
-    this.zoomS = 1
-    this.zoomV = 0
     this.funken = []
     this.texte = []
     this.shake = { until: 0, amp: 0 }
   }
 
-  /** Feldgroesse so, dass genau ein Bildschirm (screenW x screenH) hineinpasst,
-   *  mit Rauszoomen alle 30 Level ein paar Prozent mehr */
+  /** Feldgroesse so, dass ein Bildschirm (screenW x screenH) und je Richtung 2 Felder mehr hineinpassen */
   cellFor(g: Game) {
-    const z = 1 + ZOOM_STUFE * this.zoomStufeVon(g)
-    return Math.max(4, Math.floor(Math.min(this.vw / (g.screenW * z), this.vh / (g.screenH * z))))
+    return Math.max(4, Math.floor(Math.min(this.vw / (g.screenW + MEHR_SICHT), this.vh / (g.screenH + MEHR_SICHT))))
   }
 
-  private zoomStufeVon(g: Game) {
-    return this.zoomAn ? Math.min(ZOOM_MAX, Math.floor(g.level / ZOOM_LEVEL)) : 0
-  }
-
-  /** Neue Feldgroesse: alles, was in Pixeln gespeichert ist, mitskalieren. Kommt sie vom
-   *  Rauszoomen, bleibt das Bild erst gleich gross und zoomt dann weich auf die neue Groesse */
+  /** Neue Feldgroesse (Fenster geaendert): alles, was in Pixeln gespeichert ist, mitskalieren */
   private neueFeldgroesse(g: Game) {
-    const stufe = this.zoomStufeVon(g)
     const neu = this.cellFor(g)
     if (neu !== this.cell && this.camInit) {
       const r = neu / this.cell
@@ -179,31 +167,8 @@ export class Renderer {
         t.x *= r
         t.y *= r
       }
-      if (stufe !== this.zoomStufe && this.zoomStufe >= 0 && !this.reduce) {
-        this.zoomS /= r
-        this.zoomV /= r
-      }
     }
-    this.zoomStufe = stufe
     this.cell = neu
-  }
-
-  private zoomFeder(dt: number) {
-    if (this.reduce) {
-      this.zoomS = 1
-      this.zoomV = 0
-      return
-    }
-    const w = ZOOM_FEDER
-    for (let rest = dt; rest > 0; rest -= 8) {
-      const h = Math.min(8, rest)
-      this.zoomV += (w * w * (1 - this.zoomS) - 2 * w * this.zoomV) * h
-      this.zoomS += this.zoomV * h
-    }
-    if (Math.abs(this.zoomS - 1) < 1e-4 && Math.abs(this.zoomV) < 1e-6) {
-      this.zoomS = 1
-      this.zoomV = 0
-    }
   }
 
   event(e: GameEvent, g: Game) {
@@ -239,35 +204,13 @@ export class Renderer {
       }
     } else if (e.type === 'expand') {
       // Alles ist um dx/dy gerutscht: Kamera mitnehmen, damit nichts springt
-      this.cam.x += e.dx * cell
-      this.cam.y += e.dy * cell
-      this.camZiel.x += e.dx * cell
-      this.camZiel.y += e.dy * cell
-      this.frame.x += e.dx
-      this.frame.y += e.dy
-      if (this.bLetzt) this.bLetzt = { x: this.bLetzt.x + e.dx, y: this.bLetzt.y + e.dy }
-      if (this.bAus) this.bAus = { x: this.bAus.x + e.dx, y: this.bAus.y + e.dy }
+      this.kameraRutschen(e.dx, e.dy)
     } else if (e.type === 'freigelegt') {
-      this.cam.x += e.dx * cell
-      this.cam.y += e.dy * cell
-      this.camZiel.x += e.dx * cell
-      this.camZiel.y += e.dy * cell
-      this.frame.x += e.dx
-      this.frame.y += e.dy
-      if (this.bLetzt) this.bLetzt = { x: this.bLetzt.x + e.dx, y: this.bLetzt.y + e.dy }
-      if (this.bAus) this.bAus = { x: this.bAus.x + e.dx, y: this.bAus.y + e.dy }
+      this.kameraRutschen(e.dx, e.dy)
       for (const f of [...this.funken, ...this.texte]) {
         f.x += e.dx * cell
         f.y += e.dy * cell
       }
-      this.funken.forEach((f) => {
-        f.x += e.dx * cell
-        f.y += e.dy * cell
-      })
-      this.texte.forEach((f) => {
-        f.x += e.dx * cell
-        f.y += e.dy * cell
-      })
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
     } else if (e.type === 'fund') {
@@ -314,6 +257,24 @@ export class Renderer {
     }
   }
 
+  /** Die Karte ist um dx/dy Felder gerutscht: alles, was die Kamera sich merkt, mitnehmen */
+  private kameraRutschen(dx: number, dy: number) {
+    const { cell } = this
+    for (const v of [this.cam, this.camZiel]) {
+      v.x += dx * cell
+      v.y += dy * cell
+    }
+    for (const v of [this.frame, this.bLetzt, this.bAus]) {
+      if (!v) continue
+      v.x += dx
+      v.y += dy
+    }
+    this.geist.x += dx
+    this.geist.zx += dx
+    this.geist.y += dy
+    this.geist.zy += dy
+  }
+
   draw(g: Game) {
     const { ctx, vw, vh } = this
     const realNow = performance.now()
@@ -321,9 +282,7 @@ export class Renderer {
     this.lastReal = realNow
     const now = g.time
     this.neueFeldgroesse(g)
-    this.zoomFeder(dt)
     const cell = this.cell
-    const zs = this.zoomS
     const px = (v: number) => (v + 0.5) * cell
 
     // Schlange (weich zwischen den Feldern)
@@ -333,8 +292,8 @@ export class Renderer {
     const head = { x: lerp(h0.x, g.body[0].x, a), y: lerp(h0.y, g.body[0].y, a) }
 
     const cam = this.kamera(g, cell, dt, head)
-    let ox = zs === 1 ? Math.round(vw / 2 - cam.x) : vw / 2 - cam.x * zs
-    let oy = zs === 1 ? Math.round(vh / 2 - cam.y) : vh / 2 - cam.y * zs
+    let ox = Math.round(vw / 2 - cam.x)
+    let oy = Math.round(vh / 2 - cam.y)
     if (now < this.shake.until) {
       const f = (this.shake.until - now) / 450
       ox += Math.round((Math.random() - 0.5) * 2 * this.shake.amp * f)
@@ -347,14 +306,12 @@ export class Renderer {
     ctx.fillStyle = '#2C1E14'
     ctx.fillRect(0, 0, vw, vh)
     ctx.translate(ox, oy)
-    if (zs !== 1) ctx.scale(zs, zs)
 
     // Sichtbarer Bereich in Feldern (ex/ey auch ausserhalb der Karte)
-    const zc = cell * zs
-    const ex0 = Math.floor(-ox / zc) - 1
-    const ey0 = Math.floor(-oy / zc) - 1
-    const ex1 = Math.ceil((vw - ox) / zc) + 1
-    const ey1 = Math.ceil((vh - oy) / zc) + 1
+    const ex0 = Math.floor(-ox / cell) - 1
+    const ey0 = Math.floor(-oy / cell) - 1
+    const ex1 = Math.ceil((vw - ox) / cell) + 1
+    const ey1 = Math.ceil((vh - oy) / cell) + 1
     const x0 = Math.max(0, ex0)
     const y0 = Math.max(0, ey0)
     const x1 = Math.min(g.w - 1, ex1)
@@ -653,7 +610,7 @@ export class Renderer {
 
     // Apfel ausserhalb des Bildes: Pfeil am Rand
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
-    if (g.status === 'play') this.drawZeiger(g, ox, oy, zs, now)
+    if (g.status === 'play') this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
   }
 
@@ -789,24 +746,25 @@ export class Renderer {
     ctx.restore()
   }
 
-  /** Kamera. Fest: haftet immer genau am Kopf. Dynamisch: eine Drohne, die frei hinterherfliegt.
-   *  Sie haengt an einer gedaempften Feder vor dem Kopf (in Laufrichtung), so dass sie im Lauf
-   *  knapp vor ihm schwebt. Biegt die Schlange ab, springt nur das Ziel: die Kamera selbst
-   *  fliegt in einem lockeren Bogen hinueber, nie um eine Ecke. Steht die Schlange, gleitet sie zum Kopf.
-   *  Bereich: fester Ausschnitt, der Oeffnungen frueh und weich vorwegnimmt (siehe bereichZiel) */
+  /** Kamera. Bereich: fester Ausschnitt, der neue Bereiche frueh und weich vorwegnimmt (siehe
+   *  bereichZiel). Dynamisch: eine Drohne, die frei hinterherfliegt. Sie haengt an einer gedaempften
+   *  Feder vor dem Kopf (in Laufrichtung), so dass sie im Lauf knapp vor ihm schwebt. Biegt die
+   *  Schlange ab, springt nur das Ziel: die Kamera selbst fliegt in einem lockeren Bogen hinueber,
+   *  nie um eine Ecke. Steht die Schlange, gleitet sie zum Kopf. Mit "Bewegung reduzieren" haftet
+   *  die Kamera immer genau am Kopf */
   private kamera(g: Game, cell: number, dt: number, kopf: P): P {
     let tx = (kopf.x + 0.5) * cell
     let ty = (kopf.y + 0.5) * cell
     const lief = g.time !== this.camZeit
     this.camZeit = g.time
     const laeuft = lief && g.status === 'play' && !g.halt && !g.gnade
-    const art = this.reduce ? 'fix' : this.kameraArt
+    const art = this.reduce ? 'kopf' : this.kameraArt
     if (art !== 'bereich') {
       this.frameOk = false
       this.sichtGlatt = { x: [0, 0], y: [0, 0] }
     }
     if (art === 'bereich') {
-      const b = this.bereichZiel(g, dt, kopf, laeuft)
+      const b = this.bereichZiel(g, dt, kopf)
       tx = b.x * cell
       ty = b.y * cell
     } else if (art === 'dynamisch' && this.camInit) {
@@ -817,14 +775,14 @@ export class Renderer {
       tx += d.x * voraus
       ty += d.y * voraus
     }
-    if (art === 'fix' || !this.camInit) {
+    if (art === 'kopf' || !this.camInit) {
       this.cam = { x: tx, y: ty }
       this.camZiel = { x: tx, y: ty }
       this.camV = { x: 0, y: 0 }
       this.camInit = true
     } else this.feder(tx, ty, art === 'bereich' ? BEREICH : DROHNE, dt)
     if (art !== 'bereich') return this.cam
-    // Sicherung weich nachziehen (zwei Stufen): so loest sie sich auch beim Abbiegen ohne Ruck
+    // Letzte Sicherung, weich nachgezogen (zwei Stufen): so loest sie sich auch beim Abbiegen ohne Ruck
     const soll = this.sichtVoraus(g, kopf)
     const k = 1 - Math.exp(-dt / 90)
     for (const ax of ['x', 'y'] as const) {
@@ -835,51 +793,46 @@ export class Renderer {
     return { x: this.cam.x + this.sichtGlatt.x[1], y: this.cam.y + this.sichtGlatt.y[1] }
   }
 
-  /** Bereich-Kamera, letzte Sicherung: geht die Karte in Laufrichtung weiter, sieht man immer
-   *  mindestens 5 Felder hinein (bis zum Kartenrand). Greift nur in seltenen Momenten, etwa wenn
-   *  die Kamera nach dem Abbiegen noch Fahrt aufnimmt, und dann weich (ohne Knick) */
+  /** Bereich-Kamera, letzte Sicherung: zu jeder Seite sieht man immer mindestens 5 ganze Felder
+   *  am Kopf vorbei, soweit dort Karte ist. Greift nur in seltenen Momenten (etwa wenn die Kamera
+   *  nach dem Abbiegen noch Fahrt aufnimmt), setzt weich ein und ist sonst genau 0 */
   private sichtVoraus(g: Game, kopf: P): P {
-    const { cell } = this
-    const d = STEP[g.dir]
-    const h = g.body[0]
-    let n = 0
-    while (n < 6 && g.inside({ x: h.x + d.x * (n + 1), y: h.y + d.y * (n + 1) })) n++
     const aus = { ...this.cam }
     // Solange ein neuer Block aufklappt, gleitet die Kamera ohnehin hinein
-    if (!g.inside(h) || !n || (g.gebiet && g.time - g.gebiet.t < BEREICH_WECHSEL)) return aus
+    if (!g.inside(g.body[0]) || (g.gebiet && g.time - g.gebiet.t < BEREICH_WECHSEL)) return aus
+    const w = 0.5
+    const schub = (fehlt: number) => (fehlt <= -w ? 0 : fehlt >= w ? fehlt : ((fehlt + w) * (fehlt + w)) / (4 * w))
     for (const ax of ['x', 'y'] as const) {
-      if (!d[ax]) continue
-      const k = kopf[ax] + 0.5
-      // Bis zum ersten Feld ausserhalb der Karte (stetig, auch wenn der Kopf ein Feld weiterrueckt)
-      const rand = h[ax] + d[ax] * (n + 0.5) + 0.5
-      const brauche = Math.min(5.5, d[ax] * (rand - k))
-      const halb = (ax === 'x' ? this.vw : this.vh) / (2 * cell * this.zoomS)
-      // Wie viel fehlt (Felder): weich einsetzend, aber genau 0, solange genug zu sehen ist
-      const fehlt = d[ax] * (k + d[ax] * (brauche - halb)) - d[ax] * (aus[ax] / cell)
-      const w = 1
-      const schub = fehlt <= -w ? 0 : fehlt >= w ? fehlt : ((fehlt + w) * (fehlt + w)) / (4 * w)
-      aus[ax] += d[ax] * schub * cell
+      const halb = (ax === 'x' ? this.vw : this.vh) / (2 * this.cell)
+      const ab = aus[ax] / this.cell - (kopf[ax] + 0.5)
+      const n = this.sichtNoetig[ax]
+      aus[ax] += (schub(n.plus - (halb + ab)) - schub(n.minus - (halb - ab))) * this.cell
     }
     return aus
   }
 
-  /** Bereich-Kamera (Ziel in Feldern). Der Ausschnitt ist ein Bildschirm, an den Kartenbloecken
-   *  ausgerichtet, und bleibt stehen. Je naeher der Kopf einer Oeffnung kommt (dort, wo die Karte
-   *  ueber den Rand des Ausschnitts weitergeht), desto weiter lehnt sich die Kamera hinueber, bis zu
-   *  einem Drittel des neuen Bereichs. Es zaehlt nur der Abstand, nicht die Richtung: auch wer
-   *  parallel daran entlangfaehrt, sieht sie kommen. Das setzt schon sehr frueh ein (ab gut einer
-   *  Ausschnittbreite), so ist die Kamera fast immer sanft in Bewegung. Faehrt der Kopf auf eine
-   *  Oeffnung zu, sieht man mindestens BEREICH_SICHT Felder hinein (das Nachhinken der Feder ist
-   *  eingerechnet). Ueberschreitet er die Schwelle, kommt der naechste Ausschnitt: dann (und wenn
-   *  die Karte waechst oder er in die Erde graebt) gleitet die Kamera mit Ease-in/out hinueber */
-  private bereichZiel(g: Game, dt: number, kopf: P, laeuft: boolean): P {
+  /** Bereich-Kamera (Ziel in Feldern), in drei Schichten:
+   *  1. Kasten: Der Ausschnitt ist so gross wie das Bild, an den Kartenbloecken ausgerichtet, und
+   *     steht. Ueberschreitet der Kopf seinen Rand, kommt der naechste (einen Block weiter).
+   *  2. Vorwegnehmen: Ab der Mittellinie lehnt sich die Kamera zu jeder Oeffnung hinueber (dort, wo
+   *     die Karte hinter dem Rand weitergeht, auch hinter Erde oder um die Ecke), je naeher, desto
+   *     mehr: an der Schwelle steht sie halb im neuen Bereich. Faehrt die Schlange darauf zu, zieht
+   *     es voll, quer etwas weniger, faehrt sie weg, nur halb (wie an einem Gummiseil, das immer
+   *     dorthin zieht, wohin die Schlange gerade will). Spruenge im Ziel (Wechsel, Erde, wachsende
+   *     Karte) gleiten mit Ease-in/out.
+   *  3. Mindestabstand: zum Bildrand bleiben immer RAND_HINTEN bis RAND_VORN Felder, ueberall
+   *     dort, wo in der Naehe Karte ist, gerechnet fuer die Stelle, an der die Kamera wirklich ist
+   *     (siehe Geister-Feder). Dazu die letzte Sicherung in sichtVoraus.
+   *  Darauf folgt die Kamera an einer zweistufigen Feder (Gummiseil an einem Gummiseil) */
+  private bereichZiel(g: Game, dt: number, kopf: P): P {
     this.uhr += dt
     const vx = this.vw / this.cell
     const vy = this.vh / this.cell
+    const view = { x: vx, y: vy }
     const kx = kopf.x + 0.5
     const ky = kopf.y + 0.5
-    // Tempo und Laufrichtung weich nachziehen (auch die Richtung nur fuer die Mindestsicht)
-    this.bTempo += ((laeuft ? 1 / g.takt : 0) - this.bTempo) * (1 - Math.exp(-dt / 350))
+    const kp = { x: kx, y: ky }
+    // Laufrichtung weich nachziehen (0 weg, 0,7 quer, 1 darauf zu)
     const dir = g.queue[0] ?? g.dir
     const kr = 1 - Math.exp(-dt / 100)
     for (const s of ['u', 'd', 'l', 'r'] as const) {
@@ -887,8 +840,9 @@ export class Renderer {
       r[0] += ((s === dir ? 1 : s === OPP[dir] ? 0 : 0.7) - r[0]) * kr
       r[1] += (r[0] - r[1]) * kr
     }
+    const zu = (ax: 'x' | 'y', sg: 1 | -1) => this.bRicht[SEITE[ax][sg]][1]
 
-    // Pro Achse: Ausschnitt halten, solange der Kopf drin ist; ueber der Schwelle einen Block weiter
+    // 1. Kasten: halten, solange der Kopf drin ist; ueber der Schwelle einen Block weiter
     const achse = (pos: number, blk: number, view: number, total: number, alt: number | null) => {
       if (total <= view) return (total - view) / 2
       const lim = (f: number) => Math.min(total - view, Math.max(0, f))
@@ -904,85 +858,127 @@ export class Renderer {
     if (!this.frameOk) {
       this.frame = { x: achse(kx, g.bw, vx, g.w, null), y: achse(ky, g.bh, vy, g.h, null) }
       this.frameOk = true
+      this.geist = { x: kx, y: ky, zx: kx, zy: ky, vx: 0, vy: 0 }
       this.bLetzt = null
       this.bAus = null
       this.uebergaenge = []
     } else if (!erde) {
       this.frame = { x: achse(kx, g.bw, vx, g.w, this.frame.x), y: achse(ky, g.bh, vy, g.h, this.frame.y) }
     }
+    const feld = (ax: 'x' | 'y', a: number, q: number) => g.inside(ax === 'x' ? { x: a, y: q } : { x: q, y: a })
 
-    // Je Seite des Ausschnitts: wie weit sich die Kamera hinueberlehnt (Felder), und wie weit sie
-    // mindestens zu dieser Seite stehen muss, damit man genug voraus sieht
-    const seite = (ax: 'x' | 'y', sg: 1 | -1) => {
+    // 2. Vorwegnehmen: wie weit sich die Kamera zu einer Seite des Ausschnitts hinueberlehnt (Felder)
+    const lehnen = (ax: 'x' | 'y', sg: 1 | -1) => {
       const quer = ax === 'x' ? 'y' : 'x'
       const f = this.frame[ax]
-      const view = ax === 'x' ? vx : vy
       const total = ax === 'x' ? g.w : g.h
-      const k = ax === 'x' ? kx : ky
-      const kq = ax === 'x' ? ky : kx
-      const rand = sg > 0 ? f + view : f
-      const zumRand = sg > 0 ? rand - k : k - rand
-      // Mindestsicht in Laufrichtung (das Nachhinken der Feder ist eingerechnet)
-      const zu = this.bRicht[SEITE[ax][sg]][1]
-      const sicht = 2 + zu * (BEREICH_SICHT - 2 + (3 * this.bTempo) / BEREICH)
-      // Ohne Oeffnung: sich nicht so weit wegdrehen, dass die Karte bis zum Rand nicht mehr zu sehen ist
-      const ohne = { lehn: 0, min: Math.min(0, sicht - zumRand) }
-      if (total <= view) return ohne
-      // Oeffnungen: das erste Feld ganz ausserhalb und sein Nachbar (im Ausschnitt oder vom Rand
-      // angeschnitten) sind beide Karte
-      const aussen = sg > 0 ? Math.ceil(rand - 1e-6) : Math.floor(rand + 1e-6) - 1
-      const innen = aussen - sg
-      // Auch ein Stueck ueber die Ecken hinaus: eine Oeffnung gleich um die Ecke kuendigt sich so schon an
+      if (total <= view[ax]) return 0
+      // So weit rueckt der naechste Ausschnitt weiter (am Kartenende weniger)
+      const blk = ax === 'x' ? g.bw : g.bh
+      const neu = Math.abs(Math.min(total - view[ax], Math.max(0, f + sg * blk)) - f)
+      if (neu < 0.01) return 0
+      // Naechste Karte im Streifen, den der naechste Ausschnitt dazunimmt (Erde dazwischen egal),
+      // quer auch ein Stueck ueber die Ecken hinaus
+      const rand = sg > 0 ? f + view[ax] : f
+      const a0 = sg > 0 ? Math.floor(rand + 1e-6) : Math.floor(rand - neu + 1e-6)
+      const a1 = sg > 0 ? Math.ceil(rand + neu - 1e-6) - 1 : Math.ceil(rand - 1e-6) - 1
       const fq = this.frame[quer]
-      const q0 = Math.max(0, Math.floor(fq) - 8)
-      const q1 = Math.min((quer === 'x' ? g.w : g.h) - 1, Math.ceil(fq + (quer === 'x' ? vx : vy)) - 1 + 8)
-      let dMin = Infinity
-      let qMin = Infinity
+      const q0 = Math.max(0, Math.floor(fq) - 6)
+      const q1 = Math.min((quer === 'x' ? g.w : g.h) - 1, Math.ceil(fq + view[quer]) - 1 + 6)
+      const k = kp[ax]
+      const kq = kp[quer]
+      let d2 = Infinity
       for (let q = q0; q <= q1; q++) {
-        const a = ax === 'x' ? { x: aussen, y: q } : { x: q, y: aussen }
-        const b = ax === 'x' ? { x: innen, y: q } : { x: q, y: innen }
-        if (!g.inside(a) || !g.inside(b)) continue
         const dq = Math.max(0, Math.abs(kq - (q + 0.5)) - 0.5)
-        dMin = Math.min(dMin, Math.hypot(Math.max(0, zumRand), dq))
-        qMin = Math.min(qMin, dq)
+        // Vom Rand aus nach aussen: das erste Feld Karte ist das naechste
+        for (let i = 0; i <= a1 - a0; i++) {
+          const a = sg > 0 ? a0 + i : a1 - i
+          if (!feld(ax, a, q)) continue
+          const da = Math.max(0, sg > 0 ? Math.max(a, rand) - k : k - Math.min(a + 1, rand))
+          d2 = Math.min(d2, da * da + dq * dq)
+          break
+        }
       }
-      if (dMin === Infinity) return ohne
-      // Vorwegnehmen: bis zu einem Drittel des neuen Bereichs, weich ab gut einer Ausschnittbreite
-      const neu = Math.abs(Math.min(total - view, Math.max(0, f + sg * (ax === 'x' ? g.bw : g.bh))) - f)
-      const reichweite = Math.max(8, view * 1.15)
-      const lehn = smoother(clamp01(1 - dMin / reichweite)) * (neu / 3)
-      // Auf Hoehe der Oeffnung: so weit hinein sehen, wie die Mindestsicht verlangt
-      const hoehe = 1 - smoother(clamp01((qMin - 0.5) / 4))
-      return { lehn, min: weichMax(sicht - zumRand - (1 - hoehe) * 3 * sicht, ohne.min, 1) }
+      if (d2 === Infinity) return 0
+      // Ab der Mittellinie (halbe Ausschnittbreite Abstand) sanft einsetzend, an der Schwelle halb
+      // im neuen Bereich und dort noch in Fahrt, damit der Wechsel ohne Halt durchgeht
+      const u = clamp01(1 - Math.sqrt(d2) / (view[ax] / 2))
+      return (neu / 2) * u * u * (2 - u) * (0.5 + 0.5 * zu(ax, sg))
     }
-    const plus = { x: seite('x', 1), y: seite('y', 1) }
-    const minus = { x: seite('x', -1), y: seite('y', -1) }
-    const mitte = { x: this.frame.x + vx / 2, y: this.frame.y + vy / 2 }
-    const roh = erde ? { x: kx, y: ky } : { x: mitte.x + plus.x.lehn - minus.x.lehn, y: mitte.y + plus.y.lehn - minus.y.lehn }
 
-    // Mindestsicht: die Seite, auf die die Schlange eher zufaehrt, hat das letzte Wort
-    const boden = (p: P) => {
+    // 3. Mindestabstand: wie weit man vom Kopf aus zu einer Seite sehen muss (Felder ab Kopfmitte):
+    // die Karte in der Naehe (auch hinter Erde oder um die Ecke) bis hoechstens `soll` Felder weit.
+    // Weit entfernte Felder, Felder seitlich und Reihen am Rand des Bands blenden weich aus
+    const sichtBis = (ax: 'x' | 'y', sg: 1 | -1, soll: number) => {
+      const quer = ax === 'x' ? 'y' : 'x'
+      const k = kp[ax]
+      const kq = kp[quer]
+      const start = Math.floor(k)
+      let brauche = 0
+      for (let q = Math.floor(kq - 5); q <= Math.floor(kq + 5); q++) {
+        const dq = Math.max(0, Math.abs(kq - (q + 0.5)) - 0.5)
+        const wq = 1 - smoother(clamp01((dq - 1) / 3.5))
+        if (wq <= 0) continue
+        for (let i = 0; i <= Math.ceil(soll) + 2; i++) {
+          const a = start + sg * i
+          if (!feld(ax, a, q)) continue
+          const e = sg > 0 ? a + 1 - k : k - a
+          brauche = Math.max(brauche, wq * clamp01((soll + 2 - e) / 1.5) * Math.min(soll, e))
+        }
+      }
+      return brauche
+    }
+    const rand = (ax: 'x' | 'y', sg: 1 | -1) => sichtBis(ax, sg, RAND_HINTEN + (RAND_VORN - RAND_HINTEN) * zu(ax, sg))
+    // Folgt die Kamera dem Kopf, haengt sie so weit hinterher wie die Geister-Feder (im Lauf 3 v / omega).
+    // Der Mindestabstand gilt fuer die Stelle, an der die Kamera wirklich ist: beide Grenzen ruecken
+    // um dieses Nachhinken mit
+    const gs = this.geist
+    for (let rest = dt; rest > 0; rest -= 8) {
+      const h = Math.min(8, rest)
+      const kz = 1 - Math.exp(-h * BEREICH)
+      gs.zx += (kx - gs.zx) * kz
+      gs.zy += (ky - gs.zy) * kz
+      gs.vx += (BEREICH * BEREICH * (gs.zx - gs.x) - 2 * BEREICH * gs.vx) * h
+      gs.vy += (BEREICH * BEREICH * (gs.zy - gs.y) - 2 * BEREICH * gs.vy) * h
+      gs.x += gs.vx * h
+      gs.y += gs.vy * h
+    }
+    const lag = { x: kx - gs.x, y: ky - gs.y }
+    for (const ax of ['x', 'y'] as const)
+      this.sichtNoetig[ax] = erde ? { plus: 0, minus: 0 } : { plus: sichtBis(ax, 1, RAND_SICHER), minus: sichtBis(ax, -1, RAND_SICHER) }
+
+    const mitte = { x: this.frame.x + vx / 2, y: this.frame.y + vy / 2 }
+    const roh = erde ? { ...kp } : { x: mitte.x + lehnen('x', 1) - lehnen('x', -1), y: mitte.y + lehnen('y', 1) - lehnen('y', -1) }
+    const grenze = erde
+      ? null
+      : {
+          x: { plus: rand('x', 1), minus: rand('x', -1) },
+          y: { plus: rand('y', 1), minus: rand('y', -1) },
+        }
+    // Mindestabstand anwenden; reicht das Bild nicht fuer beide Seiten, gewinnt die, auf die die
+    // Schlange eher zufaehrt
+    const halten = (p: P) => {
       const q = { ...p }
-      if (erde) return q
+      if (!grenze) return q
       for (const ax of ['x', 'y'] as const) {
-        const zuerstPlus = this.bRicht[SEITE[ax][1]][1] < this.bRicht[SEITE[ax][-1]][1]
-        for (const sg of zuerstPlus ? [1, -1] : [-1, 1])
-          q[ax] = sg > 0 ? weichMax(q[ax], mitte[ax] + plus[ax].min, 1.5) : -weichMax(-q[ax], -(mitte[ax] - minus[ax].min), 1.5)
+        const lo = kp[ax] + grenze[ax].plus - view[ax] / 2 + lag[ax]
+        const hi = kp[ax] - grenze[ax].minus + view[ax] / 2 + lag[ax]
+        const plusZuletzt = zu(ax, 1) >= zu(ax, -1)
+        for (const plus of plusZuletzt ? [false, true] : [true, false]) q[ax] = plus ? weichMax(q[ax], lo, 1.2) : -weichMax(-q[ax], -hi, 1.2)
       }
       return q
     }
-    const fest = boden(roh)
 
-    // Sprung im Ziel: weich hinuebergleiten. Neuer Ausschnitt, Erde, Zoom: mit Ease hinueber, die
-    // Mindestsicht gilt dabei weiter (lockert sie sich, gleitet auch das). Karte gewachsen: alles,
-    // passend zur Welle, mit der der neue Block aufklappt
+    // Spruenge im Ziel gleiten weich hinueber. Neuer Ausschnitt, Erde, Fenstergroesse: das Hinueber-
+    // lehnen mit Ease, der Mindestabstand gilt sofort. Karte gewachsen: alles, passend zur Welle,
+    // mit der der neue Block aufklappt
     const sigRahmen = [this.frame.x, this.frame.y, erde, this.cell].join()
     const sigKarte = [g.w, g.h, g.blocks.length, g.extra.length].join()
     const karte = this.bLetzt !== null && sigKarte !== this.bSigKarte
-    if (this.bLetzt && !karte && sigRahmen !== this.bSig) this.uebergang(this.bLetzt.x - fest.x, this.bLetzt.y - fest.y, false)
+    if (this.bLetzt && !karte && sigRahmen !== this.bSig) this.uebergang(this.bLetzt.x - roh.x, this.bLetzt.y - roh.y, false)
     this.bSig = sigRahmen
     this.bSigKarte = sigKarte
-    this.bLetzt = fest
+    this.bLetzt = roh
     const rest = (nach: boolean) => {
       const r = { x: 0, y: 0 }
       for (const u of this.uebergaenge) {
@@ -994,7 +990,7 @@ export class Renderer {
       return r
     }
     const vor = rest(false)
-    const ziel = boden({ x: fest.x + vor.x, y: fest.y + vor.y })
+    const ziel = halten({ x: roh.x + vor.x, y: roh.y + vor.y })
     if (karte && this.bAus) this.uebergang(this.bAus.x - ziel.x, this.bAus.y - ziel.y, true)
     this.bAus = { ...ziel }
     const nach = rest(true)
@@ -1102,10 +1098,10 @@ export class Renderer {
   }
 
   /** Pfeil am Bildrand, wenn der Apfel ausserhalb liegt */
-  private drawZeiger(g: Game, ox: number, oy: number, zs: number, now: number) {
+  private drawZeiger(g: Game, ox: number, oy: number, now: number) {
     const { ctx, cell, vw, vh } = this
-    const ax = (g.apple.p.x + 0.5) * cell * zs + ox
-    const ay = (g.apple.p.y + 0.5) * cell * zs + oy
+    const ax = (g.apple.p.x + 0.5) * cell + ox
+    const ay = (g.apple.p.y + 0.5) * cell + oy
     const m = cell * 0.5
     if (ax > m && ax < vw - m && ay > m && ay < vh - m) return
     const r = Math.max(15, cell * 0.55)
