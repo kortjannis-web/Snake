@@ -28,7 +28,6 @@ export const DEFAULTS = {
   tempoMin: 68,
   wachsenJedes: 50,
   wachsenJedesZweite: 300,
-  gnade: 1.15,
   schutz: 2.2,
   // Mauern
   mauerAb: 8,
@@ -173,7 +172,6 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'tempoMin', label: 'Höchstens so schnell (Takt)', min: 20, max: 100, einheit: '%' },
       { key: 'wachsenJedes', label: 'Wächst mit jedem Apfel bis Level', min: 0, max: 10000 },
       { key: 'wachsenJedesZweite', label: 'Danach mit jedem zweiten bis Level', min: 0, max: 10000 },
-      { key: 'gnade', label: 'Gnadenschritt', min: 1, max: 5, step: 0.05, einheit: 'Takte' },
       { key: 'schutz', label: 'Schutz nach Rückschlag', min: 0, max: 10, step: 0.1, einheit: 's' },
     ],
   },

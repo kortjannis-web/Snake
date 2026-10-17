@@ -2,7 +2,7 @@
 
 Snake im Endlos-Modus, als Web-App (PWA, installierbar und offline) und als Android-App.
 Grundlage ist das Snake aus dem Hero-Telefon von topsichtbar.de (weicher Takt,
-gepufferte Eingaben, Sofort-Wende, Gnadenschritt, Mauern Feld für Feld, Teiche).
+gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 
 ## Herunterladen
 
@@ -57,17 +57,16 @@ Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im S
 jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
 normal weiter. Zählt nicht für den Rekord.
 
-**Kamera:** fester Ausschnitt (ein Bildschirm), tastet sich am Rand sanft eingeblendet vor und fährt beim Übertritt weich (Ease-in/out) zum
+**Kamera:** fester Ausschnitt (ein Bildschirm), bereitet ab dem letzten Drittel des Ausschnitts sanft den nächsten Bereich vor und fährt beim Übertritt weich (Ease-in/out) zum
 neuen Block. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 
 Neue Hindernisse schließen nie Bereiche ab und bauen keine Sackgassen; Mauern entstehen nie
-direkt vor dem Kopf. Läuft die Schlange gegen ein Hindernis, bleibt sie kurz stehen (1,15 Takte)
-und kann noch abbiegen (Gnadenschritt). Gegen Kartenrand und Mauern ist es sofort vorbei.
+direkt vor dem Kopf. Gegen jedes Hindernis (auch Rand und Mauern) ist es sofort vorbei, ohne Pause.
 
-**Steuerung:** Wischen oder Zeichnen (Finger liegen lassen, die Schlange folgt der Linie; erst ab 26 px
-und höchstens 28° schräg). Umschalten mit dem kleinen Schalter unten links, daneben ein kleiner Pause-Knopf.
+**Steuerung:** Wischen oder Zeichnen (Finger liegen lassen, die Schlange folgt der Linie; ab 18 px
+und höchstens 32° schräg). Umschalten mit dem kleinen Schalter unten links, daneben ein kleiner Pause-Knopf.
 
 ## Entwickeln
 

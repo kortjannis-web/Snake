@@ -546,10 +546,9 @@ describe('Aepfel als Waehrung und Power-ups', () => {
   })
 })
 
-describe('Gnadenschritt', () => {
-  it('ist etwas kuerzer als frueher', () => {
-    expect(C.gnade).toBeLessThan(1.3)
-    expect(C.gnade).toBeGreaterThan(1)
+describe('Kein Gnadenschritt', () => {
+  it('gibt es nicht mehr in den Regeln', () => {
+    expect('gnade' in C).toBe(false)
   })
 })
 
@@ -720,7 +719,7 @@ describe('Gegner-Schlangen', () => {
     if (g.gegner.length) expect(e.body.length).toBeLessThanOrEqual(C.gegnerMaxLaenge)
   })
 
-  it('Hineinfahren ist toedlich (mit Gnadenschritt)', () => {
+  it('Hineinfahren ist sofort toedlich', () => {
     const g = welt(7)
     g.body = [{ x: 3, y: 11 }, { x: 2, y: 11 }, { x: 1, y: 11 }]
     g.dir = 'r'
@@ -733,7 +732,7 @@ describe('Gegner-Schlangen', () => {
       g.update(50)
       ev.push(...g.drain())
     }
-    expect(ev.some((e) => e.type === 'halt')).toBe(true)
+    expect(ev.some((e) => e.type === 'halt')).toBe(false)
     expect(g.cause).toBe('gegner')
   })
 
