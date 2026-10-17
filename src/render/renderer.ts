@@ -39,12 +39,11 @@ import {
 } from './sprites'
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
-/** Sehr weiche S-Kurve (flacher Anfang und flaches Ende) */
-const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
-/** Kamera-Federn (1/ms): Rantasten sehr langsam und weich, Blockwechsel zuegig, Graben dazwischen */
-const KAMERA_TAST = 0.0022
-const KAMERA_WECHSEL = 0.013
-const KAMERA_GRABEN = 0.008
+/** Kamera: fest am Kopf, oder als Drohne, die weich und in lockeren Boegen hinterherfliegt */
+export type KameraArt = 'fix' | 'dynamisch'
+/** Drohnen-Kamera: Federhaerte (1/ms) und wie weit sie vor dem Kopf schwebt (Felder) */
+const DROHNE = 0.0038
+const DROHNE_VORAUS = 1.5
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement
@@ -55,19 +54,16 @@ export class Renderer {
   vw = 0
   vh = 0
   cell = 20
+  kameraArt: KameraArt = 'dynamisch'
   private cam = { x: 0, y: 0 }
   /** Geschwindigkeit der Kamera (px/ms): sie faehrt wie an einer gedaempften Feder,
    *  beschleunigt also sanft und bremst sanft ab, nie ruckartig */
   private camV = { x: 0, y: 0 }
   /** Weich nachgezogenes Ziel der Feder: so setzt auch die Beschleunigung sanft ein */
   private camZiel = { x: 0, y: 0 }
-  /** Federhaerte (1/ms), gleitet weich zwischen langsamer Rantast- und schneller Wechsel-Kamera */
-  private camOmega = KAMERA_TAST
   private camInit = false
-  /** Fester Ausschnitt (linke obere Ecke in Feldern, an Bloecken ausgerichtet) */
-  private frame = { x: 0, y: 0 }
-  /** Bis wann die schnelle Wechsel-Kamera laeuft */
-  private wechselBis = 0
+  /** Spielzeit beim letzten Bild (steht sie, laeuft das Spiel gerade nicht) */
+  private camZeit = -1
   private funken: Funke[] = []
   /** Aufsteigende Zahlen (+12) und Namen beim Einsammeln */
   private texte: { x: number; y: number; t: number; text: string; farbe: string }[] = []
@@ -142,15 +138,11 @@ export class Renderer {
       this.cam.y += e.dy * cell
       this.camZiel.x += e.dx * cell
       this.camZiel.y += e.dy * cell
-      this.frame.x += e.dx
-      this.frame.y += e.dy
     } else if (e.type === 'freigelegt') {
       this.cam.x += e.dx * cell
       this.cam.y += e.dy * cell
       this.camZiel.x += e.dx * cell
       this.camZiel.y += e.dy * cell
-      this.frame.x += e.dx
-      this.frame.y += e.dy
       for (const f of [...this.funken, ...this.texte]) {
         f.x += e.dx * cell
         f.y += e.dy * cell
@@ -180,7 +172,6 @@ export class Renderer {
         fuettern: 'Füttern!',
         magnet: 'Magnet',
         maulwurf: 'Maulwurf',
-        gold: 'Unbesiegbar!',
         spitzhacke: 'Erz!',
       }[e.art]
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
@@ -217,7 +208,7 @@ export class Renderer {
     const h0 = g.prev[0] ?? g.body[0]
     const head = { x: lerp(h0.x, g.body[0].x, a), y: lerp(h0.y, g.body[0].y, a) }
 
-    this.kamera(g, cell, dt, realNow, head)
+    this.kamera(g, cell, dt, head)
     let ox = Math.round(vw / 2 - this.cam.x)
     let oy = Math.round(vh / 2 - this.cam.y)
     if (now < this.shake.until) {
@@ -358,7 +349,7 @@ export class Renderer {
     // Baeume und Haeuser (bleiben), dazu das Licht aus den Fenstern
     for (const b of g.baeume) {
       if (!b.cells.some((c) => sicht(c, 3))) continue
-      drawBaum(ctx, b.root, b.dir, b.seite, cell, this.reduce ? 1 : backOut(clamp01((now - b.t) / 520)))
+      drawBaum(ctx, b.root, b.dir, cell, this.reduce ? 1 : backOut(clamp01((now - b.t) / 520)))
     }
     for (const h of g.haeuser) {
       if (!h.cells.some((c) => sicht(c, 3))) continue
@@ -533,20 +524,6 @@ export class Renderer {
     else if (!tot && now < g.schutzBis) ctx.globalAlpha = Math.sin(now / 55) > 0 ? 0.9 : 0.35
     // Geist (Power-up): durchscheinend, kurz vor dem Ende flackernd
     else if (!tot && now < g.effekt.geistBis) ctx.globalAlpha = g.effekt.geistBis - now < 1500 && Math.sin(now / 70) > 0 ? 0.75 : 0.45
-    // Goldener Apfel: goldener Schein um den ganzen Koerper
-    if (!tot && g.unbesiegbar()) {
-      const p = 0.5 + 0.5 * Math.sin(now / 120)
-      ctx.save()
-      ctx.globalAlpha = 1
-      ctx.strokeStyle = `rgba(255, 205, 60, ${0.35 + 0.3 * p})`
-      ctx.lineWidth = cell * 1.05
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.beginPath()
-      pts.forEach((q, i) => (i ? ctx.lineTo((q.x + 0.5) * cell, (q.y + 0.5) * cell) : ctx.moveTo((q.x + 0.5) * cell, (q.y + 0.5) * cell)))
-      ctx.stroke()
-      ctx.restore()
-    }
     drawSchlange(ctx, pts, cell, g.dir, this.skin, now, {
       tot,
       vergiftet: g.cause === 'gift' ? clamp01(sinceDeath / 600) : 0,
@@ -586,21 +563,6 @@ export class Renderer {
         ctx.arc(hx0 + Math.cos(a) * cell * 0.6 * t, hy0 + Math.sin(a) * cell * 0.6 * t - cell * 0.2 * t, cell * 0.06 * (1 - t), 0, Math.PI * 2)
         ctx.fill()
       }
-    }
-    // Schild: Blase um den Kopf
-    // Kurz vor dem Ablaufen flackert sie
-    const schildRest = g.effekt.schildBis - now
-    if (!tot && g.effekt.schild > 0 && !(schildRest < 3000 && Math.sin(now / 70) < 0)) {
-      const hx = (head.x + 0.5) * cell
-      const hy = (head.y + 0.5) * cell
-      const p = 0.5 + 0.5 * Math.sin(now / 240)
-      ctx.strokeStyle = `rgba(120, 200, 255, ${0.55 + 0.3 * p})`
-      ctx.lineWidth = Math.max(2, cell * 0.08)
-      ctx.beginPath()
-      ctx.arc(hx, hy, cell * (0.62 + 0.04 * p), 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.fillStyle = 'rgba(120, 200, 255, 0.12)'
-      ctx.fill()
     }
   }
 
@@ -653,95 +615,33 @@ export class Renderer {
     ctx.globalAlpha = 1
   }
 
-  /** Kamera mit festem Ausschnitt (ein Bildschirm, an den Kartenbloecken ausgerichtet), auch wenn
-   *  die Karte groesser ist. Laeuft die Schlange auf den Rand des Ausschnitts zu und geht es dort
-   *  weiter, tastet sich die Kamera langsam ein Stueck vor (Rantast-Kamera). Ist die Schlange
-   *  unmittelbar davor, den Ausschnitt zu verlassen, faehrt die Kamera zuegig einen Block weiter
-   *  (Wechsel-Kamera). Ist die Karte in einer Richtung kleiner als der Bildschirm: mittig. */
-  private kamera(g: Game, cell: number, dt: number, now: number, kopf: P) {
-    const vwC = g.screenW
-    const vhC = g.screenH
-    const h = g.body[0]
-    const d = STEP[g.queue[0] ?? g.dir]
-    // In der Erde (Maulwurf): die Kamera folgt dem Kopf
-    if (!g.inside(h) && this.camInit && !this.reduce) {
-      this.feder((kopf.x + 0.5) * cell, (kopf.y + 0.5) * cell, KAMERA_GRABEN, dt)
-      return
-    }
-    // Pro Achse: Startposition des Ausschnitts, Blockgroesse, Bloecke je Bildschirm, Kartengroesse
-    const achse = (pos: number, blk: number, view: number, total: number, alt: number | null) => {
-      if (total <= view) return (total - view) / 2
-      const max = total - view
-      if (alt !== null && pos >= alt && pos < alt + view) return Math.min(max, Math.max(0, alt))
-      const b = Math.floor(pos / blk)
-      const nb = Math.round(view / blk)
-      // Zwei Bloecke je Bildschirm: so, dass der Kopf eher in der Mitte ist
-      const start = nb >= 2 && pos - b * blk < blk / 2 ? (b - 1) * blk : b * blk
-      return Math.min(max, Math.max(0, start))
-    }
-    if (!this.camInit) {
-      this.frame = { x: achse(h.x, g.bw, vwC, g.w, null), y: achse(h.y, g.bh, vhC, g.h, null) }
-    } else {
-      // Kopf aus dem Ausschnitt (z. B. Sprung im Kreativ-Modus): passenden Ausschnitt suchen
-      const fx = achse(h.x, g.bw, vwC, g.w, this.frame.x)
-      const fy = achse(h.y, g.bh, vhC, g.h, this.frame.y)
-      if (fx !== this.frame.x || fy !== this.frame.y) {
-        this.frame = { x: fx, y: fy }
-        this.wechselBis = now + 700
-      }
-    }
-    // Abstand zum Rand des Ausschnitts in Laufrichtung, und geht es dahinter weiter?
-    const rand = d.x > 0 ? this.frame.x + vwC - 1 - h.x : d.x < 0 ? h.x - this.frame.x : d.y > 0 ? this.frame.y + vhC - 1 - h.y : h.y - this.frame.y
-    const weiter = (k: number) => g.inside({ x: h.x + d.x * k, y: h.y + d.y * k })
-    const kannX = g.w > vwC && d.x !== 0
-    const kannY = g.h > vhC && d.y !== 0
-    // Rantast-Kamera (Vorbereiten): haengt nur an der fliessenden Kopfposition, nicht an der
-    // Laufrichtung, damit Abbiegen nichts ruckeln laesst. Sobald der Kopf das letzte Drittel des
-    // Ausschnitts betritt und die Karte dahinter weitergeht, lehnt sich die Kamera ganz sanft hinueber
-    const lehnen = (pos: number, start: number, view: number, total: number, blk: number, dahinter: (seite: 1 | -1) => boolean) => {
-      if (total <= view) return 0
-      const drittel = view / 3
-      const max = Math.min(4, blk * 0.35)
-      const zuPlus = start + view - 1 - pos
-      const zuMinus = pos - start
-      const k = (abstand: number) => smoother(clamp01((drittel - abstand) / (drittel - 1)))
-      return max * ((dahinter(1) ? k(zuPlus) : 0) - (dahinter(-1) ? k(zuMinus) : 0))
-    }
-    let ox = lehnen(kopf.x, this.frame.x, vwC, g.w, g.bw, (s) => g.inside({ x: s > 0 ? this.frame.x + vwC : this.frame.x - 1, y: h.y }))
-    let oy = lehnen(kopf.y, this.frame.y, vhC, g.h, g.bh, (s) => g.inside({ x: h.x, y: s > 0 ? this.frame.y + vhC : this.frame.y - 1 }))
-    if ((kannX || kannY) && weiter(rand + 1)) {
-      const blk = kannX ? g.bw : g.bh
-      if (rand <= 1) {
-        // Wechsel-Kamera: zwei Bloecke je Bildschirm -> einen Block weiter (der Kopf landet in der Mitte).
-        // Ein Block je Bildschirm -> schon halb hinueber, beim Uebertritt dann ganz
-        this.wechselBis = now + 700
-        if (Math.round((kannX ? vwC : vhC) / blk) >= 2) {
-          if (kannX) this.frame.x = Math.min(g.w - vwC, Math.max(0, this.frame.x + d.x * g.bw))
-          if (kannY) this.frame.y = Math.min(g.h - vhC, Math.max(0, this.frame.y + d.y * g.bh))
-        } else {
-          if (kannX) ox = d.x * blk * 0.5
-          if (kannY) oy = d.y * blk * 0.5
-        }
-      }
-    }
-    const tx = (this.frame.x + vwC / 2 + ox) * cell
-    const ty = (this.frame.y + vhC / 2 + oy) * cell
-    if (!this.camInit || this.reduce) {
-      this.cam = { x: tx, y: ty }
-      this.camZiel = { x: tx, y: ty }
+  /** Kamera. Fest: haftet immer genau am Kopf. Dynamisch: eine Drohne, die frei hinterherfliegt.
+   *  Sie haengt an einer gedaempften Feder vor dem Kopf (in Laufrichtung), so dass sie im Lauf
+   *  knapp vor ihm schwebt. Biegt die Schlange ab, springt nur das Ziel: die Kamera selbst
+   *  fliegt in einem lockeren Bogen hinueber, nie um eine Ecke. Steht die Schlange, gleitet sie zum Kopf */
+  private kamera(g: Game, cell: number, dt: number, kopf: P) {
+    const kx = (kopf.x + 0.5) * cell
+    const ky = (kopf.y + 0.5) * cell
+    const lief = g.time !== this.camZeit
+    this.camZeit = g.time
+    if (this.kameraArt === 'fix' || this.reduce || !this.camInit) {
+      this.cam = { x: kx, y: ky }
+      this.camZiel = { x: kx, y: ky }
       this.camV = { x: 0, y: 0 }
       this.camInit = true
       return
     }
-    this.feder(tx, ty, now < this.wechselBis ? KAMERA_WECHSEL : KAMERA_TAST, dt)
+    const laeuft = lief && g.status === 'play' && !g.halt && !g.gnade
+    // Feder samt weichem Ziel haengt bei Tempo v um 3 v / omega hinterher: so weit plus ein Stueck voraus
+    const v = laeuft ? cell / g.takt : 0
+    const voraus = laeuft ? (3 * v) / DROHNE + DROHNE_VORAUS * cell : 0
+    const d = STEP[g.dir]
+    this.feder(kx + d.x * voraus, ky + d.y * voraus, DROHNE, dt)
   }
 
   /** Kritisch gedaempfte Feder zu einem weich nachgezogenen Ziel: Geschwindigkeit und
-   *  Beschleunigung setzen sanft ein und klingen sanft aus, kein Ueberschwingen.
-   *  Auch die Federhaerte wechselt weich, damit es beim Umschalten nicht ruckt */
-  private feder(tx: number, ty: number, omega: number, dt: number) {
-    this.camOmega += (omega - this.camOmega) * (1 - Math.exp(-dt / 180))
-    const w = this.camOmega
+   *  Beschleunigung setzen sanft ein und klingen sanft aus, kein Ueberschwingen */
+  private feder(tx: number, ty: number, w: number, dt: number) {
     // In kleinen Schritten rechnen, damit es auch bei langen Frames stabil bleibt
     for (let rest = dt; rest > 0; rest -= 8) {
       const h = Math.min(8, rest)

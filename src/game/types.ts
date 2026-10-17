@@ -47,9 +47,8 @@ export type Frosch = {
   gone?: number
 }
 
-/** Liegender Tannenbaum: 1-1-2-1 Felder entlang `dir` (Stamm, Stamm, Krone breit, Spitze).
- *  `seite` = auf welcher Seite die breite Kronenreihe ein Feld mehr hat */
-export type Baum = { cells: P[]; root: P; dir: Dir; seite: 1 | -1; t: number }
+/** Liegender Tannenbaum: 1-1-3-1 Felder entlang `dir` (Stamm, Stamm, Krone breit, Spitze), symmetrisch */
+export type Baum = { cells: P[]; root: P; dir: Dir; t: number }
 /** Fenster: Wandfeld des Hauses und Richtung nach aussen */
 export type Fenster = { p: P; d: Dir }
 /** Haus: bleibt stehen. Vier Fenster (eins je Seite), eins davon leuchtet 2 Felder weit */
@@ -75,9 +74,9 @@ export type Kreativ = {
   laenge: number
 }
 
-/** Power-ups: Schild (faengt einen Tod oder Rueckschlag ab), Zeitlupe, Geist (kurz durch Hindernisse),
- *  Schere (bis zum naechsten Apfel ein paar Glieder kuerzer) */
-export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere' | 'fuettern' | 'magnet' | 'maulwurf' | 'gold' | 'spitzhacke'
+/** Power-ups: Schild (ein Leben mehr: faengt einen Tod oder Rueckschlag ab), Zeitlupe, Geist (kurz durch Hindernisse),
+ *  Schere (bis zum naechsten Apfel ein paar Glieder kuerzer), Fuettern (Tiere fressen, durch sich selbst) */
+export type PowerArt = 'schild' | 'zeitlupe' | 'geist' | 'schere' | 'fuettern' | 'magnet' | 'maulwurf' | 'spitzhacke'
 export type Power = { p: P; t: number; until: number; art: PowerArt }
 
 /** Gegner-Schlange: rot, halb so schnell wie die Schlange, weicht ihr aus.
@@ -101,6 +100,8 @@ export type Gegner = {
   eng: number
   /** 0 ruhig bis 1 auf der Flucht (fuer die Augen) */
   angst: number
+  /** Ueberrascht: so viele Schritte noch stur geradeaus (keine Zeit zum Lenken) */
+  stur: number
 }
 
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }

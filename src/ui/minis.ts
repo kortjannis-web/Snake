@@ -28,7 +28,6 @@ export type Mini =
   | 'fuettern'
   | 'magnet'
   | 'maulwurf'
-  | 'gold'
   | 'spitzhacke'
   | 'erfolg'
   | 'schild'
@@ -206,8 +205,8 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
       // vier Felder lang: kleiner zeichnen, damit er ganz in die Kachel passt
       const k = css / 4.4
       ctx.save()
-      ctx.translate((css - 4 * k) / 2, (css - 2 * k) / 2 - k * 0.1)
-      drawBaum(ctx, { x: 0, y: 0 }, 'r', 1, k, 1)
+      ctx.translate((css - 4 * k) / 2, (css - 3 * k) / 2 + k - k * 0.1)
+      drawBaum(ctx, { x: 0, y: 0 }, 'r', k, 1)
       ctx.restore()
       break
     }
@@ -227,7 +226,6 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     case 'fuettern':
     case 'magnet':
     case 'maulwurf':
-    case 'gold':
     case 'spitzhacke':
     case 'geist':
     case 'schere':

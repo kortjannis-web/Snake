@@ -377,15 +377,14 @@ export function drawWolkenKern(ctx: CanvasRenderingContext2D, cx: number, cy: nu
 
 const ROT: Record<Dir, number> = { r: 0, d: Math.PI / 2, l: Math.PI, u: -Math.PI / 2 }
 
-/** Liegende Tanne (1-1-2-1): Stamm mit Schnittflaeche, Krone als Dreieck in drei
- *  Lagen. Gezeichnet entlang `dir`, die breite Kronenreihe auf `seite`. */
-export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, seite: number, cell: number, s: number) {
+/** Liegende Tanne (1-1-3-1): Stamm mit Schnittflaeche, Krone als Dreieck in drei
+ *  Lagen, symmetrisch. Gezeichnet entlang `dir`. */
+export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, cell: number, s: number) {
   if (s <= 0) return
   const u = cell
   ctx.save()
   ctx.translate((root.x + 0.5) * u, (root.y + 0.5) * u)
   ctx.rotate(ROT[dir])
-  ctx.scale(1, seite)
   // waechst aus dem Stamm heraus
   ctx.scale(Math.min(1, s), Math.min(1, s))
   // Schatten nach unten (unabhaengig von der Drehung)
@@ -419,8 +418,8 @@ export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, seite
   ctx.beginPath()
   ctx.ellipse(-0.45 * u, 0, 0.06 * u, 0.11 * u, 0, 0, Math.PI * 2)
   ctx.stroke()
-  // Krone: Reihe 2 doppelt breit, Reihe 3 die Spitze. Die Unterkante knickt
-  // zur Spitze ein, damit nichts ueber das freie Nachbarfeld ragt
+  // Krone: Reihe 2 drei Felder breit, Reihe 3 die Spitze. Beide Kanten knicken
+  // zur Spitze ein, damit nichts ueber die freien Nachbarfelder ragt
   const lagen: [number, string][] = [
     [0, '#1F6B3A'],
     [0.5, '#2A8148'],
@@ -430,13 +429,21 @@ export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, seite
   for (const [off, col] of lagen) {
     if (off > 0) ctx.shadowColor = 'transparent'
     const bx = (1.5 + off * 0.5) * u
-    const top = -0.47 * u + off * 0.16 * u
-    const bot = 1.47 * u - off * 0.42 * u
+    // Breite Reihe wie eine Tannen-Etage (bis zur Schulter), dann die schmale Spitze
+    const half = 1.47 * u - off * 0.3 * u
+    const top = -half
+    const bot = half
+    const schulterX = 2.45 * u
+    const schulterY = half * 0.55
+    const halsY = (0.45 - off * 0.12) * u
     ctx.fillStyle = col
     ctx.beginPath()
     ctx.moveTo(bx, top)
+    ctx.lineTo(schulterX, -schulterY)
+    ctx.lineTo(2.5 * u, -halsY)
     ctx.lineTo(3.48 * u, 0)
-    ctx.lineTo((2.5 + off * 0.25) * u, (0.42 - off * 0.12) * u)
+    ctx.lineTo(2.5 * u, halsY)
+    ctx.lineTo(schulterX, schulterY)
     ctx.lineTo(bx, bot)
     // Zacken an der Basis (Aeste)
     ctx.lineTo(bx - 0.12 * u, (top + bot) / 2 + 0.3 * u)
@@ -450,8 +457,10 @@ export function drawBaum(ctx: CanvasRenderingContext2D, root: P, dir: Dir, seite
   ctx.strokeStyle = 'rgba(200, 240, 190, 0.35)'
   ctx.lineWidth = Math.max(1, u * 0.05)
   ctx.beginPath()
-  ctx.moveTo(1.6 * u, -0.38 * u)
-  ctx.lineTo(3.3 * u, -0.02 * u)
+  ctx.moveTo(1.6 * u, -1.32 * u)
+  ctx.lineTo(2.4 * u, -0.8 * u)
+  ctx.moveTo(2.6 * u, -0.38 * u)
+  ctx.lineTo(3.3 * u, -0.06 * u)
   ctx.stroke()
   ctx.restore()
 }
@@ -778,7 +787,6 @@ export const POWER_FARBE: Record<string, string> = {
   fuettern: '#E0563E',
   magnet: '#D8434A',
   maulwurf: '#8A5A34',
-  gold: '#F2B824',
   spitzhacke: '#7B8794',
 }
 
@@ -897,24 +905,6 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.beginPath()
     ctx.moveTo(-k * 0.65, -k * 0.35)
     ctx.quadraticCurveTo(k * 0.15, -k * 1.0, k * 0.9, -k * 0.15)
-    ctx.stroke()
-  } else if (art === 'gold') {
-    // Goldener Apfel mit Stern-Glanz
-    ctx.arc(0, k * 0.1, k * 0.7, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = col
-    ctx.beginPath()
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI) / 5
-      const rr = i % 2 ? k * 0.18 : k * 0.42
-      ctx.lineTo(Math.cos(a) * rr, k * 0.1 + Math.sin(a) * rr)
-    }
-    ctx.closePath()
-    ctx.fill()
-    ctx.strokeStyle = '#fff'
-    ctx.beginPath()
-    ctx.moveTo(0, -k * 0.55)
-    ctx.lineTo(k * 0.15, -k * 0.95)
     ctx.stroke()
   }
   ctx.restore()
