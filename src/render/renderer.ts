@@ -3,7 +3,7 @@
  * kann groesser als der Bildschirm werden), neue Gebiete klappen Feld fuer
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
-import { AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
+import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
 import { BAUM_FALL, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Funke, GameEvent, Gegner, P } from '../game/types'
 import { drawSchlange, GEGNER_SKIN, LILA_SKIN, SKINS, type Skin } from './skins'
@@ -169,17 +169,18 @@ export class Renderer {
         schild: 'Schild',
         zeitlupe: 'Zeitlupe',
         geist: 'Geist',
-        schere: g.effekt.schere > 0 ? `Schere −${g.effekt.schere}` : 'Schere',
-        goldschere: g.effekt.schere > 0 ? `Goldschere −${g.effekt.schere}` : 'Goldschere',
+        schere: 'Schere',
+        goldschere: 'Goldschere',
         fuettern: 'Füttern!',
         magnet: 'Magnet',
         maulwurf: 'Maulwurf',
         spitzhacke: 'Erz!',
       }[e.art]
-      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name, farbe: '#FFFFFF' })
       // Schere: an der Schnittstelle spritzen helle Funken (goldene: goldene), das Bild zuckt kurz
       const gold = e.art === 'goldschere'
       const schnitt = e.art === 'schere' || gold ? g.abgeschnitten[g.abgeschnitten.length - 1] : undefined
+      const ab = schnitt && schnitt.t === g.time ? ` −${schnitt.cells.length}` : ''
+      this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: name + (e.art === 'schere' || gold ? ab : ''), farbe: '#FFFFFF' })
       if (schnitt && schnitt.t === g.time && !this.reduce) {
         const c = schnitt.cells[0]
         for (let i = 0; i < (gold ? 20 : 12); i++) {
@@ -472,11 +473,12 @@ export class Renderer {
     for (const e of g.gegner) if (e.body.some((p) => sicht(p))) this.drawGegner(g, e, now)
     for (const w of g.gegnerWeg) if (w.g.body.some((p) => sicht(p))) this.drawGegner(g, w.g, now, w.t)
 
-    // Von der Schere abgeschnittener Schwanz: faellt ab
+    // Von der Schere abgeschnittener Schwanz: bleibt kurz liegen, dann verblasst er
     for (const st of g.abgeschnitten) if (st.cells.some((p) => sicht(p))) this.drawAbgeschnitten(st, now)
 
     // Schlange
     if (n) this.drawSchlange(g, head, a)
+    this.drawGrabWarnung(g, head, now)
 
     // Giftwolken ueber allem (mit Warnung vor dem Wachsen)
     for (const w of [...g.wolken, ...g.wolkenWeg]) {
@@ -595,23 +597,20 @@ export class Renderer {
     }
   }
 
-  /** Abgeschnittene Glieder: kurz weisser Schnitt, dann springen sie auseinander,
-   *  fallen herunter, werden kleiner und verblassen */
+  /** Abgeschnittene Glieder: kurz weisser Schnitt, dann bleiben sie eine Sekunde liegen
+   *  (etwas blasser als die Schlange) und verblassen dann, dabei werden sie kleiner */
   private drawAbgeschnitten(st: Game['abgeschnitten'][number], now: number) {
     const { ctx, cell } = this
-    const t = Math.max(0, now - st.t) / 1000
-    const k = clamp01(t / 1.4)
+    const t = Math.max(0, now - st.t)
+    const weg = this.reduce ? 0 : clamp01((t - ABGESCHNITTEN_LIEGT) / ABGESCHNITTEN_WEG)
     const sk = this.skin
-    const fall = this.reduce ? 0 : Math.max(0, t - 0.12)
     st.cells.forEach((c, i) => {
       const f = st.laenge > 1 ? (st.von + i) / (st.laenge - 1) : 1
-      const rgb = sk.kopf.map((v, j) => Math.round(lerp(v, sk.schwanz[j], f)))
-      // Jedes Glied fliegt etwas anders: abwechselnd zur Seite, leicht hoch, dann runter
-      const seite = (i % 2 ? 1 : -1) * (0.6 + ((i * 37) % 5) * 0.15)
-      const x = (c.x + 0.5) * cell + seite * cell * 1.6 * fall
-      const y = (c.y + 0.5) * cell + (-2.2 * fall + 9 * fall * fall) * cell
-      const r = cell * 0.37 * (1 - k * 0.55)
-      ctx.globalAlpha = 1 - k * k
+      const rgb = sk.kopf.map((v, j) => Math.round(lerp(lerp(v, sk.schwanz[j], f), 120, 0.25)))
+      const x = (c.x + 0.5) * cell
+      const y = (c.y + 0.5) * cell
+      const r = cell * 0.37 * (1 - weg * 0.5)
+      ctx.globalAlpha = 1 - weg
       ctx.fillStyle = 'rgba(12, 40, 32, 0.22)'
       ctx.beginPath()
       ctx.arc(x, y + cell * 0.1, r, 0, Math.PI * 2)
@@ -621,18 +620,18 @@ export class Renderer {
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fill()
       // Am Anfang weiss aufblitzen, damit man sieht, was ab ist
-      if (t < 0.35) {
-        ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * (1 - t / 0.35)})`
+      if (t < 350) {
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * (1 - t / 350)})`
         ctx.lineWidth = Math.max(1.5, cell * 0.08)
         ctx.stroke()
       }
     })
     // Schnittlinie zwischen Schlange und abgeschnittenem Stueck
-    if (t < 0.4 && st.cells.length) {
+    if (t < 400 && st.cells.length) {
       const c = st.cells[0]
       const x = (c.x + 0.5) * cell
       const y = (c.y + 0.5) * cell
-      ctx.globalAlpha = 1 - t / 0.4
+      ctx.globalAlpha = 1 - t / 400
       ctx.strokeStyle = '#FFFFFF'
       ctx.lineWidth = Math.max(2, cell * 0.1)
       ctx.lineCap = 'round'
@@ -642,6 +641,35 @@ export class Renderer {
       ctx.stroke()
     }
     ctx.globalAlpha = 1
+  }
+
+  /** Maulwurf: kleines Warndreieck mit Ausrufezeichen ueber dem Kopf, wenn es Zeit wird umzukehren */
+  private drawGrabWarnung(g: Game, head: P, now: number) {
+    if (!g.grabWarnung()) return
+    const { ctx, cell } = this
+    const x = (head.x + 0.5) * cell
+    const y = (head.y - 0.55) * cell
+    const s = cell * 0.62
+    ctx.save()
+    ctx.globalAlpha = this.reduce ? 0.95 : 0.8 + 0.15 * Math.sin(now / 220)
+    ctx.translate(x, y)
+    ctx.lineJoin = 'round'
+    ctx.fillStyle = '#F2C14E'
+    ctx.strokeStyle = 'rgba(40, 28, 10, 0.75)'
+    ctx.lineWidth = Math.max(1.5, cell * 0.06)
+    ctx.beginPath()
+    ctx.moveTo(0, -s * 0.5)
+    ctx.lineTo(s * 0.55, s * 0.45)
+    ctx.lineTo(-s * 0.55, s * 0.45)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#3A2A10'
+    ctx.fillRect(-s * 0.05, -s * 0.22, s * 0.1, s * 0.38)
+    ctx.beginPath()
+    ctx.arc(0, s * 0.3, s * 0.06, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
   }
 
   /** Kamera. Fest: haftet immer genau am Kopf. Dynamisch: eine Drohne, die frei hinterherfliegt.

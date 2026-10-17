@@ -127,15 +127,15 @@ export const DEFAULTS = {
   zeitlupeProzent: 30,
   geistDauer: 6,
   powerGarantie: 8,
-  schereLaenge: 5,
+  schereLevel: 3,
   goldSchereAb: 50,
-  goldSchereMin: 15,
-  goldSchereMax: 20,
+  goldSchereLevel: 8,
   fuetternDauer: 20,
   magnetDauer: 15,
   magnetRadius: 2,
   maulwurfAb: 90,
   maulwurfDauer: 20,
+  grabWarnung: 2,
   // Erze unter der Erde (je 1000 Erdfelder) und ihr Wert in Aepfeln (mal Apfelwert)
   erzGold: 9,
   erzDia: 1.2,
@@ -321,15 +321,15 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'effektDauer', label: 'Zeitlupe hält', min: 1, max: 120, einheit: 's' },
       { key: 'zeitlupeProzent', label: 'Zeitlupe langsamer um', min: 5, max: 80, einheit: '%' },
       { key: 'geistDauer', label: 'Geist hält', min: 1, max: 60, einheit: 's' },
-      { key: 'schereLaenge', label: 'Schere kürzt bis zum nächsten Apfel um', min: 1, max: 50, einheit: 'Glieder' },
+      { key: 'schereLevel', label: 'Schere schneidet dauerhaft ab, was gewachsen ist in den letzten', min: 1, max: 100, einheit: 'Level' },
       { key: 'goldSchereAb', label: 'Goldene Schere ab Level', min: 1, max: 10000 },
-      { key: 'goldSchereMin', label: 'Goldene Schere kürzt mindestens um', min: 1, max: 200, einheit: 'Glieder' },
-      { key: 'goldSchereMax', label: 'Goldene Schere kürzt höchstens um', min: 1, max: 200, einheit: 'Glieder' },
+      { key: 'goldSchereLevel', label: 'Goldene Schere schneidet ab, was gewachsen ist in den letzten', min: 1, max: 200, einheit: 'Level' },
       { key: 'fuetternDauer', label: 'Füttern (Tiere und Schlangen fressen, durch sich selbst) hält', min: 1, max: 120, einheit: 's' },
       { key: 'magnetDauer', label: 'Magnet hält', min: 1, max: 120, einheit: 's' },
       { key: 'magnetRadius', label: 'Magnet holt alles im Umkreis von', min: 1, max: 10, einheit: 'Feldern' },
       { key: 'maulwurfAb', label: 'Maulwurf ab Level', min: 1, max: 10000 },
       { key: 'maulwurfDauer', label: 'Maulwurf (graben) hält', min: 1, max: 120, einheit: 's' },
+      { key: 'grabWarnung', label: 'Warndreieck, wenn du spätestens in so vielen Sekunden umkehren musst', min: 0, max: 20, step: 0.5, einheit: 's' },
       { key: 'apfelWert', label: 'Ein Apfel ist wert', min: 0, max: 100, einheit: 'Äpfel' },
       { key: 'apfelWertAlle', label: 'Äpfel zählen einmal mehr alle', min: 1, max: 10000, einheit: 'Level' },
     ],
@@ -393,6 +393,12 @@ export const gebietFortschritt = (c: Config, level: number) => {
 /** Waechst die Schlange bei diesem Level? */
 export const waechst = (c: Config, level: number) =>
   level <= c.wachsenJedes ? true : level <= c.wachsenJedesZweite ? level % 2 === 0 : level % 3 === 0
+/** So viele Glieder ist die Schlange von Level `auf` bis Level `von` gewachsen */
+export const gewachsen = (c: Config, auf: number, von: number) => {
+  let n = 0
+  for (let l = Math.max(1, auf) + 1; l <= von; l++) if (waechst(c, l)) n++
+  return n
+}
 
 /** Mauerlaengen: eine Mauer waechst von 2 bis zur Hoechstlaenge, dann kommt eine neue mit 2 dazu */
 export const mauern = (c: Config, level: number, felder: number): number[] => {

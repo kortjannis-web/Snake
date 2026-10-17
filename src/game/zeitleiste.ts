@@ -65,7 +65,7 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
     }
     if (l === c.powerAb) add('apfel', `Power-ups: Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, Spitzhacke (${c.powerChance} % je Apfel).`)
     if (l === c.maulwurfAb) add('apfel', `Power-up Maulwurf: ${c.maulwurfDauer} s durch die Erde graben.`)
-    if (l === c.goldSchereAb) add('apfel', `Power-up goldene Schere: ${Math.min(c.goldSchereMin, c.goldSchereMax)}–${Math.max(c.goldSchereMin, c.goldSchereMax)} Glieder weg (bis zum nächsten Apfel).`)
+    if (l === c.goldSchereAb) add('apfel', `Power-up goldene Schere: schneidet dauerhaft ab, was in ${c.goldSchereLevel} Leveln gewachsen ist.`)
 
     // Apfelwert
     const f = R.apfelFaktor(c, l)

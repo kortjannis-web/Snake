@@ -499,7 +499,6 @@ function updateGeld(pop = false) {
 const EFFEKT_ICON: Record<string, string> = {
   zeitlupe: 'Hourglass',
   geist: 'Ghost',
-  schere: 'Scissors',
   fuettern: 'Utensils',
   magnet: 'Magnet',
   maulwurf: 'Shovel',
@@ -512,8 +511,6 @@ function updateEffekte() {
   const aktiv: { art: string; rest: number; text: string }[] = []
   if (g && mode !== 'home') {
     const e = g.effekt
-    // Schere: bis zum naechsten Apfel kuerzer
-    if (e.schere > 0) aktiv.push({ art: 'schere', rest: 1, text: `−${e.schere}` })
     // Neues Gebiet waehlen: Countdown
     if (g.wahl > 0) aktiv.push({ art: 'wahl', rest: Math.max(0, (g.wahlBis - g.time) / (g.cfg.wahlZeit * 1000)), text: `${Math.max(0, Math.ceil((g.wahlBis - g.time) / 1000))}` })
     const c = g.cfg

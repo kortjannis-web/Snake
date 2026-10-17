@@ -644,43 +644,51 @@ describe('Aepfel als Waehrung und Power-ups', () => {
     expect(g.body[0].x).toBeGreaterThan(h.x + 1)
   })
 
-  it('Schere nimmt 5 Glieder, aber nur bis zum naechsten Apfel', () => {
-    const g = frisch()
-    g.dir = 'r'
+  it('Schere: dauerhaft so viel ab, wie in 3 Leveln gewachsen ist; das Stueck liegt 1 s', () => {
+    const g = frisch(1, 20)
     g.body = Array.from({ length: 12 }, (_, i) => ({ x: 11 - i, y: 5 }))
     g.prev = g.body.map((p) => ({ ...p }))
     g.wachsRest = 0
     g.dir = 'd'
-    const schwanz = g.body.slice(7).map((p) => ({ ...p }))
+    const schwanz = g.body.slice(9).map((p) => ({ ...p }))
     g.powerAn('schere')
-    expect(g.body.length).toBe(7)
-    expect(g.effekt.schere).toBe(5)
-    // Die abgeschnittenen Glieder fallen sichtbar ab
+    // Level 20: jedes Level waechst, also 3 Glieder
+    expect(g.body.length).toBe(9)
     expect(g.abgeschnitten.at(-1)?.cells).toEqual(schwanz)
-    // Naechster Apfel: die 5 wachsen wieder nach (plus das normale Wachsen)
+    // Naechster Apfel: kein Nachwachsen der abgeschnittenen Glieder (nur das normale)
     vorDenKopf(g)
-    const ev = schritte(g, 1)
-    expect(ev.some((e) => e.type === 'powerEnde' && e.art === 'schere')).toBe(true)
-    expect(g.effekt.schere).toBe(0)
+    schritte(g, 1)
     schritte(g, 10)
-    expect(g.body.length).toBe(13)
+    expect(g.body.length).toBe(10)
+    // Das Stueck bleibt eine Sekunde liegen und verschwindet dann
+    const h = frisch(1, 20)
+    h.body = Array.from({ length: 12 }, (_, i) => ({ x: 11 - i, y: 5 }))
+    h.powerAn('schere')
+    for (let i = 0; i < 9; i++) h.update(100)
+    expect(h.abgeschnitten).toHaveLength(1)
+    for (let i = 0; i < 5; i++) h.update(100)
+    expect(h.abgeschnitten).toHaveLength(0)
   })
 
-  it('Goldene Schere: 15 bis 20 Glieder weg, bis zum naechsten Apfel, erst ab Level 50', () => {
-    const laengen = new Set<number>()
-    for (let seed = 1; seed <= 40; seed++) {
-      const g = frisch(seed)
-      g.body = Array.from({ length: 30 }, (_, i) => ({ x: 20 - i, y: 5 }))
-      g.prev = g.body.map((p) => ({ ...p }))
-      g.powerAn('goldschere')
-      expect(g.effekt.schere).toBeGreaterThanOrEqual(15)
-      expect(g.effekt.schere).toBeLessThanOrEqual(20)
-      expect(g.body.length).toBe(30 - g.effekt.schere)
-      laengen.add(g.effekt.schere)
-    }
-    expect(laengen.size).toBeGreaterThan(3)
-    const kurz = frisch()
-    kurz.body = Array.from({ length: 10 }, (_, i) => ({ x: 12 - i, y: 5 }))
+  it('Schere richtet sich nach dem Wachsen: spaeter (jedes 2. Level) weniger', () => {
+    expect(R.gewachsen(C, 17, 20)).toBe(3)
+    expect(R.gewachsen(C, 12, 20)).toBe(8)
+    expect(R.gewachsen(C, 117, 120)).toBe(2)
+    expect(R.gewachsen(C, 112, 120)).toBe(4)
+    const g = frisch(1, 120)
+    g.body = Array.from({ length: 20 }, (_, i) => ({ x: 20 - i, y: 5 }))
+    g.powerAn('schere')
+    expect(g.body.length).toBe(18)
+  })
+
+  it('Goldene Schere: dauerhaft 8 Level Schwanz, erst ab Level 50', () => {
+    const g = frisch(1, 20)
+    g.body = Array.from({ length: 30 }, (_, i) => ({ x: 20 - i, y: 5 }))
+    g.prev = g.body.map((p) => ({ ...p }))
+    g.powerAn('goldschere')
+    expect(g.body.length).toBe(22)
+    const kurz = frisch(1, 20)
+    kurz.body = Array.from({ length: 6 }, (_, i) => ({ x: 12 - i, y: 5 }))
     kurz.powerAn('goldschere')
     expect(kurz.body.length).toBe(3)
     const wahl = (g: Game) => {
@@ -693,11 +701,10 @@ describe('Aepfel als Waehrung und Power-ups', () => {
   })
 
   it('Schere laesst mindestens 3 Glieder', () => {
-    const g = frisch()
+    const g = frisch(1, 20)
     g.body = g.body.slice(0, 3).concat([{ ...g.body[2] }, { ...g.body[2] }])
     g.powerAn('schere')
     expect(g.body.length).toBe(3)
-    expect(g.effekt.schere).toBe(2)
   })
 })
 
@@ -1335,6 +1342,25 @@ describe('Neue Power-ups', () => {
     expect(g.status).toBe('play')
     expect(g.tunnel).toHaveLength(0)
     expect(g.w).toBeGreaterThanOrEqual(breiteVorher + weit)
+  })
+
+  it('Maulwurf: Warndreieck, wenn man spaetestens in 2 s umkehren muss', () => {
+    const g = welt(3)
+    const y = 5
+    g.body = [{ x: g.w - 1, y }, { x: g.w - 2, y }, { x: g.w - 3, y }]
+    g.prev = []
+    g.dir = 'r'
+    g.queue = []
+    g.powerAn('maulwurf')
+    for (let i = 0; i < 6; i++) einSchritt(g)
+    // 6 Felder draussen, geradeaus weg: einer zur Seite (der Hals ist im Weg), dann 6 zurueck
+    expect(g.rueckSchritte).toBe(7)
+    expect(g.grabWarnung()).toBe(false)
+    // Zeit fast um: jetzt warnen
+    g.effekt.maulwurfBis = g.time + g.rueckSchritte * g.takt + C.grabWarnung * 1000 - 50
+    expect(g.grabWarnung()).toBe(true)
+    g.effekt.maulwurfBis = g.time + g.rueckSchritte * g.takt + C.grabWarnung * 1000 + 50
+    expect(g.grabWarnung()).toBe(false)
   })
 
   it('Maulwurf vorbei, noch in der Erde: Spielende', () => {
