@@ -2353,3 +2353,22 @@ html[data-install] #app {
   background: rgba(245, 239, 230, 0.08);
   font-size: 1.4rem;
 }
+
+.mehr-code--klein b {
+  font-size: 1.8rem;
+}
+
+#liste-tabs {
+  border-radius: 22px;
+}
+
+.freund-weg {
+  width: 36px;
+  height: 36px;
+  background: rgba(245, 239, 230, 0.06);
+  color: var(--creme-leise);
+}
+
+.mehr-zeile--freund {
+  grid-template-columns: 56px 1fr auto auto;
+}

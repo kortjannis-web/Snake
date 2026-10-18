@@ -24,7 +24,7 @@ import { geraetId, mehrspieler } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, ladeListe, lobby, melde, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type OnlineSpieler } from './online'
+import { abonniere, freundEntfernen, freundHinzufuegen, ladeListe, lobby, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type Freund, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
@@ -121,6 +121,7 @@ function openPage(p: Page) {
   if (p === 'master') renderMaster()
   if (p === 'shop') renderShop()
   if (p === 'liste') oeffneListe()
+  if (p === 'mehr') void freundeLaden()
   show(p, true)
 }
 function closePage() {
@@ -246,7 +247,16 @@ async function ladeListeAnzeige() {
     if (!zeilen.length) {
       const leer = document.createElement('p')
       leer.className = 'liste__leer'
-      leer.textContent = listeArt === 'heute' ? 'Heute hat noch niemand gespielt. Sei der Erste!' : listeArt === 'alle' ? 'Noch keine Spieler.' : 'Noch keine Ergebnisse.'
+      leer.textContent =
+        listeArt === 'heute'
+          ? 'Heute hat noch niemand gespielt. Sei der Erste!'
+          : listeArt === 'alle'
+            ? 'Noch keine Spieler.'
+            : listeArt === 'siege'
+              ? 'Noch hat niemand ein Mehrspieler-Spiel gewonnen.'
+              : listeArt === 'koop'
+                ? 'Noch kein Koop-Team in der Liste.'
+                : 'Noch keine Ergebnisse.'
       box.append(leer)
     }
     zeilen.forEach((z, i) => {
@@ -266,20 +276,21 @@ async function ladeListeAnzeige() {
       const level = document.createElement('b')
       level.className = 'liste__level'
       level.textContent = z.level > 0 ? String(z.level) : '–'
-      // Aussehen der Schlange, online und Einladen
+      // Aussehen der Schlange, online und Einladen (nur Freunde)
       const cv = document.createElement('canvas')
       cv.className = 'liste__skin'
       cv.width = 96
       cv.height = 64
-      const da = onlineListe.find((o) => o.uid === z.user_id)
+      const da = freundeUids.has(z.user_id) ? onlineListe.find((o) => o.uid === z.user_id) : undefined
       if (da) {
         const punkt = document.createElement('i')
         punkt.className = 'online-punkt'
         punkt.title = da.imSpiel ? 'spielt gerade' : 'online'
         name.prepend(punkt)
       }
-      el.classList.add('liste__zeile--skin')
-      el.append(platz, cv, name, level)
+      if (listeArt !== 'koop') el.classList.add('liste__zeile--skin')
+      if (listeArt === 'koop') el.append(platz, name, level)
+      else el.append(platz, cv, name, level)
       if (da && z.user_id !== ich && mehr.verfuegbar) {
         const k = document.createElement('button')
         k.className = 'icon-btn liste__einladen'
@@ -294,7 +305,11 @@ async function ladeListeAnzeige() {
     info.textContent =
       listeArt === 'alle'
         ? `${zeilen.length} Spieler insgesamt, sortiert nach bestem Level. „–“ heißt: noch nicht gespielt.`
-        : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
+        : listeArt === 'siege'
+          ? 'Gewonnene Mehrspieler-Spiele (Gegeneinander, Wettrennen, Apfeljagd, Zone).'
+          : listeArt === 'koop'
+            ? 'Die besten Koop-Teams nach erreichtem Level.'
+            : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
   } catch {
     if (nr !== listeNr) return
     box.replaceChildren()
@@ -326,8 +341,8 @@ $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
     knopf.textContent = 'Ändern'
     input.blur()
     void ladeListeAnzeige()
-  } catch {
-    info.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+  } catch (err) {
+    info.textContent = err instanceof NamenFehler ? err.message : 'Der Name braucht 2 bis 16 Zeichen.'
   } finally {
     knopf.disabled = false
   }
@@ -344,17 +359,24 @@ $<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
   const fehler = $('willkommen-fehler')
   const name = $<HTMLInputElement>('willkommen-name').value
   if (!nameGueltig(name)) {
-    fehler.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+    fehler.textContent = name.trim().length >= 2 && name.trim().length <= 16 ? 'Dieser Name ist nicht erlaubt.' : 'Der Name braucht 2 bis 16 Zeichen.'
     fehler.hidden = false
     return
   }
   fehler.hidden = true
-  await setzeName(name)
+  try {
+    await setzeName(name)
+  } catch (err) {
+    fehler.textContent = err instanceof NamenFehler ? err.message : 'Das hat nicht geklappt.'
+    fehler.hidden = false
+    return
+  }
   audio.click()
   $<HTMLInputElement>('willkommen-name').blur()
   show('willkommen', false)
   linkRaum()
   void online?.start()
+  void freundeLaden()
 })
 
 function gameOver() {
@@ -1419,16 +1441,21 @@ $('btn-mehr').hidden = !(mehr.verfuegbar && onlineAktiv)
 
 /* ================= Wer ist online, Einladungen ================= */
 
-const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop' }
+const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop', jagd: 'Apfeljagd', royale: 'Schrumpfende Karte' }
 let onlineListe: OnlineSpieler[] = []
+let freunde: Freund[] = []
+let freundeUids = new Set<string>()
 let offeneEinladung: Einladung | null = null
 const lobbyRueckruf: Parameters<typeof lobby>[1] = {
       liste: (o) => {
         onlineListe = o
         onlineZeichnen()
+        freundeZeichnen()
         if (page() === 'liste' && listeArt === 'alle') void ladeListeAnzeige()
       },
       einladung: (e) => {
+        // Nur Freunde duerfen einladen
+        if (!e.vonUid || !freundeUids.has(e.vonUid)) return
         // Waehrend eines Mehrspieler-Spiels nicht stoeren
         if (mode === 'mehr') return online?.antworten(e.von, false)
         offeneEinladung = e
@@ -1458,16 +1485,16 @@ async function einladen(o: OnlineSpieler) {
   if (page() !== 'mehr') openPage('mehr')
 }
 
-/** Online-Liste in der Lobby: wer noch nicht im Raum ist, kann eingeladen werden */
+/** Online-Liste in der Lobby: Freunde, die noch nicht im Raum sind, kann man einladen */
 function onlineZeichnen() {
   const box = $('mehr-online')
   const imRaum = new Set((mehr.raum?.spieler ?? []).map((s) => s.id))
-  const frei = onlineListe.filter((o) => !imRaum.has(o.geraet))
+  const frei = onlineListe.filter((o) => !imRaum.has(o.geraet) && !!o.uid && freundeUids.has(o.uid))
   box.replaceChildren()
   if (!frei.length) {
     const p = document.createElement('p')
     p.className = 'liste__leer'
-    p.textContent = 'Gerade ist niemand sonst online.'
+    p.textContent = freunde.length ? 'Gerade ist kein Freund online.' : 'Noch keine Freunde. Tauscht unter „Mehrspieler“ eure Freundes-Codes.'
     box.append(p)
     return
   }
@@ -1492,6 +1519,96 @@ function onlineZeichnen() {
     drawSkinVorschau(cv, skinVon(o.skin), 0)
   }
 }
+
+/** Freunde neu laden (nach dem Start, beim Oeffnen der Mehrspieler-Seite, nach Aenderungen) */
+async function freundeLaden() {
+  freunde = await meineFreunde()
+  freundeUids = new Set(freunde.map((f) => f.user_id))
+  freundeZeichnen()
+  onlineZeichnen()
+  const code = await meinCode()
+  if (code) $('freund-code').textContent = code
+}
+
+/** Freundesliste auf der Mehrspieler-Seite */
+function freundeZeichnen() {
+  const box = $('freunde-liste')
+  box.replaceChildren()
+  if (!freunde.length) {
+    const p = document.createElement('p')
+    p.className = 'liste__leer'
+    p.textContent = 'Noch keine Freunde. Schick deinen Code oder tipp den Code eines Freundes ein.'
+    box.append(p)
+    return
+  }
+  for (const f of freunde) {
+    const da = onlineListe.find((o) => o.uid === f.user_id)
+    const el = document.createElement('div')
+    el.className = 'mehr-zeile mehr-zeile--freund'
+    const cv = document.createElement('canvas')
+    cv.width = 112
+    cv.height = 80
+    const name = document.createElement('span')
+    name.className = 'mehr-zeile__name'
+    if (da) {
+      const punkt = document.createElement('i')
+      punkt.className = 'online-punkt'
+      name.append(punkt)
+    }
+    name.append(f.name)
+    const klein = document.createElement('small')
+    klein.textContent = `${da ? (da.imSpiel ? 'spielt gerade · ' : 'online · ') : ''}Rekord ${f.level || '–'}`
+    name.append(klein)
+    const einladenK = document.createElement('button')
+    einladenK.className = 'btn btn--ghost btn--klein'
+    einladenK.textContent = 'Einladen'
+    einladenK.hidden = !da || !mehr.verfuegbar
+    einladenK.addEventListener('click', () => da && void einladen(da))
+    const weg = document.createElement('button')
+    weg.className = 'icon-btn freund-weg'
+    weg.setAttribute('aria-label', `${f.name} entfernen`)
+    setIcon(weg, 'X')
+    weg.addEventListener('click', async () => {
+      if (!confirm(`${f.name} aus deinen Freunden entfernen?`)) return
+      await freundEntfernen(f.user_id)
+      void freundeLaden()
+    })
+    el.append(cv, name, einladenK, weg)
+    box.append(el)
+    drawSkinVorschau(cv, skinVon(f.skin), 0)
+  }
+}
+
+$<HTMLFormElement>('freund-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const input = $<HTMLInputElement>('freund-eingabe')
+  const code = input.value.trim().toUpperCase()
+  if (code.length !== 6) return toast('gebiet', 'Code prüfen', 'Ein Freundes-Code hat 6 Zeichen.')
+  try {
+    const name = await freundHinzufuegen(code)
+    input.value = ''
+    input.blur()
+    audio.click()
+    toast('gebiet', `${name} ist jetzt dein Freund`, 'Ihr seht euch online und könnt euch einladen.')
+    void freundeLaden()
+  } catch (err) {
+    toast('gebiet', 'Freund hinzufügen', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+  }
+})
+$('freund-teilen').addEventListener('click', async () => {
+  const code = $('freund-code').textContent?.trim()
+  if (!code || code.includes('-')) return
+  const text = `Füg mich in Snake als Freund hinzu: ${code}`
+  try {
+    if (navigator.share) await navigator.share({ title: 'Snake', text })
+    else {
+      await navigator.clipboard.writeText(text)
+      toast('gebiet', 'Kopiert', 'Dein Freundes-Code ist in der Zwischenablage.')
+    }
+  } catch {
+    /* abgebrochen */
+  }
+})
 
 $('einladung-ja').addEventListener('click', () => {
   const e = offeneEinladung
@@ -1539,7 +1656,10 @@ setMode('home')
 if (!gesperrt) {
   zeigeWillkommen()
   linkRaum()
-  if (profil.name) void online?.start()
+  if (profil.name) {
+    void online?.start()
+    void freundeLaden()
+  }
   setzeSkin(wallet.skin)
   requestAnimationFrame(frame)
 }

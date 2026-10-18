@@ -2,7 +2,10 @@
  * Oberflaeche fuer den Mehrspieler: Raum erstellen/beitreten, Lobby, Anzeige im Spiel
  * (Leben, Lebensleiste, Countdown, Meldungen) und Ergebnis. main.ts reicht nur Frame und Wischer durch.
  */
+import { erfolgePruefen, zaehle } from '../erfolge'
 import { abstandGrenze, JAGD_MS, type Modus, type SpielerInfo } from '../game/mehr'
+import { meldeKoop, meldeSieg } from '../online'
+import { saveStats, saveWallet, stats, wallet } from '../storage'
 import type { Cause, Dir, GameEvent } from '../game/types'
 import type { Renderer } from '../render/renderer'
 import { drawSkinVorschau, skinVon } from '../render/skins'
@@ -62,6 +65,12 @@ export type MehrApi = {
   raumGeaendert?: () => void
 }
 
+/** Belohnung in Aepfeln: Sieg 30 je Gegner, Mitspielen 5, Koop die Haelfte des Levels */
+export function belohnung(modus: Modus, sieg: boolean, spieler: number, level: number) {
+  if (modus === 'koop') return Math.max(5, Math.floor(level / 2))
+  return sieg ? 30 * Math.max(1, spieler - 1) : 5
+}
+
 /** Feste Geraete-Kennung fuer Raeume (bleibt, solange der Speicher bleibt) */
 export function geraetId(): string {
   const k = 'snake.geraet.v1'
@@ -82,6 +91,8 @@ export function mehrspieler(api: MehrApi) {
   let letzteAnzeige = 0
   let letzterCountdown = -1
   let meldungBis = 0
+  /** Fuer welches Spiel (Startwert) die Belohnung schon vergeben ist */
+  let belohnt = -1
   /** Skins im laufenden Spiel (ohne doppelte) und der eigene, der danach wieder gilt */
   let skins: string[] = []
   let eigenerSkin = api.renderer.skin
@@ -522,6 +533,31 @@ export function mehrspieler(api: MehrApi) {
       titel.textContent = s ? `${s.name} gewinnt` : start.modus === 'jagd' ? 'Unentschieden' : 'Vorbei'
       sub.textContent = s ? 'Nächstes Mal!' : 'Gleich viele Äpfel.'
     }
+    // Belohnung (einmal je Spiel): Aepfel, Erfolge, Siege- und Koop-Liste
+    let plus = 0
+    if (belohnt !== start.seed) {
+      belohnt = start.seed
+      const sieg = start.modus !== 'koop' && erg.sieger === ich
+      const level = client.game?.level ?? 1
+      plus = belohnung(start.modus, sieg, start.spieler.length, level)
+      wallet.aepfel += plus
+      saveWallet()
+      zaehle('mehrspiele')
+      if (sieg) {
+        zaehle('siege')
+        if (start.modus === 'jagd') zaehle('jagdSiege')
+        if (start.modus === 'royale') zaehle('zoneSiege')
+        void meldeSieg(start.modus, start.spieler.length - 1)
+      }
+      if (start.modus === 'koop') {
+        stats.zaehler.koopLevel = Math.max(stats.zaehler.koopLevel ?? 0, level)
+        // Eintragen macht nur das Geraet, das am Ende rechnet (sonst stuende das Team mehrfach drin)
+        if (client.istRechner) void meldeKoop(start.spieler.map((s) => s.name), level, client.game?.time ?? 1)
+      }
+      for (const e of erfolgePruefen()) api.toast(`Erfolg: ${e.titel}`, e.text)
+      saveStats()
+    }
+    if (plus) sub.textContent += ` +${plus} Äpfel`
     const ol = $('mehr-rang')
     ol.replaceChildren()
     erg.reihenfolge.forEach((wer, platz) => {

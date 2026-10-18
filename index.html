@@ -165,6 +165,8 @@
               <button data-v="heute" role="radio">Heute</button>
               <button data-v="immer" role="radio">Für immer</button>
               <button data-v="alle" role="radio">Alle Spieler</button>
+              <button data-v="siege" role="radio">Siege</button>
+              <button data-v="koop" role="radio">Koop</button>
             </div>
             <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
               <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
@@ -209,6 +211,20 @@
                   <button class="btn btn--ghost btn--klein" type="submit">Beitreten</button>
                 </div>
               </form>
+              <h3 class="erfolge-titel">Freunde</h3>
+              <div class="mehr-code mehr-code--klein">
+                <small>Dein Freundes-Code</small>
+                <b id="freund-code">------</b>
+                <button class="btn btn--ghost btn--klein" id="freund-teilen"><span data-icon="Share2"></span>Code teilen</button>
+              </div>
+              <form class="opt opt--col liste-name" id="freund-form" autocomplete="off">
+                <label class="opt__t" for="freund-eingabe">Freund hinzufügen<small>Code von deinem Freund eintippen. Nur Freunde siehst du online und kannst sie einladen.</small></label>
+                <div class="liste-name__row">
+                  <input type="text" id="freund-eingabe" maxlength="6" placeholder="z. B. 3FA9C1" autocapitalize="characters" spellcheck="false" />
+                  <button class="btn btn--ghost btn--klein" type="submit">Hinzufügen</button>
+                </div>
+              </form>
+              <div class="mehr-online" id="freunde-liste"></div>
               <div class="mehr-modi">
                 <div class="opt opt--col"><div class="opt__row"><span data-icon="Swords"></span><span class="opt__t">Gegeneinander<small>Alle auf einem Feld. Wer in eine andere Schlange fährt, verliert ein Leben (jeder hat 3). Wer 5 Äpfel hinter dem Führenden liegt, ist raus. Der Letzte gewinnt.</small></span></div></div>
                 <div class="opt opt--col"><div class="opt__row"><span data-icon="Ghost"></span><span class="opt__t">Wettrennen<small>Jeder in seiner eigenen Welt, die anderen siehst du als Geist. Gleiche Regeln mit Leben und Abstand. Das nächste Gebiet bestimmt abwechselnd einer.</small></span></div></div>
@@ -245,7 +261,7 @@
               <button class="btn btn--play" id="mehr-bereit" hidden><span data-icon="Check"></span>Bereit</button>
               <p class="fine" id="mehr-hinweis"></p>
               <h3 class="erfolge-titel">Freunde einladen</h3>
-              <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist niemand sonst online.</p></div>
+              <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist kein Freund online.</p></div>
               <button class="btn btn--ghost" id="mehr-verlassen"><span data-icon="LogOut"></span>Raum verlassen</button>
             </div>
           </div>
