@@ -11,7 +11,7 @@ const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
 export const onlineAktiv = !!(URL && KEY)
 
-export type Art = 'heute' | 'immer'
+export type Art = 'heute' | 'immer' | 'alle'
 export type Zeile = { user_id: string; name: string; level: number; tempo: Tempo }
 export type Ergebnis = { level: number; dauer: number; tempo: Tempo }
 
@@ -35,7 +35,8 @@ function schreib(k: string, v: unknown) {
   }
 }
 
-export const profil: { name: string } = { name: '', ...lies<{ name?: string }>(PKEY, {}) }
+/** `offen`: der Name steht noch nicht in der Datenbank (z. B. beim ersten Start ohne Netz) */
+export const profil: { name: string; offen?: boolean } = { name: '', ...lies<{ name?: string; offen?: boolean }>(PKEY, {}) }
 const warteschlange: Ergebnis[] = lies<Ergebnis[]>(QKEY, [])
 
 export const nameGueltig = (n: string) => n.trim().length >= 2 && n.trim().length <= 16
@@ -58,25 +59,42 @@ async function nutzerId(): Promise<string> {
   return neu.user.id
 }
 
-/** Name speichern (Profil in der Datenbank anlegen oder aendern). Wirft bei Fehlern */
-export async function setzeName(name: string) {
+/** Profil (Name) in die Datenbank schreiben. Wirft ohne Netz */
+async function syncProfil() {
+  const id = await nutzerId()
+  const sb = await client()
+  const { error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: new Date().toISOString() })
+  if (error) throw error
+  profil.offen = false
+  schreib(PKEY, { name: profil.name })
+}
+
+/**
+ * Name speichern. Er gilt sofort auf dem Geraet, auch ohne Netz; in die Datenbank kommt er,
+ * sobald es geht. Gibt zurueck, ob das schon geklappt hat.
+ */
+export async function setzeName(name: string): Promise<boolean> {
   const n = name.trim()
   if (!nameGueltig(n)) throw new Error('Der Name braucht 2 bis 16 Zeichen.')
-  const sb = await client()
-  const id = await nutzerId()
-  const { error } = await sb.from('profile').upsert({ id, name: n, updated_at: new Date().toISOString() })
-  if (error) throw error
   profil.name = n
-  schreib(PKEY, { name: n })
-  void sende()
+  profil.offen = true
+  schreib(PKEY, { name: n, offen: true })
+  try {
+    await syncProfil()
+    void sende()
+    return true
+  } catch {
+    return false
+  }
 }
 
 let sendet = false
-/** Wartende Ergebnisse senden. Ohne Netz bleiben sie liegen und kommen beim naechsten Mal dran */
+/** Name und wartende Ergebnisse senden. Ohne Netz bleibt alles liegen und kommt beim naechsten Mal dran */
 export async function sende() {
-  if (!onlineAktiv || !profil.name || sendet || !warteschlange.length) return
+  if (!onlineAktiv || !profil.name || sendet || (!profil.offen && !warteschlange.length)) return
   sendet = true
   try {
+    if (profil.offen) await syncProfil()
     const sb = await client()
     const id = await nutzerId()
     while (warteschlange.length) {
@@ -103,35 +121,38 @@ export function melde(e: Ergebnis) {
   void sende()
 }
 
-/** Bestenliste laden (Top 50) und die eigene Nutzer-Id, falls angemeldet */
+/** Bestenliste laden (Top 50, bei "alle" bis zu 500 Spieler) und die eigene Nutzer-Id, falls angemeldet */
 export async function ladeListe(art: Art): Promise<{ zeilen: Zeile[]; ich: string | null }> {
   const sb = await client()
+  const quelle = art === 'heute' ? 'bestenliste_heute' : art === 'immer' ? 'bestenliste_immer' : 'spieler_alle'
   const { data, error } = await sb
-    .from(art === 'heute' ? 'bestenliste_heute' : 'bestenliste_immer')
+    .from(quelle)
     .select('user_id,name,level,tempo')
     .order('level', { ascending: false })
-    .order('created_at', { ascending: true })
-    .limit(50)
+    .order(art === 'alle' ? 'name' : 'created_at', { ascending: true })
+    .limit(art === 'alle' ? 500 : 50)
   if (error) throw error
   const { data: s } = await sb.auth.getSession()
   return { zeilen: (data ?? []) as Zeile[], ich: s.session?.user.id ?? null }
 }
 
-/** Live: ruft `bei` auf, sobald irgendwo ein neues Ergebnis eingetragen wird. Gibt die Abmeldung zurueck */
+/** Live: ruft `bei` auf, sobald irgendwo ein neues Ergebnis oder ein neuer Spieler eingetragen wird. Gibt die Abmeldung zurueck */
 export function abonniere(bei: () => void): () => void {
   let weg = false
   let kanal: ReturnType<SupabaseClient['channel']> | null = null
   let sb: SupabaseClient | null = null
   let timer = 0
+  const melden = () => {
+    clearTimeout(timer)
+    timer = window.setTimeout(bei, 400)
+  }
   void client().then((c) => {
     if (weg) return
     sb = c
     kanal = c
       .channel('bestenliste')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'score' }, () => {
-        clearTimeout(timer)
-        timer = window.setTimeout(bei, 400)
-      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'score' }, melden)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profile' }, melden)
       .subscribe()
   })
   return () => {

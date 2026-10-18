@@ -236,7 +236,7 @@ async function ladeListeAnzeige() {
     if (!zeilen.length) {
       const leer = document.createElement('p')
       leer.className = 'liste__leer'
-      leer.textContent = listeArt === 'heute' ? 'Heute hat noch niemand gespielt. Sei der Erste!' : 'Noch keine Ergebnisse.'
+      leer.textContent = listeArt === 'heute' ? 'Heute hat noch niemand gespielt. Sei der Erste!' : listeArt === 'alle' ? 'Noch keine Spieler.' : 'Noch keine Ergebnisse.'
       box.append(leer)
     }
     zeilen.forEach((z, i) => {
@@ -255,11 +255,14 @@ async function ladeListeAnzeige() {
       }
       const level = document.createElement('b')
       level.className = 'liste__level'
-      level.textContent = String(z.level)
+      level.textContent = z.level > 0 ? String(z.level) : '–'
       el.append(platz, name, level)
       box.append(el)
     })
-    info.textContent = 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
+    info.textContent =
+      listeArt === 'alle'
+        ? `${zeilen.length} Spieler insgesamt, sortiert nach bestem Level. „–“ heißt: noch nicht gespielt.`
+        : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
   } catch {
     if (nr !== listeNr) return
     box.replaceChildren()
@@ -285,17 +288,39 @@ $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
   const knopf = $<HTMLButtonElement>('liste-speichern')
   knopf.disabled = true
   try {
-    await setzeName(input.value)
+    const online = await setzeName(input.value)
     audio.click()
-    info.textContent = `Gespeichert: Du spielst als ${profil.name}.`
+    info.textContent = online ? `Gespeichert: Du spielst als ${profil.name}.` : `Name gespeichert. Er wird online eingetragen, sobald du Verbindung hast.`
     knopf.textContent = 'Ändern'
     input.blur()
     void ladeListeAnzeige()
   } catch {
-    info.textContent = 'Das hat nicht geklappt. Bist du online?'
+    info.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
   } finally {
     knopf.disabled = false
   }
+})
+
+/* Erster Start: Name gleich am Anfang, ohne Konto. Ohne Netz gilt er trotzdem sofort. */
+function zeigeWillkommen() {
+  if (!onlineAktiv || profil.name) return
+  show('willkommen', true)
+  window.setTimeout(() => $<HTMLInputElement>('willkommen-name').focus(), 450)
+}
+$<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const fehler = $('willkommen-fehler')
+  const name = $<HTMLInputElement>('willkommen-name').value
+  if (!nameGueltig(name)) {
+    fehler.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+    fehler.hidden = false
+    return
+  }
+  fehler.hidden = true
+  await setzeName(name)
+  audio.click()
+  $<HTMLInputElement>('willkommen-name').blur()
+  show('willkommen', false)
 })
 
 function gameOver() {
@@ -1340,6 +1365,7 @@ if (nativ) {
 applySettings()
 newDemo()
 setMode('home')
+zeigeWillkommen()
 requestAnimationFrame(frame)
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)

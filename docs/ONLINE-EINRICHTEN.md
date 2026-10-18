@@ -42,10 +42,12 @@ Spieler bekommen so eine feste Nutzer-Id, ohne ein Konto oder Passwort anzulegen
 ## Schritt 3: Datenbank einrichten (ein Mal Kopieren und Einfügen)
 
 1. Links **SQL Editor** öffnen und **New query** klicken.
-2. In GitHub die Datei `supabase/migrations/20261018000000_bestenliste.sql` öffnen, **Raw** → alles markieren und kopieren.
+2. In GitHub die Datei `supabase/migrations/20261018000000_bestenliste.sql` öffnen, **Copy raw file** (zwei Quadrate oben rechts) → alles kopieren.
 3. In den SQL Editor einfügen und **Run** klicken (oder Strg/Cmd + Enter).
 4. Erwartet: „Success. No rows returned“.
-5. Kontrolle: links **Table Editor** → Du siehst die Tabellen `profile` und `score`.
+5. **Das Gleiche noch einmal** mit einer **neuen Query** und der Datei `supabase/migrations/20261018000100_alle_spieler.sql`
+   (sie schaltet die Liste „Alle Spieler“ frei). Immer der Reihe nach, nie beide in dasselbe Feld.
+6. Kontrolle: links **Table Editor** → Du siehst die Tabellen `profile` und `score`.
 
 Das Skript legt an: Tabellen, Schutzregeln (jeder darf lesen, schreiben nur das Eigene, nichts ändern oder löschen),
 einen **Schummelschutz** (kein Level schneller als eines je 0,2 s, höchstens ein Ergebnis je 10 s), die beiden Ranglisten und
@@ -102,8 +104,12 @@ die Live-Funktion. Du kannst es gefahrlos ein zweites Mal ausführen.
 3. Updates: Die App zeigt auf dem Startbildschirm **„Neue Version: jetzt laden“**, sobald eine neuere APK da ist.
    Ein Tipp lädt sie, danach einfach drüberinstallieren (die Spielstände bleiben).
 
-**Erster Start (jeder Spieler):** Startmenü → **Bestenliste** → Namen eintragen → **Speichern**. Ohne Namen werden
-Ergebnisse nicht gewertet (sie werden aber auf dem Handy gemerkt und nach dem Eintragen des Namens nachgeschickt).
+**Erster Start (jeder Spieler):** Beim ersten Öffnen fragt ein Fenster nach dem **Namen** (2 bis 16 Zeichen). Ein Konto oder Passwort
+gibt es nicht, jeder ist ein Gast. Rekord, Äpfel und Skins bleiben lokal auf dem Handy. Online liegen nur der Name und die
+Ergebnisse. Der Name lässt sich jederzeit unter **Bestenliste** ändern.
+
+> Der Gast gehört zu diesem Handy und dieser App. Wer den Browser-Speicher löscht, die App neu installiert oder ein anderes Gerät
+> (oder Safari statt der Home-Bildschirm-App) benutzt, ist ein **neuer Gast** und gibt den Namen noch einmal ein.
 
 ## Schritt 8 (optional): Datenbank-Änderungen automatisch ausliefern
 
@@ -134,6 +140,7 @@ Ohne diese Secrets überspringt der Workflow still. Bereits von Hand ausgeführt
 ## Was zählt in der Bestenliste
 
 - Nur normale Runden: kein Kreativ-Modus, keine Sandbox, keine geänderten **Master-Einstellungen**, kein `?level=`.
+- Reiter **Heute**, **Für immer** und **Alle Spieler**. In „Alle Spieler“ steht jeder, der einen Namen eingetragen hat, auch wer noch nicht gespielt hat („–“).
 - Gewertet wird der **höchste erreichte Level** der Runde. „Heute“ gilt nach deutscher Zeit, „Für immer“ ist die Bestzeit überhaupt.
 - Das Tempo (langsam / normal / schnell) steht hinter dem Namen, wenn es nicht „normal“ ist.
 - Ergebnisse ohne Netz werden auf dem Handy gemerkt (bis zu 20) und später gesendet.
@@ -150,10 +157,11 @@ Ohne diese Secrets überspringt der Workflow still. Bereits von Hand ausgeführt
 
 | Beobachtung | Ursache und Lösung |
 |---|---|
+| Reiter „Alle Spieler“ zeigt „Keine Verbindung“ | Die zweite SQL-Datei aus Schritt 3 wurde noch nicht ausgeführt. |
 | Kein Menüpunkt „Bestenliste“ | Die Variablen aus Schritt 5 fehlen oder heißen anders. Eintragen und danach einen neuen Build auslösen (Actions → Web-App → **Run workflow**). |
 | „Das hat nicht geklappt. Bist du online?“ beim Namen | Schritt 2 (Anonyme Anmeldung) nicht aktiv, Schritt 3 nicht ausgeführt, oder Projekt pausiert. |
 | „Keine Verbindung“ in der Liste | Kein Internet, Projekt pausiert oder falsche URL in Schritt 5. |
-| Ergebnis fehlt in der Liste | Kein Name gesetzt, Master-Einstellungen geändert, Kreativ-Modus, oder die Runde war unter 2 Level. |
+| Ergebnis fehlt in der Liste | Beim Speichern war kein Netz (kommt später von selbst), Master-Einstellungen geändert, Kreativ-Modus, oder die Runde war unter 2 Level. |
 | Liste aktualisiert sich nicht live | Beim Anlegen der Datenbank gab es einen Fehler: SQL aus Schritt 3 erneut ausführen. Notfalls schließt und öffnet die Seite die Liste neu. |
 | Update erscheint nicht auf dem iPhone | App vom Home-Bildschirm komplett schließen und neu öffnen (die neue Version wird beim Start geholt). |
 | Pages-Lauf rot | Settings → Pages → Source auf **GitHub Actions** stellen, dann **Re-run all jobs**. |
