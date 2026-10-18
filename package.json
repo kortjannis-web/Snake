@@ -11,7 +11,8 @@
     "icons": "node scripts/icons.mjs",
     "android": "npm run build && npx cap sync android",
     "server": "wrangler dev --config server/wrangler.toml",
-    "server:deploy": "wrangler deploy --config server/wrangler.toml"
+    "server:deploy": "wrangler deploy --config server/wrangler.toml",
+    "vapid": "node scripts/vapid.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.2",

@@ -22,7 +22,8 @@ import { haptic } from './haptics'
 import { installPflicht, zeigeInstallation } from './install'
 import { Aufnahme, geistKoerper, geistLaden, geistSpeichern, tagBerlin, tagesSeed, type Lauf } from './geist'
 import { MEHR_BILD } from './multi/protokoll'
-import { geraetId, mehrspieler } from './multi/ui'
+import { perPushEinladen, pushAuffrischen, pushEinschalten, pushErlaubt, pushMoeglich } from './push'
+import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
@@ -1559,8 +1560,41 @@ function onlineZeichnen() {
   }
 }
 
+/** Freund einladen, der die App gerade nicht offen hat: Nachricht aufs Handy */
+async function einladenPerPush(f: Freund) {
+  audio.click()
+  const code = await mehr.raumFuerEinladung()
+  if (!code) return toast('gebiet', 'Mehrspieler', 'Keine Verbindung zum Server.')
+  const r = await perPushEinladen(SERVER, f.user_id, code, mehr.raum?.modus ?? 'vs', profil.name)
+  toast('gebiet', r.ok ? `Einladung an ${f.name}` : `${f.name} einladen`, r.text)
+  if (page() !== 'mehr') openPage('mehr')
+}
+
+/** Schalter "Einladungen aufs Handy" */
+function pushZeichnen() {
+  const zeile = $('push-zeile')
+  zeile.hidden = !pushMoeglich() || !mehr.verfuegbar
+  if (zeile.hidden) return
+  const an = pushErlaubt()
+  $('push-knopf').hidden = an
+  $('push-info').textContent = an ? 'Ist an: Freunde können dich einladen, auch wenn Snake gerade zu ist.' : Notification.permission === 'denied' ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Freunde können dich einladen, auch wenn Snake gerade zu ist.'
+}
+$('push-knopf').addEventListener('click', async () => {
+  audio.click()
+  const r = await pushEinschalten()
+  toast('gebiet', 'Einladungen aufs Handy', r === 'an' ? 'Eingeschaltet.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es später in den Einstellungen ändern.' : 'Das hat nicht geklappt.')
+  pushZeichnen()
+})
+// Tipp auf eine Push-Einladung, waehrend die App offen ist: dem Raum beitreten
+if ('serviceWorker' in navigator)
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    const d = e.data as { typ?: string; code?: string } | null
+    if (d?.typ === 'einladung' && d.code && mode !== 'mehr') mehr.beitreten(d.code)
+  })
+
 /** Freunde neu laden (nach dem Start, beim Oeffnen der Mehrspieler-Seite, nach Aenderungen) */
 async function freundeLaden() {
+  pushZeichnen()
   freunde = await meineFreunde()
   freundeUids = new Set(freunde.map((f) => f.user_id))
   freundeZeichnen()
@@ -1601,8 +1635,9 @@ function freundeZeichnen() {
     const einladenK = document.createElement('button')
     einladenK.className = 'btn btn--ghost btn--klein'
     einladenK.textContent = 'Einladen'
-    einladenK.hidden = !da || !mehr.verfuegbar
-    einladenK.addEventListener('click', () => da && void einladen(da))
+    // Online: Einladung in der App. Sonst als Nachricht aufs Handy (Push)
+    einladenK.hidden = !mehr.verfuegbar
+    einladenK.addEventListener('click', () => void (da ? einladen(da) : einladenPerPush(f)))
     const weg = document.createElement('button')
     weg.className = 'icon-btn freund-weg'
     weg.setAttribute('aria-label', `${f.name} entfernen`)
@@ -1698,6 +1733,7 @@ if (!gesperrt) {
   if (profil.name) {
     void online?.start()
     void freundeLaden()
+    void pushAuffrischen()
   }
   setzeSkin(wallet.skin)
   requestAnimationFrame(frame)

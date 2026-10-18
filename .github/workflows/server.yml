@@ -1,6 +1,8 @@
 # Veroeffentlicht den Snake-Server (Mehrspieler) auf Cloudflare Workers, sobald sich Server, Spiellogik
 # oder Protokoll auf dem Hauptzweig aendern. Braucht die Secrets CLOUDFLARE_API_TOKEN und
 # CLOUDFLARE_ACCOUNT_ID (siehe docs/MEHRSPIELER-EINRICHTEN.md); ohne sie wird der Lauf uebersprungen.
+# Fuer Push-Einladungen ausserdem das Secret VAPID_PRIVATE_KEY und die Variable VITE_VAPID_PUBLIC_KEY
+# (beides von `npm run vapid`); die Supabase-Variablen sind dieselben wie fuer die Web-App.
 name: Snake-Server (Cloudflare)
 
 on:
@@ -19,6 +21,10 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
+      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Secrets vorhanden?
@@ -37,7 +43,18 @@ jobs:
       - if: steps.pruefen.outputs.ok == 'true'
         run: npm ci
       - if: steps.pruefen.outputs.ok == 'true'
-        run: npx vitest run test/raum.test.ts test/mehr.test.ts
+        run: npx vitest run test/raum.test.ts test/mehr.test.ts test/push.test.ts
       - if: steps.pruefen.outputs.ok == 'true'
         name: Veroeffentlichen
-        run: npx wrangler deploy --config server/wrangler.toml
+        run: |
+          extra=()
+          for n in SUPABASE_URL SUPABASE_ANON_KEY VAPID_PUBLIC_KEY; do
+            if [ -n "${!n}" ]; then extra+=(--var "$n:${!n}"); fi
+          done
+          npx wrangler deploy --config server/wrangler.toml "${extra[@]}"
+      - if: steps.pruefen.outputs.ok == 'true' && env.VAPID_PRIVATE_KEY != ''
+        name: Push-Schluessel hinterlegen
+        run: |
+          node -e 'process.stdout.write(JSON.stringify({ VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY }))' > /tmp/geheim.json
+          npx wrangler secret bulk /tmp/geheim.json --config server/wrangler.toml
+          rm -f /tmp/geheim.json

@@ -292,6 +292,32 @@ export async function meldeKoop(spieler: string[], level: number, dauer: number)
   }
 }
 
+/** Push-Abo im eigenen Profil speichern (privat; nur Freunde koennen damit eine Einladung schicken) */
+export async function pushSpeichern(abo: PushSubscriptionJSON | null): Promise<boolean> {
+  if (!onlineAktiv || !profil.name) return false
+  try {
+    await nutzerId()
+    const sb = await client()
+    const { error } = await sb.rpc('push_setzen', { abo })
+    return !error
+  } catch {
+    return false
+  }
+}
+
+/** Zugangs-Token der Gast-Anmeldung (fuer den Snake-Server bei Push-Einladungen) */
+export async function zugangsToken(): Promise<string | null> {
+  if (!onlineAktiv) return null
+  try {
+    await nutzerId()
+    const sb = await client()
+    const { data } = await sb.auth.getSession()
+    return data.session?.access_token ?? null
+  } catch {
+    return null
+  }
+}
+
 /** Eigene Nutzer-Kennung (fuer Freunde und Einladungen) */
 export async function eigeneUid(): Promise<string | null> {
   if (!onlineAktiv) return null

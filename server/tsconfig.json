@@ -12,5 +12,5 @@
     "noEmit": true,
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["index.ts", "raum.ts"]
+  "include": ["index.ts", "raum.ts", "push.ts"]
 }

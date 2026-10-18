@@ -48,7 +48,8 @@ export default defineConfig({
           { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: { globPatterns: ['**/*.{js,css,html,woff2,png,svg}'] },
+      // push-sw.js: zeigt Push-Einladungen und oeffnet beim Tippen den Raum
+      workbox: { globPatterns: ['**/*.{js,css,html,woff2,png,svg}'], importScripts: ['push-sw.js'] },
     }),
   ],
 })

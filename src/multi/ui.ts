@@ -2,6 +2,7 @@
  * Oberflaeche fuer den Mehrspieler: Raum erstellen/beitreten, Lobby, Anzeige im Spiel
  * (Leben, Lebensleiste, Countdown, Meldungen) und Ergebnis. main.ts reicht nur Frame und Wischer durch.
  */
+import { Capacitor } from '@capacitor/core'
 import { erfolgePruefen, zaehle } from '../erfolge'
 import { abstandGrenze, JAGD_MS, type Modus, type SpielerInfo } from '../game/mehr'
 import { meldeKoop, meldeSieg } from '../online'
@@ -10,6 +11,7 @@ import type { Cause, Dir, GameEvent } from '../game/types'
 import type { Renderer } from '../render/renderer'
 import { drawSkinVorschau, skinVon } from '../render/skins'
 import { setIcon } from '../ui/icons'
+import { WEB_URL } from '../update'
 import { MehrClient, type ClientEreignis, type RaumInfo } from './client'
 import { codeGueltig, neuerCode, REAKTIONEN } from './protokoll'
 
@@ -366,7 +368,9 @@ export function mehrspieler(api: MehrApi) {
   $('mehr-teilen').addEventListener('click', async () => {
     const code = client.raum?.code
     if (!code) return
-    const url = `${location.origin}${location.pathname}?raum=${code}`
+    // In der Android-App ist die eigene Adresse nur lokal: dann die Web-Adresse
+    const basis = Capacitor.isNativePlatform() ? WEB_URL : `${location.origin}${location.pathname}`
+    const url = `${basis}?raum=${code}`
     const text = `Spiel mit mir Snake! Raum-Code: ${code}`
     try {
       if (navigator.share) await navigator.share({ title: 'Snake', text, url })

@@ -31,6 +31,8 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_SNAKE_SERVER: ${{ vars.VITE_SNAKE_SERVER }}
+          VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
+          VITE_PAGES_URL: ${{ vars.VITE_PAGES_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
