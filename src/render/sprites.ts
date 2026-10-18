@@ -972,6 +972,16 @@ export function drawPower(ctx: CanvasRenderingContext2D, x: number, y: number, c
   ctx.restore()
 }
 
+/** Pulsierender Lavaschein in der Erde (Mitte x/y, Radius r in px, Staerke a) */
+export function drawLavaSchein(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, a: number) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+  g.addColorStop(0, `rgba(255, 140, 40, ${a})`)
+  g.addColorStop(0.45, `rgba(230, 80, 20, ${a * 0.45})`)
+  g.addColorStop(1, 'rgba(180, 40, 10, 0)')
+  ctx.fillStyle = g
+  ctx.fillRect(x - r, y - r, r * 2, r * 2)
+}
+
 /** Lavasee: zusammenhaengende Felder, gluehend mit dunkler Kruste und Blasen. born = wann jedes Feld dazukam */
 export function drawLava(ctx: CanvasRenderingContext2D, cells: P[], born: number[], cell: number, now: number, reduce = false) {
   if (!cells.length) return
@@ -1142,10 +1152,11 @@ export function drawEis(ctx: CanvasRenderingContext2D, cells: P[], cell: number,
 
 /** Erzbrocken: grauer Stein mit Gold, Diamant, Rubin oder Opal. glanz = 0..1 Funkeln.
  *  Opal schimmert zwischen Pink und Lila und leuchtet */
-export function drawErz(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, art: 'gold' | 'dia' | 'rubin' | 'opal', s: number, glanz = 0, now = 0) {
+export function drawErz(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, art: 'gold' | 'dia' | 'rubin' | 'opal', s: number, glanz = 0, now = 0, schein = true) {
   if (s <= 0) return
   const r = cell * 0.38 * s
-  if (art === 'opal') {
+  // In der Erde ohne Schein: dort glueht nur Lava
+  if (art === 'opal' && schein) {
     // Leuchten drumherum, wechselt zwischen Pink und Lila
     const t = 0.5 + 0.5 * Math.sin(now / 420)
     const g = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 1.9)
