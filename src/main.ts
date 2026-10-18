@@ -27,7 +27,7 @@ import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, lobby, meineAnfragen, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Anfrage, type Art, type Einladung, type Freund, type HallZeile, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, lobby, meineAnfragen, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinBewegt, skinVon, STUFEN } from './render/skins'
@@ -530,6 +530,7 @@ $<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
   linkRaum()
   void online?.start()
   void freundeLaden()
+  sozialStarten()
 })
 
 function gameOver() {
@@ -1830,12 +1831,149 @@ if ('serviceWorker' in navigator)
 /** Freunde neu laden (nach dem Start, beim Oeffnen der Mehrspieler-Seite, nach Aenderungen) */
 async function freundeLaden() {
   pushZeichnen()
-  freunde = await meineFreunde()
-  freundeUids = new Set(freunde.map((f) => f.user_id))
+  const [f, , sp] = await Promise.all([meineFreunde(), anfragenLaden(), meineSperren()])
+  freunde = f
+  freundeUids = new Set(freunde.map((x) => x.user_id))
   freundeZeichnen()
   onlineZeichnen()
+  anfragenZeichnen()
+  sperrenZeichnen(sp)
+  badgeZeichnen()
   const code = await meinCode()
   if (code) $('freund-code').textContent = code
+}
+
+/** Zaehler am Knopf "Online": offene Anfragen an mich */
+function badgeZeichnen() {
+  const n = anfragen.filter((a) => a.richtung === 'ein').length
+  const b = $('online-badge')
+  b.hidden = n === 0
+  b.textContent = n > 99 ? '99+' : String(n)
+  $('btn-mehr').setAttribute('aria-label', n ? `Online, ${n} neu` : 'Online')
+}
+
+/** Offene Freundschaftsanfragen auf der Mehrspieler-Seite */
+function anfragenZeichnen() {
+  const box = $('anfragen-liste')
+  box.replaceChildren()
+  box.hidden = !anfragen.length
+  if (!anfragen.length) return
+  const h = document.createElement('h3')
+  h.className = 'erfolge-titel'
+  h.textContent = 'Freundschaftsanfragen'
+  box.append(h)
+  const knopf = (text: string, art: string, f: () => Promise<void>) => {
+    const k = document.createElement('button')
+    k.className = `btn ${art} btn--klein`
+    k.textContent = text
+    k.addEventListener('click', async () => {
+      audio.click()
+      k.disabled = true
+      try {
+        await f()
+      } catch (err) {
+        toast('gebiet', 'Freundschaftsanfrage', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+      }
+      void freundeLaden()
+    })
+    return k
+  }
+  for (const a of anfragen) {
+    const ein = a.richtung === 'ein'
+    const el = document.createElement('div')
+    el.className = ein ? 'mehr-zeile mehr-zeile--anfrage mehr-zeile--anfrage-ein' : 'mehr-zeile mehr-zeile--anfrage'
+    const cv = document.createElement('canvas')
+    cv.width = 112
+    cv.height = 80
+    const name = document.createElement('span')
+    name.className = 'mehr-zeile__name'
+    name.textContent = a.name
+    const klein = document.createElement('small')
+    klein.textContent = ein ? 'möchte dein Freund sein' : 'wartet auf Antwort'
+    name.append(klein)
+    el.append(cv, name)
+    if (ein) {
+      el.append(
+        knopf('Annehmen', 'btn--play', async () => {
+          await anfrageAnnehmen(a.user_id)
+          toast('gebiet', `${a.name} ist jetzt dein Freund`, 'Ihr seht euch online und könnt chatten.')
+        }),
+      )
+      const nein = document.createElement('button')
+      nein.className = 'icon-btn freund-weg'
+      nein.setAttribute('aria-label', `Anfrage von ${a.name} ablehnen`)
+      setIcon(nein, 'X')
+      const weg = async (f: () => Promise<void>) => {
+        audio.click()
+        try {
+          await f()
+        } catch (err) {
+          toast('gebiet', 'Freundschaftsanfrage', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+        }
+        void freundeLaden()
+      }
+      nein.addEventListener('click', () => void weg(() => anfrageLoeschen(a.user_id)))
+      const bann = document.createElement('button')
+      bann.className = 'icon-btn freund-weg'
+      bann.setAttribute('aria-label', `${a.name} sperren`)
+      bann.title = 'Sperren'
+      setIcon(bann, 'Ban')
+      bann.addEventListener('click', () => {
+        if (confirm(`${a.name} sperren? Ihr könnt euch dann keine Anfragen und Nachrichten mehr schicken.`)) void weg(() => sperren(a.user_id))
+      })
+      el.append(nein, bann)
+    } else el.append(knopf('Zurückziehen', 'btn--ghost', () => anfrageLoeschen(a.user_id)))
+    box.append(el)
+    drawSkinVorschau(cv, skinVon(a.skin ?? 'klassik'), 0)
+  }
+}
+
+/** Gesperrte Spieler (aufklappbar), mit Entsperren */
+function sperrenZeichnen(liste: Gesperrt[]) {
+  $('gesperrt-box').hidden = !liste.length
+  const box = $('gesperrt-liste')
+  box.replaceChildren()
+  for (const g of liste) {
+    const el = document.createElement('div')
+    el.className = 'mehr-zeile'
+    const name = document.createElement('span')
+    name.className = 'mehr-zeile__name'
+    name.textContent = g.name
+    const k = document.createElement('button')
+    k.className = 'btn btn--ghost btn--klein'
+    k.textContent = 'Entsperren'
+    k.addEventListener('click', async () => {
+      audio.click()
+      try {
+        await entsperren(g.user_id)
+      } catch {
+        /* kein Netz */
+      }
+      void freundeLaden()
+    })
+    el.append(name, k)
+    box.append(el)
+  }
+}
+
+/** Live: neue Anfragen und angenommene Anfragen (einmal pro App-Start) */
+let sozialAbmelden: (() => void) | null = null
+function sozialStarten() {
+  if (sozialAbmelden || !onlineAktiv || !profil.name) return
+  sozialAbmelden = abonniereSozial({
+    nachricht: () => {},
+    anfrage: () => {
+      void freundeLaden().then(() => {
+        const neu = anfragen.find((a) => a.richtung === 'ein')
+        if (neu && mode !== 'play' && mode !== 'mehr') toast('gebiet', 'Freundschaftsanfrage', `${neu.name} möchte dein Freund sein.`)
+        if (page() === 'hall') void ladeHallAnzeige()
+      })
+    },
+    freund: () => {
+      void freundeLaden()
+      if (page() === 'hall') void ladeHallAnzeige()
+    },
+  })
 }
 
 /** Freundesliste auf der Mehrspieler-Seite */
@@ -1968,6 +2106,7 @@ if (!gesperrt) {
   if (profil.name) {
     void online?.start()
     void freundeLaden()
+    sozialStarten()
     void pushAuffrischen()
   }
   setzeSkin(wallet.skin)

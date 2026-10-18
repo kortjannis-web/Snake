@@ -102,7 +102,7 @@
             <p class="home__best" id="home-best"></p>
             <div class="home__row home__row--4 home__row--flex">
               <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Skins</button>
-              <button class="tile-btn" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online</button>
+              <button class="tile-btn" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online<i class="tile-badge" id="online-badge" hidden></i></button>
               <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
               <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
             </div>
@@ -238,7 +238,12 @@
                 <span class="opt__t">Einladungen aufs Handy<small id="push-info">Freunde können dich einladen, auch wenn Snake gerade zu ist.</small></span>
                 <button class="btn btn--ghost btn--klein" id="push-knopf">Einschalten</button>
               </div>
+              <div class="mehr-online" id="anfragen-liste" hidden></div>
               <div class="mehr-online" id="freunde-liste"></div>
+              <details class="gesperrt" id="gesperrt-box" hidden>
+                <summary>Gesperrte Spieler</summary>
+                <div class="mehr-online" id="gesperrt-liste"></div>
+              </details>
               <p class="fine">Jeder hat gleich viel Platz: Die Karte startet mit einem Block pro Spieler, alle 10 Äpfel (und wenn es eng wird) baut abwechselnd einer einen Block an.</p>
               <div class="mehr-modi">
                 <div class="opt opt--col"><div class="opt__row"><span data-icon="Swords"></span><span class="opt__t">Gegeneinander<small>Alle auf einem Feld. Wer in eine andere Schlange fährt, verliert ein Leben (jeder hat 3). Wer zu weit hinter dem Führenden liegt (5 Äpfel, zu dritt 6, zu viert 7), ist raus. Der Letzte gewinnt.</small></span></div></div>

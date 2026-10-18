@@ -2527,3 +2527,45 @@ html[data-install] #app {
     display: none;
   }
 }
+
+/* ---------------- Freundschaftsanfragen, Sperren, Zaehler ---------------- */
+#btn-mehr {
+  position: relative;
+}
+
+.tile-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--orange);
+  color: #2a1a0c;
+  font: 700 0.72rem/20px var(--sans);
+  font-style: normal;
+  text-align: center;
+}
+
+.mehr-zeile--anfrage {
+  grid-template-columns: 56px 1fr auto auto;
+}
+
+.mehr-zeile--anfrage-ein {
+  grid-template-columns: 56px 1fr auto auto auto;
+  box-shadow: inset 0 0 0 1px rgba(242, 154, 76, 0.4);
+}
+
+.gesperrt summary {
+  min-height: 44px;
+  padding: 12px 4px;
+  font: 600 0.9rem/1.2 var(--sans);
+  color: var(--creme-leise);
+  cursor: pointer;
+}
+
+.gesperrt .mehr-zeile {
+  grid-template-columns: 1fr auto;
+  padding-left: 16px;
+}
