@@ -3,7 +3,7 @@ import { DEFAULTS, type Config, type Tempo } from './game/rules'
 import type { Kreativ, Sandbox } from './game/types'
 import type { KameraArt } from './render/renderer'
 
-export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt; kameraStand?: number }
+export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt; kameraStand?: number; geist: boolean }
 export type Stats = {
   best: number
   games: number
@@ -27,7 +27,7 @@ export type Stats = {
 const SKEY = 'snake.settings.v1'
 const TKEY = 'snake.stats.v1'
 
-export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, kamera: 'bereich' })
+export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, kamera: 'bereich', geist: true })
 export const defaultStats = (): Stats => ({ best: 0, games: 0, apples: 0, time: 0, longest: 0, maxGebiete: 0, gegner: 0, heute: { datum: '', best: 0 }, zaehler: {}, erfolge: [], seen: [] })
 
 /** Heutiges Datum (Geraetezeit) */

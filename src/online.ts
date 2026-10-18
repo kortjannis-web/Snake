@@ -11,9 +11,9 @@ const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
 export const onlineAktiv = !!(URL && KEY)
 
-export type Art = 'heute' | 'immer' | 'alle' | 'siege' | 'koop'
+export type Art = 'heute' | 'immer' | 'alle' | 'siege' | 'koop' | 'tages'
 export type Zeile = { user_id: string; name: string; level: number; tempo: Tempo; skin?: string }
-export type Ergebnis = { level: number; dauer: number; tempo: Tempo }
+export type Ergebnis = { level: number; dauer: number; tempo: Tempo; tages?: boolean }
 
 const PKEY = 'snake.profil.v1'
 const QKEY = 'snake.online.queue.v1'
@@ -141,7 +141,10 @@ export async function sende() {
     const id = await nutzerId()
     while (warteschlange.length) {
       const e = warteschlange[0]
-      const { error } = await sb.from('score').insert({ user_id: id, level: e.level, dauer_ms: e.dauer, tempo: e.tempo, version: __APP_VERSION__ })
+      const zeile: Record<string, unknown> = { user_id: id, level: e.level, dauer_ms: e.dauer, tempo: e.tempo, version: __APP_VERSION__ }
+      let { error } = await sb.from('score').insert(e.tages ? { ...zeile, tages: true } : zeile)
+      // Tages-Spalte fehlt noch (SQL-Datei 5 nicht ausgefuehrt): als normales Ergebnis eintragen
+      if (e.tages && spalteFehlt(error)) ({ error } = await sb.from('score').insert(zeile))
       // Dauerhaft abgelehnt (Regel verletzt): wegwerfen. Netzfehler und Anmeldung: spaeter nochmal
       if (error && error.code !== '23514' && error.code !== 'P0001') break
       warteschlange.shift()
@@ -171,7 +174,7 @@ export async function ladeListe(art: Art): Promise<{ zeilen: Zeile[]; ich: strin
     if (error) throw error
     return { zeilen: (data ?? []).map((k) => ({ user_id: `koop-${k.id}`, name: (k.spieler as string[]).join(' & '), level: k.level as number, tempo: 'normal' as Tempo })), ich: null }
   }
-  const quelle = art === 'heute' ? 'bestenliste_heute' : art === 'immer' ? 'bestenliste_immer' : art === 'siege' ? 'sieger_liste' : 'spieler_alle'
+  const quelle = art === 'heute' ? 'bestenliste_heute' : art === 'immer' ? 'bestenliste_immer' : art === 'siege' ? 'sieger_liste' : art === 'tages' ? 'bestenliste_tages' : 'spieler_alle'
   const abfrage = (spalten: string) =>
     sb
       .from(quelle)

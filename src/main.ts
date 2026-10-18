@@ -20,6 +20,8 @@ import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Sid
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
 import { installPflicht, zeigeInstallation } from './install'
+import { Aufnahme, geistKoerper, geistLaden, geistSpeichern, tagBerlin, tagesSeed, type Lauf } from './geist'
+import { MEHR_BILD } from './multi/protokoll'
 import { geraetId, mehrspieler } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
@@ -58,6 +60,12 @@ const pages: Page[] = []
 const page = () => pages[pages.length - 1] ?? null
 /** Laeuft gerade eine Kreativ-Runde? */
 let istKreativ = false
+/** Laeuft gerade die Tages-Herausforderung (gleiche Welt fuer alle)? */
+let istTages = false
+let tagesTag = ''
+/** Aufnahme des laufenden Laufs und der Geist, gegen den man faehrt */
+let aufnahme = new Aufnahme()
+let geistLauf: Lauf | null = null
 let game: Game | null = null
 let demo: Game | null = null
 let startedAt = 0
@@ -141,22 +149,31 @@ function closeAllPages() {
 
 /* ================= Spiel ================= */
 
-function newGame(alsKreativ = istKreativ) {
+function newGame(alsKreativ = istKreativ, tages = istTages) {
   clearTimeout(overTimer)
   istKreativ = alsKreativ
+  istTages = !alsKreativ && tages
   app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
   const { start, sandbox, ...k } = kreativ
   const { an, ...sb } = sandbox
-  game = new Game({
-    screenW: sc.w,
-    screenH: sc.h,
-    tempo: settings.tempo,
-    cfg: { ...config },
-    startLevel: istKreativ ? start : startLevel,
-    kreativ: istKreativ ? { ...k } : null,
-    sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
-  })
+  if (istTages) {
+    // Tages-Herausforderung: feste Kartengroesse, Standardregeln, Startwert vom Tag (gleich fuer alle)
+    tagesTag = tagBerlin()
+    game = new Game({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, tempo: 'normal', cfg: { ...DEFAULTS }, seed: tagesSeed(tagesTag), startLevel: 1 })
+  } else
+    game = new Game({
+      screenW: sc.w,
+      screenH: sc.h,
+      tempo: settings.tempo,
+      cfg: { ...config },
+      startLevel: istKreativ ? start : startLevel,
+      kreativ: istKreativ ? { ...k } : null,
+      sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
+    })
+  // Eigener Geist: bester Lauf (Endlos) bzw. bester Lauf heute (Tages-Herausforderung)
+  aufnahme = new Aufnahme()
+  geistLauf = settings.geist && !istKreativ && !auto && (istTages || startLevel === 1) ? geistLaden(istTages ? 'tages' : 'endlos', tagesTag) : null
   renderer.reset()
   readyText()
   setMode('ready')
@@ -211,7 +228,9 @@ function onDir(d: Dir) {
 
 /** Zaehlt die Runde fuer die Online-Bestenliste? Nur echte Runden mit Standardregeln, ohne Level-Sprung und Autopilot */
 function zaehltOnline() {
-  if (istKreativ || auto || startLevel !== 1) return false
+  if (istKreativ || auto) return false
+  if (istTages) return true
+  if (startLevel !== 1) return false
   return (Object.keys(DEFAULTS) as (keyof typeof DEFAULTS)[]).every((k) => config[k] === DEFAULTS[k])
 }
 
@@ -256,7 +275,9 @@ async function ladeListeAnzeige() {
               ? 'Noch hat niemand ein Mehrspieler-Spiel gewonnen.'
               : listeArt === 'koop'
                 ? 'Noch kein Koop-Team in der Liste.'
-                : 'Noch keine Ergebnisse.'
+                : listeArt === 'tages'
+                  ? 'Heute hat noch niemand die Tages-Herausforderung gespielt.'
+                  : 'Noch keine Ergebnisse.'
       box.append(leer)
     }
     zeilen.forEach((z, i) => {
@@ -309,7 +330,9 @@ async function ladeListeAnzeige() {
           ? 'Gewonnene Mehrspieler-Spiele (Gegeneinander, Wettrennen, Apfeljagd, Zone).'
           : listeArt === 'koop'
             ? 'Die besten Koop-Teams nach erreichtem Level.'
-            : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
+            : listeArt === 'tages'
+              ? 'Heute spielen alle dieselbe Welt (Startmenü → Tages-Herausforderung).'
+              : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
   } catch {
     if (nr !== listeNr) return
     box.replaceChildren()
@@ -397,7 +420,9 @@ function gameOver() {
     erfolgeMelden()
     saveStats()
     if (zaehltOnline() && g.gegessen > 0 && g.maxLevel >= 2)
-      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: settings.tempo })
+      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istTages ? 'normal' : settings.tempo, tages: istTages })
+    // Bester Lauf wird zum Geist fuer die naechsten Runden
+    if (!auto && g.gegessen > 0 && (istTages || startLevel === 1)) geistSpeichern(istTages ? 'tages' : 'endlos', { level: g.maxLevel, datum: istTages ? tagesTag : undefined, p: aufnahme.p })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
@@ -405,6 +430,7 @@ function gameOver() {
     $('over-level').textContent = String(g.level)
     $('over-record').hidden = !neu
     $('over-heute').hidden = !neuHeute
+    $('over-tages').hidden = !istTages
     $('over-apples').textContent = String(g.gegessen)
     $('over-max').hidden = g.maxLevel <= g.level
     $('over-max').textContent = `Höchster Level: ${g.maxLevel}`
@@ -952,6 +978,7 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
+  $<HTMLInputElement>('opt-geist').checked = settings.geist !== false
   for (const [id, v] of [['opt-tempo', settings.tempo], ['opt-kamera', settings.kamera]])
     $(id)
       .querySelectorAll<HTMLButtonElement>('button')
@@ -1229,7 +1256,13 @@ $('btn-master-reset').addEventListener('click', () => {
 $('btn-play').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false)
+  newGame(false, false)
+})
+$('btn-tages').addEventListener('click', () => {
+  audio.unlock()
+  audio.click()
+  newGame(false, true)
+  toast('gebiet', 'Tages-Herausforderung', 'Heute spielen alle dieselbe Welt.')
 })
 $('btn-pause').addEventListener('click', () => {
   audio.click()
@@ -1278,7 +1311,7 @@ document.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => b.addEventLis
 }))
 document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', closePage))
 
-for (const k of ['sound', 'music', 'vibration', 'dpad'] as const)
+for (const k of ['sound', 'music', 'vibration', 'dpad', 'geist'] as const)
   $<HTMLInputElement>(`opt-${k}`).addEventListener('change', (e) => {
     settings[k] = (e.target as HTMLInputElement).checked
     applySettings()
@@ -1394,6 +1427,7 @@ function frame(now: number) {
     }
     d.update(dt)
     d.drain()
+    renderer.mehr = null
     renderer.draw(d)
   } else if (mode === 'mehr') {
     mehr.frame(dt)
@@ -1404,8 +1438,13 @@ function frame(now: number) {
         if (dir) game.turn(dir, false)
       }
       game.update(dt)
+      if (mode === 'play') aufnahme.aufnehmen(game)
       for (const e of game.drain()) handle(e)
     }
+    const gk = geistLauf && mode !== 'ready' ? geistKoerper(geistLauf, game.time, game.ursprung) : null
+    renderer.mehr = gk
+      ? { andere: [{ ...gk, skin: skinVon('silber'), tot: false, name: istTages ? 'Bester heute' : `Rekord ${geistLauf!.level}` }], ichTot: false, wahlSichtbar: true }
+      : null
     renderer.draw(game)
   }
   updateEffekte()

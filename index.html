@@ -89,6 +89,7 @@
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
             <button class="btn btn--ghost" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
+            <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Tages-Herausforderung</button>
             <button class="btn btn--ghost" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Mehrspieler</button>
             <button class="btn btn--ghost" id="btn-liste" data-go="liste" hidden><span data-icon="Trophy"></span>Bestenliste</button>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
@@ -129,6 +130,7 @@
           <span class="card__max" id="over-max" hidden></span>
           <span class="badge" id="over-record" hidden><span data-icon="Trophy"></span>Neuer Rekord</span>
           <span class="badge badge--heute" id="over-heute" hidden><span data-icon="Sun"></span>Neuer Tagesrekord</span>
+          <span class="badge badge--heute" id="over-tages" hidden><span data-icon="Ghost"></span>Tages-Herausforderung</span>
           <div class="facts">
             <div><b id="over-apples">0</b><small>Äpfel</small></div>
             <div><b id="over-len">3</b><small>Länge</small></div>
@@ -167,6 +169,7 @@
               <button data-v="alle" role="radio">Alle Spieler</button>
               <button data-v="siege" role="radio">Siege</button>
               <button data-v="koop" role="radio">Koop</button>
+              <button data-v="tages" role="radio">Täglich</button>
             </div>
             <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
               <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
@@ -315,6 +318,7 @@
             <label class="opt"><span data-icon="Volume2"></span><span class="opt__t">Töne</span><input type="checkbox" id="opt-sound" class="switch" /></label>
             <label class="opt"><span data-icon="Music"></span><span class="opt__t">Musik</span><input type="checkbox" id="opt-music" class="switch" /></label>
             <label class="opt"><span data-icon="Vibrate"></span><span class="opt__t">Vibration</span><input type="checkbox" id="opt-vibration" class="switch" /></label>
+            <label class="opt"><span data-icon="Ghost"></span><span class="opt__t">Geist zeigen<small>Dein bester Lauf fährt als durchscheinende Schlange mit (in der Tages-Herausforderung dein bester Lauf von heute)</small></span><input type="checkbox" id="opt-geist" class="switch" /></label>
             <label class="opt"><span data-icon="Gamepad2"></span><span class="opt__t">Steuerkreuz<small>Tasten statt Wischen (gilt ab dem nächsten Spiel)</small></span><input type="checkbox" id="opt-dpad" class="switch" /></label>
             <div class="opt opt--col">
               <div class="opt__row"><span data-icon="Gauge"></span><span class="opt__t">Tempo<small>Gilt ab dem nächsten Spiel</small></span></div>
