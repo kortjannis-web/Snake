@@ -17,6 +17,7 @@ export const CAUSE: Record<Cause, string> = {
   lava: 'In die Lava gefahren',
   erde: 'In der Erde stecken geblieben',
   spieler: 'In eine andere Spieler-Schlange gefahren',
+  zone: 'Von der Zone erwischt',
 }
 
 export const OBJEKT_NAME: Record<SandboxObjekt, string> = {

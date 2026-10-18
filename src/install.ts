@@ -4,7 +4,7 @@
  * (und die APK) startet das Spiel. Am Computer gibt es keine Pflicht.
  */
 import { Capacitor } from '@capacitor/core'
-import { APK_URL } from './update'
+import { APK_URL, WEB_URL } from './update'
 
 export type Plattform = 'ios' | 'android'
 
@@ -18,6 +18,8 @@ export function erkenne(ua: string, platform = '', touchPunkte = 0): Plattform |
 /** Unter iOS: Läuft die Seite nicht in Safari (Chrome, Firefox, Instagram, WhatsApp ...)? */
 export const keinSafari = (ua: string) => /CriOS|FxiOS|EdgiOS|OPiOS|FBAN|FBAV|Instagram|Line\/|Snapchat|MicroMessenger|GSA\/|Twitter/.test(ua)
 
+/** Link zum Weitergeben (in der Android-App die Web-Adresse) */
+const link = () => (Capacitor.isNativePlatform() ? WEB_URL : location.href.split('?')[0])
 const plattform = () => erkenne(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)
 
 /** Läuft Snake schon als App (Home-Bildschirm, installierte Web-App, APK)? */
@@ -173,7 +175,7 @@ export function zeigeInstallation(root: HTMLElement) {
 
   const kopieren = async () => {
     try {
-      await navigator.clipboard.writeText(location.href.split('?')[0])
+      await navigator.clipboard.writeText(link())
       return true
     } catch {
       return false
@@ -220,7 +222,7 @@ export function zeigeInstallation(root: HTMLElement) {
     )
     root.querySelector<HTMLButtonElement>('[data-kopieren]')?.addEventListener('click', async (e) => {
       const b = e.currentTarget as HTMLButtonElement
-      b.textContent = (await kopieren()) ? 'Kopiert' : location.href.split('?')[0]
+      b.textContent = (await kopieren()) ? 'Kopiert' : link()
     })
     root.querySelector<HTMLButtonElement>('[data-jetzt]')?.addEventListener('click', async () => {
       if (!angebot) return

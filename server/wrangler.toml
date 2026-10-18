@@ -4,6 +4,10 @@ name = "snake-server"
 main = "index.ts"
 compatibility_date = "2025-09-01"
 
+# Kontakt fuer Push-Dienste (VAPID); die Schluessel kommen als Secrets dazu (siehe Anleitung)
+[vars]
+VAPID_KONTAKT = "https://github.com/kortjannis-web/Snake"
+
 [[durable_objects.bindings]]
 name = "RAUM"
 class_name = "Raum"

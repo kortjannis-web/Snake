@@ -86,6 +86,10 @@ export type MehrAnzeige = {
   ichTot: boolean
   /** Leuchtende Waende nur fuer den, der waehlen darf */
   wahlSichtbar: boolean
+  /** Schrumpfende Karte: Felder der Zone und der Ring, der gleich dazukommt */
+  zone?: { zellen: P[]; bald: P[] }
+  /** Reaktionen ueber den Koepfen (k = Alter 0 bis 1) */
+  blasen?: { p: P; text: string; k: number }[]
 }
 
 export class Renderer {
@@ -423,6 +427,26 @@ export class Renderer {
         if (!drin(x + 1, y)) ctx.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
       }
 
+    // Schrumpfende Karte: die Zone ist dunkelrot gestreift, der naechste Ring blinkt
+    if (this.mehr?.zone) {
+      const { zellen, bald } = this.mehr.zone
+      ctx.fillStyle = 'rgba(110, 18, 26, 0.62)'
+      for (const c of zellen) if (sicht(c, 1)) ctx.fillRect(c.x * cell, c.y * cell, cell, cell)
+      ctx.strokeStyle = 'rgba(229, 70, 59, 0.35)'
+      ctx.lineWidth = Math.max(1, cell * 0.08)
+      ctx.beginPath()
+      for (const c of zellen) {
+        if (!sicht(c, 1)) continue
+        ctx.moveTo(c.x * cell, (c.y + 1) * cell)
+        ctx.lineTo((c.x + 1) * cell, c.y * cell)
+      }
+      ctx.stroke()
+      if (bald.length && (this.reduce || Math.sin(now / 90) > 0)) {
+        ctx.fillStyle = 'rgba(229, 70, 59, 0.28)'
+        for (const c of bald) if (sicht(c, 1)) ctx.fillRect(c.x * cell, c.y * cell, cell, cell)
+      }
+    }
+
     // Neues Gebiet waehlen: die Waende, an die ein Block passt, gluehen (die letzten 5 s blinken sie)
     const blinkt = g.wahlBis - now < 5000 && !this.reduce && Math.sin(now / 70) < 0
     if (g.wahl > 0 && g.status === 'play' && !blinkt && (this.mehr?.wahlSichtbar ?? true)) {
@@ -600,6 +624,7 @@ export class Renderer {
     // Schlange
     if (n) this.drawSchlange(g, head, a)
     if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
+    if (this.mehr?.blasen) for (const b of this.mehr.blasen) if (sicht(b.p, 2)) this.drawBlase(b)
     this.drawGrabWarnung(g, head, now)
 
     // Giftwolken ueber allem (mit Warnung vor dem Wachsen)
@@ -750,6 +775,26 @@ export class Renderer {
     ctx.strokeText(f.name, x, y)
     ctx.fillStyle = '#F5EFE6'
     ctx.fillText(f.name, x, y)
+    ctx.globalAlpha = 1
+  }
+
+  /** Reaktion als Blase ueber dem Kopf: springt auf, steigt und verblasst */
+  private drawBlase(b: { p: P; text: string; k: number }) {
+    const { ctx, cell } = this
+    const auf = this.reduce ? 1 : backOut(clamp01(b.k * 6))
+    const x = (b.p.x + 0.5) * cell
+    const y = (b.p.y - 0.9) * cell - b.k * cell * 0.6
+    const r = cell * 0.62 * auf
+    ctx.globalAlpha = b.k > 0.75 ? (1 - b.k) / 0.25 : 1
+    ctx.fillStyle = 'rgba(245, 239, 230, 0.95)'
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.font = `${Math.round(cell * 0.7 * auf)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(b.text, x, y + cell * 0.04)
+    ctx.textBaseline = 'alphabetic'
     ctx.globalAlpha = 1
   }
 

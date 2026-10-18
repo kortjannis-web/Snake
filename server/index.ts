@@ -6,14 +6,69 @@
  */
 import { DurableObject } from 'cloudflare:workers'
 import { codeGueltig, PROTOKOLL } from '../src/multi/protokoll'
+import { pushSenden, type PushAbo } from './push'
 import { RaumLogik, type Kanal } from './raum'
 
-type Env = { RAUM: DurableObjectNamespace<Raum> }
+type Env = {
+  RAUM: DurableObjectNamespace<Raum>
+  /** Fuer Push-Einladungen (optional): Supabase-Projekt und VAPID-Schluessel */
+  SUPABASE_URL?: string
+  SUPABASE_ANON_KEY?: string
+  VAPID_PUBLIC_KEY?: string
+  VAPID_PRIVATE_KEY?: string
+  VAPID_KONTAKT?: string
+}
+
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS' }
+const json = (d: object, status = 200) => new Response(JSON.stringify(d), { status, headers: { ...CORS, 'content-type': 'application/json' } })
+const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop', jagd: 'Apfeljagd', royale: 'Schrumpfende Karte' }
+/** Hoechstens eine Einladung je Absender und Empfaenger alle 10 s (je Server-Instanz) */
+const zuletzt = new Map<string, number>()
+
+/**
+ * Push-Einladung an einen Freund, der die App gerade nicht offen hat. Der Absender schickt sein
+ * Supabase-Token mit; Supabase gibt das Push-Abo nur heraus, wenn beide befreundet sind.
+ */
+async function einladen(req: Request, env: Env): Promise<Response> {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
+  if (req.method !== 'POST') return json({ ok: false, grund: 'nur POST' }, 405)
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return json({ ok: false, grund: 'nicht eingerichtet' }, 501)
+  const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
+  let d: { an?: string; code?: string; modus?: string; vonName?: string }
+  try {
+    d = await req.json()
+  } catch {
+    return json({ ok: false, grund: 'kaputt' }, 400)
+  }
+  const an = String(d.an ?? '')
+  const code = String(d.code ?? '').toUpperCase()
+  if (!token || !/^[0-9a-f-]{36}$/i.test(an) || !codeGueltig(code)) return json({ ok: false, grund: 'ungueltig' }, 400)
+  const schluessel = `${token.slice(-24)}:${an}`
+  if (Date.now() - (zuletzt.get(schluessel) ?? 0) < 10_000) return json({ ok: false, grund: 'zu oft' }, 429)
+  zuletzt.set(schluessel, Date.now())
+  if (zuletzt.size > 5000) zuletzt.clear()
+  const r = await fetch(`${env.SUPABASE_URL.replace(/\/$/, '')}/rest/v1/rpc/push_fuer`, {
+    method: 'POST',
+    headers: { apikey: env.SUPABASE_ANON_KEY, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ ziel: an }),
+  })
+  if (!r.ok) return json({ ok: false, grund: 'kein Zugriff' }, 403)
+  const abo = (await r.json()) as PushAbo | null
+  if (!abo?.endpoint || !abo.keys?.p256dh || !abo.keys?.auth) return json({ ok: false, grund: 'kein Abo' }, 404)
+  const name = String(d.vonName ?? 'Jemand').slice(0, 16)
+  const status = await pushSenden(
+    abo,
+    { titel: `${name} lädt dich ein`, text: `${MODUS_NAME[String(d.modus)] ?? 'Mehrspieler'} · Raum ${code}`, code },
+    { oeffentlich: env.VAPID_PUBLIC_KEY, privat: env.VAPID_PRIVATE_KEY, kontakt: env.VAPID_KONTAKT ?? 'https://github.com/kortjannis-web/Snake' },
+  )
+  return json({ ok: status < 300, status, grund: status === 404 || status === 410 ? 'Abo abgelaufen' : undefined }, status < 300 ? 200 : 502)
+}
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
     if (url.pathname === '/') return new Response(`Snake-Server, Protokoll ${PROTOKOLL}`, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
+    if (url.pathname === '/einladen') return einladen(req, env)
     const m = url.pathname.match(/^\/raum\/([A-Za-z0-9]{4,8})$/)
     if (!m || !codeGueltig(m[1].toUpperCase())) return new Response('Nicht gefunden', { status: 404 })
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('Nur WebSocket', { status: 426 })

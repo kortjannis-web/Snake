@@ -20,11 +20,14 @@ import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Sid
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
 import { installPflicht, zeigeInstallation } from './install'
-import { geraetId, mehrspieler } from './multi/ui'
+import { tagBerlin, tagesSeed } from './tages'
+import { MEHR_BILD } from './multi/protokoll'
+import { perPushEinladen, pushAuffrischen, pushEinschalten, pushErlaubt, pushMoeglich } from './push'
+import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, ladeListe, lobby, melde, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type OnlineSpieler } from './online'
+import { abonniere, freundEntfernen, freundHinzufuegen, ladeListe, lobby, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type Freund, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
@@ -58,6 +61,9 @@ const pages: Page[] = []
 const page = () => pages[pages.length - 1] ?? null
 /** Laeuft gerade eine Kreativ-Runde? */
 let istKreativ = false
+/** Laeuft gerade die Tages-Herausforderung (gleiche Welt fuer alle)? */
+let istTages = false
+let tagesTag = ''
 let game: Game | null = null
 let demo: Game | null = null
 let startedAt = 0
@@ -121,6 +127,7 @@ function openPage(p: Page) {
   if (p === 'master') renderMaster()
   if (p === 'shop') renderShop()
   if (p === 'liste') oeffneListe()
+  if (p === 'mehr') void freundeLaden()
   show(p, true)
 }
 function closePage() {
@@ -140,22 +147,28 @@ function closeAllPages() {
 
 /* ================= Spiel ================= */
 
-function newGame(alsKreativ = istKreativ) {
+function newGame(alsKreativ = istKreativ, tages = istTages) {
   clearTimeout(overTimer)
   istKreativ = alsKreativ
+  istTages = !alsKreativ && tages
   app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
   const { start, sandbox, ...k } = kreativ
   const { an, ...sb } = sandbox
-  game = new Game({
-    screenW: sc.w,
-    screenH: sc.h,
-    tempo: settings.tempo,
-    cfg: { ...config },
-    startLevel: istKreativ ? start : startLevel,
-    kreativ: istKreativ ? { ...k } : null,
-    sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
-  })
+  if (istTages) {
+    // Tages-Herausforderung: feste Kartengroesse, Standardregeln, Startwert vom Tag (gleich fuer alle)
+    tagesTag = tagBerlin()
+    game = new Game({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, tempo: 'normal', cfg: { ...DEFAULTS }, seed: tagesSeed(tagesTag), startLevel: 1 })
+  } else
+    game = new Game({
+      screenW: sc.w,
+      screenH: sc.h,
+      tempo: settings.tempo,
+      cfg: { ...config },
+      startLevel: istKreativ ? start : startLevel,
+      kreativ: istKreativ ? { ...k } : null,
+      sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
+    })
   renderer.reset()
   readyText()
   setMode('ready')
@@ -210,7 +223,9 @@ function onDir(d: Dir) {
 
 /** Zaehlt die Runde fuer die Online-Bestenliste? Nur echte Runden mit Standardregeln, ohne Level-Sprung und Autopilot */
 function zaehltOnline() {
-  if (istKreativ || auto || startLevel !== 1) return false
+  if (istKreativ || auto) return false
+  if (istTages) return true
+  if (startLevel !== 1) return false
   return (Object.keys(DEFAULTS) as (keyof typeof DEFAULTS)[]).every((k) => config[k] === DEFAULTS[k])
 }
 
@@ -246,7 +261,18 @@ async function ladeListeAnzeige() {
     if (!zeilen.length) {
       const leer = document.createElement('p')
       leer.className = 'liste__leer'
-      leer.textContent = listeArt === 'heute' ? 'Heute hat noch niemand gespielt. Sei der Erste!' : listeArt === 'alle' ? 'Noch keine Spieler.' : 'Noch keine Ergebnisse.'
+      leer.textContent =
+        listeArt === 'heute'
+          ? 'Heute hat noch niemand gespielt. Sei der Erste!'
+          : listeArt === 'alle'
+            ? 'Noch keine Spieler.'
+            : listeArt === 'siege'
+              ? 'Noch hat niemand eine Trophäe gewonnen.'
+              : listeArt === 'koop'
+                ? 'Noch kein Koop-Team in der Liste.'
+                : listeArt === 'tages'
+                  ? 'Heute hat noch niemand die Tages-Herausforderung gespielt.'
+                  : 'Noch keine Ergebnisse.'
       box.append(leer)
     }
     zeilen.forEach((z, i) => {
@@ -266,20 +292,21 @@ async function ladeListeAnzeige() {
       const level = document.createElement('b')
       level.className = 'liste__level'
       level.textContent = z.level > 0 ? String(z.level) : '–'
-      // Aussehen der Schlange, online und Einladen
+      // Aussehen der Schlange, online und Einladen (nur Freunde)
       const cv = document.createElement('canvas')
       cv.className = 'liste__skin'
       cv.width = 96
       cv.height = 64
-      const da = onlineListe.find((o) => o.uid === z.user_id)
+      const da = freundeUids.has(z.user_id) ? onlineListe.find((o) => o.uid === z.user_id) : undefined
       if (da) {
         const punkt = document.createElement('i')
         punkt.className = 'online-punkt'
         punkt.title = da.imSpiel ? 'spielt gerade' : 'online'
         name.prepend(punkt)
       }
-      el.classList.add('liste__zeile--skin')
-      el.append(platz, cv, name, level)
+      if (listeArt !== 'koop') el.classList.add('liste__zeile--skin')
+      if (listeArt === 'koop') el.append(platz, name, level)
+      else el.append(platz, cv, name, level)
       if (da && z.user_id !== ich && mehr.verfuegbar) {
         const k = document.createElement('button')
         k.className = 'icon-btn liste__einladen'
@@ -294,7 +321,13 @@ async function ladeListeAnzeige() {
     info.textContent =
       listeArt === 'alle'
         ? `${zeilen.length} Spieler insgesamt, sortiert nach bestem Level. „–“ heißt: noch nicht gespielt.`
-        : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
+        : listeArt === 'siege'
+          ? 'Trophäen: Jeder Mehrspieler-Sieg bringt eine je besiegtem Gegner (Gegeneinander, Wettrennen, Apfeljagd, Zone).'
+          : listeArt === 'koop'
+            ? 'Die besten Koop-Teams nach erreichtem Level.'
+            : listeArt === 'tages'
+              ? 'Heute spielen alle dieselbe Welt (Startmenü → Tages-Herausforderung).'
+              : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
   } catch {
     if (nr !== listeNr) return
     box.replaceChildren()
@@ -326,8 +359,8 @@ $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
     knopf.textContent = 'Ändern'
     input.blur()
     void ladeListeAnzeige()
-  } catch {
-    info.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+  } catch (err) {
+    info.textContent = err instanceof NamenFehler ? err.message : 'Der Name braucht 2 bis 16 Zeichen.'
   } finally {
     knopf.disabled = false
   }
@@ -344,17 +377,24 @@ $<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
   const fehler = $('willkommen-fehler')
   const name = $<HTMLInputElement>('willkommen-name').value
   if (!nameGueltig(name)) {
-    fehler.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+    fehler.textContent = name.trim().length >= 2 && name.trim().length <= 16 ? 'Dieser Name ist nicht erlaubt.' : 'Der Name braucht 2 bis 16 Zeichen.'
     fehler.hidden = false
     return
   }
   fehler.hidden = true
-  await setzeName(name)
+  try {
+    await setzeName(name)
+  } catch (err) {
+    fehler.textContent = err instanceof NamenFehler ? err.message : 'Das hat nicht geklappt.'
+    fehler.hidden = false
+    return
+  }
   audio.click()
   $<HTMLInputElement>('willkommen-name').blur()
   show('willkommen', false)
   linkRaum()
   void online?.start()
+  void freundeLaden()
 })
 
 function gameOver() {
@@ -375,7 +415,7 @@ function gameOver() {
     erfolgeMelden()
     saveStats()
     if (zaehltOnline() && g.gegessen > 0 && g.maxLevel >= 2)
-      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: settings.tempo })
+      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istTages ? 'normal' : settings.tempo, tages: istTages })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
@@ -383,6 +423,7 @@ function gameOver() {
     $('over-level').textContent = String(g.level)
     $('over-record').hidden = !neu
     $('over-heute').hidden = !neuHeute
+    $('over-tages').hidden = !istTages
     $('over-apples').textContent = String(g.gegessen)
     $('over-max').hidden = g.maxLevel <= g.level
     $('over-max').textContent = `Höchster Level: ${g.maxLevel}`
@@ -663,6 +704,7 @@ function updateGeld(pop = false) {
     el.classList.add('pop')
   }
   $('home-geld').textContent = String(wallet.aepfel)
+  $('home-trophaeen').textContent = String(wallet.trophaeen ?? 0)
   $('shop-geld').textContent = String(wallet.aepfel)
 }
 
@@ -1207,7 +1249,13 @@ $('btn-master-reset').addEventListener('click', () => {
 $('btn-play').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false)
+  newGame(false, false)
+})
+$('btn-tages').addEventListener('click', () => {
+  audio.unlock()
+  audio.click()
+  newGame(false, true)
+  toast('gebiet', 'Tages-Herausforderung', 'Heute spielen alle dieselbe Welt.')
 })
 $('btn-pause').addEventListener('click', () => {
   audio.click()
@@ -1372,6 +1420,7 @@ function frame(now: number) {
     }
     d.update(dt)
     d.drain()
+    renderer.mehr = null
     renderer.draw(d)
   } else if (mode === 'mehr') {
     mehr.frame(dt)
@@ -1384,6 +1433,7 @@ function frame(now: number) {
       game.update(dt)
       for (const e of game.drain()) handle(e)
     }
+    renderer.mehr = null
     renderer.draw(game)
   }
   updateEffekte()
@@ -1411,6 +1461,7 @@ const mehr = mehrspieler({
   seiteOeffnen: (p) => openPage(p),
   seitenZu: () => closeAllPages(),
   toast: (titel, text) => toast('gebiet', titel, text),
+  geldGeaendert: () => updateGeld(),
   raumGeaendert: () => onlineZeichnen(),
   ichInfo: () => ({ id: geraetId(), name: profil.name || 'Spieler', skin: wallet.skin }),
 })
@@ -1419,16 +1470,21 @@ $('btn-mehr').hidden = !(mehr.verfuegbar && onlineAktiv)
 
 /* ================= Wer ist online, Einladungen ================= */
 
-const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop' }
+const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop', jagd: 'Apfeljagd', royale: 'Schrumpfende Karte' }
 let onlineListe: OnlineSpieler[] = []
+let freunde: Freund[] = []
+let freundeUids = new Set<string>()
 let offeneEinladung: Einladung | null = null
 const lobbyRueckruf: Parameters<typeof lobby>[1] = {
       liste: (o) => {
         onlineListe = o
         onlineZeichnen()
+        freundeZeichnen()
         if (page() === 'liste' && listeArt === 'alle') void ladeListeAnzeige()
       },
       einladung: (e) => {
+        // Nur Freunde duerfen einladen
+        if (!e.vonUid || !freundeUids.has(e.vonUid)) return
         // Waehrend eines Mehrspieler-Spiels nicht stoeren
         if (mode === 'mehr') return online?.antworten(e.von, false)
         offeneEinladung = e
@@ -1446,7 +1502,10 @@ const online = onlineAktiv ? lobby(() => ({ geraet: geraetId(), name: profil.nam
 
 if (online) onlineMelden = () => void online.melden()
 // Zum Testen: ?debug gibt Mehrspieler, Zeichner und die Online-Rueckrufe in der Konsole frei
-if (params.has('debug')) Object.assign(window, { __mehr: mehr, __renderer: renderer, __lobby: lobbyRueckruf, __geraet: geraetId() })
+if (params.has('debug')) {
+  Object.assign(window, { __mehr: mehr, __renderer: renderer, __lobby: lobbyRueckruf, __geraet: geraetId() })
+  Object.defineProperty(window, '__spiel', { get: () => game })
+}
 
 /** Jemanden einladen: Raum (falls noch keiner) und Einladung schicken */
 async function einladen(o: OnlineSpieler) {
@@ -1458,16 +1517,16 @@ async function einladen(o: OnlineSpieler) {
   if (page() !== 'mehr') openPage('mehr')
 }
 
-/** Online-Liste in der Lobby: wer noch nicht im Raum ist, kann eingeladen werden */
+/** Online-Liste in der Lobby: Freunde, die noch nicht im Raum sind, kann man einladen */
 function onlineZeichnen() {
   const box = $('mehr-online')
   const imRaum = new Set((mehr.raum?.spieler ?? []).map((s) => s.id))
-  const frei = onlineListe.filter((o) => !imRaum.has(o.geraet))
+  const frei = onlineListe.filter((o) => !imRaum.has(o.geraet) && !!o.uid && freundeUids.has(o.uid))
   box.replaceChildren()
   if (!frei.length) {
     const p = document.createElement('p')
     p.className = 'liste__leer'
-    p.textContent = 'Gerade ist niemand sonst online.'
+    p.textContent = freunde.length ? 'Gerade ist kein Freund online.' : 'Noch keine Freunde. Tauscht unter „Mehrspieler“ eure Freundes-Codes.'
     box.append(p)
     return
   }
@@ -1492,6 +1551,130 @@ function onlineZeichnen() {
     drawSkinVorschau(cv, skinVon(o.skin), 0)
   }
 }
+
+/** Freund einladen, der die App gerade nicht offen hat: Nachricht aufs Handy */
+async function einladenPerPush(f: Freund) {
+  audio.click()
+  const code = await mehr.raumFuerEinladung()
+  if (!code) return toast('gebiet', 'Mehrspieler', 'Keine Verbindung zum Server.')
+  const r = await perPushEinladen(SERVER, f.user_id, code, mehr.raum?.modus ?? 'vs', profil.name)
+  toast('gebiet', r.ok ? `Einladung an ${f.name}` : `${f.name} einladen`, r.text)
+  if (page() !== 'mehr') openPage('mehr')
+}
+
+/** Schalter "Einladungen aufs Handy" */
+function pushZeichnen() {
+  const zeile = $('push-zeile')
+  zeile.hidden = !pushMoeglich() || !mehr.verfuegbar
+  if (zeile.hidden) return
+  const an = pushErlaubt()
+  $('push-knopf').hidden = an
+  $('push-info').textContent = an ? 'Ist an: Freunde können dich einladen, auch wenn Snake gerade zu ist.' : Notification.permission === 'denied' ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Freunde können dich einladen, auch wenn Snake gerade zu ist.'
+}
+$('push-knopf').addEventListener('click', async () => {
+  audio.click()
+  const r = await pushEinschalten()
+  toast('gebiet', 'Einladungen aufs Handy', r === 'an' ? 'Eingeschaltet.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es später in den Einstellungen ändern.' : 'Das hat nicht geklappt.')
+  pushZeichnen()
+})
+// Tipp auf eine Push-Einladung, waehrend die App offen ist: dem Raum beitreten
+if ('serviceWorker' in navigator)
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    const d = e.data as { typ?: string; code?: string } | null
+    if (d?.typ === 'einladung' && d.code && mode !== 'mehr') mehr.beitreten(d.code)
+  })
+
+/** Freunde neu laden (nach dem Start, beim Oeffnen der Mehrspieler-Seite, nach Aenderungen) */
+async function freundeLaden() {
+  pushZeichnen()
+  freunde = await meineFreunde()
+  freundeUids = new Set(freunde.map((f) => f.user_id))
+  freundeZeichnen()
+  onlineZeichnen()
+  const code = await meinCode()
+  if (code) $('freund-code').textContent = code
+}
+
+/** Freundesliste auf der Mehrspieler-Seite */
+function freundeZeichnen() {
+  const box = $('freunde-liste')
+  box.replaceChildren()
+  if (!freunde.length) {
+    const p = document.createElement('p')
+    p.className = 'liste__leer'
+    p.textContent = 'Noch keine Freunde. Schick deinen Code oder tipp den Code eines Freundes ein.'
+    box.append(p)
+    return
+  }
+  for (const f of freunde) {
+    const da = onlineListe.find((o) => o.uid === f.user_id)
+    const el = document.createElement('div')
+    el.className = 'mehr-zeile mehr-zeile--freund'
+    const cv = document.createElement('canvas')
+    cv.width = 112
+    cv.height = 80
+    const name = document.createElement('span')
+    name.className = 'mehr-zeile__name'
+    if (da) {
+      const punkt = document.createElement('i')
+      punkt.className = 'online-punkt'
+      name.append(punkt)
+    }
+    name.append(f.name)
+    const klein = document.createElement('small')
+    klein.textContent = `${da ? (da.imSpiel ? 'spielt gerade · ' : 'online · ') : ''}Rekord ${f.level || '–'}`
+    name.append(klein)
+    const einladenK = document.createElement('button')
+    einladenK.className = 'btn btn--ghost btn--klein'
+    einladenK.textContent = 'Einladen'
+    // Online: Einladung in der App. Sonst als Nachricht aufs Handy (Push)
+    einladenK.hidden = !mehr.verfuegbar
+    einladenK.addEventListener('click', () => void (da ? einladen(da) : einladenPerPush(f)))
+    const weg = document.createElement('button')
+    weg.className = 'icon-btn freund-weg'
+    weg.setAttribute('aria-label', `${f.name} entfernen`)
+    setIcon(weg, 'X')
+    weg.addEventListener('click', async () => {
+      if (!confirm(`${f.name} aus deinen Freunden entfernen?`)) return
+      await freundEntfernen(f.user_id)
+      void freundeLaden()
+    })
+    el.append(cv, name, einladenK, weg)
+    box.append(el)
+    drawSkinVorschau(cv, skinVon(f.skin), 0)
+  }
+}
+
+$<HTMLFormElement>('freund-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const input = $<HTMLInputElement>('freund-eingabe')
+  const code = input.value.trim().toUpperCase()
+  if (code.length !== 6) return toast('gebiet', 'Code prüfen', 'Ein Freundes-Code hat 6 Zeichen.')
+  try {
+    const name = await freundHinzufuegen(code)
+    input.value = ''
+    input.blur()
+    audio.click()
+    toast('gebiet', `${name} ist jetzt dein Freund`, 'Ihr seht euch online und könnt euch einladen.')
+    void freundeLaden()
+  } catch (err) {
+    toast('gebiet', 'Freund hinzufügen', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+  }
+})
+$('freund-teilen').addEventListener('click', async () => {
+  const code = $('freund-code').textContent?.trim()
+  if (!code || code.includes('-')) return
+  const text = `Füg mich in Snake als Freund hinzu: ${code}`
+  try {
+    if (navigator.share) await navigator.share({ title: 'Snake', text })
+    else {
+      await navigator.clipboard.writeText(text)
+      toast('gebiet', 'Kopiert', 'Dein Freundes-Code ist in der Zwischenablage.')
+    }
+  } catch {
+    /* abgebrochen */
+  }
+})
 
 $('einladung-ja').addEventListener('click', () => {
   const e = offeneEinladung
@@ -1539,7 +1722,11 @@ setMode('home')
 if (!gesperrt) {
   zeigeWillkommen()
   linkRaum()
-  if (profil.name) void online?.start()
+  if (profil.name) {
+    void online?.start()
+    void freundeLaden()
+    void pushAuffrischen()
+  }
   setzeSkin(wallet.skin)
   requestAnimationFrame(frame)
 }

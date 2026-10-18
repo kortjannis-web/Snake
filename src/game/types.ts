@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone'
 
 export type Status = 'play' | 'over'
 
@@ -180,5 +180,9 @@ export type GameEvent =
   | { type: 'zurueck'; wer: number }
   | { type: 'raus'; wer: number; grund: 'leben' | 'abstand' }
   | { type: 'ende' }
+  /** Schrumpfende Karte: die Zone ist einen Ring weiter */
+  | { type: 'zone'; stufe: number }
+  /** Duell-Power-up: von trifft an */
+  | { type: 'duell'; art: 'schere' | 'zeitlupe'; von: number; an: number; weg: number }
 
 export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lila' | 'ameise' | 'lava' | 'eis' | 'maulwurf'

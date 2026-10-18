@@ -1307,12 +1307,45 @@ svg {
   height: 19px;
 }
 
+.home__pillen {
+  display: flex;
+  gap: 8px;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.home__pillen .geld-pille {
+  margin-right: 0;
+}
+
+.geld-pille--trophaee {
+  padding: 0 14px 0 12px;
+  color: #f2c14c;
+}
+
+.geld-pille--trophaee b {
+  color: var(--creme);
+}
+
+.geld-pille--trophaee [data-icon] svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* Ist ein Feld ausgeblendet (z. B. Online ohne Server), teilen sich die uebrigen die Breite */
+.home__row--4.home__row--flex {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
 .geld-pille--still {
   margin: 0 0 0 auto;
 }
 
 .home__top {
   align-items: center;
+  gap: 6px;
 }
 
 .home__row--4 {
@@ -2024,6 +2057,11 @@ html[data-install] #app {
   text-transform: uppercase;
 }
 
+.mehr-tag--bereit {
+  background: rgba(143, 214, 189, 0.18);
+  color: var(--mint);
+}
+
 .mehr-tag--aus {
   background: rgba(245, 239, 230, 0.08);
   color: var(--creme-leise);
@@ -2289,4 +2327,101 @@ html[data-install] #app {
   height: 40px;
   background: rgba(143, 214, 189, 0.16);
   color: var(--mint);
+}
+
+/* Modus-Wahl mit 5 Modi: zwei Reihen */
+#mehr-modus {
+  border-radius: 22px;
+}
+
+.mehr-uhr {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.mehr-uhr--knapp {
+  color: #ff8a73 !important;
+}
+
+/* Reaktionen im Spiel */
+.mehr-reaktion {
+  position: absolute;
+  right: calc(var(--safe-r) + 12px);
+  bottom: calc(var(--safe-b) + 16px);
+  z-index: 4;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.mehr-reaktion[hidden] {
+  display: none;
+}
+
+.mehr-reaktion__knopf {
+  width: 48px;
+  height: 48px;
+  background: rgba(23, 21, 19, 0.7);
+  font-size: 1.5rem;
+}
+
+.mehr-emojis {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(23, 21, 19, 0.85);
+}
+
+.mehr-emojis[hidden] {
+  display: none;
+}
+
+.mehr-emojis button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(245, 239, 230, 0.08);
+  font-size: 1.4rem;
+}
+
+.mehr-code--klein b {
+  font-size: 1.8rem;
+}
+
+#liste-tabs {
+  border-radius: 22px;
+}
+
+.freund-weg {
+  width: 36px;
+  height: 36px;
+  background: rgba(245, 239, 230, 0.06);
+  color: var(--creme-leise);
+}
+
+.mehr-zeile--freund {
+  grid-template-columns: 56px 1fr auto auto;
+}
+
+/* Schmale Handys: Startleiste oben kompakter, damit Stift, Anleitung und Ton daneben passen */
+@media (max-width: 370px) {
+  .home__top {
+    gap: 4px;
+  }
+  .home__pillen {
+    gap: 4px;
+  }
+  .home__top .geld-pille {
+    gap: 5px;
+    height: 40px;
+    padding: 0 10px 0 9px;
+    font-size: 0.95rem;
+  }
+  .home__top .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
 }

@@ -52,6 +52,10 @@
             <div class="mehr-leiste" id="mehr-leiste"></div>
           </div>
         </div>
+        <div class="mehr-reaktion no-swipe" id="mehr-reaktion" hidden>
+          <div class="mehr-emojis" id="mehr-emojis" hidden></div>
+          <button class="icon-btn mehr-reaktion__knopf" id="mehr-reaktion-knopf" aria-label="Reaktion schicken">😀</button>
+        </div>
         <div class="mehr-countdown" id="mehr-countdown" hidden></div>
         <div class="mehr-meldung" id="mehr-meldung" hidden></div>
         <div class="effekte" id="effekte" aria-live="polite"></div>
@@ -74,7 +78,12 @@
       <section class="screen screen--home" id="home" data-open>
         <div class="home">
           <div class="home__top">
-            <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
+            <div class="home__pillen">
+              <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
+              <span class="geld-pille geld-pille--trophaee" aria-label="Trophäen aus Mehrspieler-Siegen" title="Trophäen aus Mehrspieler-Siegen"><span data-icon="Trophy"></span><b id="home-trophaeen">0</b></span>
+            </div>
+            <button class="icon-btn" data-go="kreativ" aria-label="Kreativ-Modus" title="Kreativ-Modus" data-icon="Pencil"></button>
+            <button class="icon-btn" data-go="help" aria-label="Anleitung" title="Anleitung" data-icon="CircleHelp"></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
           <div class="home__brand">
@@ -84,14 +93,13 @@
           </div>
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
-            <button class="btn btn--ghost" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
-            <button class="btn btn--ghost" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Mehrspieler</button>
+            <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Tages-Herausforderung</button>
             <button class="btn btn--ghost" id="btn-liste" data-go="liste" hidden><span data-icon="Trophy"></span>Bestenliste</button>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
-            <div class="home__row home__row--4">
+            <div class="home__row home__row--4 home__row--flex">
               <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Skins</button>
-              <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
+              <button class="tile-btn" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online</button>
               <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
               <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
             </div>
@@ -125,6 +133,7 @@
           <span class="card__max" id="over-max" hidden></span>
           <span class="badge" id="over-record" hidden><span data-icon="Trophy"></span>Neuer Rekord</span>
           <span class="badge badge--heute" id="over-heute" hidden><span data-icon="Sun"></span>Neuer Tagesrekord</span>
+          <span class="badge badge--heute" id="over-tages" hidden><span data-icon="Sun"></span>Tages-Herausforderung</span>
           <div class="facts">
             <div><b id="over-apples">0</b><small>Äpfel</small></div>
             <div><b id="over-len">3</b><small>Länge</small></div>
@@ -161,6 +170,9 @@
               <button data-v="heute" role="radio">Heute</button>
               <button data-v="immer" role="radio">Für immer</button>
               <button data-v="alle" role="radio">Alle Spieler</button>
+              <button data-v="siege" role="radio">Trophäen</button>
+              <button data-v="koop" role="radio">Koop</button>
+              <button data-v="tages" role="radio">Täglich</button>
             </div>
             <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
               <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
@@ -205,10 +217,32 @@
                   <button class="btn btn--ghost btn--klein" type="submit">Beitreten</button>
                 </div>
               </form>
+              <h3 class="erfolge-titel">Freunde</h3>
+              <div class="mehr-code mehr-code--klein">
+                <small>Dein Freundes-Code</small>
+                <b id="freund-code">------</b>
+                <button class="btn btn--ghost btn--klein" id="freund-teilen"><span data-icon="Share2"></span>Code teilen</button>
+              </div>
+              <form class="opt opt--col liste-name" id="freund-form" autocomplete="off">
+                <label class="opt__t" for="freund-eingabe">Freund hinzufügen<small>Code von deinem Freund eintippen. Nur Freunde siehst du online und kannst sie einladen.</small></label>
+                <div class="liste-name__row">
+                  <input type="text" id="freund-eingabe" maxlength="6" placeholder="z. B. 3FA9C1" autocapitalize="characters" spellcheck="false" />
+                  <button class="btn btn--ghost btn--klein" type="submit">Hinzufügen</button>
+                </div>
+              </form>
+              <div class="opt" id="push-zeile" hidden>
+                <span data-icon="Heart"></span>
+                <span class="opt__t">Einladungen aufs Handy<small id="push-info">Freunde können dich einladen, auch wenn Snake gerade zu ist.</small></span>
+                <button class="btn btn--ghost btn--klein" id="push-knopf">Einschalten</button>
+              </div>
+              <div class="mehr-online" id="freunde-liste"></div>
+              <p class="fine">Jeder hat gleich viel Platz: Die Karte startet mit einem Block pro Spieler, alle 10 Äpfel (und wenn es eng wird) baut abwechselnd einer einen Block an.</p>
               <div class="mehr-modi">
-                <div class="opt opt--col"><div class="opt__row"><span data-icon="Swords"></span><span class="opt__t">Gegeneinander<small>Alle auf einem Feld. Wer in eine andere Schlange fährt, verliert ein Leben (jeder hat 3). Wer 5 Äpfel hinter dem Führenden liegt, ist raus. Der Letzte gewinnt.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Swords"></span><span class="opt__t">Gegeneinander<small>Alle auf einem Feld. Wer in eine andere Schlange fährt, verliert ein Leben (jeder hat 3). Wer zu weit hinter dem Führenden liegt (5 Äpfel, zu dritt 6, zu viert 7), ist raus. Der Letzte gewinnt.</small></span></div></div>
                 <div class="opt opt--col"><div class="opt__row"><span data-icon="Ghost"></span><span class="opt__t">Wettrennen<small>Jeder in seiner eigenen Welt, die anderen siehst du als Geist. Gleiche Regeln mit Leben und Abstand. Das nächste Gebiet bestimmt abwechselnd einer.</small></span></div></div>
-                <div class="opt opt--col"><div class="opt__row"><span data-icon="Handshake"></span><span class="opt__t">Koop<small>Zusammen auf einem Feld, ihr fahrt durcheinander hindurch. Äpfel zählen gemeinsam, ihr habt 3 Leben zusammen. Alle 15 Level erweitert abwechselnd einer.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Timer"></span><span class="opt__t">Apfeljagd<small>3 Minuten, die meisten Äpfel gewinnen. Unendlich Leben, aber jeder Tod kostet 3 Äpfel.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Schrumpfende Karte (Zone)<small>Größere Karte, 3 Leben. Nach 20 Sekunden rückt alle 12 Sekunden die Zone vom Rand zu. Der Letzte gewinnt.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Handshake"></span><span class="opt__t">Koop<small>Zusammen auf einem Feld, ihr fahrt durcheinander hindurch. Äpfel zählen gemeinsam, ihr habt 3 Leben zusammen.</small></span></div></div>
               </div>
             </div>
             <div class="mehr-raum" id="mehr-raum" hidden>
@@ -222,12 +256,24 @@
                 <button data-v="vs" role="radio">Gegeneinander</button>
                 <button data-v="rennen" role="radio">Wettrennen</button>
                 <button data-v="koop" role="radio">Koop</button>
+                <button data-v="jagd" role="radio">Apfeljagd</button>
+                <button data-v="royale" role="radio">Zone</button>
               </div>
               <p class="fine mehr-modus-text" id="mehr-modus-text"></p>
+              <div class="opt opt--col">
+                <div class="opt__row"><span data-icon="Gauge"></span><span class="opt__t">Tempo</span></div>
+                <div class="seg" id="mehr-tempo" role="radiogroup">
+                  <button data-v="langsam" role="radio">Langsam</button>
+                  <button data-v="normal" role="radio">Normal</button>
+                  <button data-v="schnell" role="radio">Schnell</button>
+                </div>
+              </div>
+              <label class="opt"><span data-icon="Flag"></span><span class="opt__t">Klassisch<small>Nur Wände und Äpfel: keine Mauern, Tiere, Gegner oder Power-ups</small></span><input type="checkbox" id="mehr-klassisch" class="switch" /></label>
               <button class="btn btn--play" id="mehr-los"><span data-icon="Play"></span>Starten</button>
+              <button class="btn btn--play" id="mehr-bereit" hidden><span data-icon="Check"></span>Bereit</button>
               <p class="fine" id="mehr-hinweis"></p>
               <h3 class="erfolge-titel">Freunde einladen</h3>
-              <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist niemand sonst online.</p></div>
+              <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist kein Freund online.</p></div>
               <button class="btn btn--ghost" id="mehr-verlassen"><span data-icon="LogOut"></span>Raum verlassen</button>
             </div>
           </div>

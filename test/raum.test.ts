@@ -24,9 +24,11 @@ function raum() {
   let jetzt = 1000
   const r = new RaumLogik('ABCDE', () => jetzt, () => 0.5)
   const uhr = (ms: number) => (jetzt += ms)
-  const rein = (id: string, v = PROTOKOLL) => {
+  /** Beitreten; wer nicht Gastgeber ist, tippt gleich "Bereit" (ausser bereit = false) */
+  const rein = (id: string, v = PROTOKOLL, bereit = true) => {
     const k = new Fake()
     const ok = r.beitreten(k, { id, name: `Name ${id}`, skin: 'klassik', v })
+    if (ok && bereit && r.gastgeber !== id) r.nachricht(k, JSON.stringify({ t: 'bereit', bereit: true }))
     return { k, ok }
   }
   return { r, uhr, rein }
@@ -76,6 +78,31 @@ describe('Raum: Beitreten', () => {
   })
 })
 
+describe('Raum: Lobby', () => {
+  it('Start erst, wenn alle bereit sind; Modus- oder Einstellungswechsel setzt Bereit zurueck', () => {
+    const { r, rein } = raum()
+    const a = rein('a')
+    const b = rein('b', PROTOKOLL, false)
+    sag(r, a.k, { t: 'start' })
+    expect(r.phase).toBe('lobby')
+    expect(a.k.letzte('fehler')?.text).toMatch(/Noch nicht bereit/)
+    expect(b.k.letzte('raum')?.spieler.map((s) => s.bereit)).toEqual([true, false])
+    sag(r, b.k, { t: 'bereit', bereit: true })
+    expect(a.k.letzte('raum')?.spieler[1].bereit).toBe(true)
+    sag(r, a.k, { t: 'einstellung', tempo: 'schnell', klassisch: true })
+    expect(b.k.letzte('raum')?.spieler[1].bereit).toBe(false)
+    expect(b.k.letzte('raum')?.tempo).toBe('schnell')
+    expect(b.k.letzte('raum')?.klassisch).toBe(true)
+    // Nur der Gastgeber stellt ein
+    sag(r, b.k, { t: 'einstellung', tempo: 'langsam' })
+    expect(r.tempo).toBe('schnell')
+    sag(r, b.k, { t: 'bereit', bereit: true })
+    sag(r, a.k, { t: 'start' })
+    expect(r.phase).toBe('spiel')
+    expect(b.k.letzte('start')?.info).toMatchObject({ tempo: 'schnell', klassisch: true })
+  })
+})
+
 describe('Raum: Spiel auf einem Feld', () => {
   it('nur der Gastgeber startet, mit mindestens 2 Spielern; er rechnet', () => {
     const { r, rein } = raum()
@@ -87,6 +114,8 @@ describe('Raum: Spiel auf einem Feld', () => {
     sag(r, b.k, { t: 'start' })
     expect(r.phase).toBe('lobby')
     sag(r, a.k, { t: 'modus', modus: 'koop' })
+    // Neuer Modus: Bob muss neu zusagen
+    sag(r, b.k, { t: 'bereit', bereit: true })
     sag(r, a.k, { t: 'start' })
     const s = b.k.letzte('start')!
     expect(s.info.modus).toBe('koop')
@@ -164,6 +193,7 @@ describe('Raum: Wettrennen', () => {
     const b = x.rein('b')
     const c = x.rein('c')
     sag(x.r, a.k, { t: 'modus', modus: 'rennen' })
+    for (const p of [b, c]) sag(x.r, p.k, { t: 'bereit', bereit: true })
     sag(x.r, a.k, { t: 'start' })
     return { ...x, a, b, c }
   }
@@ -177,9 +207,11 @@ describe('Raum: Wettrennen', () => {
     expect(a.k.letzte('geist')).toBeUndefined()
   })
 
-  it('wer 5 Aepfel zurueckliegt, ist raus; der Letzte gewinnt', () => {
+  it('wer zu weit zurueckliegt, ist raus (bei 3 Spielern 6 Aepfel); der Letzte gewinnt', () => {
     const { r, a, b, c } = rennen()
     sag(r, a.k, pos(5))
+    expect(a.k.alle('raus')).toEqual([])
+    sag(r, a.k, pos(6))
     expect(a.k.alle('raus').map((m) => m.wer).sort()).toEqual([1, 2])
     expect(a.k.letzte('raus')?.grund).toBe('abstand')
     expect(c.k.letzte('ende')?.ergebnis.sieger).toBe(0)

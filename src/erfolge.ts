@@ -41,6 +41,13 @@ export const ERFOLGE: Erfolg[] = [
   { id: 'freigelegt_100', titel: 'Tunnelbauer', text: 'Lege mit dem Maulwurf 100 Felder frei.', zaehler: 'freigelegt', ziel: 100 },
   { id: 'power_50', titel: 'Sammler', text: 'Sammle 50 Power-ups.', zaehler: 'powerups', ziel: 50 },
   { id: 'skins_10', titel: 'Modebewusst', text: 'Besitze 10 Skins.', zaehler: 'skins', ziel: 10 },
+  { id: 'mehr_1', titel: 'Mitspieler', text: 'Spiele ein Mehrspieler-Spiel.', zaehler: 'mehrspiele', ziel: 1 },
+  { id: 'sieg_1', titel: 'Erster Sieg', text: 'Gewinne ein Mehrspieler-Spiel.', zaehler: 'siege', ziel: 1 },
+  { id: 'sieg_10', titel: 'Champion', text: 'Gewinne 10 Mehrspieler-Spiele.', zaehler: 'siege', ziel: 10 },
+  { id: 'sieg_50', titel: 'Unschlagbar', text: 'Gewinne 50 Mehrspieler-Spiele.', zaehler: 'siege', ziel: 50 },
+  { id: 'jagd_1', titel: 'Apfeljäger', text: 'Gewinne eine Apfeljagd.', zaehler: 'jagdSiege', ziel: 1 },
+  { id: 'zone_1', titel: 'Letzter in der Zone', text: 'Gewinne die schrumpfende Karte.', zaehler: 'zoneSiege', ziel: 1 },
+  { id: 'koop_50', titel: 'Dream-Team', text: 'Erreicht im Koop zusammen Level 50.', zaehler: 'koopLevel', ziel: 50 },
 ]
 
 /** Aktueller Stand eines Zaehlers */

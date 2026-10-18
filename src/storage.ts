@@ -121,8 +121,9 @@ export const saveKreativ = () => write(KKEY, kreativ)
 
 /* ---------------- Aepfel (Waehrung) und Skins ---------------- */
 const WKEY = 'snake.wallet.v1'
-export type Wallet = { aepfel: number; skins: string[]; skin: string }
-export const wallet: Wallet = read(WKEY, { aepfel: 0, skins: ['klassik'], skin: 'klassik' } as Wallet)
+/** Aepfel (Waehrung), Skins und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg, werden nur gesammelt) */
+export type Wallet = { aepfel: number; skins: string[]; skin: string; trophaeen: number }
+export const wallet: Wallet = read(WKEY, { aepfel: 0, skins: ['klassik'], skin: 'klassik', trophaeen: 0 } as Wallet)
 export const saveWallet = () => write(WKEY, wallet)
 // Muenzen aus aelteren Fassungen werden zu Aepfeln
 {
