@@ -255,4 +255,5 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   gegner: 'gegner',
   lava: 'lava',
   erde: 'erde',
+  spieler: 'schlange',
 }

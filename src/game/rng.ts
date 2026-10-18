@@ -10,6 +10,11 @@ export function rng(seed = (Math.random() * 2 ** 32) >>> 0) {
   }
   return {
     next,
+    /** Interner Zustand (zum Speichern und Fortsetzen, z. B. wenn im Mehrspieler ein anderes Gerät weiterrechnet) */
+    stand: () => a,
+    setzen: (v: number) => {
+      a = v >>> 0
+    },
     /** Ganze Zahl von a bis b (einschliesslich) */
     int: (lo: number, hi: number) => lo + Math.floor(next() * (hi - lo + 1)),
     pick: <T>(arr: readonly T[]): T => arr[Math.floor(next() * arr.length)],

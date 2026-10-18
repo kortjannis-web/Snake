@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler'
 
 export type Status = 'play' | 'over'
 
@@ -138,12 +138,12 @@ export type Ameise = {
 
 /** Ereignisse fuer Toene, Vibration und Anzeige */
 export type GameEvent =
-  | { type: 'eat'; level: number; p: P; stufe: number }
+  | { type: 'eat'; level: number; p: P; stufe: number; wer?: number }
   | { type: 'milestone'; level: number }
-  | { type: 'expand'; side: Side; add: number; dx: number; dy: number }
+  | { type: 'expand'; side: Side; add: number; dx: number; dy: number; block?: P; d?: Dir }
   | { type: 'unlock'; what: Unlock; level: number }
   | { type: 'halt' }
-  | { type: 'die'; cause: Cause }
+  | { type: 'die'; cause: Cause; wer?: number }
   | { type: 'trap' }
   | { type: 'cloud' }
   | { type: 'cloudGrow' }
@@ -152,7 +152,7 @@ export type GameEvent =
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }
-  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' }
+  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise'; wer?: number }
   | { type: 'tree'; p: P }
   | { type: 'house' }
   | { type: 'light' }
@@ -162,7 +162,7 @@ export type GameEvent =
   | { type: 'erzGesetzt'; art: 'gold' | 'dia' | 'rubin' | 'opal'; p: P }
   | { type: 'wahlVorbei' }
   | { type: 'gefressen'; was: 'frosch' | 'ameise' | 'gegner'; p: P; wert: number; art?: 'rot' | 'lila' }
-  | { type: 'wahl'; offen: number }
+  | { type: 'wahl'; offen: number; wer?: number }
   | { type: 'freigelegt'; dx: number; dy: number; anzahl: number }
   | { type: 'eis' }
   | { type: 'gegner'; p: P; art: 'rot' | 'lila' }
@@ -176,5 +176,9 @@ export type GameEvent =
   | { type: 'powerEnde'; art: PowerArt }
   | { type: 'schild' }
   | { type: 'faktor'; faktor: number }
+  /* Mehrspieler (wer = Index des Spielers) */
+  | { type: 'zurueck'; wer: number }
+  | { type: 'raus'; wer: number; grund: 'leben' | 'abstand' }
+  | { type: 'ende' }
 
 export type Unlock = 'mauer' | 'teich' | 'gebiet' | 'gift' | 'falle' | 'wolke' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lila' | 'ameise' | 'lava' | 'eis' | 'maulwurf'
