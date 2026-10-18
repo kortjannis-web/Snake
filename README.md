@@ -29,7 +29,9 @@ fügt man per Code hinzu; nur Freunde sehen sich online und können sich einlade
 Ein Handy rechnet, ein kleiner Cloudflare-Server (`server/`) verteilt und übernimmt, wenn es ausfällt. Einrichtung:
 [`docs/MEHRSPIELER-EINRICHTEN.md`](docs/MEHRSPIELER-EINRICHTEN.md). Hintergrund: [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
 
-Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dieselbe Welt, eigene Bestenliste).
+Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dieselbe Welt, eigene Bestenliste) und die
+**Hall of Snakes** (alle Spieler mit Schlange, Trophäen und Rekord) mit Freundschaftsanfragen und einem **Chat unter
+Freunden** (Nachrichten 30 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md) 16c.
 
 ## Spielregeln
 

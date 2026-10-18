@@ -294,6 +294,15 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Neue Gruppen: Gegner-Schlangen (mit lila), Ameisen, Lava, Eis, Erze unter der Erde, Häuser mit „Große Häuser ab Level“; bei den Power-ups Dauer von Füttern, Magnet (und Reichweite), Maulwurf, Schere und goldene Schere (wie viele Level Schwanz), Warndreieck beim Graben, Bäume (wie lange sie stehen) und Zeitlupe (und um wie viel %); Reaktionszeit vor dem Aufprall (Schlange) und Reaktionsweite der Gegner.
 - Gilt ab dem nächsten Spiel, auch im Kreativ-Modus. „Alles auf Standard“ setzt zurück. Gespeichert wird nur, was vom Standard abweicht: neue Standardwerte gelten so für alle. Die Anleitung rechnet mit den eingestellten Werten.
 
+## 16c. Hall of Snakes, Freundschaftsanfragen, Chat (seit 1.20.0)
+
+- **Hall of Snakes** (Startmenü, neben Bestenliste): alle Spieler mit Schlange, Name, Trophäen und Rekord, sortiert nach Rekord, dann Trophäen. Suche nach Namen, 100 Zeilen auf einmal („Mehr zeigen“).
+- **Freundschaftsanfrage:** In der Hall of Snakes beim Spieler auf das Personen-Plus tippen. Uhr = Anfrage gesendet (Tipp zieht sie zurück), Haken = er hat dich gefragt (Tipp nimmt an). Fragen sich beide, seid ihr sofort Freunde. Höchstens 30 Anfragen am Tag. Der Freundes-Code funktioniert weiter.
+- **Online-Seite:** eingehende Anfragen mit Annehmen, Ablehnen (X) und Sperren, eigene mit Zurückziehen. Unten aufklappbar „Gesperrte Spieler“ mit Entsperren. Der Knopf „Online“ im Startmenü zeigt offene Anfragen und ungelesene Nachrichten als Zahl.
+- **Chat nur unter Freunden:** Sprechblase bei einem Freund (Online-Seite oder Hall of Snakes). Nachrichten bis 500 Zeichen, live, mit Datum und Uhrzeit. Höchstens 30 Nachrichten pro Minute. **Nachrichten werden nach 30 Tagen gelöscht.** Neue Nachrichten erscheinen als Hinweis (nicht während einer Runde) und als Zahl am Freund.
+- **Sperren** (im Chat oben rechts oder bei einer Anfrage): beendet die Freundschaft, löscht offene Anfragen, danach keine Anfragen und Nachrichten mehr in beide Richtungen.
+- Braucht SQL-Datei 6 (`supabase/migrations/20261019000000_hall_anfragen_chat.sql`).
+
 ## 17. Töne, Musik, Vibration
 
 - Alle Töne werden im Gerät erzeugt (Web Audio), keine Audiodateien: Klick, Biss, Zehner-Akkord, neues Gebiet, Hinweis, Tod (je nach Ursache: Falle schnappt, Teich platscht, Giftapfel wabert), Falle, Wolke zischt, Frosch quakt und ploppt beim Sprung, Gegner zischt beim Erscheinen und ploppt beim Einkesseln, Jägerturm, Apfel geschnappt, Teich blubbert, Baum fällt, Haus wird gebaut, Licht klickt, Rückschlag, Rekord-Fanfare.

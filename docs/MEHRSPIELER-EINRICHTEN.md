@@ -90,6 +90,14 @@ Danach kann jeder Name nur einmal vergeben werden.
 
 Ohne Datei 4 gibt es keine Freunde: dann sieht niemand jemanden online. Ohne Datei 5 fehlen die Tages-Bestenliste und Push.
 
+Seit 1.20.0 außerdem Datei 6:
+
+| Datei | Wofür |
+|---|---|
+| `supabase/migrations/20261019000000_hall_anfragen_chat.sql` | Hall of Snakes, Freundschaftsanfragen, Sperren, Chat unter Freunden (Nachrichten 30 Tage) |
+
+Ohne Datei 6 zeigt die Hall of Snakes „Keine Verbindung“ und es gibt keine Anfragen und keinen Chat.
+
 ## Schritt 7 (optional): Einladungen aufs Handy (Push)
 
 Damit Freunde eine Benachrichtigung bekommen, wenn sie Snake gerade nicht offen haben. Geht in der Web-App auf Android
