@@ -44,6 +44,16 @@
           <span class="ready__t" id="ready-text">Wischen zum Starten</span>
         </div>
         <div class="toasts" id="toasts" aria-live="polite"></div>
+        <!-- Mehrspieler im Spiel: Leben, Lebensleiste, Countdown, Meldungen -->
+        <div class="mehr-hud no-swipe" id="mehr-hud" hidden>
+          <button class="icon-btn mehr-hud__weg" id="mehr-hud-weg" aria-label="Spiel verlassen" data-icon="X"></button>
+          <div class="mehr-hud__mitte">
+            <div class="mehr-leben" id="mehr-leben" aria-label="Leben"></div>
+            <div class="mehr-leiste" id="mehr-leiste"></div>
+          </div>
+        </div>
+        <div class="mehr-countdown" id="mehr-countdown" hidden></div>
+        <div class="mehr-meldung" id="mehr-meldung" hidden></div>
         <div class="effekte" id="effekte" aria-live="polite"></div>
         <!-- Oben rechts: Schilde (je ein Leben mehr) -->
         <div class="schilde" id="hud-schild" hidden><span data-icon="Shield"></span><b></b></div>
@@ -75,6 +85,7 @@
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
             <button class="btn btn--ghost" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
+            <button class="btn btn--ghost" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Mehrspieler</button>
             <button class="btn btn--ghost" id="btn-liste" data-go="liste" hidden><span data-icon="Trophy"></span>Bestenliste</button>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
@@ -161,6 +172,75 @@
             <div class="liste" id="liste-zeilen" aria-live="polite"></div>
             <p class="fine" id="liste-info"></p>
           </div>
+        </div>
+      </section>
+
+      <!-- Mehrspieler-Ergebnis -->
+      <section class="screen screen--dim" id="mehr-ende">
+        <div class="card">
+          <h2 class="card__title" id="mehr-ende-titel">Gewonnen!</h2>
+          <p class="card__sub" id="mehr-ende-sub"></p>
+          <ol class="mehr-rang" id="mehr-rang"></ol>
+          <button class="btn btn--play" id="mehr-nochmal"><span data-icon="RotateCcw"></span>Nochmal</button>
+          <p class="fine" id="mehr-warte" hidden>Warte auf den Gastgeber …</p>
+          <button class="btn btn--ghost" id="mehr-ende-weg"><span data-icon="LogOut"></span>Raum verlassen</button>
+        </div>
+      </section>
+
+      <!-- Mehrspieler: Raum erstellen oder beitreten, Lobby -->
+      <section class="screen screen--page" id="mehr">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Mehrspieler</h2>
+            <span class="live" id="mehr-live" hidden>verbunden</span>
+          </header>
+          <div class="page__body">
+            <div class="mehr-start" id="mehr-start">
+              <button class="btn btn--play" id="mehr-erstellen"><span data-icon="Plus"></span>Raum erstellen</button>
+              <form class="opt opt--col liste-name" id="mehr-beitreten" autocomplete="off">
+                <label class="opt__t" for="mehr-code">Mit Code beitreten<small>Den Code bekommst du vom Gastgeber.</small></label>
+                <div class="liste-name__row">
+                  <input type="text" id="mehr-code" maxlength="8" placeholder="z. B. K7M2Q" autocapitalize="characters" spellcheck="false" />
+                  <button class="btn btn--ghost btn--klein" type="submit">Beitreten</button>
+                </div>
+              </form>
+              <div class="mehr-modi">
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Swords"></span><span class="opt__t">Gegeneinander<small>Alle auf einem Feld. Wer in eine andere Schlange fährt, verliert ein Leben (jeder hat 3). Wer 5 Äpfel hinter dem Führenden liegt, ist raus. Der Letzte gewinnt.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Ghost"></span><span class="opt__t">Wettrennen<small>Jeder in seiner eigenen Welt, die anderen siehst du als Geist. Gleiche Regeln mit Leben und Abstand. Das nächste Gebiet bestimmt abwechselnd einer.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Handshake"></span><span class="opt__t">Koop<small>Zusammen auf einem Feld, ihr fahrt durcheinander hindurch. Äpfel zählen gemeinsam, ihr habt 3 Leben zusammen. Alle 15 Level erweitert abwechselnd einer.</small></span></div></div>
+              </div>
+            </div>
+            <div class="mehr-raum" id="mehr-raum" hidden>
+              <div class="mehr-code">
+                <small>Raum-Code</small>
+                <b id="mehr-code-anzeige">-----</b>
+                <button class="btn btn--ghost btn--klein" id="mehr-teilen"><span data-icon="Share2"></span>Code teilen</button>
+              </div>
+              <div class="mehr-spieler" id="mehr-spieler"></div>
+              <div class="seg" id="mehr-modus" role="radiogroup" aria-label="Modus">
+                <button data-v="vs" role="radio">Gegeneinander</button>
+                <button data-v="rennen" role="radio">Wettrennen</button>
+                <button data-v="koop" role="radio">Koop</button>
+              </div>
+              <p class="fine mehr-modus-text" id="mehr-modus-text"></p>
+              <button class="btn btn--play" id="mehr-los"><span data-icon="Play"></span>Starten</button>
+              <p class="fine" id="mehr-hinweis"></p>
+              <h3 class="erfolge-titel">Freunde einladen</h3>
+              <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist niemand sonst online.</p></div>
+              <button class="btn btn--ghost" id="mehr-verlassen"><span data-icon="LogOut"></span>Raum verlassen</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Einladung bekommen -->
+      <section class="screen screen--dim" id="einladung">
+        <div class="card">
+          <h2 class="card__title">Einladung</h2>
+          <p class="card__sub" id="einladung-text"></p>
+          <button class="btn btn--play" id="einladung-ja"><span data-icon="Play"></span>Annehmen</button>
+          <button class="btn btn--ghost" id="einladung-nein"><span data-icon="X"></span>Ablehnen</button>
         </div>
       </section>
 

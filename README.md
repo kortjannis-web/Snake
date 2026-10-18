@@ -18,7 +18,14 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 Mit Supabase (kostenlos) gibt es eine Bestenliste „Heute / Für immer“ mit Namen und Live-Aktualisierung.
 Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). Ohne Einrichtung läuft das
 Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge von selbst, die Android-App
-weist auf dem Startbildschirm auf eine neuere APK hin. Geplanter Ausbau (Mehrspieler): [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
+weist auf dem Startbildschirm auf eine neuere APK hin.
+
+## Mehrspieler
+
+Bis zu 4 Spieler: **Gegeneinander** (ein Feld, 3 Leben, wer 5 Äpfel zurückliegt, ist raus), **Wettrennen** (eigene Welt,
+die anderen als Geist) und **Koop** (zusammen, 3 gemeinsame Leben). Räume mit Code, Einladungen an alle, die online sind.
+Ein Handy rechnet, ein kleiner Cloudflare-Server (`server/`) verteilt und übernimmt, wenn es ausfällt. Einrichtung:
+[`docs/MEHRSPIELER-EINRICHTEN.md`](docs/MEHRSPIELER-EINRICHTEN.md). Hintergrund und weitere Ideen: [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
 
 ## Spielregeln
 
@@ -93,6 +100,7 @@ npm test           # Spiellogik (vitest)
 npm run build      # Web-App nach dist/
 npm run android    # build + Capacitor-Sync, danach android/ in Android Studio öffnen
 npm run icons      # Icons und Startbild aus scripts/icons.mjs neu erzeugen
+npm run server     # Snake-Server lokal (http://localhost:8787), dann VITE_SNAKE_SERVER=http://localhost:8787 npm run dev
 ```
 
 Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung `?level=150`
@@ -106,6 +114,9 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `src/main.ts` Menüs, Spielschleife, Speicher (Rekord und Statistik im Gerät)
 - `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Update-Hinweis der Android-App
 - `supabase/migrations/` Datenbank der Bestenliste (Tabellen, Regeln, Schummelschutz)
+- `src/game/mehr.ts` Mehrspieler-Logik (mehrere Schlangen, Leben, Abstand, Gebiete), `src/game/zustand.ts` Spielstand verschicken und übernehmen
+- `src/multi/` Mehrspieler in der App (Verbindung, Lobby, Anzeige) und das gemeinsame Protokoll
+- `server/` Snake-Server auf Cloudflare Workers (`raum.ts` sind die Regeln, testbar ohne Cloudflare)
 - `android/` Capacitor-Projekt (Hochformat, Vollbild)
 
 ### Signierte Release-APK

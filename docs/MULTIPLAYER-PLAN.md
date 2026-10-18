@@ -5,7 +5,11 @@ Freunden schickt (Android und iPhone), mit Gast-Namen, Online-Leaderboard (heute
 zwei Mehrspieler-Modi (**Gegeneinander** und **Füreinander**). Jede Phase ist für sich fertig und spielbar.
 
 > **Umgesetzt in 1.16.0:** Phase 0 (Update-Hinweis der APK), Phase 1 (Name am ersten Start, Gast-Konto) und Phase 2 (Bestenliste mit Live-Update, Reiter „Alle Spieler“).
-> Einrichtung: [`ONLINE-EINRICHTEN.md`](ONLINE-EINRICHTEN.md). Offen: Phase 3 bis 5.
+> **Umgesetzt in 1.17.0:** Mehrspieler mit Gegeneinander, Wettrennen und Koop, Räume mit Code, Online-Liste und Einladungen
+> (Einrichtung: [`MEHRSPIELER-EINRICHTEN.md`](MEHRSPIELER-EINRICHTEN.md)). Die Regeln weichen von diesem Plan ab (so gewünscht):
+> Gegeneinander auf **einem** Feld mit 3 Leben je Spieler und Apfel-Abstand, Koop mit 3 gemeinsamen Leben, Gebiete abwechselnd.
+> Der Server ist Cloudflare statt Supabase Realtime (ausgehende Nachrichten kostenlos), und es rechnet ein Handy mit
+> automatischer Übernahme, weil der Gratis-Tarif keine Spielschleife auf dem Server zulässt. Offen: Push-Einladungen bei geschlossener App.
 
 ## 0. Was schon da ist
 

@@ -90,8 +90,8 @@ export class Game {
   /** Gerade gegrabener Tunnel (Maulwurf): wird beim Zurueckkommen auf die Karte freigelegt */
   tunnel: P[] = []
   /** Lava im Stein: fest je Block und Spiel, die Startbloecke haben keine (Weltkoordinaten in Bloecken) */
-  private readonly lavaSalz: number
-  private startBloecke = new Set<number>()
+  protected readonly lavaSalz: number
+  protected startBloecke = new Set<number>()
   /** Freigelegte Lavafelder, die noch nicht ausbrechen konnten (etwas liegt darauf oder der Kopf ist zu nah) */
   lavaOffen: P[] = []
   /** Offene Gebiets-Wahl: die Waende leuchten, beruehren baut dort einen Block an */
@@ -99,9 +99,9 @@ export class Game {
   /** Bis dahin darf gewaehlt werden (danach kommt der Block zufaellig) */
   wahlBis = 0
   /** Aepfel seit dem letzten Power-up (Garantie) */
-  private ohnePower = 0
+  protected ohnePower = 0
   /** Welt wird aufgebaut (Startlevel, Springen): keine Wahl, keine Funde */
-  private aufbau = false
+  protected aufbau = false
 
   body: P[] = []
   prev: P[] = []
@@ -113,7 +113,7 @@ export class Game {
   /** Reaktionszeit: der Kopf steht vor einem Hindernis, bis `bis` darf noch gelenkt werden */
   gnade: { cause: Cause; bis: number } | null = null
   /** Gerade laeuft der Schritt nach der Reaktionszeit (dann keine zweite) */
-  private gnadeVorbei = false
+  protected gnadeVorbei = false
   queue: Dir[] = []
   /** So viele Schritte bleibt das Schwanzende noch stehen (Wachsen) */
   wachsRest = 0
@@ -177,10 +177,10 @@ export class Game {
   expansions = 0
   events: GameEvent[] = []
 
-  private next: Record<Art, number>
-  private lastSpawn = -1e9
+  protected next: Record<Art, number>
+  protected lastSpawn = -1e9
   /** Faellige Baeume, Haeuser und Tuerme, die noch keinen Platz gefunden haben */
-  private offen = { baum: 0, haus: 0, turm: 0, eis: 0 }
+  protected offen = { baum: 0, haus: 0, turm: 0, eis: 0 }
 
   constructor(o: GameOpts) {
     this.cfg = { ...R.DEFAULTS, ...(o.cfg ?? {}) }
@@ -261,21 +261,47 @@ export class Game {
 
   /** Spielzeit weiterdrehen (dt in ms). Logik nur im Spiel, Zeit laeuft fuer Animationen weiter */
   update(dt: number) {
+    this.zeitTakt(dt)
+    if (this.status !== 'play') return
+    this.schritte()
+    if (this.status !== 'play') return
+    this.weltTakt()
+  }
+
+  /** Zeit weiter, Abgelaufenes aufraeumen */
+  protected zeitTakt(dt: number) {
     this.time += Math.min(dt, 100)
     this.weg = this.weg.filter((m) => this.time - m.t < 240)
     this.teiche = this.teiche.filter((t) => t.drying === undefined || this.time - t.drying < 1500)
     this.abgeschnitten = this.abgeschnitten.filter((a) => this.time - a.t < ABGESCHNITTEN_LIEGT + ABGESCHNITTEN_WEG)
-    if (this.status !== 'play') return
+  }
+
+  /** Die (aktive) Schlange so viele Felder weiter, wie die Zeit hergibt */
+  protected schritte() {
     // Nach einem Haenger nicht mehrere Schritte nachholen
     if (this.time - this.last > this.takt * 3) this.last = this.time - this.takt
-    while (this.status === 'play' && !this.gnade && this.time - this.last >= this.takt) {
+    while (this.status === 'play' && this.lebt() && !this.gnade && this.time - this.last >= this.takt) {
       this.last += this.takt
       this.step()
     }
     // Reaktionszeit vorbei, ohne zu lenken: jetzt prallt sie auf
-    if (this.gnade && this.time >= this.gnade.bis) this.nachGnade()
-    if (this.status !== 'play') return
+    if (this.gnade && this.lebt() && this.time >= this.gnade.bis) this.nachGnade()
+  }
+
+  /** Lebt die aktive Schlange? (Im Mehrspieler kann eine tot sein, waehrend das Spiel weiterlaeuft) */
+  protected lebt() {
+    return this.status === 'play'
+  }
+
+  /** Alles, was sich ohne die Schlange bewegt: Effekte, Baeume, Wolken, Tiere, Gegner, Ereignisse */
+  protected weltTakt() {
     this.effekteTakt()
+    if (this.status !== 'play') return
+    this.umweltTakt()
+  }
+
+  /** Baeume, Mauern, Wolken, Tiere, Gegner, Fallen und neue Ereignisse */
+  protected umweltTakt() {
     this.baeumeTakt()
     this.wachsen()
     this.wolkenTakt()
@@ -306,7 +332,7 @@ export class Game {
     return this.time < this.effekt.fuetternBis
   }
   /** Darf der Kopf ueber den eigenen Koerper? (Kreativ oder Fuettern) */
-  private durchSelbst() {
+  protected durchSelbst() {
     return !!this.kreativ?.durchSelbst || this.frisst()
   }
   /** Maulwurf: durch die Erde graben */
@@ -317,7 +343,7 @@ export class Game {
     return this.eis.some((e) => e.cells.some((c) => same(c, p)))
   }
 
-  private emit(e: GameEvent) {
+  protected emit(e: GameEvent) {
     this.events.push(e)
   }
 
@@ -366,12 +392,12 @@ export class Game {
     return [this.dir, ...this.queue]
   }
 
-  private waechstJetzt(level: number) {
+  protected waechstJetzt(level: number) {
     if (this.kreativ && !this.kreativ.wachsen) return false
     return R.waechst(this.cfg, level)
   }
 
-  private step() {
+  protected step() {
     this.prev = this.body.map((p) => ({ ...p }))
     this.prevDir = this.dir
     this.ate = false
@@ -383,7 +409,7 @@ export class Game {
     if (nd) this.dir = nd
     let n = { x: h.x + STEP[this.dir].x, y: h.y + STEP[this.dir].y }
     // Leuchtende Wand beruehrt: dort kommt der neue Block hin
-    if (!this.inside(n) && this.wahl > 0) {
+    if (!this.inside(n) && this.wahl > 0 && this.darfWaehlen()) {
       const neu = this.wahlAn(n)
       if (neu) n = neu
     }
@@ -488,14 +514,14 @@ export class Game {
 
   /** Aufprall: erst nach der Reaktionszeit (cfg.gnade ms) vorbei, bis dahin rettet Abbiegen.
    *  Gibt false, wenn sie schon abgelaufen ist (dann gleich sterben) */
-  private aufschieben(cause: Cause) {
+  protected aufschieben(cause: Cause) {
     if (this.gnadeVorbei || this.cfg.gnade <= 0) return false
     this.gnade = { cause, bis: this.time + this.cfg.gnade }
     return true
   }
 
   /** Reaktionszeit ohne Lenken vorbei: noch einmal geradeaus (ist der Weg jetzt frei, geht es weiter) */
-  private nachGnade() {
+  protected nachGnade() {
     this.gnade = null
     this.last = this.time
     this.gnadeVorbei = true
@@ -504,7 +530,7 @@ export class Game {
   }
 
   /** Schild verbrauchen (falls vorhanden): kurz Geist, damit die Schlange hindurchgleitet */
-  private schildBrechen() {
+  protected schildBrechen() {
     if (this.effekt.schild <= 0) return false
     this.effekt.schild--
     this.effekt.geistBis = Math.max(this.effekt.geistBis, this.time + 1500)
@@ -513,7 +539,7 @@ export class Game {
   }
 
   /** Power-ups und Erze unter dem Kopf aufheben */
-  private einsammeln(n: P) {
+  protected einsammeln(n: P) {
     const pi = this.powers.findIndex((p) => same(p.p, n))
     if (pi >= 0) this.powerAn(this.powers.splice(pi, 1)[0].art, n)
     const fi = this.funde.findIndex((f) => same(f.p, n))
@@ -521,7 +547,7 @@ export class Game {
   }
 
   /** Erz eingesammelt: Gold 3, Diamant 6, Rubin 10, Opal 20 mal aktueller Apfel */
-  private fundNehmen(art: R.ErzArt, p: P) {
+  protected fundNehmen(art: R.ErzArt, p: P) {
     const c = this.cfg
     const wert = Math.round(R.erzWert(c, art) * c.apfelWert * this.apfelStufe())
     this.verdient += wert
@@ -530,7 +556,7 @@ export class Game {
   }
 
   /** Fuettern: Frosch, Ameise oder Gegner an diesem Feld fressen (bringt Aepfel) */
-  private fressen(n: P) {
+  protected fressen(n: P) {
     const c = this.cfg
     const stufe = this.apfelStufe()
     const lohn = (was: 'frosch' | 'ameise' | 'gegner', anzahl: number, art?: 'rot' | 'lila') => {
@@ -585,7 +611,7 @@ export class Game {
   }
 
   /** Laufende Power-ups: Magnet holt, Maulwurf endet (in der Erde = Tod), abgelaufene verschwinden */
-  private effekteTakt() {
+  protected effekteTakt() {
     const e = this.effekt
     for (const art of ['zeitlupe', 'geist', 'fuettern', 'magnet', 'maulwurf'] as const) {
       const feld = `${art}Bis` as const
@@ -624,7 +650,7 @@ export class Game {
   }
 
   /** Kopf in Giftwolke, Fensterlicht oder Lichtkegel: Level zurueck (nicht toedlich) */
-  private treffer(n: P) {
+  protected treffer(n: P) {
     if (this.time < this.schutzBis || this.geist()) return
     if (this.kreativ && !this.kreativ.rueckschlag) return
     const grund = this.wolken.some((w) => w.cells.some((p) => same(p, n))) ? 'wolke' : this.imLicht(n) ? 'licht' : this.imKegel(n) ? 'kegel' : null
@@ -658,7 +684,7 @@ export class Game {
     this.emit({ type: 'setback', von, auf, grund })
   }
 
-  private kuerzen(auf: number, von: number) {
+  protected kuerzen(auf: number, von: number) {
     if (this.kreativ && !this.kreativ.wachsen) return
     let kuerzer = R.gewachsen(this.cfg, auf, von)
     const ausRest = Math.min(this.wachsRest, kuerzer)
@@ -683,10 +709,45 @@ export class Game {
     if (this.lava.some((l) => l.cells.some((p) => same(p, n)))) return 'lava'
     if (this.aufGegner(n)) return 'gegner'
     if (!this.durchSelbst() && rest.some((p) => same(p, n))) return 'selbst'
-    return null
+    return this.andereTreffen(n)
   }
 
-  private die(cause: Cause) {
+  /* ================= Einhakpunkte fuer den Mehrspieler (im Einzelspiel ohne Wirkung) ================= */
+
+  /** Koerper der anderen (lebenden) Schlangen */
+  protected andereSchlangen(): P[][] {
+    return []
+  }
+  /** Koepfe aller Schlangen (Gegner fliehen vor jedem Kopf) */
+  protected koepfe(): P[] {
+    return [this.body[0]]
+  }
+  /** Kopf faehrt auf eine andere Schlange (nur im Gegeneinander toedlich) */
+  protected andereTreffen(_n: P): Cause | null {
+    return null
+  }
+  /** Darf die aktive Schlange die leuchtende Wand benutzen? */
+  protected darfWaehlen() {
+    return true
+  }
+  /** Kommt bei diesem Level ein neues Gebiet? */
+  protected gebietFaellig(l: number) {
+    return R.neuesGebiet(this.cfg, l)
+  }
+  /** Steigt mit diesem Apfel der Level? (Im Gegeneinander nur, wenn der Fuehrende isst) */
+  protected levelHoch() {
+    return true
+  }
+  /** Nach welchem Level waechst die aktive Schlange? (Im Mehrspieler nach ihren eigenen Aepfeln) */
+  protected wachsLevel() {
+    return this.level
+  }
+  /** f fuer die Schlange ausfuehren, die auf oder am naechsten an p liegt */
+  protected mitSchlangeBei(_p: P, f: () => void) {
+    f()
+  }
+
+  protected die(cause: Cause) {
     this.gnade = null
     this.status = 'over'
     this.cause = cause
@@ -700,17 +761,19 @@ export class Game {
     return R.apfelFaktor(this.cfg, this.level)
   }
 
-  private eat(n: P) {
+  protected eat(n: P) {
     // Wert nach dem Level, auf dem der Apfel lag (so passt er zu seiner Farbe)
     const stufe = this.apfelStufe()
     this.ate = true
-    this.apples++
     this.gegessen++
-    this.level++
+    if (this.levelHoch()) {
+      this.apples++
+      this.level++
+    }
     // Nur beim ersten Erreichen eines Levels: neuer Block, Teich, Baum, Haus, Turm, Hinweise
     const neu = this.level > this.maxLevel
     if (neu) this.maxLevel = this.level
-    if (this.waechstJetzt(this.level)) this.wachsRest++
+    if (this.waechstJetzt(this.wachsLevel())) this.wachsRest++
     this.emit({ type: 'eat', level: this.level, p: { ...n }, stufe })
     if (this.cfg.apfelWert > 0) {
       const wert = this.cfg.apfelWert * stufe
@@ -730,9 +793,9 @@ export class Game {
   }
 
   /** Was beim ersten Erreichen eines Levels dazukommt und bleibt */
-  private welt(l: number) {
+  protected welt(l: number) {
     const c = this.cfg
-    if (R.neuesGebiet(c, l)) {
+    if (this.gebietFaellig(l)) {
       // Beim Aufbau zufaellig, im Spiel darf man waehlen (eine alte offene Wahl wird dann zufaellig gesetzt)
       if (this.aufbau) this.expand()
       else {
@@ -751,7 +814,7 @@ export class Game {
   }
 
   /** Faellige Baeume, Haeuser und Tuerme setzen, soweit Platz ist */
-  private bauten() {
+  protected bauten() {
     const felder = this.felder()
     while (this.offen.baum > 0 && this.baeume.length < R.baumMax(this.cfg, felder) && this.neuerBaum()) this.offen.baum--
     while (this.offen.haus > 0 && this.haeuser.length < R.hausMax(this.cfg, felder) && this.neuesHaus()) this.offen.haus--
@@ -760,7 +823,7 @@ export class Game {
   }
 
   /** Nach jedem Apfel: Mauern neu, Licht und Kegel weiter, Apfel, Giftaepfel, Ereignisse */
-  private layout() {
+  protected layout() {
     // Feste Sandbox: nichts Neues, nur Licht und Tuerme drehen weiter, der Apfel wandert
     if (this.statisch) {
       this.lichtWechsel()
@@ -793,7 +856,7 @@ export class Game {
   }
 
   /** Nach einem Apfel vielleicht ein Power-up (auf einem freien Feld in Reichweite) */
-  private gegenstaende() {
+  protected gegenstaende() {
     const c = this.cfg
     const head = this.body[0]
     const nah = this.screenW + this.screenH
@@ -809,7 +872,7 @@ export class Game {
   }
 
   /** Spitzhacke: ein zufaelliges Erz (Gold haeufig, Opal selten) irgendwo auf die Karte, in Reichweite */
-  private erzSetzen() {
+  protected erzSetzen() {
     const head = this.body[0]
     const nah = this.screenW + this.screenH
     let cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah)
@@ -831,7 +894,7 @@ export class Game {
   }
 
   /** Welches Power-up? Nach Gewicht; Maulwurf erst ab maulwurfAb, Fuettern nur, wenn es etwas zu fressen gibt */
-  private powerWahl(): PowerArt {
+  protected powerWahl(): PowerArt {
     const tiere = this.aktiveFroesche.length + this.ameisen.length + this.gegner.length > 0
     const c = this.cfg
     const arten = R.POWER_ARTEN.filter(
@@ -873,7 +936,7 @@ export class Game {
     return this.blocks.length * this.bw * this.bh + this.extra.length
   }
 
-  private baueMaske() {
+  protected baueMaske() {
     this.w = Math.max((Math.max(...this.blocks.map((b) => b.x)) + 1) * this.bw, ...this.extra.map((c) => c.x + 1))
     this.h = Math.max((Math.max(...this.blocks.map((b) => b.y)) + 1) * this.bh, ...this.extra.map((c) => c.y + 1))
     this.mask = new Uint8Array(this.w * this.h)
@@ -927,11 +990,11 @@ export class Game {
     this.expansions++
     const side = SIDE[d]
     this.gebiet = { side, t: this.time, x: p.x * this.bw, y: p.y * this.bh, w: this.bw, h: this.bh }
-    this.emit({ type: 'expand', side, add: this.bw * this.bh, dx, dy })
+    this.emit({ type: 'expand', side, add: this.bw * this.bh, dx, dy, block: { ...p }, d })
   }
 
   /** Leuchtende Wand beruehrt: Block in Laufrichtung anbauen. Gibt das Zielfeld (ggf. verschoben) zurueck */
-  private wahlAn(n: P): P | null {
+  protected wahlAn(n: P): P | null {
     const b = { x: Math.floor(n.x / this.bw), y: Math.floor(n.y / this.bh) }
     const von = { x: b.x - STEP[this.dir].x, y: b.y - STEP[this.dir].y }
     if (this.blocks.some((o) => same(o, b)) || !this.blocks.some((o) => same(o, von))) return null
@@ -945,7 +1008,7 @@ export class Game {
   /** Maulwurf: Schritte vom Kopf zurueck auf ein freies Kartenfeld. Breitensuche durch die Erde,
    *  der eigene Koerper (ohne das Schwanzende, das weiterzieht) ist im Weg, Hindernisse auf der
    *  Karte auch. Kein Weg: Infinity */
-  private rueckweg() {
+  protected rueckweg() {
     const b = this.body
     const head = b[0]
     const x0 = Math.min(0, head.x) - 2
@@ -991,7 +1054,7 @@ export class Game {
   }
 
   /** Ein Feld Erde gegraben: Tunnel merken, Erz darin gleich einsammeln */
-  private graben(n: P) {
+  protected graben(n: P) {
     if (!this.tunnel.some((t) => same(t, n))) this.tunnel.push({ ...n })
     const w = this.welt_(n)
     const erz = R.erdeBei(this.cfg, w.x, w.y)
@@ -1003,7 +1066,7 @@ export class Game {
   }
 
   /** Zurueck aus der Erde: der Tunnel und alles, was er mit der Karte einschliesst, wird Karte */
-  private freilegen() {
+  protected freilegen() {
     if (!this.tunnel.length) return
     // Rechteck um Karte und Tunnel, mit einem Feld Rand zum Fluten
     let x0 = 0
@@ -1049,7 +1112,7 @@ export class Game {
   }
 
   /** Einzelne Felder zur Karte hinzufuegen (links/oben: Karte um ganze Bloecke verschieben) */
-  private zellenDazu(cells: P[]) {
+  protected zellenDazu(cells: P[]) {
     if (!cells.length) return
     const minX = Math.min(...cells.map((c) => c.x))
     const minY = Math.min(...cells.map((c) => c.y))
@@ -1075,7 +1138,7 @@ export class Game {
   }
 
   /** Frisch freigelegte Felder: Gold und Diamant darin liegen jetzt als Fund auf der Karte */
-  private erzeFrei(cells: P[]) {
+  protected erzeFrei(cells: P[]) {
     if (this.aufbau) return
     for (const c of cells) {
       const w = this.welt_(c)
@@ -1096,7 +1159,7 @@ export class Game {
     return !this.abgebaut.has(weltKey(wx, wy))
   }
 
-  private shift(dx: number, dy: number) {
+  protected shift(dx: number, dy: number) {
     const mv = (p: P) => {
       p.x += dx
       p.y += dy
@@ -1161,7 +1224,7 @@ export class Game {
   }
 
   /** Feld mit allen vier Nachbarn auf der Karte (nicht am Rand) */
-  private innen(c: P) {
+  protected innen(c: P) {
     return this.inside(c) && DIRS.every((d) => this.inside({ x: c.x + STEP[d].x, y: c.y + STEP[d].y }))
   }
 
@@ -1189,7 +1252,7 @@ export class Game {
   }
 
   /** Feste Bauten (Haeuser, Baeume, Tuerme): da endet Licht */
-  private bauSet() {
+  protected bauSet() {
     const s = new Set<number>()
     for (const o of this.haeuser) o.cells.forEach((c) => s.add(key(c.x, c.y)))
     for (const b of this.baeume) b.cells.forEach((c) => s.add(key(c.x, c.y)))
@@ -1197,7 +1260,7 @@ export class Game {
     return s
   }
 
-  private freieNachbarn(c: P, wand: Set<number>) {
+  protected freieNachbarn(c: P, wand: Set<number>) {
     let n = 0
     for (const d of DIRS) {
       const p = { x: c.x + STEP[d].x, y: c.y + STEP[d].y }
@@ -1256,7 +1319,7 @@ export class Game {
   /** Neue Hindernis-Felder: schliessen nichts ab und bauen keine Sackgasse
    *  (freies Feld mit nur einem freien Nachbarn). Geprueft wird nur, was sich
    *  aendert, damit voruebergehende Gefahren (Wolken) nichts blockieren. */
-  private keinAbschluss(cells: P[], wand: Set<number>, vorher = this.erreichbar(wand)) {
+  protected keinAbschluss(cells: P[], wand: Set<number>, vorher = this.erreichbar(wand)) {
     const neu = new Set(cells.map((c) => key(c.x, c.y)))
     const zu = (x: number, y: number) => !this.inside({ x, y }) || wand.has(key(x, y)) || neu.has(key(x, y))
     const frei = (x: number, y: number) => DIRS.reduce((n, d) => n + (zu(x + STEP[d].x, y + STEP[d].y) ? 0 : 1), 0)
@@ -1298,12 +1361,12 @@ export class Game {
     return ziel.size === 0
   }
   /** Besucht-Markierung fuer Breitensuchen (spart das Leeren je Suche) */
-  private stempel = new Int32Array(0)
-  private stempelNr = 0
+  protected stempel = new Int32Array(0)
+  protected stempelNr = 0
 
   /** Schlange als Menge, nur neu gebaut, wenn sie sich bewegt hat */
-  private schlangeMenge: { ref: P[]; n: number; hx: number; hy: number; tx: number; ty: number; set: Set<number> } | null = null
-  private koerperSet() {
+  protected schlangeMenge: { ref: P[]; n: number; hx: number; hy: number; tx: number; ty: number; set: Set<number> } | null = null
+  protected koerperSet() {
     const b = this.body
     const m = this.schlangeMenge
     const h = b[0]
@@ -1315,7 +1378,7 @@ export class Game {
   }
 
   /** Was fuer neue Mauern, Teiche und Bauten gilt, einmal je Suche berechnet */
-  private platzKontext() {
+  protected platzKontext() {
     const luft = new Set<number>()
     for (const p of [
       ...this.teiche.flatMap((t) => t.cells),
@@ -1328,7 +1391,7 @@ export class Game {
     ])
       for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) luft.add(key(p.x + dx, p.y + dy))
     const nah = new Set<number>()
-    for (const p of this.body) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) nah.add(key(p.x + dx, p.y + dy))
+    for (const p of [this.body, ...this.andereSchlangen()].flat()) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) nah.add(key(p.x + dx, p.y + dy))
     const besetzt = new Set<number>([key(this.apple.p.x, this.apple.p.y), ...this.powers.map((o) => key(o.p.x, o.p.y)), ...this.funde.map((f) => key(f.p.x, f.p.y)), ...this.eis.flatMap((e) => e.cells.map((c) => key(c.x, c.y)))])
     const wand = this.hindernisse()
     return { wand, luft, nah, besetzt, reach: this.erreichbar(wand) }
@@ -1350,7 +1413,7 @@ export class Game {
   }
 
   /** Gemeinsame Pruefung fuer Mauern, Teiche und Bauten */
-  private platzOk(cells: P[], art: 'mauer' | 'teich', ctx = this.platzKontext()) {
+  protected platzOk(cells: P[], art: 'mauer' | 'teich', ctx = this.platzKontext()) {
     const head = this.body[0]
     const seen = new Set<number>()
     for (const c of cells) {
@@ -1364,7 +1427,7 @@ export class Game {
     return this.keinAbschluss(cells, ctx.wand, ctx.reach)
   }
 
-  private neueMauer(len: number, ctx = this.platzKontext()) {
+  protected neueMauer(len: number, ctx = this.platzKontext()) {
     const r = this.r
     for (let versuch = 0; versuch < 400; versuch++) {
       const spaet = versuch > 250
@@ -1393,7 +1456,7 @@ export class Game {
   }
 
   /** Mauern wachsen um ein Feld je 25 ms, aber nie unter die Schlange */
-  private wachsen() {
+  protected wachsen() {
     for (const m of this.mauern)
       while (m.grown < m.cells.length && this.time >= m.next) {
         const c = m.cells[m.grown]
@@ -1404,7 +1467,7 @@ export class Game {
       }
   }
 
-  private neuerTeich(n: number) {
+  protected neuerTeich(n: number) {
     const r = this.r
     const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
@@ -1430,7 +1493,7 @@ export class Game {
   }
 
   /** Freie Felder fuer Aepfel und Giftaepfel: erreichbar, keine Sackgasse, nicht im Licht */
-  private freieFelder(extra: (c: P) => boolean) {
+  protected freieFelder(extra: (c: P) => boolean) {
     const wand = this.hindernisse()
     // Kuenftige Wolkenstufe meiden (sonst wird der Apfel gleich verschluckt)
     for (const w of this.wolken)
@@ -1469,7 +1532,7 @@ export class Game {
     this.apple = { p: this.r.pick(cand), t: this.time }
   }
 
-  private freieFelderNotfall() {
+  protected freieFelderNotfall() {
     const wand = this.hindernisse()
     const out: P[] = []
     for (let y = 0; y < this.h; y++)
@@ -1479,7 +1542,7 @@ export class Game {
   }
 
   /** Giftaepfel neu verteilen, einer davon gern in der Naehe des echten Apfels */
-  private neueGifte() {
+  protected neueGifte() {
     this.gift = []
     const n = R.giftAnzahl(this.cfg, this.level)
     if (!n) return
@@ -1493,7 +1556,7 @@ export class Game {
   }
 
   /** Ein Giftapfel mehr (gern nah am Apfel). basis = schon gesuchte freie Felder */
-  private neuesGift(erster = false, basis?: P[]): P | null {
+  protected neuesGift(erster = false, basis?: P[]): P | null {
     const head = this.body[0]
     const nahApfel = erster && this.r.next() < 0.6
     const grund = (c: P) => manhattan(c, head) >= 4 && !this.imWeg(c, 6) && cheb(c, this.apple.p) >= 2
@@ -1518,7 +1581,7 @@ export class Game {
 
   /** Tanne irgendwo mit Abstand, bleibt fuer immer. Im Spiel steht sie erst (Plus) und kippt nach
    *  baumKippMin bis baumKippMax Sekunden um; beim Aufbau der Welt liegt sie schon (1-1-3-1) */
-  private neuerBaum(stehend = !this.aufbau) {
+  protected neuerBaum(stehend = !this.aufbau) {
     const r = this.r
     const c = this.cfg
     const ctx = this.platzKontext()
@@ -1537,14 +1600,14 @@ export class Game {
   }
 
   /** Felder einer liegenden Tanne (1-1-3-1) ab dem Stamm `root` in Richtung `dir` */
-  private baumLiegend(root: P, dir: Dir) {
+  protected baumLiegend(root: P, dir: Dir) {
     const d = STEP[dir]
     const q = { x: -d.y, y: d.x }
     return R.BAUM_FORM.map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
   }
 
   /** Stehende Baeume kippen, wenn ihre Zeit um ist. Gelandet: dumpfer Schlag */
-  private baeumeTakt() {
+  protected baeumeTakt() {
     for (const b of this.baeume) {
       if (b.kippBei !== null && this.time >= b.kippBei) this.baumKippen(b)
       if (!b.gelandet && this.time >= b.fallT + R.BAUM_FALL) {
@@ -1558,7 +1621,7 @@ export class Game {
    *  nicht knapp vor oder neben ihren Kopf), nie auf andere Hindernisse, Tiere, Apfel oder Power-ups,
    *  und er schliesst nichts ab. Ist ringsum alles belegt (die Schlange haelt ihn auf), wartet er
    *  und versucht es kurz darauf wieder */
-  private baumKippen(b: Baum) {
+  protected baumKippen(b: Baum) {
     const wand = this.hindernisse()
     for (const c of b.cells) wand.delete(key(c.x, c.y))
     const belegt = new Set([this.apple.p, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.eis.flatMap((e) => e.cells)].map((p) => key(p.x, p.y)))
@@ -1586,7 +1649,7 @@ export class Game {
 
   /** Haus mit vier Fenstern (eins je Seite): vor `hausGrossAb` eine kleine Huette 2x2,
    *  danach 2x3 oder mit Ecke, gedreht/gespiegelt */
-  private neuesHaus(klein = this.level < this.cfg.hausGrossAb) {
+  protected neuesHaus(klein = this.level < this.cfg.hausGrossAb) {
     const r = this.r
     const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
@@ -1615,7 +1678,7 @@ export class Game {
   }
 
   /** Lichtfelder vor einem Fenster (bis `lichtWeite`, auch bei Huetten; endet an Kartenrand, Haus, Baum oder Turm) */
-  private strahlVon(h: Haus, i: number, bau = this.bauSet()) {
+  protected strahlVon(h: Haus, i: number, bau = this.bauSet()) {
     const f = h.fenster[i]
     const out: P[] = []
     const weite = this.cfg.lichtWeite
@@ -1631,7 +1694,7 @@ export class Game {
    *  nirgends auf der Schlange liegen. Moeglichst ein anderes Fenster als vorher und nicht direkt
    *  vor dem Kopf. Passt keins (zu wenig Platz vor allen Fenstern oder die Schlange liegt davor),
    *  bleibt das Haus diese Runde dunkel. */
-  private lichtFuer(h: Haus, erstes = false) {
+  protected lichtFuer(h: Haus, erstes = false) {
     const head = this.body[0]
     const bau = this.bauSet()
     const andere = this.r.shuffle([0, 1, 2, 3].filter((i) => erstes || i !== h.licht))
@@ -1657,14 +1720,14 @@ export class Game {
     h.lichtT = this.time
   }
 
-  private lichtWechsel() {
+  protected lichtWechsel() {
     if (!this.haeuser.length) return
     for (const h of this.haeuser) this.lichtFuer(h)
     this.emit({ type: 'light' })
   }
 
   /** Jaegerturm 2x2 mit Lichtkegel in eine zufaellige Richtung */
-  private neuerTurm() {
+  protected neuerTurm() {
     const r = this.r
     const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
@@ -1683,7 +1746,7 @@ export class Game {
 
   /** Kegel: 2 breit, `kegelLaenge` lang. Endet am Kartenrand, an Bauten und vor
    *  der Schlange (sie wirft Schatten, so gibt es nie einen Sofort-Treffer) */
-  private kegel(t: Turm) {
+  protected kegel(t: Turm) {
     const d = STEP[t.dir]
     const drin = new Set(t.cells.map((c) => key(c.x, c.y)))
     const vorn = t.cells.filter((c) => !drin.has(key(c.x + d.x, c.y + d.y)))
@@ -1699,7 +1762,7 @@ export class Game {
   }
 
   /** Jede Runde dreht sich jeder Turm eine Vierteldrehung im Uhrzeigersinn */
-  private tuermeDrehen() {
+  protected tuermeDrehen() {
     for (const t of this.tuerme) {
       t.altDir = t.dir
       t.dir = R.CW[t.dir]
@@ -1718,7 +1781,7 @@ export class Game {
   }
 
   /** Haelt die Mindestzahl an Ereignissen (Fallen, Wolken, Froesche) */
-  private regie() {
+  protected regie() {
     const min = R.mindestEreignisse(this.cfg, this.level)
     if (this.aktiveEreignisse() >= min || this.time - this.lastSpawn < 2500) return
     const arten = (['falle', 'wolke', 'frosch'] as const).filter((k) => this.level >= R.ab(this.cfg, k))
@@ -1756,7 +1819,7 @@ export class Game {
     return false
   }
 
-  private fallenTakt() {
+  protected fallenTakt() {
     const zu = this.fallen.filter((f) => this.time >= f.until)
     if (zu.length) {
       this.fallen = this.fallen.filter((f) => this.time < f.until)
@@ -1793,7 +1856,7 @@ export class Game {
     return true
   }
 
-  private wolkenTakt() {
+  protected wolkenTakt() {
     for (const w of this.wolken) {
       if (w.stage < w.maxStage && this.time >= w.nextAt) {
         w.stage++
@@ -1823,7 +1886,7 @@ export class Game {
   }
 
   /** Felder, die unter der Schlange lagen, kommen dazu, sobald sie frei sind */
-  private wolkenNachruecken() {
+  protected wolkenNachruecken() {
     for (const w of this.wolken) {
       if (!w.pending.length) continue
       const belegt = (c: P) => this.aufSchlange(c) || this.aufGegner(c)
@@ -1839,7 +1902,7 @@ export class Game {
   }
 
   /** Was die Wolke ueberdeckt: Apfel springt woandershin, Giftaepfel verschwinden */
-  private wolkeVerschluckt(w: Wolke) {
+  protected wolkeVerschluckt(w: Wolke) {
     const in_ = (p: P) => w.cells.some((c) => same(c, p))
     if (in_(this.apple.p)) this.neuerApfel()
     this.gift = this.gift.filter((g) => !in_(g.p))
@@ -1876,19 +1939,19 @@ export class Game {
   }
 
   /** Kann der Frosch auf dieses Feld? (nicht auf Hindernisse, nicht in die Schlange; durch Wolken schon) */
-  private froschFrei(c: P, f: Frosch, wand: Set<number>) {
+  protected froschFrei(c: P, f: Frosch, wand: Set<number>) {
     if (!this.inside(c) || this.aufSchlange(c)) return false
     const k = key(c.x, c.y)
     return k === key(f.p.x, f.p.y) || !wand.has(k)
   }
 
-  private froschWand() {
+  protected froschWand() {
     const wand = this.hindernisse()
     for (const w of this.wolken) for (const p of [...w.cells, ...w.pending]) wand.delete(key(p.x, p.y))
     return wand
   }
 
-  private froschTakt() {
+  protected froschTakt() {
     const c = this.cfg
     let wand: Set<number> | null = null
     for (const f of this.froesche) {
@@ -1961,7 +2024,7 @@ export class Game {
   }
 
   /** Freie Felder ab `start` (Flutfuellung, hoechstens `cap`) */
-  private raum(start: P, zu: (c: P) => boolean, cap: number) {
+  protected raum(start: P, zu: (c: P) => boolean, cap: number) {
     const seen = new Set<number>([key(start.x, start.y)])
     const q = [start]
     for (let i = 0; i < q.length && seen.size < cap; i++)
@@ -2043,7 +2106,7 @@ export class Game {
   /** Baut sich die Schlange gerade bis zu `gegnerReaktion` Felder direkt vor einem Gegner auf (der
    *  Kopf kommt in seine Laufrichtung, frei dazwischen), kann er nicht mehr rechtzeitig lenken: er
    *  faehrt stur geradeaus weiter, meist in die Schlange hinein */
-  private gegnerUeberrascht(n: P) {
+  protected gegnerUeberrascht(n: P) {
     const weit = Math.round(this.cfg.gegnerReaktion)
     if (weit <= 0 || !this.gegner.length) return
     let wand: Set<number> | null = null
@@ -2063,7 +2126,7 @@ export class Game {
     }
   }
 
-  private gegnerTakt() {
+  protected gegnerTakt() {
     this.gegnerWeg = this.gegnerWeg.filter((w) => this.time - w.t < GEGNER_WEG)
     if (!this.gegner.length) return
     const c = this.cfg
@@ -2087,19 +2150,20 @@ export class Game {
   }
 
   /** Wie weit hat es die Schlange bis zu jedem Feld? (Breitensuche vom Kopf, ihr Koerper ist im Weg) */
-  private gegnerSicht(): Sicht {
+  protected gegnerSicht(): Sicht {
     const { w, h, mask } = this
     const wand = this.hindernisse(false)
     const dist = new Int32Array(w * h).fill(-1)
     const q = new Int32Array(w * h)
-    const koerper = new Set(this.body.slice(1).map((p) => key(p.x, p.y)))
+    const koerper = new Set([this.body.slice(1), ...this.andereSchlangen().map((b) => b.slice(1))].flat().map((p) => key(p.x, p.y)))
     const head = this.body[0]
     let qh = 0
     let qt = 0
-    if (this.inside(head)) {
-      dist[head.y * w + head.x] = 0
-      q[qt++] = head.y * w + head.x
-    }
+    for (const k of this.koepfe())
+      if (this.inside(k) && dist[k.y * w + k.x] < 0) {
+        dist[k.y * w + k.x] = 0
+        q[qt++] = k.y * w + k.x
+      }
     while (qh < qt) {
       const i = q[qh++]
       const x = i % w
@@ -2122,7 +2186,7 @@ export class Game {
 
   /** Felder, die der Gegner sicher vor der Schlange erreicht (er ist halb so schnell).
    *  Gesucht wird nur durch solche Felder: so viel Platz bleibt ihm wirklich */
-  private gebietVon(start: P, zu: (p: P) => boolean, dist: Int32Array, cap: number, tempo: number) {
+  protected gebietVon(start: P, zu: (p: P) => boolean, dist: Int32Array, cap: number, tempo: number) {
     const w = this.w
     const zuerst = (p: P, tiefe: number) => {
       const d = dist[p.y * w + p.x]
@@ -2152,7 +2216,7 @@ export class Game {
    *  - Bewegungsfreiheit (freie Nachbarn), gern geradeaus, ein wenig Zufall
    *  Ist niemand in der Naehe, schlaengelt sie gemuetlich herum.
    *  Eingekesselt (kein Zug mehr, oder ihr Bereich ist kaum groesser als sie selbst) stirbt sie. */
-  private gegnerSchritt(e: Gegner, s: Sicht) {
+  protected gegnerSchritt(e: Gegner, s: Sicht) {
     const w = this.w
     e.prev = e.body.map((p) => ({ ...p }))
     const head = e.body[0]
@@ -2160,7 +2224,7 @@ export class Game {
     const eigen = new Set((e.wachsRest > 0 ? e.body : e.body.slice(0, -1)).map((p) => key(p.x, p.y)))
     const andere = new Set<number>()
     for (const o of this.gegner) if (o !== e) o.body.forEach((p) => andere.add(key(p.x, p.y)))
-    const schlange = new Set(this.body.map((p) => key(p.x, p.y)))
+    const schlange = new Set([this.body, ...this.andereSchlangen()].flat().map((p) => key(p.x, p.y)))
     const fremd = (p: P) => {
       if (!this.inside(p)) return true
       const k = key(p.x, p.y)
@@ -2201,7 +2265,7 @@ export class Game {
       return
     }
 
-    const ph = this.body[0]
+    const koepfe = this.koepfe()
     const dKopf = s.dist[head.y * w + head.x]
     const gejagt = dKopf >= 0 && dKopf <= 14
     e.angst = gejagt ? 1 - dKopf / 15 : Math.max(0, e.angst - 0.25)
@@ -2217,7 +2281,7 @@ export class Game {
       if (platz <= len + 1) sc -= 60
       sc += (dP < 0 ? 20 : Math.min(dP, 20)) * (gejagt ? 2.5 : 0.4)
       sc += frei * 1.2
-      if (manhattan(m.p, ph) <= 1) sc -= 40
+      if (koepfe.some((ph) => manhattan(m.p, ph) <= 1)) sc -= 40
       if (same(m.p, s.vorKopf)) sc -= 40
       if (m.d === e.dir) sc += gejagt ? 0.8 : 3
       if (same(m.p, this.apple.p) || this.powers.some((p) => same(p.p, m.p))) sc -= 6
@@ -2235,7 +2299,7 @@ export class Game {
    *  auf sie zu, braucht er `gegnerReaktionWand` Felder, um zu reagieren. Taucht sie neu in seiner
    *  Bahn auf (er ist gerade abgebogen) und ist naeher, faehrt er stur hinein. Was er schon von
    *  weiter weg gesehen hat, umfaehrt er wie gewohnt */
-  private gegnerBlick(e: Gegner, schlange: Set<number>, zu: (p: P) => boolean) {
+  protected gegnerBlick(e: Gegner, schlange: Set<number>, zu: (p: P) => boolean) {
     const weit = Math.round(this.cfg.gegnerReaktionWand)
     const h = e.body[0]
     const d = STEP[e.dir]
@@ -2254,12 +2318,12 @@ export class Game {
 
   /** Gegner eingekesselt: zerfaellt. Hat die Schlange ihn eingekesselt (sie ist ganz nah),
    *  bringt er so viele Aepfel, wie er lang ist (mal Apfel-Stufe) */
-  private gegnerBesiegt(e: Gegner) {
+  protected gegnerBesiegt(e: Gegner) {
     this.gegner = this.gegner.filter((o) => o !== e)
     e.prev = e.body.map((p) => ({ ...p }))
     this.gegnerWeg.push({ g: e, t: this.time })
     const kopf = { ...e.body[0] }
-    const dabei = e.body.some((g) => this.body.some((p) => cheb(p, g) <= 2))
+    const dabei = e.body.some((g) => [this.body, ...this.andereSchlangen()].some((b) => b.some((p) => cheb(p, g) <= 2)))
     const wert = dabei ? e.body.length * this.cfg.apfelWert * this.apfelStufe() : 0
     if (dabei) this.besiegt++
     this.emit({ type: 'gegnerWeg', p: kopf, laenge: e.body.length, wert, art: e.art })
@@ -2281,7 +2345,7 @@ export class Game {
   }
 
   /** Frisch freigelegte Felder: steckte darin Lava im Stein, bricht sie aus (sobald dort Platz ist) */
-  private lavaFrei(cells: P[]) {
+  protected lavaFrei(cells: P[]) {
     for (const c of cells) {
       const w = this.welt_(c)
       if (this.lavaImStein(w.x, w.y)) this.lavaOffen.push({ ...c })
@@ -2291,7 +2355,7 @@ export class Game {
 
   /** Freigelegte Lava wird ein Lavasee (ein Feld, waechst bis lavaMin bis lavaMax). Nicht unter der
    *  Schlange, dem Apfel oder anderem, nicht direkt vor dem Kopf, schliesst nichts ab: sonst spaeter */
-  private lavaAusbrechen() {
+  protected lavaAusbrechen() {
     if (!this.lavaOffen.length) return
     const c = this.cfg
     const head = this.body[0]
@@ -2328,7 +2392,7 @@ export class Game {
 
   /** Jeder Lavasee, der noch nicht fertig ist, breitet sich um ein Feld in eine zufaellige Richtung aus.
    *  Nie in die Schlange, nie direkt vor oder neben den Kopf, nichts abschliessen */
-  private lavaWachsen() {
+  protected lavaWachsen() {
     const head = this.body[0]
     for (const l of this.lava) {
       if (l.cells.length >= l.ziel) continue
@@ -2390,7 +2454,7 @@ export class Game {
   /** Ameisen: ruhig, bis die Schlange im Umkreis ist (ameiseRadius, auch schraeg). Dann kurz aufmerksam,
    *  krabbelt langsam auf das naechste Glied zu und beisst, wenn sie direkt daneben ist (Level zurueck).
    *  Ist die Schlange wieder weg (oder hat sie gebissen), geht sie heim. Der Kopf zertritt sie. */
-  private ameisenTakt() {
+  protected ameisenTakt() {
     this.ameisenWeg = this.ameisenWeg.filter((a) => this.time - a.t < AMEISE_WEG)
     if (!this.ameisen.length) return
     const c = this.cfg
@@ -2403,7 +2467,7 @@ export class Game {
       let ziel: P | null = null
       let best = Infinity
       if (!satt)
-        for (const b of this.body) {
+        for (const b of [this.body, ...this.andereSchlangen()].flat()) {
           if (cheb(b, a.p) > c.ameiseRadius) continue
           const d = manhattan(b, a.p)
           if (d < best) {
@@ -2419,7 +2483,8 @@ export class Game {
           continue
         }
         if (best <= 1) {
-          this.ameiseBeisst(a)
+          const z = ziel
+          this.mitSchlangeBei(z, () => this.ameiseBeisst(a))
           continue
         }
         this.ameiseLaeuft(a, ziel, wand)
@@ -2431,7 +2496,7 @@ export class Game {
   }
 
   /** Ein Feld naeher ans Ziel (nur auf freie Felder, nie in die Schlange) */
-  private ameiseLaeuft(a: Ameise, ziel: P, wand: Set<number>) {
+  protected ameiseLaeuft(a: Ameise, ziel: P, wand: Set<number>) {
     const hier = manhattan(a.p, ziel)
     const opts = this.r
       .shuffle(DIRS.slice())
@@ -2454,7 +2519,7 @@ export class Game {
   }
 
   /** Biss: kostet ameiseZurueck Level (Schild faengt ab, nach einem Rueckschlag und als Geist nicht) */
-  private ameiseBeisst(a: Ameise) {
+  protected ameiseBeisst(a: Ameise) {
     if (this.time < this.schutzBis || this.geist()) return
     if (this.kreativ && !this.kreativ.rueckschlag) return
     a.sattBis = this.time + 5000

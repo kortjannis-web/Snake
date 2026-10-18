@@ -67,7 +67,30 @@ const RAND_SICHER = 5.5
 /** Seite des Ausschnitts je Achse und Richtung */
 const SEITE: Record<'x' | 'y', Record<1 | -1, Dir>> = { x: { 1: 'r', [-1]: 'l' }, y: { 1: 'd', [-1]: 'u' } }
 
+/** Eine Schlange eines anderen Spielers (Mehrspieler): echt oder als Geist (Wettrennen) */
+export type FremdeSchlange = {
+  body: P[]
+  prev: P[]
+  dir: Dir
+  skin: Skin
+  /** Fortschritt zwischen den Feldern (0 bis 1) */
+  alpha: number
+  tot: boolean
+  /** Deckkraft (Geist im Wettrennen durchscheinend) */
+  deck: number
+  name: string
+}
+export type MehrAnzeige = {
+  andere: FremdeSchlange[]
+  /** Die eigene Schlange ist gerade tot (wartet auf die Rueckkehr oder ist raus) */
+  ichTot: boolean
+  /** Leuchtende Waende nur fuer den, der waehlen darf */
+  wahlSichtbar: boolean
+}
+
 export class Renderer {
+  /** Mehrspieler: andere Schlangen und was nur dieses Geraet sieht (null = Einzelspiel) */
+  mehr: MehrAnzeige | null = null
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
   reduce = false
@@ -280,6 +303,8 @@ export class Renderer {
 
   draw(g: Game) {
     const { ctx, vw, vh } = this
+    // Noch keine Groesse (Layout im Aufbau): nichts zeichnen, sonst werden Kamerawerte ungueltig
+    if (vw <= 0 || vh <= 0) return
     const realNow = performance.now()
     const dt = this.lastReal ? Math.min(100, realNow - this.lastReal) : 16
     this.lastReal = realNow
@@ -400,7 +425,7 @@ export class Renderer {
 
     // Neues Gebiet waehlen: die Waende, an die ein Block passt, gluehen (die letzten 5 s blinken sie)
     const blinkt = g.wahlBis - now < 5000 && !this.reduce && Math.sin(now / 70) < 0
-    if (g.wahl > 0 && g.status === 'play' && !blinkt) {
+    if (g.wahl > 0 && g.status === 'play' && !blinkt && (this.mehr?.wahlSichtbar ?? true)) {
       const belegt = new Set(g.blocks.map((b) => b.x * 1000 + b.y))
       const puls = this.reduce ? 1 : 0.5 + 0.5 * Math.sin(now / 170)
       for (const b of g.blocks)
@@ -569,8 +594,12 @@ export class Renderer {
     // Von der Schere abgeschnittener Schwanz: bleibt kurz liegen, dann verblasst er
     for (const st of g.abgeschnitten) if (st.cells.some((p) => sicht(p))) this.drawAbgeschnitten(st, now)
 
+    // Andere Spieler (Mehrspieler), darueber ihre Namen
+    if (this.mehr) for (const f of this.mehr.andere) if (f.body.some((p) => sicht(p))) this.drawFremde(f, now)
+
     // Schlange
     if (n) this.drawSchlange(g, head, a)
+    if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
     this.drawGrabWarnung(g, head, now)
 
     // Giftwolken ueber allem (mit Warnung vor dem Wachsen)
@@ -641,7 +670,7 @@ export class Renderer {
     const tl = g.body[n - 1]
     const tail = tp ? { x: lerp(tp.x, tl.x, a), y: lerp(tp.y, tl.y, a) } : tl
     const pts: P[] = [head, ...g.body.slice(1), tail]
-    const tot = g.status === 'over'
+    const tot = g.status === 'over' || !!this.mehr?.ichTot
     const sinceDeath = now - g.deathAt
     if (tot && !this.reduce && sinceDeath < 900) ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.cos(sinceDeath / 90))
     // Nach einem Rueckschlag geschuetzt: blinkt
@@ -688,6 +717,40 @@ export class Renderer {
         ctx.fill()
       }
     }
+  }
+
+  /** Schlange eines anderen Spielers (weich zwischen den Feldern) */
+  private drawFremde(f: FremdeSchlange, now: number) {
+    const { ctx, cell } = this
+    const n = f.body.length
+    if (!n) return
+    const a = this.reduce ? 1 : f.alpha
+    const h0 = f.prev[0] ?? f.body[0]
+    const head = { x: lerp(h0.x, f.body[0].x, a), y: lerp(h0.y, f.body[0].y, a) }
+    const tp = f.prev[n - 1]
+    const tl = f.body[n - 1]
+    const tail = tp ? { x: lerp(tp.x, tl.x, a), y: lerp(tp.y, tl.y, a) } : tl
+    ctx.globalAlpha = f.deck * (f.tot ? 0.5 : 1)
+    drawSchlange(ctx, [head, ...f.body.slice(1), tail], cell, f.dir, f.skin, now, { tot: f.tot, blinzeln: !f.tot && now % 4300 < 120 })
+    ctx.globalAlpha = 1
+  }
+
+  /** Name ueber dem Kopf eines anderen Spielers */
+  private drawName(f: FremdeSchlange) {
+    const { ctx, cell } = this
+    const a = this.reduce ? 1 : f.alpha
+    const h0 = f.prev[0] ?? f.body[0]
+    const x = (lerp(h0.x, f.body[0].x, a) + 0.5) * cell
+    const y = lerp(h0.y, f.body[0].y, a) * cell - cell * 0.25
+    ctx.font = `700 ${Math.max(10, Math.round(cell * 0.42))}px "Libre Franklin", system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.globalAlpha = Math.max(0.55, f.deck)
+    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(23, 21, 19, 0.75)'
+    ctx.strokeText(f.name, x, y)
+    ctx.fillStyle = '#F5EFE6'
+    ctx.fillText(f.name, x, y)
+    ctx.globalAlpha = 1
   }
 
   /** Abgeschnittene Glieder: kurz weisser Schnitt, dann bleiben sie eine Sekunde liegen

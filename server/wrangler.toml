@@ -1,0 +1,13 @@
+# Snake-Server: ein Worker, der fuer jeden Raum ein Durable Object startet (Gratis-Tarif: SQLite-Klasse).
+# Veroeffentlichen: .github/workflows/server.yml (oder lokal: npx wrangler deploy --config server/wrangler.toml)
+name = "snake-server"
+main = "index.ts"
+compatibility_date = "2025-09-01"
+
+[[durable_objects.bindings]]
+name = "RAUM"
+class_name = "Raum"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Raum"]

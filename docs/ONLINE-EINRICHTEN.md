@@ -46,7 +46,8 @@ Spieler bekommen so eine feste Nutzer-Id, ohne ein Konto oder Passwort anzulegen
 3. In den SQL Editor einfügen und **Run** klicken (oder Strg/Cmd + Enter).
 4. Erwartet: „Success. No rows returned“.
 5. **Das Gleiche noch einmal** mit einer **neuen Query** und der Datei `supabase/migrations/20261018000100_alle_spieler.sql`
-   (sie schaltet die Liste „Alle Spieler“ frei). Immer der Reihe nach, nie beide in dasselbe Feld.
+   (sie schaltet die Liste „Alle Spieler“ frei), danach mit `supabase/migrations/20261018000200_skin_und_online.sql`
+   (Skin in der Spielerliste). Immer der Reihe nach, jede Datei in ein eigenes, leeres Feld.
 6. Kontrolle: links **Table Editor** → Du siehst die Tabellen `profile` und `score`.
 
 Das Skript legt an: Tabellen, Schutzregeln (jeder darf lesen, schreiben nur das Eigene, nichts ändern oder löschen),
