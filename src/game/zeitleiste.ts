@@ -20,7 +20,7 @@ export const dauerhaft = (c: R.Config): string[] => [
   `Neue Gebiete wählst du selbst: bis Level ${c.gebietBis} alle ${c.gebietAlle}, dann alle ${c.gebietAlle2}, ab ${c.gebietAb3} alle ${c.gebietAlle3} Level leuchten die Wände, wo ein Block passt. Du hast ${c.wahlZeit} s, eine zu berühren (die letzten 5 s blinken sie), sonst kommt der Block zufällig.`,
   `Unter der Erde (je 1000 Felder): Golderz ${c.erzGold} (×${c.goldWert} Apfel), Diamant ${c.erzDia} (×${c.diaWert}), Rubin ${c.erzRubin} (×${c.rubinWert}), Opal ${c.erzOpal} (×${c.opalWert}). Freilegen per Maulwurf, neuem Gebiet oder Spitzhacke.`,
   `Zufällige Abstände: Fallen alle ${bereich(c.falleMin, c.falleMax)}, Wolken ${bereich(c.wolkeMin, c.wolkeMax)}, Frösche ${bereich(c.froschMin, c.froschMax)}, Gegner ${bereich(c.gegnerMin, c.gegnerMax)}, Ameisen ${bereich(c.ameiseMin, c.ameiseMax)} Level.`,
-  `Lava breitet sich jeden ${c.lavaWachsen}. Apfel um ein Feld aus und hört bei ${bereich(Math.min(c.lavaMin, c.lavaMax), Math.max(c.lavaMin, c.lavaMax))} Feldern auf.`,
+  `Lava steckt in ${c.lavaChance} % der Blöcke als einzelnes Feld im Stein (sichtbar in der Erde). Kommt der Block zur Karte, bricht sie aus, breitet sich jeden ${c.lavaWachsen}. Apfel um ein Feld aus und hört bei ${bereich(Math.min(c.lavaMin, c.lavaMax), Math.max(c.lavaMin, c.lavaMax))} Feldern auf.`,
 ]
 
 /** Alle Eintraege bis `bis`. `feldProBlock` = Felder je Kartenblock (Handy hochkant ca. 12 x 11) */
@@ -39,13 +39,15 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
   let baeume = 0
   let haeuser = 0
   let tuerme = 0
-  let lava = 0
   let eis = 0
 
   for (let l = 1; l <= bis; l++) {
     const t: Eintrag['teile'] = []
     const add = (art: Art, text: string) => t.push({ art, text })
-    if (l === 1) add('karte', 'Start: 2 Blöcke (ein Bildschirm), Schlange 3 lang, Äpfel rot (×1).')
+    if (l === 1) {
+      add('karte', `Start: 2 Blöcke (ein Bildschirm), das Bild steht still bis zum ersten neuen Gebiet. Schlange 3 lang, wächst alle ${c.wachsenAlle} Äpfel. Äpfel rot (×1).`)
+      if (c.lavaChance > 0) add('bau', `Lava im Stein: in ${c.lavaChance} % der Blöcke rund um die Karte ein Lavafeld, bricht aus, wenn der Block zur Karte kommt.`)
+    }
 
     // Karte
     if (R.neuesGebiet(c, l)) {
@@ -57,8 +59,8 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
     const felder = bloecke * feldProBlock
 
     // Schlange
-    if (l === c.wachsenJedes + 1) add('schlange', 'Schlange wächst nur noch mit jedem 2. Apfel.')
-    if (l === c.wachsenJedesZweite + 1) add('schlange', 'Schlange wächst nur noch mit jedem 3. Apfel.')
+    if (l === c.wachsenJedes + 1) add('schlange', `Schlange wächst nur noch alle ${2 * c.wachsenAlle} Äpfel.`)
+    if (l === c.wachsenJedesZweite + 1) add('schlange', `Schlange wächst nur noch alle ${3 * c.wachsenAlle} Äpfel.`)
     if (!tempoMinErreicht && 1 - ((l - 1) * c.tempoProLevel) / 100 <= c.tempoMin / 100) {
       tempoMinErreicht = true
       add('schlange', `Höchsttempo erreicht (${c.tempoMin} % des Grundtakts).`)
@@ -118,7 +120,7 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
     // Gegner
     const gm = R.gegnerMax(c, l)
     if (gm !== gegnerVorher) {
-      add('gegner', gegnerVorher === 0 ? `Rote Gegner-Schlangen: alle ${bereich(c.gegnerMin, c.gegnerMax)} Level eine, höchstens 1.` : `Bis zu ${gm} Gegner gleichzeitig.`)
+      add('gegner', gegnerVorher === 0 ? `Rote Gegner-Schlangen (selten): alle ${bereich(c.gegnerMin, c.gegnerMax)} Level eine, höchstens 1. Bei dir reagieren sie spät (${c.gegnerReaktionWand} Felder, ${c.gegnerReaktion}, wenn du dich gerade vor ihnen aufbaust).` : `Bis zu ${gm} Gegner gleichzeitig.`)
       gegnerVorher = gm
     }
     if (l === c.lilaAb) add('gegner', `Lila Gegner möglich (${c.lilaChance} % der neuen), ${c.lilaLaenge} lang, ${c.lilaTempo} % schneller.`)
@@ -140,10 +142,6 @@ export function zeitleiste(c: R.Config, bis = 500, feldProBlock = 132): Eintrag[
     if (R.neuesEis(c, l) && eis < R.eisMax(c, felder)) {
       eis++
       add('hindernis', `${eis === 1 ? 'Erstes Eisfeld' : `Eisfeld ${eis}`} (${Math.min(c.eisMin, c.eisMax)}–${Math.max(c.eisMin, c.eisMax)} Felder, nicht lenkbar).`)
-    }
-    if (R.neueLava(c, l) && lava < R.lavaMax(c, felder)) {
-      lava++
-      add('bau', `${lava === 1 ? 'Erster Lavasee' : `Lavasee ${lava}`} (wächst von 1 Feld).`)
     }
 
     if (t.length) out.push({ level: l, teile: t })

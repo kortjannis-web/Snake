@@ -26,12 +26,13 @@ export const DEFAULTS = {
   // Tempo und Wachsen
   tempoProLevel: 0.12,
   tempoMin: 68,
+  wachsenAlle: 2,
   wachsenJedes: 50,
   wachsenJedesZweite: 300,
   schutz: 2.2,
   gnade: 10,
   // Mauern
-  mauerAb: 8,
+  mauerAb: 5,
   mauerSchritt: 8,
   mauerMax: 6,
   mauerFelder: 130,
@@ -41,24 +42,24 @@ export const DEFAULTS = {
   teichMaxGroesse: 12,
   teichFelder: 220,
   // Giftaepfel
-  giftAb: 45,
-  giftAlle: 60,
+  giftAb: 40,
+  giftAlle: 70,
   giftMax: 4,
   // Fallen
-  falleAb: 90,
+  falleAb: 70,
   falleMin: 4,
   falleMax: 5,
   falleDauer: 25,
   falleAbstandMin: 5,
   falleAbstandMax: 8,
   // Baeume
-  baumAb: 90,
+  baumAb: 60,
   baumAlle: 40,
   baumFelder: 150,
   baumKippMin: 10,
   baumKippMax: 60,
   // Giftwolken
-  wolkeAb: 135,
+  wolkeAb: 110,
   wolkeMin: 5,
   wolkeMax: 7,
   wolkeTakt: 5,
@@ -66,40 +67,38 @@ export const DEFAULTS = {
   wolkeStufeMax: 5,
   wolkeZurueck: 10,
   // Froesche
-  froschAb: 180,
-  froschMin: 2,
+  froschAb: 30,
+  froschMin: 1,
   froschMax: 3,
   froschSprung: 3,
   froschWende: 20,
   froschAnzahl: 6,
   // Haeuser: erst kleine Huetten, ab hausGrossAb richtige Haeuser
-  hausAb: 100,
-  hausGrossAb: 190,
+  hausAb: 80,
+  hausGrossAb: 130,
   hausAlle: 30,
   hausFelder: 250,
   lichtWeite: 2,
   lichtZurueck: 5,
   // Jaegertuerme
-  turmAb: 285,
+  turmAb: 160,
   turmAlle: 40,
   turmFelder: 300,
   kegelLaenge: 6,
   kegelZurueck: 10,
   // Eis
-  eisAb: 165,
+  eisAb: 120,
   eisAlle: 30,
   eisMin: 4,
   eisMax: 10,
   eisFelder: 300,
-  // Lava
-  lavaAb: 245,
-  lavaAlle: 30,
+  // Lava: steckt von Anfang an als einzelnes Feld im Stein mancher Bloecke
+  lavaChance: 30,
   lavaWachsen: 2,
   lavaMin: 6,
   lavaMax: 15,
-  lavaFelder: 300,
   // Ameisen
-  ameiseAb: 215,
+  ameiseAb: 140,
   ameiseMin: 8,
   ameiseMax: 12,
   ameiseAnzahl: 4,
@@ -107,20 +106,21 @@ export const DEFAULTS = {
   ameiseTakt: 0.8,
   ameiseZurueck: 3,
   // Gegner-Schlangen
-  gegnerAb: 55,
-  gegnerMin: 6,
-  gegnerMax: 10,
-  gegnerAnzahl: 3,
+  gegnerAb: 100,
+  gegnerMin: 30,
+  gegnerMax: 45,
+  gegnerAnzahl: 2,
   gegnerWachsen: 20,
   gegnerMaxLaenge: 8,
-  lilaAb: 110,
+  lilaAb: 150,
   lilaChance: 25,
   lilaLaenge: 5,
   lilaTempo: 20,
   lilaMaxLaenge: 10,
-  gegnerReaktion: 3,
+  gegnerReaktion: 4,
+  gegnerReaktionWand: 2,
   // Power-ups und Aepfel als Waehrung
-  powerAb: 9,
+  powerAb: 10,
   powerChance: 18,
   powerDauer: 15,
   effektDauer: 30,
@@ -148,10 +148,10 @@ export const DEFAULTS = {
   apfelWert: 1,
   apfelWertAlle: 50,
   // Ereignisse
-  ereignis1Ab: 150,
-  ereignis2Ab: 200,
-  ereignis3Ab: 300,
-  haeufigerAb: 250,
+  ereignis1Ab: 170,
+  ereignis2Ab: 230,
+  ereignis3Ab: 290,
+  haeufigerAb: 190,
 }
 export type Config = typeof DEFAULTS
 export type ConfigKey = keyof Config
@@ -174,8 +174,9 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
     felder: [
       { key: 'tempoProLevel', label: 'Schneller je Level', min: 0, max: 2, step: 0.01, einheit: '%' },
       { key: 'tempoMin', label: 'Höchstens so schnell (Takt)', min: 20, max: 100, einheit: '%' },
-      { key: 'wachsenJedes', label: 'Wächst mit jedem Apfel bis Level', min: 0, max: 10000 },
-      { key: 'wachsenJedesZweite', label: 'Danach mit jedem zweiten bis Level', min: 0, max: 10000 },
+      { key: 'wachsenAlle', label: 'Wächst ein Glied alle', min: 1, max: 20, einheit: 'Äpfel' },
+      { key: 'wachsenJedes', label: 'Ab Level nur noch halb so oft', min: 0, max: 10000 },
+      { key: 'wachsenJedesZweite', label: 'Ab Level nur noch ein Drittel so oft', min: 0, max: 10000 },
       { key: 'schutz', label: 'Schutz nach Rückschlag', min: 0, max: 10, step: 0.1, einheit: 's' },
       { key: 'gnade', label: 'Reaktionszeit vor dem Aufprall', min: 0, max: 500, einheit: 'ms' },
     ],
@@ -257,7 +258,7 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'hausGrossAb', label: 'Große Häuser ab Level', min: 1, max: 10000 },
       { key: 'hausAlle', label: 'Neues Haus alle', min: 1, max: 500, einheit: 'Level' },
       { key: 'hausFelder', label: 'Höchstens ein Haus je', min: 30, max: 5000, einheit: 'Felder' },
-      { key: 'lichtWeite', label: 'Licht reicht (Hütte 1 weniger)', min: 1, max: 10, einheit: 'Felder' },
+      { key: 'lichtWeite', label: 'Licht reicht immer', min: 1, max: 10, einheit: 'Felder' },
       { key: 'lichtZurueck', label: 'Licht kostet', min: 0, max: 100, einheit: 'Level' },
     ],
   },
@@ -285,7 +286,8 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'lilaLaenge', label: 'Lila startet mit', min: 3, max: 30, einheit: 'Glieder' },
       { key: 'lilaTempo', label: 'Lila schneller als Rot', min: 0, max: 200, einheit: '%' },
       { key: 'lilaMaxLaenge', label: 'Lila höchstens so lang', min: 3, max: 40, einheit: 'Glieder' },
-      { key: 'gegnerReaktion', label: 'Schiebt sich die Schlange so nah vor einen Gegner, lenkt er nicht mehr rechtzeitig', min: 0, max: 10, einheit: 'Felder' },
+      { key: 'gegnerReaktion', label: 'Baut sich die Schlange gerade so nah vor einem Gegner auf, lenkt er nicht mehr rechtzeitig', min: 0, max: 10, einheit: 'Felder' },
+      { key: 'gegnerReaktionWand', label: 'Läuft ein Gegner auf die Schlange zu: so viele Felder braucht er, um zu reagieren', min: 0, max: 10, einheit: 'Felder' },
     ],
   },
   {
@@ -303,12 +305,10 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
   {
     gruppe: 'Lava',
     felder: [
-      { key: 'lavaAb', label: 'Ab Level', min: 1, max: 10000 },
-      { key: 'lavaAlle', label: 'Neuer Lavasee alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'lavaChance', label: 'Chance, dass ein Block ein Lavafeld im Stein hat', min: 0, max: 100, einheit: '%' },
       { key: 'lavaWachsen', label: 'Breitet sich aus jeden', min: 1, max: 50, einheit: '. Apfel' },
       { key: 'lavaMin', label: 'Hört frühestens auf bei', min: 1, max: 60, einheit: 'Feldern' },
       { key: 'lavaMax', label: 'Hört spätestens auf bei', min: 1, max: 60, einheit: 'Feldern' },
-      { key: 'lavaFelder', label: 'Höchstens ein Lavasee je', min: 30, max: 5000, einheit: 'Felder' },
     ],
   },
   {
@@ -390,9 +390,11 @@ export const gebietFortschritt = (c: Config, level: number) => {
   return { rest: n - level, abschnitt: n - v }
 }
 
-/** Waechst die Schlange bei diesem Level? */
-export const waechst = (c: Config, level: number) =>
-  level <= c.wachsenJedes ? true : level <= c.wachsenJedesZweite ? level % 2 === 0 : level % 3 === 0
+/** Waechst die Schlange bei diesem Level? Alle `wachsenAlle` Aepfel, ab wachsenJedes halb, ab wachsenJedesZweite ein Drittel so oft */
+export const waechst = (c: Config, level: number) => {
+  const alle = Math.max(1, Math.round(c.wachsenAlle)) * (level <= c.wachsenJedes ? 1 : level <= c.wachsenJedesZweite ? 2 : 3)
+  return level % alle === 0
+}
 /** So viele Glieder ist die Schlange von Level `auf` bis Level `von` gewachsen */
 export const gewachsen = (c: Config, auf: number, von: number) => {
   let n = 0
@@ -537,11 +539,11 @@ export function feldZufall(x: number, y: number, salz = 0) {
   h ^= h >>> 16
   return (h >>> 0) / 4294967296
 }
-export type Erde = ErzArt | 'kohle' | 'stein' | 'skelett' | 'lava'
+export type Erde = ErzArt | 'kohle' | 'stein' | 'skelett'
 /** Was steckt in diesem Erdfeld (Weltkoordinaten)? Gold und Diamant sind echte Funde, der Rest Deko */
 export function erdeBei(c: Config, x: number, y: number): Erde | null {
   let z = feldZufall(x, y, 7) * 1000
-  for (const [art, anteil] of [['opal', c.erzOpal], ['rubin', c.erzRubin], ['dia', c.erzDia], ['gold', c.erzGold], ['lava', 9], ['skelett', 6], ['kohle', 30], ['stein', 60]] as const) {
+  for (const [art, anteil] of [['opal', c.erzOpal], ['rubin', c.erzRubin], ['dia', c.erzDia], ['gold', c.erzGold], ['skelett', 6], ['kohle', 30], ['stein', 60]] as const) {
     if (z < anteil) return art
     z -= anteil
   }
@@ -556,8 +558,12 @@ export const GEGNER_TEMPO = 2
 /** Takte je Schritt fuer einen Gegner (lila ist lilaTempo % schneller) */
 export const gegnerTakte = (c: Config, art: 'rot' | 'lila') => (art === 'lila' ? GEGNER_TEMPO / (1 + c.lilaTempo / 100) : GEGNER_TEMPO)
 
-export const neueLava = (c: Config, level: number) => level >= c.lavaAb && (level - c.lavaAb) % c.lavaAlle === 0
-export const lavaMax = (c: Config, felder: number) => Math.max(1, Math.floor(felder / c.lavaFelder))
+/** Lava im Stein: steckt in diesem Block (Weltkoordinaten in Bloecken) ein Lavafeld, und wo (Feld im Block)?
+ *  Fest je Block und Spiel (`salz`), mit einem Feld Abstand zum Blockrand. Die Startbloecke haben keins */
+export function lavaKeim(c: Config, bx: number, by: number, bw: number, bh: number, salz: number): P | null {
+  if (feldZufall(bx, by, salz) * 100 >= c.lavaChance || bw < 3 || bh < 3) return null
+  return { x: 1 + Math.floor(feldZufall(bx, by, salz + 1) * (bw - 2)), y: 1 + Math.floor(feldZufall(bx, by, salz + 2) * (bh - 2)) }
+}
 
 /** Frosch: Sprung dauert so lange, 1 s vorher macht er sich bereit, 0,25 s nach der Landung dreht er ggf. */
 export const FROSCH_FLUG = 380
@@ -574,7 +580,6 @@ export const unlocks = (c: Config) =>
     { what: 'gegner', level: c.gegnerAb },
     { what: 'lila', level: c.lilaAb },
     { what: 'ameise', level: c.ameiseAb },
-    { what: 'lava', level: c.lavaAb },
     { what: 'eis', level: c.eisAb },
     { what: 'maulwurf', level: c.maulwurfAb },
     { what: 'baum', level: c.baumAb },

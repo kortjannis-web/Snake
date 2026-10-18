@@ -87,6 +87,11 @@ export class Game {
   funde: Fund[] = []
   /** Gerade gegrabener Tunnel (Maulwurf): wird beim Zurueckkommen auf die Karte freigelegt */
   tunnel: P[] = []
+  /** Lava im Stein: fest je Block und Spiel, die Startbloecke haben keine (Weltkoordinaten in Bloecken) */
+  private readonly lavaSalz: number
+  private startBloecke = new Set<number>()
+  /** Freigelegte Lavafelder, die noch nicht ausbrechen konnten (etwas liegt darauf oder der Kopf ist zu nah) */
+  lavaOffen: P[] = []
   /** Offene Gebiets-Wahl: die Waende leuchten, beruehren baut dort einen Block an */
   wahl = 0
   /** Bis dahin darf gewaehlt werden (danach kommt der Block zufaellig) */
@@ -173,13 +178,14 @@ export class Game {
   private next: Record<Art, number>
   private lastSpawn = -1e9
   /** Faellige Baeume, Haeuser und Tuerme, die noch keinen Platz gefunden haben */
-  private offen = { baum: 0, haus: 0, turm: 0, lava: 0, eis: 0 }
+  private offen = { baum: 0, haus: 0, turm: 0, eis: 0 }
 
   constructor(o: GameOpts) {
     this.cfg = { ...R.DEFAULTS, ...(o.cfg ?? {}) }
     this.kreativ = o.kreativ ?? null
     this.tempo = o.tempo ?? 'normal'
     this.r = rng(o.seed)
+    this.lavaSalz = 11 + 3 * ((o.seed ?? Math.floor(Math.random() * 2 ** 31)) % 100_000)
     // Block = halber Bildschirm, am Handy (hochkant) uebereinander, quer nebeneinander
     if (o.screenH >= o.screenW) {
       this.bw = o.screenW
@@ -202,6 +208,7 @@ export class Game {
         for (let x = 0; x < Math.max(1, Math.min(8, Math.round(sb.breite))); x++) this.blocks.push({ x, y })
       this.baueMaske()
     }
+    for (const b of this.blocks) this.startBloecke.add(weltKey(b.x, b.y))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
     this.tick = R.takt(this.cfg, this.tempo, 1)
 
@@ -404,10 +411,18 @@ export class Game {
       }
     }
 
+    const steinLava = () => {
+      const w = this.welt_(n)
+      return this.lavaImStein(w.x, w.y)
+    }
     let cause: Cause | null = graben
-      ? !this.durchSelbst() && !this.geist() && rest.some((p) => same(p, n))
-        ? 'selbst'
-        : null
+      ? this.geist()
+        ? null
+        : !this.durchSelbst() && rest.some((p) => same(p, n))
+          ? 'selbst'
+          : steinLava()
+            ? 'lava'
+            : null
       : (this.gefahr(n, rest) ?? (gi >= 0 && k?.tod === 'anhalten' && !this.geist() ? 'gift' : null))
     // Schild = ein Leben mehr: faengt den Aufprall ab, kurz danach gleitet die Schlange hindurch.
     // Am Kartenrand geht das nicht: dort bleibt sie stehen, bis man abbiegt
@@ -423,7 +438,8 @@ export class Game {
           this.emit({ type: 'halt' })
           return
         }
-        cause = this.gefahr(n, rest)
+        // In der Erde gleitet sie als Geist weiter (gefahr kennt dort nur den Kartenrand)
+        cause = graben ? null : this.gefahr(n, rest)
       }
     }
     if (cause) {
@@ -728,7 +744,6 @@ export class Game {
     if (R.neuerBaum(c, l)) this.offen.baum++
     if (R.neuesHaus(c, l)) this.offen.haus++
     if (R.neuerTurm(c, l)) this.offen.turm++
-    if (R.neueLava(c, l)) this.offen.lava++
     this.bauten()
   }
 
@@ -738,7 +753,6 @@ export class Game {
     while (this.offen.baum > 0 && this.baeume.length < R.baumMax(this.cfg, felder) && this.neuerBaum()) this.offen.baum--
     while (this.offen.haus > 0 && this.haeuser.length < R.hausMax(this.cfg, felder) && this.neuesHaus()) this.offen.haus--
     while (this.offen.turm > 0 && this.tuerme.length < R.turmMax(this.cfg, felder) && this.neuerTurm()) this.offen.turm--
-    while (this.offen.lava > 0 && this.lava.length < R.lavaMax(this.cfg, felder) && this.neuerLavaSee()) this.offen.lava--
     while (this.offen.eis > 0 && this.eis.length < R.eisMax(this.cfg, felder) && this.neuesEisFeld()) this.offen.eis--
   }
 
@@ -756,6 +770,7 @@ export class Game {
       this.mauern = []
     }
     this.bauten()
+    this.lavaAusbrechen()
     const plan = R.mauern(this.cfg, this.level, this.felder())
     // Ein Platz-Kontext fuer alle Mauern dieser Runde (jede neue Mauer wird darin nachgetragen)
     const ctx = plan.length ? this.platzKontext() : null
@@ -905,6 +920,7 @@ export class Game {
     this.blocks.push(p)
     this.baueMaske()
     this.erzeFrei(neu)
+    this.lavaFrei(neu)
     this.expansions++
     const side = SIDE[d]
     this.gebiet = { side, t: this.time, x: p.x * this.bw, y: p.y * this.bh, w: this.bw, h: this.bh }
@@ -953,6 +969,7 @@ export class Game {
         if (nx < x0 || ny < y0 || nx >= x0 + W || ny >= y0 + H) continue
         const j = (ny - y0) * W + (nx - x0)
         if (dist[j] >= 0 || zu[j]) continue
+        if (!this.inside({ x: nx, y: ny }) && this.lavaImStein(nx - this.ursprung.x, ny - this.ursprung.y)) continue
         dist[j] = dist[i] + 1
         if (this.inside({ x: nx, y: ny })) {
           if (!wand.has(key(nx, ny))) return dist[j]
@@ -1050,6 +1067,7 @@ export class Game {
     this.extra.push(...neu)
     this.baueMaske()
     this.erzeFrei(neu)
+    this.lavaFrei(neu)
     this.emit({ type: 'freigelegt', dx, dy, anzahl: neu.length })
   }
 
@@ -1060,7 +1078,7 @@ export class Game {
       const w = this.welt_(c)
       const k = weltKey(w.x, w.y)
       const erz = R.erdeBei(this.cfg, w.x, w.y)
-      if (!istErz(erz) || this.abgebaut.has(k)) continue
+      if (!istErz(erz) || this.abgebaut.has(k) || this.lavaImStein(w.x, w.y)) continue
       this.abgebaut.add(k)
       if (this.aufSchlange(c)) {
         this.fundNehmen(erz, c)
@@ -1082,6 +1100,7 @@ export class Game {
     }
     mv(this.ursprung)
     this.extra.forEach(mv)
+    this.lavaOffen.forEach(mv)
     this.funde.forEach((f) => mv(f.p))
     this.tunnel.forEach(mv)
     this.eis.forEach((e) => e.cells.forEach(mv))
@@ -1592,11 +1611,11 @@ export class Game {
     return false
   }
 
-  /** Lichtfelder vor einem Fenster (bis `lichtWeite`, bei Huetten eins weniger; endet an Kartenrand, Haus, Baum oder Turm) */
+  /** Lichtfelder vor einem Fenster (bis `lichtWeite`, auch bei Huetten; endet an Kartenrand, Haus, Baum oder Turm) */
   private strahlVon(h: Haus, i: number, bau = this.bauSet()) {
     const f = h.fenster[i]
     const out: P[] = []
-    const weite = h.klein ? Math.max(1, this.cfg.lichtWeite - 1) : this.cfg.lichtWeite
+    const weite = this.cfg.lichtWeite
     for (let k = 1; k <= weite; k++) {
       const c = { x: f.p.x + STEP[f.d].x * k, y: f.p.y + STEP[f.d].y * k }
       if (!this.inside(c) || bau.has(key(c.x, c.y))) break
@@ -1605,10 +1624,10 @@ export class Game {
     return out
   }
 
-  /** Neues Fenster fuer ein Haus: Das Licht darf nirgends auf der Schlange liegen.
-   *  Moeglichst ein anderes Fenster als vorher und nicht direkt vor dem Kopf.
-   *  Passt keins (alle Seiten zugebaut oder die Schlange liegt davor), bleibt
-   *  das Haus diese Runde dunkel. */
+  /** Neues Fenster fuer ein Haus: Das Licht reicht immer voll `lichtWeite` Felder weit und darf
+   *  nirgends auf der Schlange liegen. Moeglichst ein anderes Fenster als vorher und nicht direkt
+   *  vor dem Kopf. Passt keins (zu wenig Platz vor allen Fenstern oder die Schlange liegt davor),
+   *  bleibt das Haus diese Runde dunkel. */
   private lichtFuer(h: Haus, erstes = false) {
     const head = this.body[0]
     const bau = this.bauSet()
@@ -1619,7 +1638,7 @@ export class Game {
     let strahl: P[] = []
     for (const i of reihe) {
       const s = this.strahlVon(h, i, bau)
-      if (!s.length || s.some((p) => this.aufSchlange(p))) continue
+      if (s.length < this.cfg.lichtWeite || s.some((p) => this.aufSchlange(p))) continue
       if (ok < 0) {
         ok = i
         strahl = s
@@ -2018,9 +2037,9 @@ export class Game {
     return false
   }
 
-  /** Schiebt sich der Kopf bis zu `gegnerReaktion` Felder direkt vor einen Gegner (in seiner
-   *  Laufrichtung, frei dazwischen), kann er nicht mehr rechtzeitig lenken: er faehrt stur
-   *  geradeaus weiter, meist in die Schlange hinein */
+  /** Baut sich die Schlange gerade bis zu `gegnerReaktion` Felder direkt vor einem Gegner auf (der
+   *  Kopf kommt in seine Laufrichtung, frei dazwischen), kann er nicht mehr rechtzeitig lenken: er
+   *  faehrt stur geradeaus weiter, meist in die Schlange hinein */
   private gegnerUeberrascht(n: P) {
     const weit = Math.round(this.cfg.gegnerReaktion)
     if (weit <= 0 || !this.gegner.length) return
@@ -2206,6 +2225,28 @@ export class Game {
       }
     }
     ziehen(best.d, best.p)
+    this.gegnerBlick(e, schlange, fremd)
+  }
+
+  /** Bei Mauern, Baeumen und Haeusern ist ein Gegner schlau, bei der Schlange langsam: Laeuft er
+   *  auf sie zu, braucht er `gegnerReaktionWand` Felder, um zu reagieren. Taucht sie neu in seiner
+   *  Bahn auf (er ist gerade abgebogen) und ist naeher, faehrt er stur hinein. Was er schon von
+   *  weiter weg gesehen hat, umfaehrt er wie gewohnt */
+  private gegnerBlick(e: Gegner, schlange: Set<number>, zu: (p: P) => boolean) {
+    const weit = Math.round(this.cfg.gegnerReaktionWand)
+    const h = e.body[0]
+    const d = STEP[e.dir]
+    for (let i = 1; i <= Math.max(weit, 8); i++) {
+      const p = { x: h.x + d.x * i, y: h.y + d.y * i }
+      const k = key(p.x, p.y)
+      if (schlange.has(k)) {
+        if (k !== e.gesehen && i <= weit) e.stur = i
+        e.gesehen = k
+        return
+      }
+      if (zu(p)) break
+    }
+    e.gesehen = undefined
   }
 
   /** Gegner eingekesselt: zerfaellt. Hat die Schlange ihn eingekesselt (sie ist ganz nah),
@@ -2226,6 +2267,45 @@ export class Game {
   }
 
   /* ================= Lava ================= */
+
+  /** Steckt in diesem Erdfeld (Weltkoordinaten) das Lavafeld seines Blocks? */
+  lavaImStein(wx: number, wy: number) {
+    const bx = Math.floor(wx / this.bw)
+    const by = Math.floor(wy / this.bh)
+    if (this.startBloecke.has(weltKey(bx, by))) return false
+    const k = R.lavaKeim(this.cfg, bx, by, this.bw, this.bh, this.lavaSalz)
+    return !!k && k.x === wx - bx * this.bw && k.y === wy - by * this.bh
+  }
+
+  /** Frisch freigelegte Felder: steckte darin Lava im Stein, bricht sie aus (sobald dort Platz ist) */
+  private lavaFrei(cells: P[]) {
+    for (const c of cells) {
+      const w = this.welt_(c)
+      if (this.lavaImStein(w.x, w.y)) this.lavaOffen.push({ ...c })
+    }
+    if (this.lavaOffen.length) this.lavaAusbrechen()
+  }
+
+  /** Freigelegte Lava wird ein Lavasee (ein Feld, waechst bis lavaMin bis lavaMax). Nicht unter der
+   *  Schlange, dem Apfel oder anderem, nicht direkt vor dem Kopf, schliesst nichts ab: sonst spaeter */
+  private lavaAusbrechen() {
+    if (!this.lavaOffen.length) return
+    const c = this.cfg
+    const head = this.body[0]
+    const wand = this.hindernisse()
+    const vorher = this.erreichbar(wand)
+    const lo = Math.max(1, Math.min(c.lavaMin, c.lavaMax))
+    this.lavaOffen = this.lavaOffen.filter((p) => {
+      const k = key(p.x, p.y)
+      if (!this.inside(p) || wand.has(k) || this.aufSchlange(p) || same(p, this.apple.p) || this.powers.some((o) => same(o.p, p))) return true
+      if (this.funde.some((f) => same(f.p, p)) || this.aufEis(p) || cheb(p, head) < 2 || this.imWeg(p, 3)) return true
+      if (!this.keinAbschluss([p], wand, vorher)) return true
+      this.lava.push({ cells: [{ ...p }], t: [this.time], ziel: this.r.int(lo, Math.max(lo, c.lavaMin, c.lavaMax)) })
+      wand.add(k)
+      this.emit({ type: 'lava', p: { ...p } })
+      return false
+    })
+  }
 
   /** Neuer Lavasee: beginnt mit einem Feld, hoert zwischen lavaMin und lavaMax Feldern auf zu wachsen */
   neuerLavaSee() {
@@ -2476,6 +2556,7 @@ export class Game {
     this.ameisen = []
     this.lava = []
     this.eis = []
+    this.lavaOffen = []
     this.funde = []
     this.powers = []
   }

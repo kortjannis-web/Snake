@@ -1,6 +1,6 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.14.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
@@ -8,7 +8,8 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Level = gegessene Äpfel + 1.** Jeder Apfel ist ein Level.
 - **Start:** Die Karte ist genau ein Bildschirm groß (zwei Blöcke, siehe 4.), die Schlange ist 3 Glieder lang und läuft nach rechts. Das Spiel wartet, bis man wischt (Handy) oder eine Pfeiltaste drückt (PC).
 - **Feldgröße:** Ein Bildschirm hat immer ca. 300 Felder, egal welches Gerät (Handy hochkant z. B. 12 × 23). So spielt es sich überall gleich.
-- **Wachsen:** bis Level 50 bei jedem Apfel ein Glied mehr, bis Level 300 bei jedem zweiten, danach bei jedem dritten. Sonst wäre die Schlange auf Dauer länger als die Karte.
+- **Wachsen:** bis Level 50 **alle 2 Äpfel** ein Glied mehr, bis Level 300 alle 4, danach alle 6 (halb so schnell wie früher; einstellbar: Master-Einstellungen → Schlange). Sonst wäre die Schlange auf Dauer länger als die Karte.
+- **Regelmäßig Neues:** Bis Level 300 kommt **alle 10 Level** etwas Neues oder etwas wird schwerer (Übersicht in der README und in der Zeitleiste der Master-Einstellungen).
 - **Tempo:** Grundtakt je nach Einstellung 185 / 154 / 128 ms pro Feld (Langsam / Normal / Schnell). Mit jedem Level etwas schneller, ab ca. Level 270 bleibt es bei 68 % des Grundtakts.
 
 ## 2. Steuerung
@@ -37,9 +38,10 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Jeder Block hat genau die gleiche Fläche.
 - **Ab Level 300** (einstellbar) kommt kein Block mehr dazu. Bei alle 20 Level sind das 14 neue Blöcke, insgesamt 16 Blöcke = 8 Bildschirme.
 - Der neue Block klappt von der Seite auf, an der er angesetzt wird, Feld für Feld als Welle. Dazu „Whoosh“ mit Akkord.
-- **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, glühende **Lavataschen**, **Golderz** (ca. 0,9 %) und selten **Diamanten** (ca. 0,12 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf.
+- **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, **Golderz** (ca. 0,9 %) und selten **Diamanten** (ca. 0,12 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf. Dazu einzelne glühende **Lavafelder im Stein** (siehe 12c).
 - **Erze** (je 1000 Erdfelder): **Golderz** 9 (= **3 ×** der aktuelle Apfelwert), **Diamant** 1,2 (**6 ×**), **Rubin** 0,5 (rot, **10 ×**), **Opal** 0,15 (leuchtet und schimmert zwischen Pink und Lila, **20 ×**).
 - **Erze freilegen:** Wird Erde zu Spielfeld (neuer Block, Maulwurf), liegen die Erze darin als Brocken auf der Karte. Drüberfahren gräbt sie aus. Jedes Erz gibt es nur einmal.
+- **Standbild am Anfang:** Solange die Karte nur aus den zwei Startblöcken besteht (bis das erste neue Gebiet freigeschaltet ist, also frühestens Level 20), steht das Bild still, die ganze Karte in der Mitte. Das gilt für jede Kamera-Einstellung. Danach fährt die Kamera weich los.
 - **Sichtfeld:** Die Kamera zeigt je Richtung **2 Felder mehr** als ein Bildschirm der Spiellogik (am Handy hochkant z. B. ca. 14 × 25 statt 12 × 23). Die Schlange wirkt dadurch etwas kleiner, Karte und Blöcke bleiben gleich.
 - **Kamera (zwei Einstellungen, Optionen → Kamera):**
   - **Bereich (Standard):** arbeitet in drei Schichten, darauf folgt die Kamera an einer zweistufigen, kritisch gedämpften Feder (**Gummiseil an einem Gummiseil**: weich anfahren, weich abbremsen, kein Überschwingen).
@@ -53,10 +55,10 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
   - Die frühere Einstellung „Fest“ und das Rauszoomen alle 30 Level gibt es nicht mehr. Wer „Fest“ oder „Dynamisch“ gespeichert hatte, startet einmalig mit „Bereich“.
 - Der dünne Balken unter der Leiste zeigt, wie weit es noch bis zum nächsten Block ist.
 
-## 5. Mauern (ab Level 8)
+## 5. Mauern (ab Level 5)
 
-- Ab Level 8 steht eine **Mauer mit 2 Feldern**. Alle 8 Level wird sie ein Feld länger: 2, 3, 4, 5, 6.
-- Ist sie 6 lang, kommt eine **zweite Mauer** dazu, die wieder mit 2 anfängt (Level 48: 6 + 2). Dann wächst die neue bis 6, dann kommt die dritte (Level 88: 6 + 6 + 2) und so weiter.
+- Ab Level 5 steht eine **Mauer mit 2 Feldern**. Alle 8 Level wird sie ein Feld länger: 2, 3, 4, 5, 6.
+- Ist sie 6 lang, kommt eine **zweite Mauer** dazu, die wieder mit 2 anfängt (Level 45: 6 + 2). Dann wächst die neue bis 6, dann kommt die dritte (Level 85: 6 + 6 + 2) und so weiter.
 - **Nach jedem Apfel** verschwinden die Mauern und tauchen woanders neu auf (Feld für Feld, fast sofort).
 - Ab 3 Feldern können sie einen Knick haben (Chance steigt mit der Länge: 20 %, 40 %, 60 %, 75 %).
 - Wie viele Mauern gleichzeitig Platz haben, hängt an der Kartengröße (ungefähr eine je 130 Felder). Bei Level 300 sind es ca. 8 bis 11.
@@ -68,25 +70,25 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Größe steigt langsam: 2, 2, 3, 3, 4, 4, 5 … bis 12 Felder, als zusammenhängende Wasserfläche mit Ufer und Wellen.
 - Sind mehr Teiche da, als die Karte verträgt (ca. einer je 220 Felder, mindestens 2), trocknet der älteste aus.
 
-## 7. Giftäpfel (ab Level 45)
+## 7. Giftäpfel (ab Level 40)
 
 - Sehen aus wie normale Äpfel (auch in derselben Farbe), sind aber **an einer Ecke verschimmelt** (brauner Faulfleck mit graugrünem Schimmel und hellem Flaum). Daran erkennt man sie.
 - **Essen = sofort Spielende**. Die Schlange färbt sich dabei kränklich.
-- Anzahl: 1 ab Level 45, dann alle 60 Level einer mehr, höchstens 4.
+- Anzahl: 1 ab Level 40, dann alle 70 Level einer mehr (110, 180, 250), höchstens 4.
 - Liegen nach jedem Apfel woanders, einer davon gern in der Nähe des echten Apfels. Nie direkt vor dem Kopf (6 Felder in Laufrichtung frei).
 
-## 8. Bärenfallen (ab Level 90)
+## 8. Bärenfallen (ab Level 70)
 
-- Etwa **alle 4 bis 5 Level** (ab Level 200 alle 3 bis 4) erscheint eine Falle **genau in der Bahn**, in die die Schlange gerade läuft, **5 bis 8 Felder vor dem Kopf**.
+- Etwa **alle 4 bis 5 Level** (ab Level 190 alle 3 bis 4) erscheint eine Falle **genau in der Bahn**, in die die Schlange gerade läuft, **5 bis 8 Felder vor dem Kopf**.
 - Metallischer Klack beim Erscheinen, orangener Warnring, sie pulsiert kurz.
 - Bleibt 25 Sekunden, blinkt in den letzten 3 Sekunden und schnappt dann zu.
 - Hineinlaufen = sofort Tod.
 
-## 8a. Gegner-Schlangen (ab Level 55, lila ab 110)
+## 8a. Gegner-Schlangen (ab Level 100, lila ab 150)
 
 - **Rote Schlangen mit bösen Augenbrauen**, beim Erscheinen **3 oder 4 Glieder** lang. Sie tauchen weit weg vom Kopf auf (mindestens ca. 6 bis 12 Felder, nie in der Laufrichtung), immer dort, wo die Schlange hinkommt, mit genug Platz drumherum. Leises Zischen.
-- **Ab und zu:** ab Level 55 etwa alle **6 bis 10 Level** eine neue (ab Level 250 je 1 Level früher). Gleichzeitig höchstens **1** (ab Level 55), **2** (ab 155), **3** (ab 255).
-- **Lila Gegner (ab Level 110):** Jeder neue Gegner ist mit **25 %** lila (also seltener als rot). Lila startet mit **5 Gliedern**, ist **20 % schneller** als rot (ein Schritt je 1,67 statt 2 Takte), wird bis **10** lang und schaut **noch böser**: dicke, steile Brauen, gelbliche Augen mit roten Pupillen. Die KI rechnet mit ihrem Tempo, sie entkommt also öfter. Einkesseln bringt so viele Äpfel, wie sie lang ist.
+- **Selten:** ab Level 100 etwa alle **30 bis 45 Level** eine neue (ab Level 190 je 1 Level früher). Gleichzeitig höchstens **1** (ab Level 100), **2** (ab 200). Die Frösche kommen vorher (Level 30) und viel öfter.
+- **Lila Gegner (ab Level 150):** Jeder neue Gegner ist mit **25 %** lila (also seltener als rot). Lila startet mit **5 Gliedern**, ist **20 % schneller** als rot (ein Schritt je 1,67 statt 2 Takte), wird bis **10** lang und schaut **noch böser**: dicke, steile Brauen, gelbliche Augen mit roten Pupillen. Die KI rechnet mit ihrem Tempo, sie entkommt also öfter. Einkesseln bringt so viele Äpfel, wie sie lang ist.
 - **Halb so schnell** wie die Schlange (ein Schritt je zwei Takte der Schlange). Zeitlupe bremst nur die eigene Schlange.
 - **Weichen immer aus, so gut es geht.** Die KI bewertet bei jedem Schritt jede freie Richtung:
   - **Sicheres Gebiet:** wie viele Felder sie erreicht, bevor die Schlange dort sein kann (Breitensuche von beiden Köpfen, sie ist ja halb so schnell). Das ist der wichtigste Wert: so flieht sie in offene Bereiche und schlüpft durch Lücken, bevor sie sich schließen.
@@ -95,37 +97,40 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
   - **Bewegungsfreiheit** (freie Nachbarfelder), gern geradeaus, ein wenig Zufall.
   - Ist die Schlange weit weg (mehr als ca. 14 Schritte), schlängelt sie gemütlich herum. Wird sie gejagt, ziehen die Augenbrauen hoch und die Pupillen werden klein.
 - Sie laufen nie in Hindernisse (Mauern, Teiche, Fallen, Bäume, Häuser, Türme, Frösche, Giftäpfel, Giftwolken), in andere Gegner oder über den Rand. Läuft eine über den Apfel, rollt er woandershin.
-- **3 Felder Reaktionszeit:** Schiebt sich die Schlange plötzlich **bis zu 3 Felder direkt vor** einen Gegner (genau in seine Laufrichtung, frei dazwischen), schafft er es nicht mehr rechtzeitig zu lenken: Er fährt stur geradeaus weiter (die Augen werden panisch) und **zerplatzt an der Schlange**. Das bringt so viele Äpfel, wie er lang ist (mal Apfelwert). Ist die Schlange bis dahin schon vorbei, lenkt er danach wieder normal. Ab 4 Feldern hat er Zeit und weicht aus (einstellbar: Master-Einstellungen → Gegner-Schlangen).
+- **Bei Hindernissen schlau, bei der Schlange langsam.** Wer sie einkesselt, wird belohnt (beide Zahlen einstellbar: Master-Einstellungen → Gegner-Schlangen):
+  - **2 Felder Reaktionszeit vor der Schlange:** Läuft ein Gegner auf den Körper der Schlange zu, braucht er 2 Felder, um zu verstehen, dass er ausweichen muss. Taucht die Schlange neu in seiner Bahn auf (er ist gerade abgebogen) und ist **höchstens 2 Felder** entfernt, fährt er stur geradeaus weiter und **rast hinein**. Was er schon von weiter weg gesehen hat, umfährt er wie gewohnt.
+  - **4 Felder, wenn die Schlange ihm gerade den Weg verbaut:** Schiebt sich der Kopf **bis zu 4 Felder direkt vor** einen Gegner (genau in seine Laufrichtung, frei dazwischen), schafft er es nicht mehr: Er fährt stur geradeaus weiter (die Augen werden panisch) und **zerplatzt an der Schlange**.
+  - Beides bringt so viele Äpfel, wie er lang ist (mal Apfelwert). Ist die Schlange bis dahin schon vorbei, lenkt er danach wieder normal.
 - **Eingekesselt = tot:** Hat sie keinen freien Zug mehr, oder ist ihr ganzer Bereich kaum größer als sie selbst (zwei Schritte hintereinander), zerplatzt sie in rote Funken. Solange es einen Ausweg gibt, versucht sie sich zu befreien.
 - **Belohnung:** Hat die Schlange sie eingekesselt (der eigene Körper ist höchstens 2 Felder entfernt), bringt sie **so viele Äpfel, wie sie lang ist, mal Apfelwert** (siehe 14a). Plopp und Fanfare, „+N“ steigt auf. Zählt in der Statistik („Gegner eingekesselt“).
 - **Werden länger:** Wer überlebt, wird **alle 20 Sekunden ein Glied länger**, höchstens **8**. Ein kurzer Schimmer um den Kopf zeigt es. Längere Gegner bringen mehr, versperren aber auch mehr Platz.
 - **Mit dem Kopf hineinfahren = Tod** (sofort; Schild fängt es ab, Geist fährt hindurch). Giftwolken wachsen nicht über sie, sondern warten wie bei der Schlange.
 - Im Kreativ-Modus lässt sich eine Gegner-Schlange sofort auslösen (bis zur eingestellten Höchstzahl).
 
-## 9. Bäume (ab Level 90)
+## 9. Bäume (ab Level 60)
 
 - **Erst steht er:** Ein neuer Baum ist eine stehende Tanne, von oben gesehen ein **Plus** aus 5 Feldern (Stamm in der Mitte, die Krone als Stern mit vier Spitzen in die Nachbarfelder).
 - **Dann kippt er:** Nach zufällig **10 bis 60 Sekunden** (einstellbar) fällt er in eine zufällige Richtung, **langsam und immer schneller** (ca. 1,6 s). Sein Schatten zeigt sofort, wo er landet, beim Aufschlag dumpfer Schlag und kurzes Beben.
 - **Nie auf die Schlange:** Er fällt nur dorthin, wo nichts liegt: nicht auf die Schlange (auch nicht direkt vor oder neben den Kopf), nicht auf Hindernisse, Tiere, Gegner, Apfel, Power-ups oder Eis, und er schließt nichts ab. **Liegt die Schlange rundherum, hält sie ihn auf:** Er wartet und versucht es alle 0,5 s wieder.
 - **Danach liegt er** als umgefallener Tannenbaum, 6 Felder, **symmetrisch**: **1-1-3-1** entlang seiner Richtung, also zwei Felder Stamm, dann die Krone drei Felder breit (ein Feld zu jeder Seite), dann die Spitze. Die Krone ist das Dreieck, der Stamm hat eine Schnittfläche mit Jahresringen. Beim Aufbau einer Welt (Startlevel, Kreativ-Springen, Sandbox) liegen die Bäume schon.
-- Ab Level 90 **alle 40 Level ein neuer** (90, 130, 170, 210 …). Er **bleibt für immer** liegen. Als Nächstes Neues nach dem Baum kommen die Hütten (Level 100).
+- Ab Level 60 **alle 40 Level ein neuer** (60, 100, 140, 180 …). Er **bleibt für immer** liegen.
 - Steht an zufälliger Stelle, mit Abstand zur Schlange, nie vor dem Kopf, schließt nie einen Bereich ab.
 - Höchstens einer je ca. 150 Felder. Ist die Karte voll, kommt keiner mehr dazu.
 - Berühren = Tod, stehend wie liegend (auch während er fällt).
 
-## 10. Giftwolken (ab Level 135)
+## 10. Giftwolken (ab Level 110)
 
-- Etwa **alle 5 bis 7 Level** (ab Level 250 alle 4 bis 6) entsteht eine Wolke auf einem Feld.
+- Etwa **alle 5 bis 7 Level** (ab Level 190 alle 4 bis 6) entsteht eine Wolke auf einem Feld.
 - **Alle 5 Sekunden wird sie größer:** 1 Feld → Kreuz (Feld oben, unten, links, rechts dazu) → 3 × 3 (die Ecken dazu) → 3 × 3 mit Spitzen → 5 × 5 → 5 × 5 mit Spitzen.
-- Wie groß sie maximal wird, steigt mit dem Level: bis 3 × 3 (Level 135), mit Spitzen (185), 5 × 5 (235), 5 × 5 mit Spitzen (285).
+- Wie groß sie maximal wird, steigt mit dem Level: bis 3 × 3 (Level 110), mit Spitzen (160), 5 × 5 (210), 5 × 5 mit Spitzen (260).
 - **1 Sekunde vor dem Wachsen** pulsieren gestrichelte Kreise dort, wo sie gleich hinwächst. Zischgeräusch.
 - Nach der größten Stufe bleibt sie 5 Sekunden und löst sich dann auf.
 - Wächst sie auf die Schlange, kommen diese Felder erst dazu, wenn die Schlange weg ist. Den Apfel schiebt sie woanders hin, Giftäpfel verschwinden darin.
 - **Hineingeraten = 10 Level zurück** (siehe Rückschläge).
 
-## 11. Frösche (ab Level 180)
+## 11. Frösche (ab Level 30)
 
-- Etwa **alle 2 bis 3 Level** springt ein Frosch auf die Karte (ab Level 250 öfter), **höchstens 6 gleichzeitig**. So sind oft 4 oder mehr unterwegs.
+- Etwa **alle 1 bis 3 Level** springt ein Frosch auf die Karte (ab Level 190 öfter), **höchstens 6 gleichzeitig**. So sind oft 4 oder mehr unterwegs. Sie kommen lange vor den Gegner-Schlangen.
 - Er schaut in eine Richtung und **hüpft alle 3 Sekunden ein Feld** weit.
 - **1 Sekunde vor dem Sprung** macht er sich bereit: Hinterbeine spreizen sich, der Körper duckt sich nach hinten (Anlauf).
 - **Sprung:** Er hebt im Bogen ab, die Hinterbeine strecken sich, der Schatten bleibt am Boden. Leises Ploppen.
@@ -135,35 +140,35 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Über den Kartenrand hüpft er weg und verschwindet.
 - Die Schlange kann gegen ihn laufen = sofort Tod.
 
-## 12. Hütten und Häuser (ab Level 100)
+## 12. Hütten und Häuser (ab Level 80)
 
-- **Direkt nach dem Baum das nächste Neue, klein angefangen:** Ab Level 100 kommen **Hütten** (2 × 2 Felder, Licht 1 Feld weit, ein Feld weniger als beim Haus). Ab Level 190 kommen **große Häuser**: **2 × 3 Felder** oder **mit einer Ecke** (Reihen 2, 2, 3, 3 Felder, also 10 Felder), zufällig gedreht und gespiegelt.
-- **Alle 30 Level eins** (100, 130, 160 Hütten, 190, 220 … Häuser). Es **bleibt stehen**. Höchstens eins je ca. 250 Felder.
+- **Klein angefangen:** Ab Level 80 kommen **Hütten** (2 × 2 Felder). Ab Level 130 kommen **große Häuser**: **2 × 3 Felder** oder **mit einer Ecke** (Reihen 2, 2, 3, 3 Felder, also 10 Felder), zufällig gedreht und gespiegelt.
+- **Alle 30 Level eins** (80, 110 Hütten, 140, 170, 200 … Häuser). Es **bleibt stehen**. Höchstens eins je ca. 250 Felder.
 - Von oben gesehen: Ziegeldach, Kamin mit Rauch.
 - **Vier Fenster**, eins an jeder Seite (oben, unten, links, rechts).
-- **Nach jedem Apfel wechselt das Licht:** In jedem Haus leuchtet dann ein anderes Fenster gelb. Das Licht strahlt **2 Felder weit** nach außen (endet früher am Kartenrand, an einem Haus, Baum oder Turm).
+- **Nach jedem Apfel wechselt das Licht:** In jedem Haus leuchtet dann ein anderes Fenster gelb. Das Licht strahlt **immer 2 Felder tief** nach außen, bei Hütten genauso. Ein Fenster, vor dem dafür kein Platz ist (Kartenrand, Haus, Baum oder Turm), leuchtet nicht.
 - **Nie auf die Schlange:** Es wird nur ein Fenster gewählt, dessen Licht kein Feld der Schlange berührt (möglichst auch nicht direkt vor dem Kopf). So gibt es keinen Sofort-Treffer.
-- **Zugebaut = dunkel:** Kann kein Fenster leuchten (alle vier Seiten zugebaut oder die Schlange liegt überall davor), bleibt das Haus diese Runde dunkel. So kann man sich bewusst Platz schaffen.
+- **Zugebaut = dunkel:** Kann kein Fenster leuchten (vor keinem 2 Felder Platz oder die Schlange liegt überall davor), bleibt das Haus diese Runde dunkel. So kann man sich bewusst Platz schaffen.
 - **Haus berühren = Tod** (sofort).
 - **Ins Licht laufen = 5 Level zurück.**
 
-## 12a. Jägertürme (ab Level 285)
+## 12a. Jägertürme (ab Level 160)
 
 - Runder Steinturm mit Zinnen, **2 × 2 Felder**, oben ein Scheinwerfer.
-- Ab Level 285 **alle 40 Level ein neuer** (285, 325, 365 …), bleibt stehen. Höchstens einer je ca. 300 Felder.
+- Ab Level 160 **alle 40 Level ein neuer** (160, 200, 240 …), bleibt stehen. Höchstens einer je ca. 300 Felder.
 - **Lichtkegel:** 2 Felder breit, **6 Felder lang**, in die Richtung, in die der Scheinwerfer zeigt.
 - **Jede Runde (nach jedem Apfel) dreht er sich eine Vierteldrehung im Uhrzeigersinn** (oben → rechts → unten → links). Der Scheinwerfer schwenkt sichtbar mit.
 - Der Kegel endet am Kartenrand, an Häusern, Bäumen und anderen Türmen. **Die Schlange wirft Schatten:** Liegt sie in der neuen Richtung, endet der Kegel vor ihr. So gibt es nie einen Sofort-Treffer, trotzdem dreht der Turm immer weiter.
 - Im Kegel = **10 Level zurück**, Turm berühren = sofort Tod.
 
-## 12a2. Eis (ab Level 165)
+## 12a2. Eis (ab Level 120)
 
-- Ab Level 165 **alle 30 Level ein Eisfeld** (165, 195, 225 …), **4 bis 10 Felder** groß, zusammenhängend, bleibt liegen. Höchstens eins je ca. 300 Felder.
+- Ab Level 120 **alle 30 Level ein Eisfeld** (120, 150, 180 …), **4 bis 10 Felder** groß, zusammenhängend, bleibt liegen. Höchstens eins je ca. 300 Felder.
 - Hellblau mit wanderndem Glanz und feinen Rissen.
 - **Auf Eis kann man nicht lenken:** Solange der Kopf auf Eis ist, rutscht die Schlange geradeaus, gedrückte Richtungen verfallen. Erst wieder auf normalem Boden lenkt man.
 - Fair: Eis liegt nie am Kartenrand und hat ein Feld Abstand zu festen Hindernissen. Läuft man trotzdem auf etwas zu, ist es sofort vorbei: rechtzeitig vor dem Eis abbiegen.
 
-## 12b. Ameisen (ab Level 215)
+## 12b. Ameisen (ab Level 140)
 
 - Kleine braune Ameise (Kopf, Brust, Hinterleib, sechs Beine, Fühler). Alle **8 bis 12 Level** setzt sich eine irgendwohin, mit Abstand zur Schlange, höchstens **4** gleichzeitig. Sie bleiben, bis man sie zertritt.
 - **Chillt** an ihrem Platz. Kommt irgendein Glied der Schlange in ihren **Umkreis von 2 Feldern** (auch schräg), bemerkt sie dich: rotes **Ausrufezeichen**, leises Kribbeln. Einen Takt später krabbelt sie **langsam** (ein Feld alle 0,8 s) auf das nächste Glied zu, **bis du wieder raus bist**. Dann geht sie zurück nach Hause.
@@ -171,9 +176,11 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Sie läuft nie in die Schlange oder in Hindernisse. **Der Kopf zertritt sie** (sie verschwindet, kein Tod): so kann man sich wehren.
 - Gerade lange Schlangen, die neben einer Ameise entlangziehen, werden erwischt.
 
-## 12c. Lava (ab Level 245)
+## 12c. Lava (von Anfang an, im Stein)
 
-- Alle **30 Level** bricht ein **Lavasee** aus (245, 275, 305 …), höchstens einer je ca. 300 Felder. Er beginnt mit **einem Feld**.
+- **Lava im Stein:** In etwa **30 %** der Blöcke rund um die Karte steckt **ein einzelnes Lavafeld** (mindestens ein Feld vom Blockrand weg). Es liegt fest je Block und Spiel, glüht in der Erde und ist zu sehen, sobald die Kamera dorthin schaut. Die zwei Startblöcke haben keins.
+- **Ausbruch:** Kommt der Block zur Karte (neues Gebiet oder Maulwurf), bricht das Feld als **Lavasee** aus, beginnend mit **einem Feld**. Wer ein Gebiet wählt, wählt also auch, ob Lava mitkommt. Liegt dort gerade etwas (Schlange, Apfel, Hindernis) oder ist der Kopf zu nah davor, glimmt das Feld nur und bricht nach einem der nächsten Äpfel aus.
+- **Graben:** Mit dem Maulwurf in ein Lavafeld im Stein graben = Tod.
 - **Jeden 2. Apfel** breitet sich jeder unfertige See um **ein Feld in eine zufällige Richtung** aus. Nie in die Schlange, nie direkt vor oder neben den Kopf, nie über den Apfel, und es wird nichts abgeschlossen (keine Sackgassen).
 - Jeder See hat eine zufällige Endgröße zwischen **6 und 15 Feldern**, dann hört er auf. Er bleibt liegen.
 - Glühend orange mit dunkler Kruste, Hitzeschein und Blasen, dumpfes Blubbern beim Ausbrechen.
@@ -190,8 +197,8 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ## 14. Ereignisse werden häufiger
 
-- Fallen, Wolken, Frösche, Gegner-Schlangen und Ameisen haben eigene Abstände (siehe oben), die ab Level 250 kürzer werden.
-- Zusätzlich gilt: **ab Level 150 ist immer mindestens eine** dieser Gefahren unterwegs, **ab 200 mindestens zwei, ab 300 drei**. Fehlt eine, kommt nach ca. 2,5 s eine neue, bevorzugt die Art, die gerade am seltensten ist.
+- Fallen, Wolken, Frösche, Gegner-Schlangen und Ameisen haben eigene Abstände (siehe oben), die ab Level 190 kürzer werden.
+- Zusätzlich gilt: **ab Level 170 ist immer mindestens eine** dieser Gefahren unterwegs, **ab 230 mindestens zwei, ab 290 drei**. Fehlt eine, kommt nach ca. 2,5 s eine neue, bevorzugt die Art, die gerade am seltensten ist.
 
 ## 14a. Äpfel als Währung, Power-ups, Skins, Minikarte
 
@@ -202,7 +209,7 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Vorrat oben in der Leiste, im Startmenü (antippen öffnet den Shop) und im Shop. Auf dem Spielende-Bildschirm „+N Äpfel“. Münzen aus früheren Fassungen wurden 1:1 zu Äpfeln.
 - Im Kreativ-Modus wird nichts gesammelt.
 
-**Power-ups (ab Level 9)**
+**Power-ups (ab Level 10)**
 - Nach jedem Apfel mit **18 % Chance** liegt ein Power-up auf der Karte (höchstens eins), 15 s lang, blinkt in den letzten 3 s. Leuchtende Kugel mit Symbol.
 - **Schild** (blau): **ein Leben mehr.** Fängt einen Aufprall, einen Giftapfel oder einen Rückschlag ab, die Schlange gleitet dann 1,5 s durch. Am **Kartenrand** bleibt sie stehen (kurzes Wackeln), bis du abbiegst. Bis zu 3 sammeln sich, sie **laufen nicht ab**. Angezeigt nur **oben rechts im Spielfeld** als kleines blaues Schild-Symbol (ab zwei mit „×2“, „×3“), nicht mehr als Blase um die Schlange.
 - **Garantie:** Spätestens nach **8 Äpfeln** ohne Power-up kommt eins (einstellbar).
@@ -215,7 +222,7 @@ Stand: Version 1.13.0 (17.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Goldener Apfel** (unbesiegbar): **gibt es nicht**. Das Fressen von Tieren und das Fahren durch sich selbst steckt im Füttern.
 - **Goldene Schere** (gold, funkelt, selten, **ab Level 50**): wie die Schere, nur kräftiger: schneidet **dauerhaft** ab, was in den **letzten 8 Leveln** gewachsen ist. Goldene Funken beim Schnitt.
 - **Geist** (grau): 6 s lang durch alle Hindernisse und die eigene Schlange, keine Rückschläge; die Schlange ist durchscheinend und flackert kurz vor dem Ende.
-- **Schere** (orange): schneidet **dauerhaft** so viel Schwanz ab, wie in den **letzten 3 Leveln** gewachsen ist (bis Level 50 also 3 Glieder, danach weniger, weil die Schlange seltener wächst). Mindestens 3 Glieder bleiben. Weiße Schnittlinie mit Funken, das abgeschnittene Stück **bleibt 1 Sekunde liegen** (etwas blasser) und verblasst dann. Es ist kein Hindernis.
+- **Schere** (orange): schneidet **dauerhaft** so viel Schwanz ab, wie in den **letzten 3 Leveln** gewachsen ist (bis Level 50 also 1 bis 2 Glieder, danach weniger, weil die Schlange seltener wächst). Mindestens 3 Glieder bleiben. Weiße Schnittlinie mit Funken, das abgeschnittene Stück **bleibt 1 Sekunde liegen** (etwas blasser) und verblasst dann. Es ist kein Hindernis.
 - Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken (Schilde oben rechts, siehe oben).
 - Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
 

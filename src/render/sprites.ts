@@ -1023,7 +1023,8 @@ export function drawLava(ctx: CanvasRenderingContext2D, cells: P[], born: number
     ctx.fill()
     if (reduce) continue
     // Blase: waechst und platzt
-    const zyklus = (now / 1300 + ((c.x * 7 + c.y * 13) % 10) / 10) % 1
+    // Auch fuer Felder links oder oberhalb der Karte (negative Koordinaten, Lava im Stein) zwischen 0 und 1
+    const zyklus = (((now / 1300 + ((c.x * 7 + c.y * 13) % 10) / 10) % 1) + 1) % 1
     if (zyklus < 0.7) {
       const r = cell * 0.09 * (zyklus / 0.7)
       ctx.strokeStyle = 'rgba(255, 230, 150, 0.8)'
