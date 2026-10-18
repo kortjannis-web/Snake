@@ -2600,6 +2600,15 @@ html[data-install] #app {
   color: var(--creme-leise);
 }
 
+/* Ganz leicht das Spielfeld im Hintergrund: Schachbrett in den Rasenfarben und eine Schlange */
+#chat {
+  background-color: var(--mokka);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Cpath d='M40 300V220H140V120H240V64' fill='none' stroke='%23A5D7B3' stroke-opacity='.07' stroke-width='22' stroke-linecap='round' stroke-linejoin='round'/%3E%3Crect x='224' y='26' width='32' height='38' rx='13' fill='%23A5D7B3' fill-opacity='.1'/%3E%3C/svg%3E"),
+    conic-gradient(rgba(180, 227, 193, 0.045) 25%, transparent 0 50%, rgba(180, 227, 193, 0.045) 0 75%, transparent 0);
+  background-size: 360px 360px, 56px 56px;
+}
+
 .chat__verlauf {
   display: flex;
   flex-direction: column;
@@ -2646,7 +2655,12 @@ html[data-install] #app {
 .chat__blase--ich {
   align-self: flex-end;
   border-radius: 18px 18px 6px 18px;
-  background: var(--tanne);
+  background: var(--orange);
+  color: #2a1a0c;
+}
+
+.chat__blase.chat__blase--ich small {
+  color: rgba(42, 26, 12, 0.7);
 }
 
 .chat__blase small {
@@ -2683,8 +2697,8 @@ html[data-install] #app {
 
 .chat__senden {
   flex: none;
-  background: var(--mint);
-  color: #12352b;
+  background: var(--orange);
+  color: #2a1a0c;
 }
 
 /* Freundesliste: chatten, einladen, entfernen */
