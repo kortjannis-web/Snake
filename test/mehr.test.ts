@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { abstandGrenze, gebietTakt, LEBEN, MehrGame, ZURUECK_MS, type MehrOpts, type Modus } from '../src/game/mehr'
+import { abstandGrenze, gebietTakt, KLASSISCH, LEBEN, MehrGame, ZURUECK_MS, type MehrOpts, type Modus } from '../src/game/mehr'
 import type { Dir, GameEvent, P } from '../src/game/types'
 import { Abgleich, anwenden, zustand } from '../src/game/zustand'
 
@@ -90,6 +90,28 @@ describe('Mehrspieler: Start', () => {
   })
 })
 
+describe('Einstellungen', () => {
+  it('bei 3 und 4 Spielern ist die Startkarte groesser', () => {
+    const felder = (n: number) => new MehrGame(opts('vs', n)).mask.reduce((a, b) => a + b, 0)
+    expect(felder(3)).toBe(felder(2) * 1.5)
+    expect(felder(4)).toBe(felder(2) * 2)
+  })
+  it('Klassisch: auch nach vielen Aepfeln keine Mauern, Tiere oder Power-ups', () => {
+    const g = new MehrGame({ ...opts('koop'), cfg: { gnade: 0, ...KLASSISCH } })
+    for (let a = 0; a < 120; a++) {
+      setze(g, 0, [{ x: 2, y: 3 }, { x: 1, y: 3 }, { x: 0, y: 3 }], 'r')
+      setze(g, 1, [{ x: 10, y: 20 }, { x: 11, y: 20 }, { x: 12, y: 20 }], 'l')
+      apfelVor(g, a % 2)
+      g.update(50)
+      g.update(50)
+      g.update(60)
+      g.drain()
+    }
+    expect(g.level).toBeGreaterThan(60)
+    expect(g.mauern.length + g.teiche.length + g.gegner.length + g.froesche.length + g.powers.length + g.baeume.length + g.lava.length).toBe(0)
+  })
+})
+
 describe('Gegeneinander', () => {
   it('in eine andere Schlange fahren kostet ein Leben, nach 5 s kommt man als Geist zurueck', () => {
     const g = new MehrGame(opts('vs'))
@@ -142,6 +164,10 @@ describe('Gegeneinander', () => {
     expect(abstandGrenze(19)).toBe(5)
     expect(abstandGrenze(20)).toBe(6)
     expect(abstandGrenze(45)).toBe(7)
+    // Mehr Spieler, mehr Luft
+    expect(abstandGrenze(0, 3)).toBe(6)
+    expect(abstandGrenze(0, 4)).toBe(7)
+    expect(abstandGrenze(20, 4)).toBe(8)
     const g = new MehrGame(opts('vs'))
     setze(g, 0, [{ x: 2, y: 3 }, { x: 1, y: 3 }, { x: 0, y: 3 }], 'r')
     setze(g, 1, [{ x: 10, y: 20 }, { x: 11, y: 20 }, { x: 12, y: 20 }], 'u')

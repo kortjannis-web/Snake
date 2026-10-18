@@ -7,13 +7,13 @@
  * gezeichnet, Wischer gehen an den Rechner. Wettrennen: hier laeuft die eigene Welt, die anderen
  * kommen als Geister.
  */
-import { MehrGame, type Ergebnis, type Modus, type SpielerInfo } from '../game/mehr'
+import { KLASSISCH, MehrGame, type Ergebnis, type Modus, type SpielerInfo } from '../game/mehr'
 import * as R from '../game/rules'
 import type { Dir, GameEvent, P } from '../game/types'
 import { Abgleich, anwenden, zustand, type Zustand } from '../game/zustand'
-import { MEHR_BILD, PROTOKOLL, type AnServer, type Geist, type Phase, type StartInfo, type Teilnehmer, type VomServer } from './protokoll'
+import { MEHR_BILD, PROTOKOLL, type AnServer, type Einstellungen, type Geist, type Phase, type StartInfo, type Teilnehmer, type VomServer } from './protokoll'
 
-export type RaumInfo = { code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number }
+export type RaumInfo = { code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number } & Einstellungen
 
 export type ClientEreignis =
   | { art: 'raum'; raum: RaumInfo }
@@ -217,6 +217,12 @@ export class MehrClient {
   starten() {
     this.senden({ t: 'start' })
   }
+  einstellen(e: Partial<Einstellungen>) {
+    this.senden({ t: 'einstellung', ...e })
+  }
+  bereit(b: boolean) {
+    this.senden({ t: 'bereit', bereit: b })
+  }
   nochmal() {
     this.senden({ t: 'nochmal' })
   }
@@ -231,7 +237,7 @@ export class MehrClient {
     switch (m.t) {
       case 'raum': {
         const vorher = this.raum?.phase
-        this.raum = { code: m.code, gastgeber: m.gastgeber, phase: m.phase, modus: m.modus, spieler: m.spieler, ich: m.ich }
+        this.raum = { code: m.code, gastgeber: m.gastgeber, phase: m.phase, modus: m.modus, spieler: m.spieler, ich: m.ich, tempo: m.tempo, klassisch: m.klassisch }
         if (m.phase === 'lobby' && vorher && vorher !== 'lobby') {
           this.start = null
           this.game = null
@@ -314,7 +320,7 @@ export class MehrClient {
     this.rechner = info.modus === 'rennen' ? -1 : info.rechner
     const ich = Math.max(0, this.ich)
     const spieler: SpielerInfo[] = info.modus === 'rennen' ? [info.spieler[ich]] : info.spieler
-    this.game = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: info.seed, modus: info.modus, spieler, tempo: 'normal' })
+    this.game = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: info.seed, modus: info.modus, spieler, tempo: info.tempo ?? 'normal', cfg: info.klassisch ? KLASSISCH : undefined })
     this.game.wechsel(info.modus === 'rennen' ? 0 : ich)
     this.basis = { spiel: 0, lokal: performance.now() }
     this.waehler = -1

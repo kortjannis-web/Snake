@@ -216,6 +216,9 @@ export function mehrspieler(api: MehrApi) {
       } else if (!s.online) {
         tag.className = 'mehr-tag mehr-tag--aus'
         tag.textContent = 'weg'
+      } else {
+        tag.className = s.bereit ? 'mehr-tag mehr-tag--bereit' : 'mehr-tag mehr-tag--aus'
+        tag.textContent = s.bereit ? 'bereit' : 'wartet'
       }
       el.append(cv, name, tag)
       box.append(el)
@@ -226,15 +229,33 @@ export function mehrspieler(api: MehrApi) {
       b.disabled = !client.gastgeber
     }
     $('mehr-modus-text').textContent = MODUS_TEXT[r.modus]
-    const online = r.spieler.filter((s) => s.online).length
+    for (const b of $('mehr-tempo').querySelectorAll<HTMLButtonElement>('button')) {
+      b.setAttribute('aria-checked', String(b.dataset.v === r.tempo))
+      b.disabled = !client.gastgeber
+    }
+    const kl = $<HTMLInputElement>('mehr-klassisch')
+    kl.checked = r.klassisch
+    kl.disabled = !client.gastgeber
+    const online = r.spieler.filter((s) => s.online)
+    const wartet = online.filter((s) => !s.bereit)
     const los = $<HTMLButtonElement>('mehr-los')
     los.hidden = !client.gastgeber
-    los.disabled = online < 2 || r.phase !== 'lobby'
+    los.disabled = online.length < 2 || wartet.length > 0 || r.phase !== 'lobby'
+    const ich = r.spieler[r.ich]
+    const bereit = $<HTMLButtonElement>('mehr-bereit')
+    bereit.hidden = client.gastgeber
+    bereit.textContent = ich?.bereit ? 'Doch nicht bereit' : 'Bereit'
+    bereit.classList.toggle('btn--ghost', !!ich?.bereit)
+    bereit.classList.toggle('btn--play', !ich?.bereit)
     $('mehr-hinweis').textContent = client.gastgeber
-      ? online < 2
+      ? online.length < 2
         ? 'Teile den Code oder lade jemanden ein. Ab 2 Spielern kannst du starten.'
-        : `${online} Spieler bereit.`
-      : 'Der Gastgeber wählt den Modus und startet.'
+        : wartet.length
+          ? `Warte auf: ${wartet.map((s) => s.name).join(', ')}`
+          : `Alle ${online.length} bereit. Los geht's!`
+      : ich?.bereit
+        ? 'Du bist bereit. Der Gastgeber startet.'
+        : 'Tippe auf „Bereit“, wenn du mitspielen willst.'
   }
 
   function zurueckInDieLobby() {
@@ -278,6 +299,24 @@ export function mehrspieler(api: MehrApi) {
         client.modus(b.dataset.v as Modus)
       }),
     )
+  $('mehr-tempo')
+    .querySelectorAll<HTMLButtonElement>('button')
+    .forEach((b) =>
+      b.addEventListener('click', () => {
+        api.audio.click()
+        client.einstellen({ tempo: b.dataset.v as 'langsam' | 'normal' | 'schnell' })
+      }),
+    )
+  $<HTMLInputElement>('mehr-klassisch').addEventListener('change', (e) => {
+    api.audio.click()
+    client.einstellen({ klassisch: (e.target as HTMLInputElement).checked })
+  })
+  $('mehr-bereit').addEventListener('click', () => {
+    api.audio.click()
+    api.audio.unlock()
+    const ich = client.raum?.spieler[client.raum.ich]
+    client.bereit(!ich?.bereit)
+  })
   $('mehr-los').addEventListener('click', () => {
     api.audio.click()
     api.audio.unlock()
@@ -366,7 +405,7 @@ export function mehrspieler(api: MehrApi) {
     if (start.modus !== 'koop') {
       const im = staende.filter((s) => !s.raus)
       const best = Math.max(0, ...im.map((s) => s.aepfel))
-      const grenze = abstandGrenze(best)
+      const grenze = abstandGrenze(best, staende.length)
       if (staende.length === 2) {
         const mich = staende[ich] ?? staende[0]
         const er = staende[1 - Math.max(0, ich)] ?? staende[1]

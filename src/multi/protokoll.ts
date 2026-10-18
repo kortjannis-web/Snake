@@ -8,11 +8,12 @@
  * verteilt die Geister, waehlt abwechselnd, wer das naechste Gebiet bestimmt, und entscheidet, wer raus ist.
  */
 import type { Ergebnis, Modus, SpielerInfo } from '../game/mehr'
+import type { Tempo } from '../game/rules'
 import type { Dir, GameEvent, P } from '../game/types'
 import type { Zustand } from '../game/zustand'
 
 /** Erhoehen, wenn sich Nachrichten oder die Spiellogik so aendern, dass alte Apps nicht mehr mitspielen koennen */
-export const PROTOKOLL = 1
+export const PROTOKOLL = 2
 export const MAX_SPIELER = 4
 /** Feste Kartengroesse im Mehrspieler (Felder eines Bildschirms), damit alle dieselbe Welt haben */
 export const MEHR_BILD = { w: 12, h: 23 }
@@ -22,7 +23,8 @@ export const COUNTDOWN = 3000
 export const RECHNER_STILL = 2500
 
 export type Phase = 'lobby' | 'spiel' | 'ende'
-export type Teilnehmer = SpielerInfo & { online: boolean }
+export type Teilnehmer = SpielerInfo & { online: boolean; bereit: boolean }
+export type Einstellungen = { tempo: Tempo; klassisch: boolean }
 
 export type StartInfo = {
   modus: Modus
@@ -32,13 +34,15 @@ export type StartInfo = {
   rechner: number
   /** Serverzeit (ms seit Raumstart), ab der gespielt wird */
   los: number
-}
+} & Einstellungen
 
 export type Geist = { wer: number; b: P[]; d: Dir; a: number; l: number; tot: boolean; raus: boolean }
 
 /** App -> Server */
 export type AnServer =
   | { t: 'modus'; modus: Modus }
+  | ({ t: 'einstellung' } & Partial<Einstellungen>)
+  | { t: 'bereit'; bereit: boolean }
   | { t: 'start' }
   | { t: 'nochmal' }
   | { t: 'dir'; d: Dir }
@@ -55,7 +59,7 @@ export type AnServer =
 
 /** Server -> App */
 export type VomServer =
-  | { t: 'raum'; code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number }
+  | ({ t: 'raum'; code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number } & Einstellungen)
   | { t: 'start'; info: StartInfo; jetzt: number }
   | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean }
   /** Ganzer Stand fuer ein Geraet, das neu rechnet oder zurueckkommt */

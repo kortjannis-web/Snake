@@ -64,14 +64,32 @@ export type Schlange = SpielerInfo & {
 }
 
 export type MehrOpts = GameOpts & { modus: Modus; spieler: SpielerInfo[] }
+
+/** "Klassisch": nur Waende und Aepfel (alle anderen Hindernisse, Tiere und Power-ups kommen nie) */
+export const KLASSISCH: Partial<R.Config> = {
+  mauerAb: 1e6,
+  teichAb: 1e6,
+  giftAb: 1e6,
+  falleAb: 1e6,
+  baumAb: 1e6,
+  wolkeAb: 1e6,
+  froschAb: 1e6,
+  hausAb: 1e6,
+  turmAb: 1e6,
+  eisAb: 1e6,
+  lavaChance: 0,
+  ameiseAb: 1e6,
+  gegnerAb: 1e6,
+  powerAb: 1e6,
+}
 export type Ergebnis = { sieger: number | null; reihenfolge: number[] }
 
 const neuEffekt = (): Game['effekt'] => ({ schild: 0, zeitlupeBis: 0, geistBis: 0, fuetternBis: 0, magnetBis: 0, maulwurfBis: 0 })
 const same = (a: P, b: P) => a.x === b.x && a.y === b.y
 const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 
-/** Erlaubter Apfel-Abstand zum Fuehrenden: 5, alle 20 Aepfel des Fuehrenden einer mehr */
-export const abstandGrenze = (fuehrend: number) => 5 + Math.floor(fuehrend / 20)
+/** Erlaubter Apfel-Abstand zum Fuehrenden: 5 bei 2 Spielern, 6 bei 3, 7 bei 4; alle 20 Aepfel des Fuehrenden einer mehr */
+export const abstandGrenze = (fuehrend: number, spieler = 2) => (spieler >= 4 ? 7 : spieler === 3 ? 6 : 5) + Math.floor(fuehrend / 20)
 /** Alle wie viele Aepfel ein Gebiet dazukommt */
 export const gebietTakt = (modus: Modus, spieler: number) => (modus === 'koop' ? 15 : spieler >= 4 ? 3 : spieler === 3 ? 5 : 10)
 
@@ -99,11 +117,26 @@ export class MehrGame extends Game {
     super({ ...o, startLevel: 1, kreativ: null, sandbox: null })
     this.modus = o.modus
     this.anzahl = o.spieler.length
+    this.startKarte()
     this.schlangen = o.spieler.map((s, i) => this.neueSchlange(s, i, o.spieler.length))
     // Base hat schon eine Schlange in der Mitte gesetzt: durch die erste ersetzen
     this.laden(0)
     if (o.modus !== 'rennen') this.neuerApfel()
     this.events = []
+  }
+
+  /** Mehr Spieler, mehr Platz: bei 3 Spielern ein Block mehr, bei 4 zwei (auf einem Feld) */
+  protected startKarte() {
+    if (this.modus === 'rennen') return
+    const dazu = this.anzahl >= 4 ? 2 : this.anzahl === 3 ? 1 : 0
+    if (!dazu) return
+    const hoch = this.blocks.some((b) => b.y > 0)
+    const neu: P[] = hoch ? [{ x: 1, y: 0 }, { x: 1, y: 1 }] : [{ x: 0, y: 1 }, { x: 1, y: 1 }]
+    for (const b of neu.slice(0, dazu)) {
+      this.blocks.push(b)
+      this.startBloecke.add((b.x + 100_000) * 200_003 + (b.y + 100_000))
+    }
+    this.baueMaske()
   }
 
   /** Startplatz: jede Schlange in einer eigenen Reihe, abwechselnd von links und rechts */
@@ -115,12 +148,16 @@ export class MehrGame extends Game {
       dir = 'r'
     } else {
       const y = Math.min(this.h - 2, Math.max(1, Math.round((this.h * (i + 1)) / (n + 1))))
+      // Am echten Rand der Reihe (die Karte kann bei 3 Spielern L-foermig sein)
+      const xs: number[] = []
+      for (let x = 0; x < this.w; x++) if (this.inside({ x, y })) xs.push(x)
       if (i % 2 === 0) {
-        body = [{ x: 3, y }, { x: 2, y }, { x: 1, y }]
+        const x0 = xs[0] ?? 0
+        body = [{ x: x0 + 3, y }, { x: x0 + 2, y }, { x: x0 + 1, y }]
         dir = 'r'
       } else {
-        const x = this.w - 4
-        body = [{ x, y }, { x: x + 1, y }, { x: x + 2, y }]
+        const x1 = xs[xs.length - 1] ?? this.w - 1
+        body = [{ x: x1 - 3, y }, { x: x1 - 2, y }, { x: x1 - 1, y }]
         dir = 'l'
       }
     }
@@ -558,7 +595,7 @@ export class MehrGame extends Game {
     const im = this.schlangen.map((s, i) => ({ s, i })).filter(({ s }) => !s.raus)
     if (im.length < 2) return
     const best = Math.max(...im.map(({ s }) => s.aepfel))
-    const grenze = abstandGrenze(best)
+    const grenze = abstandGrenze(best, this.anzahl)
     for (const { s, i } of im) if (best - s.aepfel >= grenze) this.ausscheiden(i, 'abstand')
     this.pruefeEnde()
   }

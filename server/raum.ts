@@ -3,6 +3,7 @@
  * reicht nur Verbindungen und Nachrichten hierher durch.
  */
 import { abstandGrenze, type Ergebnis, type Modus, type SpielerInfo } from '../src/game/mehr'
+import type { Tempo } from '../src/game/rules'
 import { COUNTDOWN, MAX_SPIELER, PROTOKOLL, RECHNER_STILL, type AnServer, type Phase, type StartInfo, type VomServer } from '../src/multi/protokoll'
 
 export interface Kanal {
@@ -15,12 +16,17 @@ type Stand = { a: number; l: number; tot: boolean; raus: boolean; rausBei: numbe
 
 const MAX_NACHRICHT = 256 * 1024
 const MODI: Modus[] = ['vs', 'koop', 'rennen']
+const TEMPI: Tempo[] = ['langsam', 'normal', 'schnell']
 
 export class RaumLogik {
   plaetze: Platz[] = []
   gastgeber = ''
   phase: Phase = 'lobby'
   modus: Modus = 'vs'
+  tempo: Tempo = 'normal'
+  klassisch = false
+  /** Wer in der Lobby "Bereit" getippt hat (Kennungen) */
+  bereit = new Set<string>()
   start: StartInfo | null = null
   /** Letzter Stand des Rechners (Felder zusammengefuehrt) */
   zustand: Record<string, unknown> = {}
@@ -69,7 +75,9 @@ export class RaumLogik {
         gastgeber: this.gastgeber,
         phase: this.phase,
         modus: this.modus,
-        spieler: this.plaetze.map((q) => ({ ...q.info, online: !!q.kanal })),
+        tempo: this.tempo,
+        klassisch: this.klassisch,
+        spieler: this.plaetze.map((q) => ({ ...q.info, online: !!q.kanal, bereit: q.info.id === this.gastgeber || this.bereit.has(q.info.id) })),
         ich: i,
       }),
     )
@@ -158,10 +166,25 @@ export class RaumLogik {
       case 'ping':
         return this.an(k, { t: 'pong', jetzt: this.uhr() })
       case 'modus':
-        if (gast && this.phase === 'lobby' && MODI.includes(m.modus)) {
+        if (gast && this.phase === 'lobby' && MODI.includes(m.modus) && m.modus !== this.modus) {
           this.modus = m.modus
+          // Neue Regeln: alle muessen neu zusagen
+          this.bereit.clear()
           this.raumAnAlle()
         }
+        return
+      case 'einstellung':
+        if (!gast || this.phase !== 'lobby') return
+        if (m.tempo && TEMPI.includes(m.tempo)) this.tempo = m.tempo
+        if (typeof m.klassisch === 'boolean') this.klassisch = m.klassisch
+        this.bereit.clear()
+        this.raumAnAlle()
+        return
+      case 'bereit':
+        if (this.phase !== 'lobby') return
+        if (m.bereit) this.bereit.add(this.plaetze[i].info.id)
+        else this.bereit.delete(this.plaetze[i].info.id)
+        this.raumAnAlle()
         return
       case 'start':
         if (gast && this.phase === 'lobby') this.starten(i)
@@ -170,6 +193,7 @@ export class RaumLogik {
         if (gast && this.phase !== 'lobby') {
           this.zuruecksetzen()
           this.plaetze = this.plaetze.filter((p) => p.kanal)
+          this.bereit.clear()
           this.raumAnAlle()
         }
         return
@@ -201,8 +225,15 @@ export class RaumLogik {
     // Wer nicht mehr verbunden ist, spielt nicht mit
     const gastId = this.plaetze[von].info.id
     this.plaetze = this.plaetze.filter((p) => p.kanal)
+    const gastKanal = this.plaetze.find((p) => p.info.id === gastId)?.kanal ?? null
     if (this.plaetze.length < 2) {
-      this.an(this.plaetze.find((p) => p.info.id === gastId)?.kanal ?? null, { t: 'fehler', text: 'Es braucht mindestens 2 Spieler.' })
+      this.an(gastKanal, { t: 'fehler', text: 'Es braucht mindestens 2 Spieler.' })
+      this.raumAnAlle()
+      return
+    }
+    const fehlt = this.plaetze.filter((p) => p.info.id !== gastId && !this.bereit.has(p.info.id))
+    if (fehlt.length) {
+      this.an(gastKanal, { t: 'fehler', text: `Noch nicht bereit: ${fehlt.map((p) => p.info.name).join(', ')}` })
       this.raumAnAlle()
       return
     }
@@ -214,6 +245,8 @@ export class RaumLogik {
       spieler: this.plaetze.map((p) => ({ ...p.info })),
       rechner,
       los: jetzt + COUNTDOWN,
+      tempo: this.tempo,
+      klassisch: this.klassisch,
     }
     this.phase = 'spiel'
     this.zustand = {}
@@ -303,7 +336,7 @@ export class RaumLogik {
     const im = this.stand.map((s, i) => ({ s, i })).filter(({ s }) => !s.raus)
     if (im.length >= 2) {
       const best = Math.max(...im.map(({ s }) => s.a))
-      const grenze = abstandGrenze(best)
+      const grenze = abstandGrenze(best, this.stand.length)
       for (const { s, i } of im) if (best - s.a >= grenze) this.raus(i, 'abstand')
     }
     const rest = this.stand.map((s, i) => ({ s, i })).filter(({ s }) => !s.raus)

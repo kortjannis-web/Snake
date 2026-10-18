@@ -224,7 +224,17 @@
                 <button data-v="koop" role="radio">Koop</button>
               </div>
               <p class="fine mehr-modus-text" id="mehr-modus-text"></p>
+              <div class="opt opt--col">
+                <div class="opt__row"><span data-icon="Gauge"></span><span class="opt__t">Tempo</span></div>
+                <div class="seg" id="mehr-tempo" role="radiogroup">
+                  <button data-v="langsam" role="radio">Langsam</button>
+                  <button data-v="normal" role="radio">Normal</button>
+                  <button data-v="schnell" role="radio">Schnell</button>
+                </div>
+              </div>
+              <label class="opt"><span data-icon="Flag"></span><span class="opt__t">Klassisch<small>Nur Wände und Äpfel: keine Mauern, Tiere, Gegner oder Power-ups</small></span><input type="checkbox" id="mehr-klassisch" class="switch" /></label>
               <button class="btn btn--play" id="mehr-los"><span data-icon="Play"></span>Starten</button>
+              <button class="btn btn--play" id="mehr-bereit" hidden><span data-icon="Check"></span>Bereit</button>
               <p class="fine" id="mehr-hinweis"></p>
               <h3 class="erfolge-titel">Freunde einladen</h3>
               <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist niemand sonst online.</p></div>

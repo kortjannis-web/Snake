@@ -2024,6 +2024,11 @@ html[data-install] #app {
   text-transform: uppercase;
 }
 
+.mehr-tag--bereit {
+  background: rgba(143, 214, 189, 0.18);
+  color: var(--mint);
+}
+
 .mehr-tag--aus {
   background: rgba(245, 239, 230, 0.08);
   color: var(--creme-leise);
