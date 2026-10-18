@@ -1,15 +1,31 @@
+import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 
+/** Commit-Zeit: damit erkennt die Android-App, ob die Web-Fassung neuer ist */
+const buildTime = (() => {
+  try {
+    return Number(execSync('git log -1 --format=%ct', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()) || 0
+  } catch {
+    return 0
+  }
+})()
+
 export default defineConfig({
   // Relative Pfade: laeuft auf GitHub Pages (Unterordner), lokal und in der Android-App
   base: './',
-  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  define: { __APP_VERSION__: JSON.stringify(pkg.version), __BUILD_TIME__: buildTime },
   build: { target: 'es2020', assetsInlineLimit: 0 },
   plugins: [
+    {
+      name: 'version-json',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: pkg.version, build: buildTime }) })
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: false,

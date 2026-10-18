@@ -9,8 +9,16 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 - **Android:** unter *Releases → latest* `snake-endlos.apk` auf dem Handy öffnen und installieren
   (einmalig „Installation aus unbekannten Quellen“ erlauben). Jeder Push baut die APK neu
   (*Actions → Android-APK*, auch als Artefakt).
+- **Am Handy im Browser** erscheint statt des Spiels eine bebilderte Installationsanleitung (iPhone und Android); gespielt wird erst als App vom Home-Bildschirm. Zum Entwickeln überspringt `?browser=1` die Anleitung, am Computer und im Dev-Server gibt es sie nicht.
 - **Web/iPhone:** über GitHub Pages (einmalig in *Settings → Pages* die Quelle „GitHub Actions“
   wählen). Im Browser „Zum Home-Bildschirm“ macht daraus eine App im Vollbild.
+
+## Online-Bestenliste und Updates
+
+Mit Supabase (kostenlos) gibt es eine Bestenliste „Heute / Für immer“ mit Namen und Live-Aktualisierung.
+Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). Ohne Einrichtung läuft das
+Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge von selbst, die Android-App
+weist auf dem Startbildschirm auf eine neuere APK hin. Geplanter Ausbau (Mehrspieler): [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
 
 ## Spielregeln
 
@@ -96,6 +104,8 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `src/render/` Canvas: Kamera, Schachbrett, Schlange (`renderer.ts`), Zeichnungen (`sprites.ts`)
 - `src/audio.ts` alle Töne und die Musik per Web Audio, keine Dateien
 - `src/main.ts` Menüs, Spielschleife, Speicher (Rekord und Statistik im Gerät)
+- `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Update-Hinweis der Android-App
+- `supabase/migrations/` Datenbank der Bestenliste (Tabellen, Regeln, Schummelschutz)
 - `android/` Capacitor-Projekt (Hochformat, Vollbild)
 
 ### Signierte Release-APK

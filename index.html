@@ -75,6 +75,8 @@
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
             <button class="btn btn--ghost" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
+            <button class="btn btn--ghost" id="btn-liste" data-go="liste" hidden><span data-icon="Trophy"></span>Bestenliste</button>
+            <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
             <div class="home__row home__row--4">
               <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Skins</button>
@@ -118,8 +120,47 @@
             <div><b id="over-time">0:00</b><small>Zeit</small></div>
           </div>
           <span class="verdient" id="over-geld" hidden><i class="apfel-ico" aria-hidden="true"></i><b></b></span>
+          <p class="over-online" id="over-online" hidden></p>
           <button class="btn btn--play" id="btn-again"><span data-icon="RotateCcw"></span>Nochmal</button>
           <button class="btn btn--ghost" id="btn-menu"><span data-icon="House"></span>Hauptmenü</button>
+        </div>
+      </section>
+
+      <!-- Erster Start: Name (nur mit Online-Bestenliste) -->
+      <section class="screen screen--dim" id="willkommen">
+        <form class="card" id="willkommen-form" autocomplete="off">
+          <h2 class="card__title">Willkommen</h2>
+          <p class="card__sub">Wie heißt du? So sehen dich die anderen in der Bestenliste. Ein Konto brauchst du nicht, dein Spielstand bleibt auf diesem Handy.</p>
+          <input class="name-feld" type="text" id="willkommen-name" maxlength="16" minlength="2" placeholder="Dein Name (2 bis 16 Zeichen)" autocomplete="nickname" autocapitalize="words" spellcheck="false" />
+          <p class="card__sub willkommen__fehler" id="willkommen-fehler" hidden></p>
+          <button class="btn btn--play" type="submit" id="willkommen-los"><span data-icon="Play"></span>Los geht's</button>
+        </form>
+      </section>
+
+      <!-- Online-Bestenliste -->
+      <section class="screen screen--page" id="liste">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Bestenliste</h2>
+            <span class="live" id="liste-live" title="Aktualisiert sich live" hidden>live</span>
+          </header>
+          <div class="page__body">
+            <div class="seg" id="liste-tabs" role="radiogroup">
+              <button data-v="heute" role="radio">Heute</button>
+              <button data-v="immer" role="radio">Für immer</button>
+              <button data-v="alle" role="radio">Alle Spieler</button>
+            </div>
+            <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
+              <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
+              <div class="liste-name__row">
+                <input type="text" id="liste-name" maxlength="16" minlength="2" placeholder="2 bis 16 Zeichen" autocomplete="nickname" autocapitalize="words" spellcheck="false" />
+                <button class="btn btn--play btn--klein" type="submit" id="liste-speichern">Speichern</button>
+              </div>
+            </form>
+            <div class="liste" id="liste-zeilen" aria-live="polite"></div>
+            <p class="fine" id="liste-info"></p>
+          </div>
         </div>
       </section>
 
@@ -301,6 +342,8 @@
         </div>
       </section>
     </div>
+    <!-- Installationsanleitung (nur auf Handys im Browser, siehe src/install.ts) -->
+    <div class="install" id="install" hidden></div>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

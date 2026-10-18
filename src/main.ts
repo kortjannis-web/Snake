@@ -14,14 +14,17 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
-import { apfelFaktor, gebietFortschritt, SCHEMA, type ConfigKey } from './game/rules'
+import { apfelFaktor, DEFAULTS, gebietFortschritt, SCHEMA, type ConfigKey } from './game/rules'
 import { ERFOLGE, erfolgePruefen, stand, zaehle } from './erfolge'
 import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
+import { installPflicht, zeigeInstallation } from './install'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
+import { abonniere, ladeListe, melde, nameGueltig, onlineAktiv, profil, setzeName, type Art } from './online'
+import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
@@ -29,7 +32,7 @@ import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
-type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'liste'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -37,6 +40,9 @@ const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
 const app = $('app')
+/** Auf dem Handy im Browser: nur die Installationsanleitung, das Spiel startet erst als App */
+const gesperrt = installPflicht()
+if (gesperrt) zeigeInstallation($('install'))
 const stage = $('stage')
 const canvas = $<HTMLCanvasElement>('board')
 const renderer = new Renderer(canvas)
@@ -109,6 +115,7 @@ function openPage(p: Page) {
   if (p === 'kreativ') renderKreativ()
   if (p === 'master') renderMaster()
   if (p === 'shop') renderShop()
+  if (p === 'liste') oeffneListe()
   show(p, true)
 }
 function closePage() {
@@ -116,9 +123,14 @@ function closePage() {
   if (!p) return
   audio.click()
   show(p, false)
+  if (p === 'liste') schliesseListe()
 }
 function closeAllPages() {
-  while (pages.length) show(pages.pop()!, false)
+  while (pages.length) {
+    const p = pages.pop()!
+    show(p, false)
+    if (p === 'liste') schliesseListe()
+  }
 }
 
 /* ================= Spiel ================= */
@@ -190,6 +202,131 @@ function onDir(d: Dir) {
   if (mode === 'play') game?.turn(d)
 }
 
+/** Zaehlt die Runde fuer die Online-Bestenliste? Nur echte Runden mit Standardregeln, ohne Level-Sprung und Autopilot */
+function zaehltOnline() {
+  if (istKreativ || auto || startLevel !== 1) return false
+  return (Object.keys(DEFAULTS) as (keyof typeof DEFAULTS)[]).every((k) => config[k] === DEFAULTS[k])
+}
+
+/* ================= Online-Bestenliste ================= */
+
+let listeArt: Art = 'heute'
+let listeAbmelden: (() => void) | null = null
+let listeNr = 0
+
+function oeffneListe() {
+  $<HTMLInputElement>('liste-name').value = profil.name
+  $('liste-name-info').textContent = profil.name ? 'So sehen dich die anderen. Du kannst ihn jederzeit ändern.' : 'Ohne Namen zählen deine Ergebnisse nicht. Er wird einmal pro Handy gespeichert.'
+  $('liste-speichern').textContent = profil.name ? 'Ändern' : 'Speichern'
+  listeAbmelden?.()
+  listeAbmelden = abonniere(() => void ladeListeAnzeige())
+  $('liste-live').hidden = false
+  void ladeListeAnzeige()
+}
+function schliesseListe() {
+  listeAbmelden?.()
+  listeAbmelden = null
+}
+
+async function ladeListeAnzeige() {
+  const nr = ++listeNr
+  for (const b of $('liste-tabs').querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === listeArt))
+  const box = $('liste-zeilen')
+  const info = $('liste-info')
+  try {
+    const { zeilen, ich } = await ladeListe(listeArt)
+    if (nr !== listeNr) return
+    box.replaceChildren()
+    if (!zeilen.length) {
+      const leer = document.createElement('p')
+      leer.className = 'liste__leer'
+      leer.textContent = listeArt === 'heute' ? 'Heute hat noch niemand gespielt. Sei der Erste!' : listeArt === 'alle' ? 'Noch keine Spieler.' : 'Noch keine Ergebnisse.'
+      box.append(leer)
+    }
+    zeilen.forEach((z, i) => {
+      const el = document.createElement('div')
+      el.className = z.user_id === ich ? 'liste__zeile liste__zeile--ich' : 'liste__zeile'
+      const platz = document.createElement('span')
+      platz.className = 'liste__platz'
+      platz.textContent = String(i + 1)
+      const name = document.createElement('span')
+      name.className = 'liste__name'
+      name.textContent = z.name
+      if (z.tempo !== 'normal') {
+        const t = document.createElement('small')
+        t.textContent = z.tempo
+        name.append(t)
+      }
+      const level = document.createElement('b')
+      level.className = 'liste__level'
+      level.textContent = z.level > 0 ? String(z.level) : '–'
+      el.append(platz, name, level)
+      box.append(el)
+    })
+    info.textContent =
+      listeArt === 'alle'
+        ? `${zeilen.length} Spieler insgesamt, sortiert nach bestem Level. „–“ heißt: noch nicht gespielt.`
+        : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
+  } catch {
+    if (nr !== listeNr) return
+    box.replaceChildren()
+    info.textContent = 'Keine Verbindung. Die Bestenliste braucht Internet.'
+  }
+}
+
+$('liste-tabs').querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+  b.addEventListener('click', () => {
+    listeArt = b.dataset.v as Art
+    audio.click()
+    void ladeListeAnzeige()
+  }),
+)
+$<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const input = $<HTMLInputElement>('liste-name')
+  const info = $('liste-name-info')
+  if (!nameGueltig(input.value)) {
+    info.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+    return
+  }
+  const knopf = $<HTMLButtonElement>('liste-speichern')
+  knopf.disabled = true
+  try {
+    const online = await setzeName(input.value)
+    audio.click()
+    info.textContent = online ? `Gespeichert: Du spielst als ${profil.name}.` : `Name gespeichert. Er wird online eingetragen, sobald du Verbindung hast.`
+    knopf.textContent = 'Ändern'
+    input.blur()
+    void ladeListeAnzeige()
+  } catch {
+    info.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+  } finally {
+    knopf.disabled = false
+  }
+})
+
+/* Erster Start: Name gleich am Anfang, ohne Konto. Ohne Netz gilt er trotzdem sofort. */
+function zeigeWillkommen() {
+  if (!onlineAktiv || profil.name) return
+  show('willkommen', true)
+  window.setTimeout(() => $<HTMLInputElement>('willkommen-name').focus(), 450)
+}
+$<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const fehler = $('willkommen-fehler')
+  const name = $<HTMLInputElement>('willkommen-name').value
+  if (!nameGueltig(name)) {
+    fehler.textContent = 'Der Name braucht 2 bis 16 Zeichen.'
+    fehler.hidden = false
+    return
+  }
+  fehler.hidden = true
+  await setzeName(name)
+  audio.click()
+  $<HTMLInputElement>('willkommen-name').blur()
+  show('willkommen', false)
+})
+
 function gameOver() {
   if (!game) return
   const g = game
@@ -207,6 +344,8 @@ function gameOver() {
     if (neu) stats.best = g.maxLevel
     erfolgeMelden()
     saveStats()
+    if (zaehltOnline() && g.gegessen > 0 && g.maxLevel >= 2)
+      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: settings.tempo })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
@@ -223,6 +362,9 @@ function gameOver() {
     const geld = $('over-geld')
     geld.hidden = istKreativ || g.verdient <= 0
     geld.querySelector('b')!.textContent = `+${g.verdient} ${g.verdient === 1 ? 'Apfel' : 'Äpfel'}`
+    const on = $('over-online')
+    on.hidden = !(onlineAktiv && zaehltOnline() && g.gegessen > 0)
+    on.textContent = profil.name ? `In der Bestenliste als ${profil.name}` : 'Noch ohne Namen: Trag dich unter „Bestenliste“ ein, dann zählt dieses Ergebnis.'
     show('over', true)
     drawMini($<HTMLCanvasElement>('over-icon'), MINI_FOR_CAUSE[g.cause ?? 'rand'])
     if (neu) audio.record()
@@ -1144,7 +1286,7 @@ window.addEventListener('keydown', (e) => {
 })
 
 // Erste Beruehrung schaltet den Ton frei
-window.addEventListener('pointerdown', () => audio.unlock(), { once: true })
+window.addEventListener('pointerdown', () => !gesperrt && audio.unlock(), { once: true })
 
 // App im Hintergrund oder Fenster verlassen: Pause
 document.addEventListener('visibilitychange', () => {
@@ -1213,10 +1355,24 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 
+$('btn-liste').hidden = !onlineAktiv
+if (nativ) {
+  void neueVersion().then((v) => {
+    if (v === null) return
+    const b = $('update-hinweis')
+    b.textContent = v ? `Neue Version ${v}: jetzt laden` : 'Neue Version: jetzt laden'
+    b.hidden = false
+    b.addEventListener('click', () => window.open(APK_URL, '_system'))
+  })
+}
+
 applySettings()
 newDemo()
 setMode('home')
-requestAnimationFrame(frame)
+if (!gesperrt) {
+  zeigeWillkommen()
+  requestAnimationFrame(frame)
+}
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)
 if (!nativ && import.meta.env.PROD && 'serviceWorker' in navigator) {
