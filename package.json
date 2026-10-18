@@ -1,7 +1,7 @@
 {
   "name": "snake-endlos",
   "private": true,
-  "version": "1.18.0",
+  "version": "1.19.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -12,7 +12,8 @@
     "android": "npm run build && npx cap sync android",
     "server": "wrangler dev --config server/wrangler.toml",
     "server:deploy": "wrangler deploy --config server/wrangler.toml",
-    "vapid": "node scripts/vapid.mjs"
+    "vapid": "node scripts/vapid.mjs",
+    "skin-videos": "node scripts/skin-videos.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.2",

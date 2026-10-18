@@ -106,6 +106,7 @@ npm run android    # build + Capacitor-Sync, danach android/ in Android Studio �
 npm run icons      # Icons und Startbild aus scripts/icons.mjs neu erzeugen
 npm run server     # Snake-Server lokal (http://localhost:8787), dann VITE_SNAKE_SERVER=http://localhost:8787 npm run dev
 npm run vapid      # Schlüsselpaar für Push-Einladungen erzeugen (siehe docs/MEHRSPIELER-EINRICHTEN.md)
+npm run skin-videos # Shop-Vorschauen neu als Videos rendern (nur nach Skin-Änderungen; braucht ffmpeg und Playwright)
 ```
 
 Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung `?level=150`
@@ -114,7 +115,9 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 ### Aufbau
 
 - `src/game/` Spiellogik ohne Darstellung (`game.ts`, Regeln in `rules.ts`, Autopilot für Startmenü und Tests)
-- `src/render/` Canvas: Kamera, Schachbrett, Schlange (`renderer.ts`), Zeichnungen (`sprites.ts`)
+- `src/render/` Canvas: Kamera, Schachbrett, Schlange (`renderer.ts`), Zeichnungen (`sprites.ts`). Fester Boden (Erde, Schachbrett,
+  Grasrand) kommt aus vorgerenderten Kacheln, Mauersteine und liegende Bäume aus Einzelbildern; nur Bewegtes wird jedes Bild gezeichnet
+- `public/skins/` Shop-Vorschauen: Standbild (WebP) für jeden Skin, bewegte Muster zusätzlich als kurzes Video (MP4 und WebM), erzeugt von `scripts/skin-videos.mjs`
 - `src/audio.ts` alle Töne und die Musik per Web Audio, keine Dateien
 - `src/main.ts` Menüs, Spielschleife, Speicher (Rekord und Statistik im Gerät)
 - `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Update-Hinweis der Android-App

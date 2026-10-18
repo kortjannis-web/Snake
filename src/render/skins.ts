@@ -79,6 +79,23 @@ export const GEGNER_SKIN: Skin = { id: 'gegner', name: 'Gegner', preis: 0, kopf:
 /** Lila Gegner: laenger, schneller, boeser */
 export const LILA_SKIN: Skin = { id: 'lila', name: 'Lila', preis: 0, kopf: [150, 72, 214], schwanz: [62, 20, 96] }
 
+/**
+ * Dauer der Muster-Animationen in ms. Ganze Teiler von SCHLEIFE, damit die vorgerenderten Shop-Videos nahtlos
+ * wiederholen (siehe scripts/skin-videos.mjs). Der Glanz laeuft in der Vorschau (7 Glieder) alle 450 ms durch.
+ */
+export const TAKT = { regenbogen: 4000, aurora: 6000, sterne: 2000, glut: 1000, funkeln: 1500, blinzeln: 3000, glanzVorschau: 450 }
+const welle = (now: number, takt: number) => ((now % takt) / takt) * Math.PI * 2
+/** Bewegt sich am Skin etwas (ausser dem Blinzeln)? Wenn nicht, reicht im Shop ein Bild statt eines Videos */
+export const skinBewegt = (skin: Skin) => !!skin.muster && skin.muster !== 'streifen' && skin.muster !== 'punkte'
+
+/** Wie lang ein Video sein muss, damit alles darin genau einmal (oder ganzzahlig oft) durchlaeuft */
+export function schleifeMs(skin: Skin): number {
+  const ggt = (a: number, b: number): number => (b ? ggt(b, a % b) : a)
+  const kgv = (a: number, b: number) => (a / ggt(a, b)) * b
+  const t = skin.muster === 'regenbogen' ? TAKT.regenbogen : skin.muster === 'aurora' ? TAKT.aurora : skin.muster === 'sterne' ? TAKT.sterne : skin.muster === 'glut' ? TAKT.glut : skin.muster === 'funkeln' ? TAKT.funkeln : skin.muster === 'glanz' ? TAKT.glanzVorschau : TAKT.blinzeln
+  return kgv(t, TAKT.blinzeln)
+}
+
 const GIFT_KOPF: RGB = [126, 116, 60]
 const GIFT_SCHWANZ: RGB = [70, 52, 70]
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -102,9 +119,9 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   const w = cell * 0.74
   const vg = o.vergiftet ?? 0
   const farbe = (k: number, i: number): string => {
-    if (skin.muster === 'regenbogen' && !vg) return `hsl(${(now / 12 + i * 14) % 360}, 72%, ${58 - k * 14}%)`
+    if (skin.muster === 'regenbogen' && !vg) return `hsl(${((now * 360) / TAKT.regenbogen + i * 14) % 360}, 72%, ${58 - k * 14}%)`
     // Aurora: Gruen, Tuerkis, Violett wandern ueber den Koerper
-    if (skin.muster === 'aurora' && !vg) return `hsl(${150 + 70 * Math.sin(now / 900 + i * 0.35) + 40}, 70%, ${60 - k * 18}%)`
+    if (skin.muster === 'aurora' && !vg) return `hsl(${150 + 70 * Math.sin(welle(now, TAKT.aurora) + i * 0.35) + 40}, 70%, ${60 - k * 18}%)`
     const c = skin.kopf.map((v, j) => lerp(lerp(v, skin.schwanz[j], k), lerp(GIFT_KOPF[j], GIFT_SCHWANZ[j], k), vg))
     return `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`
   }
@@ -153,7 +170,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   } else if (skin.muster === 'sterne') {
     // Nacht: kleine Sterne, die funkeln
     for (let i = 1; i < n; i++) {
-      const tw = 0.5 + 0.5 * Math.sin(now / 300 + i * 1.7)
+      const tw = 0.5 + 0.5 * Math.sin(welle(now, TAKT.sterne) + i * 1.7)
       ctx.fillStyle = `rgba(255, 255, 255, ${0.35 + 0.55 * tw})`
       const off = ((i * 37) % 10) / 10 - 0.5
       ctx.beginPath()
@@ -172,7 +189,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   } else if (skin.muster === 'glut') {
     // Glut: helle Hitzewellen laufen den Koerper entlang
     for (let i = 0; i < n - 1; i++) {
-      const p = 0.5 + 0.5 * Math.sin(now / 160 - i * 0.7)
+      const p = 0.5 + 0.5 * Math.sin(welle(now, TAKT.glut) - i * 0.7)
       ctx.strokeStyle = `rgba(255, 230, 120, ${0.15 + 0.45 * p * (1 - i / n)})`
       ctx.lineWidth = w * 0.45
       ctx.beginPath()
@@ -185,7 +202,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
     ctx.strokeStyle = skin.musterFarbe ?? '#FFFFFF'
     ctx.lineWidth = Math.max(1, cell * 0.035)
     for (let i = 1; i < n; i++) {
-      const tw = Math.max(0, Math.sin(now / 230 + i * 2.1))
+      const tw = Math.max(0, Math.sin(welle(now, TAKT.funkeln) + i * 2.1))
       if (tw < 0.3) continue
       const r = cell * 0.12 * tw
       const off = ((i * 37) % 10) / 10 - 0.5
@@ -328,5 +345,5 @@ export function drawSkinVorschau(cv: HTMLCanvasElement, skin: Skin, now: number)
     { x: ox + 1, y: 2 },
     { x: ox + 0, y: 2 },
   ]
-  drawSchlange(ctx, pts, cell, 'r', skin, now, { blinzeln: now % 3000 < 120 })
+  drawSchlange(ctx, pts, cell, 'r', skin, now, { blinzeln: now % TAKT.blinzeln < 120 })
 }

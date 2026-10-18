@@ -1411,13 +1411,20 @@ svg {
   box-shadow: inset 0 0 0 2px var(--tuerkis), 0 10px 26px -14px rgba(143, 214, 189, 0.6);
 }
 
-.skin canvas {
+.skin canvas,
+.skin video,
+.skin img {
+  display: block;
   width: 100%;
   height: 72px;
   border-radius: 14px;
+  object-fit: cover;
+  background: #b4e3c1;
 }
 
-.skin[data-zu] canvas {
+.skin[data-zu] canvas,
+.skin[data-zu] video,
+.skin[data-zu] img {
   filter: saturate(0.85) brightness(0.92);
 }
 

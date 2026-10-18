@@ -30,7 +30,7 @@ import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, freundEntfernen, freundHinzufuegen, ladeListe, lobby, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type Freund, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
-import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
+import { drawSkinVorschau, hatSkin, SKINS, skinBewegt, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
@@ -780,10 +780,91 @@ function updateSchild() {
 
 /* ================= Shop ================= */
 
+/** Skins ohne Video (Video fehlt oder laedt nicht): werden wie frueher jedes Bild gezeichnet */
 const skinCanvas: { cv: HTMLCanvasElement; id: string }[] = []
+/** Shop-Vorschauen als fertige Videos (scripts/skin-videos.mjs): nur die sichtbaren laufen */
+const skinVideos: HTMLVideoElement[] = []
+const ruhig = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+const sichtbar = typeof IntersectionObserver === 'function'
+  ? new IntersectionObserver((eintraege) => {
+      for (const e of eintraege) {
+        const v = e.target as HTMLVideoElement
+        if (e.isIntersecting && page() === 'shop' && !ruhig) videoStart(v)
+        else v.pause()
+      }
+    })
+  : null
+
+/** Format: H.264 (laeuft ueberall, auch auf dem iPhone), sonst VP9, sonst gar kein Video (dann wird gezeichnet) */
+const videoEndung = (() => {
+  const t = document.createElement('video')
+  if (t.canPlayType('video/mp4; codecs="avc1.64001F"')) return 'mp4'
+  if (t.canPlayType('video/webm; codecs="vp9"')) return 'webm'
+  return ''
+})()
+
+/** Video erst laden, wenn es zu sehen ist: als Ganzes holen (kommt offline aus dem Speicher) und als Blob abspielen */
+function videoStart(v: HTMLVideoElement) {
+  if (v.src) return void v.play().catch(() => {})
+  if (v.dataset.laedt) return
+  v.dataset.laedt = '1'
+  fetch(v.dataset.video!)
+    .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+    .then((b) => {
+      v.src = URL.createObjectURL(b)
+      if (page() === 'shop') void v.play().catch(() => {})
+    })
+    .catch(() => v.dispatchEvent(new Event('error')))
+}
+
+function skinVorschau(id: string): HTMLElement {
+  // Ohne bewegtes Muster: nur das Standbild (ein Bild statt eines Videos)
+  if (!skinBewegt(skinVon(id))) {
+    const img = document.createElement('img')
+    img.src = `skins/${id}.webp`
+    img.alt = ''
+    img.decoding = 'async'
+    img.addEventListener('error', () => {
+      const cv = document.createElement('canvas')
+      img.replaceWith(cv)
+      requestAnimationFrame(() => drawSkinVorschau(cv, skinVon(id), 0))
+    })
+    return img
+  }
+  const v = document.createElement('video')
+  v.muted = true
+  v.defaultMuted = true
+  v.loop = true
+  v.playsInline = true
+  v.setAttribute('muted', '')
+  v.setAttribute('playsinline', '')
+  v.setAttribute('aria-hidden', 'true')
+  v.disablePictureInPicture = true
+  v.preload = 'none'
+  v.poster = `skins/${id}.webp`
+  v.dataset.video = `skins/${id}.${videoEndung}`
+  if (!videoEndung) queueMicrotask(() => v.dispatchEvent(new Event('error')))
+  // Kein Video (z. B. offline und noch nie geladen): selbst zeichnen wie frueher
+  v.addEventListener('error', () => {
+    const cv = document.createElement('canvas')
+    v.replaceWith(cv)
+    sichtbar?.unobserve(v)
+    skinCanvas.push({ cv, id })
+  })
+  skinVideos.push(v)
+  if (sichtbar) sichtbar.observe(v)
+  else if (!ruhig) videoStart(v)
+  return v
+}
+
 function renderShop() {
   updateGeld()
   const box = $('skins')
+  for (const v of skinVideos) {
+    sichtbar?.unobserve(v)
+    if (v.src.startsWith('blob:')) URL.revokeObjectURL(v.src)
+  }
+  skinVideos.length = 0
   box.innerHTML = ''
   skinCanvas.length = 0
   for (const sk of SKINS) {
@@ -807,7 +888,8 @@ function renderShop() {
     card.dataset.id = sk.id
     if (an) card.dataset.an = ''
     if (!hat) card.dataset.zu = ''
-    card.innerHTML = `<canvas></canvas><span class="skin__name"></span><span class="skin__preis"></span>`
+    card.innerHTML = `<span class="skin__name"></span><span class="skin__preis"></span>`
+    card.prepend(skinVorschau(sk.id))
     card.querySelector('.skin__name')!.textContent = sk.name
     const preis = card.querySelector('.skin__preis') as HTMLElement
     if (an) {
@@ -820,7 +902,6 @@ function renderShop() {
     }
     card.addEventListener('click', () => kaufen(sk.id))
     box.append(card)
-    skinCanvas.push({ cv: card.querySelector('canvas')!, id: sk.id })
   }
 }
 
@@ -1408,20 +1489,28 @@ if (nativ) {
 /* ================= Schleife ================= */
 
 let last = performance.now()
+/** Startmenue: der Autopilot spielt im Hintergrund */
+function demoBild(dt: number) {
+  if (!demo || (demo.status === 'over' && demo.time - demo.deathAt > 1500)) newDemo()
+  const d = demo!
+  if (d.status === 'play' && !d.queue.length) {
+    const dir = autopilot(d)
+    if (dir) d.turn(dir, false)
+  }
+  d.update(dt)
+  d.drain()
+  renderer.mehr = null
+  renderer.draw(d)
+}
+
 function frame(now: number) {
   const dt = Math.min(100, now - last)
   last = now
+  // Eine Unterseite (Skins, Anleitung, Online ...) deckt das Spielfeld ganz ab: dann nicht zeichnen
+  const verdeckt = page() !== null
   if (mode === 'home') {
-    if (!demo || (demo.status === 'over' && demo.time - demo.deathAt > 1500)) newDemo()
-    const d = demo!
-    if (d.status === 'play' && !d.queue.length) {
-      const dir = autopilot(d)
-      if (dir) d.turn(dir, false)
-    }
-    d.update(dt)
-    d.drain()
-    renderer.mehr = null
-    renderer.draw(d)
+    // Die Demo im Startmenue ist nur fuers Auge: solange eine Seite sie verdeckt, ruht sie
+    if (!verdeckt) demoBild(dt)
   } else if (mode === 'mehr') {
     mehr.frame(dt)
   } else if (game) {
@@ -1434,10 +1523,11 @@ function frame(now: number) {
       for (const e of game.drain()) handle(e)
     }
     renderer.mehr = null
-    renderer.draw(game)
+    if (!verdeckt) renderer.draw(game)
   }
   updateEffekte()
   if (page() === 'shop') for (const s of skinCanvas) drawSkinVorschau(s.cv, skinVon(s.id), now)
+  else if (skinVideos.length && !skinVideos.every((v) => v.paused)) for (const v of skinVideos) v.pause()
   requestAnimationFrame(frame)
 }
 
