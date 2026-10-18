@@ -29,7 +29,7 @@ import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, freundEntfernen, freundHinzufuegen, ladeListe, lobby, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type Freund, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
+import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinBewegt, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
@@ -118,7 +118,7 @@ function setMode(m: Mode) {
 
 function openPage(p: Page) {
   audio.click()
-  if (pages.includes(p)) return
+  if (pages.includes(p) || (p === 'master' && !master.frei)) return
   pages.push(p)
   if (p === 'help') renderHelp()
   if (p === 'stats') renderStats()
@@ -1318,6 +1318,24 @@ function renderMaster() {
     list.append(box)
   }
 }
+/** Nur mit Master-Code: 7-mal schnell auf die Versionszeile (Optionen) tippen, dann den Code eingeben */
+$('btn-master').hidden = !master.frei
+let versionTipps = 0
+let versionZeit = 0
+$('versionszeile').addEventListener('click', async () => {
+  if (master.frei) return
+  const jetzt = Date.now()
+  versionTipps = jetzt - versionZeit < 1500 ? versionTipps + 1 : 1
+  versionZeit = jetzt
+  if (versionTipps < 7) return
+  versionTipps = 0
+  const code = prompt('Master-Code')
+  if (!code) return
+  if (await masterFreischalten(code)) {
+    $('btn-master').hidden = false
+    alert('Master-Einstellungen freigeschaltet.')
+  } else alert('Falscher Code.')
+})
 $('btn-master-reset').addEventListener('click', () => {
   if (!confirm('Alle Master-Einstellungen auf Standard zurücksetzen?')) return
   resetConfig()

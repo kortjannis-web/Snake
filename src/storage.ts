@@ -73,14 +73,35 @@ export function resetStats() {
   saveStats()
 }
 
+/* ---------------- Master-Freischaltung ----------------
+ * Die Master-Einstellungen gibt es nur auf Geraeten, auf denen einmal der Master-Code
+ * eingegeben wurde. Im Code steht nur sein Hash, nicht der Code selbst. */
+const MKEY = 'snake.master.v1'
+const MASTER_HASH = '3448bc06a33411340a6c28fa55458cdc582c17fade658b25d69d7c3e5f8e05f3'
+
+export const master = { frei: read(MKEY, { frei: false }).frei === true }
+
+/** Prueft den Code (Gross-/Kleinschreibung, Leer- und Bindestriche egal) und schaltet frei */
+export async function masterFreischalten(code: string) {
+  const norm = `snake-master:${code.toUpperCase().replace(/[^A-Z0-9]/g, '')}`
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm)))
+  if ([...h].map((b) => b.toString(16).padStart(2, '0')).join('') !== MASTER_HASH) return false
+  master.frei = true
+  write(MKEY, { frei: true })
+  Object.assign(config, ladeConfig())
+  return true
+}
+
 /* ---------------- Master-Einstellungen (alle Zahlen der Spielregeln) ----------------
  * Gespeichert wird nur, was vom Standard abweicht: so gelten neue Standardwerte
- * auch fuer alle, die schon einmal etwas umgestellt haben. */
+ * auch fuer alle, die schon einmal etwas umgestellt haben. Ohne Freischaltung gelten
+ * immer die Standardwerte (frueher Umgestelltes bleibt gespeichert, wirkt aber nicht). */
 const CKEY = 'snake.config.v2'
 const CKEY_ALT = 'snake.config.v1'
 
 function ladeConfig(): Config {
   const c: Config = { ...DEFAULTS }
+  if (!master.frei) return c
   let neu = false
   try {
     neu = localStorage.getItem(CKEY) !== null
