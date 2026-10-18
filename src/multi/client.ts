@@ -32,6 +32,9 @@ type GeistStand = Geist & { prev: P[]; seit: number }
 
 /** So oft (ms) schickt der Rechner hoechstens seinen Stand */
 const VERSAND_MS = 50
+/** Herzschlag zum Server (ms); kommt so lange (ms) gar nichts zurueck, ist die Verbindung tot */
+const PING_MS = 2000
+const TOT_MS = 6000
 /** Spaetestens so oft (ms) meldet sich der Rechner, auch wenn sich nichts geaendert hat (z. B. im Countdown) */
 const HERZ_MS = 500
 /** Rennen: so oft (ms) hoechstens die eigene Position */
@@ -63,6 +66,8 @@ export class MehrClient {
   private basis: { spiel: number; lokal: number } | null = null
   private ping: ReturnType<typeof setInterval> | null = null
   private pingAb = 0
+  /** Wann zuletzt etwas vom Server kam */
+  private zuletzt = 0
 
   constructor(
     private readonly server: string,
@@ -117,13 +122,13 @@ export class MehrClient {
     ws.onopen = () => {
       this.verbunden = true
       this.versuche = 0
+      this.zuletzt = performance.now()
       this.melden({ art: 'verbindung', ok: true })
-      this.ping ??= setInterval(() => {
-        this.pingAb = performance.now()
-        this.senden({ t: 'ping' })
-      }, 5000)
+      this.ping ??= setInterval(() => this.herzschlag(), PING_MS)
     }
     ws.onmessage = (e) => {
+      if (this.ws !== ws) return
+      this.zuletzt = performance.now()
       if (typeof e.data !== 'string') return
       let m: VomServer
       try {
@@ -146,6 +151,29 @@ export class MehrClient {
       this.melden({ art: 'verbindung', ok: false })
       this.spaeterNeu()
     }
+  }
+
+  /** Alle 2 s: Ping (fuer die Uhr) und pruefen, ob die Verbindung noch lebt. Ein Funkloch meldet der
+   *  Browser oft erst nach Minuten: kommt 6 s lang nichts, wird die Verbindung verworfen und neu aufgebaut */
+  private herzschlag() {
+    if (!this.ws) return
+    if (this.ws.readyState === WebSocket.OPEN && performance.now() - this.zuletzt > TOT_MS) {
+      const alt = this.ws
+      this.ws = null
+      this.verbunden = false
+      alt.onclose = alt.onmessage = alt.onopen = null
+      try {
+        alt.close(3001)
+      } catch {
+        /* egal */
+      }
+      this.melden({ art: 'verbindung', ok: false })
+      this.versuche = 0
+      this.oeffnen()
+      return
+    }
+    this.pingAb = performance.now()
+    this.senden({ t: 'ping' })
   }
 
   /** Funkloch: in 1, 2, 4 ... Sekunden noch einmal (hoechstens 10 Versuche) */

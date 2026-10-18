@@ -45,7 +45,15 @@ export class Raum extends DurableObject<Env> {
         logik.verlassen(kanal)
         if (logik.leer) this.uhrAus()
       }
-      server.addEventListener('close', weg)
+      server.addEventListener('close', () => {
+        // Schliessen beantworten, sonst wartet der Browser lange auf die Bestaetigung
+        try {
+          server.close(1000, 'Tschuess')
+        } catch {
+          /* schon zu */
+        }
+        weg()
+      })
       server.addEventListener('error', weg)
       // Jede Sekunde pruefen, ob das rechnende Geraet noch Stand schickt
       this.uhr ??= setInterval(() => logik.takt(), 1000)
