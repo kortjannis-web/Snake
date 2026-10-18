@@ -52,6 +52,8 @@ const ring = (x: number, y: number, w: number, h: number, r = 10) =>
 const phone = (inhalt: string) => `<rect x="30" y="-20" width="240" height="190" rx="26" fill="${C.karte}" stroke="${C.hoch}" stroke-width="3"/>${inhalt}`
 const seite = (y: number) =>
   `<circle cx="150" cy="${y}" r="15" fill="${C.rot}" stroke="none"/><path d="M150 ${y - 14} q4 -9 11 -9" stroke="#8fd6bd" stroke-width="3"/>${text(150, y + 33, 'Snake', C.creme, 'middle', 13)}`
+/** Adresse für das Bild der Chrome-Adresszeile (im Testlauf gibt es keinen Browser) */
+const ADRESSE = typeof location === 'undefined' ? 'snake' : location.host || 'snake'
 const symbol = (x: number, y: number, s: number) => `<image href="./icons/icon-192.png" x="${x}" y="${y}" width="${s}" height="${s}"/>`
 
 /** Home-Bildschirm mit dem Snake-Symbol (zweite Reihe, zweites Feld) */
@@ -121,7 +123,7 @@ const ANDROID = [
     bild: svg(
       phone(
         `<rect x="30" y="-20" width="240" height="58" fill="${C.hoch}" stroke="none"/>` +
-          `<rect x="46" y="8" width="176" height="22" rx="11" fill="${C.karte}" stroke="none"/>${text(62, 23, location.host || 'snake', C.leise, 'start', 10)}` +
+          `<rect x="46" y="8" width="176" height="22" rx="11" fill="${C.karte}" stroke="none"/>${text(62, 23, ADRESSE, C.leise, 'start', 10)}` +
           `<g fill="${C.creme}" stroke="none"><circle cx="246" cy="12" r="2.3"/><circle cx="246" cy="19" r="2.3"/><circle cx="246" cy="26" r="2.3"/></g>` +
           seite(88) +
           ring(230, 4, 32, 32, 16),
