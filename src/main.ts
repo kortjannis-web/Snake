@@ -19,6 +19,7 @@ import { ERFOLGE, erfolgePruefen, stand, zaehle } from './erfolge'
 import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
+import { installPflicht, zeigeInstallation } from './install'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
@@ -39,6 +40,9 @@ const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
 const app = $('app')
+/** Auf dem Handy im Browser: nur die Installationsanleitung, das Spiel startet erst als App */
+const gesperrt = installPflicht()
+if (gesperrt) zeigeInstallation($('install'))
 const stage = $('stage')
 const canvas = $<HTMLCanvasElement>('board')
 const renderer = new Renderer(canvas)
@@ -1282,7 +1286,7 @@ window.addEventListener('keydown', (e) => {
 })
 
 // Erste Beruehrung schaltet den Ton frei
-window.addEventListener('pointerdown', () => audio.unlock(), { once: true })
+window.addEventListener('pointerdown', () => !gesperrt && audio.unlock(), { once: true })
 
 // App im Hintergrund oder Fenster verlassen: Pause
 document.addEventListener('visibilitychange', () => {
@@ -1365,8 +1369,10 @@ if (nativ) {
 applySettings()
 newDemo()
 setMode('home')
-zeigeWillkommen()
-requestAnimationFrame(frame)
+if (!gesperrt) {
+  zeigeWillkommen()
+  requestAnimationFrame(frame)
+}
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)
 if (!nativ && import.meta.env.PROD && 'serviceWorker' in navigator) {

@@ -90,26 +90,31 @@ die Live-Funktion. Du kannst es gefahrlos ein zweites Mal ausführen.
 
 ## Schritt 7: Auf den Handys installieren
 
-**iPhone** (nur über die Web-App möglich, kein Entwicklerkonto nötig):
-1. Link in **Safari** öffnen (nicht in WhatsApp oder Chrome).
-2. **Teilen**-Symbol → **Zum Home-Bildschirm** → **Hinzufügen**.
-3. Die App vom Home-Bildschirm öffnen. Sie startet im Vollbild und läuft auch offline.
+**Du schickst nur den Link** (`https://kortjannis-web.github.io/Snake/`). Öffnet ihn jemand mit dem **Handy im Browser**,
+sieht er **nicht das Spiel**, sondern eine **bebilderte Anleitung** für sein Gerät (iPhone oder Android, wird erkannt,
+oben lässt es sich umschalten). Gespielt wird erst, wenn Snake **als App auf dem Home-/Startbildschirm** liegt.
+Am Computer gibt es diese Pflicht nicht, dort läuft das Spiel direkt im Browser.
 
-**Android, Variante A (Web-App, aktualisiert sich selbst):**
-1. Link in **Chrome** öffnen → Menü (⋮) → **App installieren** / **Zum Startbildschirm hinzufügen**.
+Die Anleitung zeigt:
 
-**Android, Variante B (APK):**
-1. Auf dem Handy `https://github.com/kortjannis-web/Snake/releases/latest/download/snake-endlos.apk` öffnen.
-2. Download bestätigen, Datei öffnen, einmalig **Installation aus unbekannten Quellen** erlauben.
-3. Updates: Die App zeigt auf dem Startbildschirm **„Neue Version: jetzt laden“**, sobald eine neuere APK da ist.
-   Ein Tipp lädt sie, danach einfach drüberinstallieren (die Spielstände bleiben).
+**iPhone** (in **Safari**, kein Entwicklerkonto nötig): Teilen-Symbol → „Zum Home-Bildschirm“ → „Hinzufügen“ → Snake vom
+Home-Bildschirm öffnen. Kommt jemand aus WhatsApp, Instagram oder Chrome, weist die Seite darauf hin, den Link in Safari
+zu öffnen, und bietet „Link kopieren“ an.
 
-**Erster Start (jeder Spieler):** Beim ersten Öffnen fragt ein Fenster nach dem **Namen** (2 bis 16 Zeichen). Ein Konto oder Passwort
+**Android** (in **Chrome**): Auf Chrome erscheint ein Knopf **Jetzt installieren**. Alternativ: ⋮ → „App installieren“ →
+„Installieren“ → Snake vom Startbildschirm öffnen. Zusätzlich gibt es unten einen Link zur **APK** (nur, wenn das Repo öffentlich ist).
+
+**Updates:** Die installierte Web-App holt neue Versionen beim Start von selbst. Die APK zeigt auf dem Startbildschirm
+**„Neue Version: jetzt laden“**, sobald eine neuere da ist (dann drüberinstallieren, die Spielstände bleiben).
+
+**Erster Start in der App (jeder Spieler):** Ein Fenster fragt nach dem **Namen** (2 bis 16 Zeichen). Ein Konto oder Passwort
 gibt es nicht, jeder ist ein Gast. Rekord, Äpfel und Skins bleiben lokal auf dem Handy. Online liegen nur der Name und die
 Ergebnisse. Der Name lässt sich jederzeit unter **Bestenliste** ändern.
 
-> Der Gast gehört zu diesem Handy und dieser App. Wer den Browser-Speicher löscht, die App neu installiert oder ein anderes Gerät
-> (oder Safari statt der Home-Bildschirm-App) benutzt, ist ein **neuer Gast** und gibt den Namen noch einmal ein.
+> Der Gast gehört zu dieser App auf diesem Handy. Wer die App löscht und neu installiert oder ein anderes Gerät benutzt, ist ein
+> **neuer Gast** und gibt den Namen noch einmal ein.
+
+---
 
 ## Schritt 8 (optional): Datenbank-Änderungen automatisch ausliefern
 
@@ -163,5 +168,6 @@ Ohne diese Secrets überspringt der Workflow still. Bereits von Hand ausgeführt
 | „Keine Verbindung“ in der Liste | Kein Internet, Projekt pausiert oder falsche URL in Schritt 5. |
 | Ergebnis fehlt in der Liste | Beim Speichern war kein Netz (kommt später von selbst), Master-Einstellungen geändert, Kreativ-Modus, oder die Runde war unter 2 Level. |
 | Liste aktualisiert sich nicht live | Beim Anlegen der Datenbank gab es einen Fehler: SQL aus Schritt 3 erneut ausführen. Notfalls schließt und öffnet die Seite die Liste neu. |
+| Am Handy erscheint die Anleitung, obwohl Snake schon installiert ist | Snake muss **vom Home-/Startbildschirm** geöffnet werden, nicht aus Safari oder Chrome. |
 | Update erscheint nicht auf dem iPhone | App vom Home-Bildschirm komplett schließen und neu öffnen (die neue Version wird beim Start geholt). |
 | Pages-Lauf rot | Settings → Pages → Source auf **GitHub Actions** stellen, dann **Re-run all jobs**. |

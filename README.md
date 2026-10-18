@@ -9,6 +9,7 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 - **Android:** unter *Releases → latest* `snake-endlos.apk` auf dem Handy öffnen und installieren
   (einmalig „Installation aus unbekannten Quellen“ erlauben). Jeder Push baut die APK neu
   (*Actions → Android-APK*, auch als Artefakt).
+- **Am Handy im Browser** erscheint statt des Spiels eine bebilderte Installationsanleitung (iPhone und Android); gespielt wird erst als App vom Home-Bildschirm. Zum Entwickeln überspringt `?browser=1` die Anleitung, am Computer und im Dev-Server gibt es sie nicht.
 - **Web/iPhone:** über GitHub Pages (einmalig in *Settings → Pages* die Quelle „GitHub Actions“
   wählen). Im Browser „Zum Home-Bildschirm“ macht daraus eine App im Vollbild.
 
