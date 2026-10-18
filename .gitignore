@@ -12,3 +12,6 @@ android/.idea
 android/app/release
 *.keystore
 !android/app/debug.keystore
+
+# Cloudflare (lokaler Server-Test)
+.wrangler
