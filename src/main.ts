@@ -27,7 +27,7 @@ import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, lobby, meineAnfragen, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinBewegt, skinVon, STUFEN } from './render/skins'
@@ -137,12 +137,14 @@ function closePage() {
   audio.click()
   show(p, false)
   if (p === 'liste') schliesseListe()
+  if (p === 'chat') chatPartner = null
 }
 function closeAllPages() {
   while (pages.length) {
     const p = pages.pop()!
     show(p, false)
     if (p === 'liste') schliesseListe()
+    if (p === 'chat') chatPartner = null
   }
 }
 
@@ -454,10 +456,10 @@ function hallAktion(z: HallZeile): HTMLElement {
   }
   const a = anfragen.find((x) => x.user_id === z.user_id)
   if (freundeUids.has(z.user_id)) {
-    k.classList.add('hall-aktion--freund')
-    setIcon(k, 'Check')
-    k.setAttribute('aria-label', `${z.name} ist dein Freund`)
-    k.disabled = true
+    setIcon(k, 'MessageCircle')
+    k.setAttribute('aria-label', `Mit ${z.name} chatten`)
+    k.title = 'Freund: chatten'
+    k.addEventListener('click', () => oeffneChat(z))
   } else if (a?.richtung === 'aus') {
     k.classList.add('hall-aktion--warten')
     setIcon(k, 'Clock')
@@ -1831,7 +1833,7 @@ if ('serviceWorker' in navigator)
 /** Freunde neu laden (nach dem Start, beim Oeffnen der Mehrspieler-Seite, nach Aenderungen) */
 async function freundeLaden() {
   pushZeichnen()
-  const [f, , sp] = await Promise.all([meineFreunde(), anfragenLaden(), meineSperren()])
+  const [f, , sp] = await Promise.all([meineFreunde(), anfragenLaden(), meineSperren(), ungelesenLaden()])
   freunde = f
   freundeUids = new Set(freunde.map((x) => x.user_id))
   freundeZeichnen()
@@ -1843,9 +1845,10 @@ async function freundeLaden() {
   if (code) $('freund-code').textContent = code
 }
 
-/** Zaehler am Knopf "Online": offene Anfragen an mich */
+/** Zaehler am Knopf "Online": offene Anfragen an mich und ungelesene Nachrichten */
 function badgeZeichnen() {
-  const n = anfragen.filter((a) => a.richtung === 'ein').length
+  let n = anfragen.filter((a) => a.richtung === 'ein').length
+  for (const z of ungelesen.values()) n += z
   const b = $('online-badge')
   b.hidden = n === 0
   b.textContent = n > 99 ? '99+' : String(n)
@@ -1961,7 +1964,21 @@ let sozialAbmelden: (() => void) | null = null
 function sozialStarten() {
   if (sozialAbmelden || !onlineAktiv || !profil.name) return
   sozialAbmelden = abonniereSozial({
-    nachricht: () => {},
+    nachricht: (n) => {
+      if (chatPartner && n.von === chatPartner.user_id && page() === 'chat') {
+        if (!chatVerlauf.some((x) => x.id === n.id)) {
+          chatVerlauf.push(n)
+          chatZeichnen()
+        }
+        void chatGelesen(n.von)
+        return
+      }
+      ungelesen.set(n.von, (ungelesen.get(n.von) ?? 0) + 1)
+      badgeZeichnen()
+      freundeZeichnen()
+      const f = freunde.find((x) => x.user_id === n.von)
+      if (mode !== 'play' && mode !== 'mehr') toast('gebiet', f?.name ?? 'Neue Nachricht', n.text.length > 60 ? `${n.text.slice(0, 57)}…` : n.text)
+    },
     anfrage: () => {
       void freundeLaden().then(() => {
         const neu = anfragen.find((a) => a.richtung === 'ein')
@@ -1975,6 +1992,123 @@ function sozialStarten() {
     },
   })
 }
+
+/* ================= Chat (nur unter Freunden, 30 Tage) ================= */
+
+type ChatPartner = { user_id: string; name: string; skin?: string }
+let chatPartner: ChatPartner | null = null
+let chatVerlauf: Nachricht[] = []
+let chatNr = 0
+/** Ungelesene Nachrichten je Freund */
+const ungelesen = new Map<string, number>()
+
+async function ungelesenLaden() {
+  const c = await meineChats()
+  ungelesen.clear()
+  for (const x of c) if (x.ungelesen > 0) ungelesen.set(x.user_id, x.ungelesen)
+}
+
+function chatHinweis(text: string) {
+  const p = document.createElement('p')
+  p.className = 'chat__hinweis'
+  p.textContent = text
+  return p
+}
+
+function oeffneChat(p: ChatPartner) {
+  chatPartner = p
+  chatVerlauf = []
+  $('chat-name').textContent = p.name
+  $('chat-sperren').setAttribute('aria-label', `${p.name} sperren`)
+  drawSkinVorschau($<HTMLCanvasElement>('chat-skin'), skinVon(p.skin ?? 'klassik'), 0)
+  $('chat-verlauf').replaceChildren(chatHinweis('Lade …'))
+  if (pages.includes('chat')) audio.click()
+  else openPage('chat')
+  void chatLaden()
+}
+
+async function chatLaden() {
+  const p = chatPartner
+  if (!p) return
+  const nr = ++chatNr
+  try {
+    const n = await ladeNachrichten(p.user_id)
+    if (nr !== chatNr || chatPartner !== p) return
+    chatVerlauf = n
+    chatZeichnen()
+    if (ungelesen.has(p.user_id) || n.some((x) => x.von === p.user_id && !x.gelesen)) {
+      ungelesen.delete(p.user_id)
+      badgeZeichnen()
+      freundeZeichnen()
+      void chatGelesen(p.user_id)
+    }
+  } catch {
+    if (nr !== chatNr) return
+    $('chat-verlauf').replaceChildren(chatHinweis('Keine Verbindung. Der Chat braucht Internet.'))
+  }
+}
+
+function chatZeichnen() {
+  const p = chatPartner
+  if (!p) return
+  const box = $('chat-verlauf')
+  box.replaceChildren(chatHinweis('Nur ihr zwei seht diese Nachrichten. Sie werden nach 30 Tagen gelöscht.'))
+  if (!chatVerlauf.length) box.append(chatHinweis(`Noch keine Nachrichten. Schreib ${p.name} die erste!`))
+  const heute = new Date().toDateString()
+  let tag = ''
+  for (const n of chatVerlauf) {
+    const d = new Date(n.created_at)
+    if (d.toDateString() !== tag) {
+      tag = d.toDateString()
+      const t = document.createElement('span')
+      t.className = 'chat__tag'
+      t.textContent = tag === heute ? 'Heute' : d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })
+      box.append(t)
+    }
+    const b = document.createElement('div')
+    b.className = n.von === p.user_id ? 'chat__blase' : 'chat__blase chat__blase--ich'
+    const text = document.createElement('span')
+    text.textContent = n.text
+    const zeit = document.createElement('small')
+    zeit.textContent = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    b.append(text, zeit)
+    box.append(b)
+  }
+  box.scrollTop = box.scrollHeight
+}
+
+$<HTMLFormElement>('chat-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const p = chatPartner
+  const input = $<HTMLInputElement>('chat-text')
+  const text = input.value.trim()
+  if (!p || !text) return
+  input.value = ''
+  try {
+    const n = await sendeNachricht(p.user_id, text)
+    if (chatPartner === p && !chatVerlauf.some((x) => x.id === n.id)) {
+      chatVerlauf.push(n)
+      chatZeichnen()
+    }
+  } catch (err) {
+    if (!input.value) input.value = text
+    toast('gebiet', 'Nicht gesendet', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+  }
+})
+
+$('chat-sperren').addEventListener('click', async () => {
+  const p = chatPartner
+  if (!p || !confirm(`${p.name} sperren? Die Freundschaft endet und ihr könnt euch keine Anfragen und Nachrichten mehr schicken.`)) return
+  audio.click()
+  try {
+    await sperren(p.user_id)
+    toast('gebiet', `${p.name} gesperrt`, 'Entsperren kannst du unter Online, Gesperrte Spieler.')
+    closePage()
+    void freundeLaden()
+  } catch (err) {
+    toast('gebiet', 'Sperren', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+  }
+})
 
 /** Freundesliste auf der Mehrspieler-Seite */
 function freundeZeichnen() {
@@ -2005,9 +2139,23 @@ function freundeZeichnen() {
     const klein = document.createElement('small')
     klein.textContent = `${da ? (da.imSpiel ? 'spielt gerade · ' : 'online · ') : ''}Rekord ${f.level || '–'}`
     name.append(klein)
+    const chatK = document.createElement('button')
+    chatK.className = 'icon-btn freund-chat'
+    const neu = ungelesen.get(f.user_id) ?? 0
+    chatK.setAttribute('aria-label', neu ? `Mit ${f.name} chatten, ${neu} neu` : `Mit ${f.name} chatten`)
+    setIcon(chatK, 'MessageCircle')
+    if (neu) {
+      const z = document.createElement('i')
+      z.className = 'chat-zahl'
+      z.textContent = neu > 99 ? '99+' : String(neu)
+      chatK.append(z)
+    }
+    chatK.addEventListener('click', () => oeffneChat(f))
     const einladenK = document.createElement('button')
-    einladenK.className = 'btn btn--ghost btn--klein'
-    einladenK.textContent = 'Einladen'
+    einladenK.className = 'icon-btn freund-einladen'
+    einladenK.setAttribute('aria-label', `${f.name} zum Spiel einladen`)
+    einladenK.title = 'Einladen'
+    setIcon(einladenK, 'Gamepad2')
     // Online: Einladung in der App. Sonst als Nachricht aufs Handy (Push)
     einladenK.hidden = !mehr.verfuegbar
     einladenK.addEventListener('click', () => void (da ? einladen(da) : einladenPerPush(f)))
@@ -2020,7 +2168,7 @@ function freundeZeichnen() {
       await freundEntfernen(f.user_id)
       void freundeLaden()
     })
-    el.append(cv, name, einladenK, weg)
+    el.append(cv, name, chatK, einladenK, weg)
     box.append(el)
     drawSkinVorschau(cv, skinVon(f.skin), 0)
   }
