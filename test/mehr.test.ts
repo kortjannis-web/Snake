@@ -243,6 +243,35 @@ describe('Gegeneinander', () => {
   })
 })
 
+describe('Verzoegerung ausgleichen', () => {
+  it('kommt der Wischer ein Feld zu spaet, biegt die Schlange trotzdem am gewuenschten Feld ab', () => {
+    const g = new MehrGame(opts('vs'))
+    setze(g, 0, [{ x: 5, y: 10 }, { x: 4, y: 10 }, { x: 3, y: 10 }], 'r')
+    setze(g, 1, [{ x: 10, y: 20 }, { x: 11, y: 20 }, { x: 12, y: 20 }], 'l')
+    takt(g)
+    g.sichern()
+    // Auf dem Geraet von Spieler 0 war der Kopf noch bei (5,10), beim Rechner ist er schon bei (6,10)
+    expect(g.schlangen[0].body[0]).toEqual({ x: 6, y: 10 })
+    g.lenkeBei(0, 'u', { x: 5, y: 10 }, g.expansions)
+    g.sichern()
+    expect(g.schlangen[0].body[0]).toEqual({ x: 5, y: 9 })
+    expect(g.schlangen[0].body[1]).toEqual({ x: 5, y: 10 })
+    expect(g.schlangen[0].dir).toBe('u')
+  })
+  it('stimmt das Feld nicht (andere Karte oder zu alt), wird normal gelenkt', () => {
+    const g = new MehrGame(opts('vs'))
+    setze(g, 0, [{ x: 5, y: 10 }, { x: 4, y: 10 }, { x: 3, y: 10 }], 'r')
+    takt(g)
+    // Erst nach dem ersten Drittel des Schritts (davor greift die Sofort-Wende aus dem Einzelspiel)
+    leer(g)
+    g.update(g.tick * 0.5)
+    g.lenkeBei(0, 'u', { x: 5, y: 10 }, g.expansions + 1)
+    g.sichern()
+    expect(g.schlangen[0].body[0]).toEqual({ x: 6, y: 10 })
+    expect(g.schlangen[0].queue).toEqual(['u'])
+  })
+})
+
 describe('Koop', () => {
   it('man faehrt durch den anderen hindurch', () => {
     const g = new MehrGame(opts('koop'))

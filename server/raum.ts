@@ -4,7 +4,7 @@
  */
 import { abstandGrenze, type Ergebnis, type Modus, type SpielerInfo } from '../src/game/mehr'
 import type { Tempo } from '../src/game/rules'
-import { COUNTDOWN, MAX_SPIELER, PROTOKOLL, RECHNER_STILL, type AnServer, type Phase, type StartInfo, type VomServer } from '../src/multi/protokoll'
+import { COUNTDOWN, MAX_SPIELER, PROTOKOLL, REAKTIONEN, RECHNER_STILL, type AnServer, type Phase, type StartInfo, type VomServer } from '../src/multi/protokoll'
 
 export interface Kanal {
   send(s: string): void
@@ -33,6 +33,8 @@ export class RaumLogik {
   rechner = -1
   letzterStand = 0
   ergebnis: Ergebnis | null = null
+  /** Wann jeder zuletzt eine Reaktion geschickt hat (hoechstens eine je Sekunde) */
+  private reaktion = new Map<string, number>()
   /* Rennen */
   stand: Stand[] = []
   gebiet = 0
@@ -205,9 +207,19 @@ export class RaumLogik {
         this.letzterStand = Math.max(this.letzterStand, this.uhr())
         for (const p of this.plaetze) if (p.kanal && p.kanal !== k) this.roh(p.kanal, text)
         return
-      case 'dir':
+      case 'dir': {
         if (this.phase !== 'spiel' || i === this.rechner || !['u', 'd', 'l', 'r'].includes(m.d)) return
-        return this.an(this.plaetze[this.rechner]?.kanal ?? null, { t: 'dir', wer: i, d: m.d })
+        const bei = m.bei && Number.isFinite(m.bei.x) && Number.isFinite(m.bei.y) ? { x: Math.round(m.bei.x), y: Math.round(m.bei.y) } : undefined
+        const k = Number.isFinite(m.k) ? Math.round(m.k as number) : undefined
+        return this.an(this.plaetze[this.rechner]?.kanal ?? null, { t: 'dir', wer: i, d: m.d, bei, k })
+      }
+      case 'emoji': {
+        const e = Math.floor(Number(m.e))
+        const id = this.plaetze[i].info.id
+        if (this.phase === 'lobby' || !(e >= 0 && e < REAKTIONEN.length) || this.uhr() - (this.reaktion.get(id) ?? -1e9) < 1000) return
+        this.reaktion.set(id, this.uhr())
+        return this.anAlle({ t: 'emoji', wer: i, e })
+      }
       case 'ende':
         if (this.phase !== 'spiel' || i !== this.rechner) return
         return this.beenden(m.ergebnis)

@@ -2309,3 +2309,47 @@ html[data-install] #app {
 .mehr-uhr--knapp {
   color: #ff8a73 !important;
 }
+
+/* Reaktionen im Spiel */
+.mehr-reaktion {
+  position: absolute;
+  right: calc(var(--safe-r) + 12px);
+  bottom: calc(var(--safe-b) + 16px);
+  z-index: 4;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.mehr-reaktion[hidden] {
+  display: none;
+}
+
+.mehr-reaktion__knopf {
+  width: 48px;
+  height: 48px;
+  background: rgba(23, 21, 19, 0.7);
+  font-size: 1.5rem;
+}
+
+.mehr-emojis {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(23, 21, 19, 0.85);
+}
+
+.mehr-emojis[hidden] {
+  display: none;
+}
+
+.mehr-emojis button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(245, 239, 230, 0.08);
+  font-size: 1.4rem;
+}

@@ -8,7 +8,7 @@ import type { Renderer } from '../render/renderer'
 import { drawSkinVorschau, skinVon } from '../render/skins'
 import { setIcon } from '../ui/icons'
 import { MehrClient, type ClientEreignis, type RaumInfo } from './client'
-import { codeGueltig, neuerCode } from './protokoll'
+import { codeGueltig, neuerCode, REAKTIONEN } from './protokoll'
 
 export const SERVER = (import.meta.env.VITE_SNAKE_SERVER as string | undefined) ?? ''
 
@@ -85,6 +85,10 @@ export function mehrspieler(api: MehrApi) {
   /** Skins im laufenden Spiel (ohne doppelte) und der eigene, der danach wieder gilt */
   let skins: string[] = []
   let eigenerSkin = api.renderer.skin
+  /** Reaktionen je Spieler (Index) und wann sie kamen */
+  const blasen = new Map<number, { e: number; seit: number }>()
+  /** Wer raus ist, schaut diesem Spieler zu (Index, -1 = noch keiner) */
+  let zuschau = -1
 
   /* ================= Ereignisse vom Client ================= */
 
@@ -97,6 +101,10 @@ export function mehrspieler(api: MehrApi) {
         return
       case 'start':
         imSpiel = true
+        zuschau = -1
+        blasen.clear()
+        $('mehr-reaktion').hidden = false
+        $('mehr-emojis').hidden = true
         skins = anzeigeSkins(e.info.spieler)
         eigenerSkin = api.renderer.skin
         api.renderer.skin = skinVon(skins[client.ich] ?? e.info.spieler[client.ich]?.skin ?? 'klassik')
@@ -123,6 +131,9 @@ export function mehrspieler(api: MehrApi) {
         api.toast('Mehrspieler', e.text)
         $('mehr-hinweis').textContent = e.text
         return
+      case 'emoji':
+        blasen.set(e.wer, { e: e.e, seit: performance.now() })
+        return
       case 'verbindung':
         $('mehr-live').hidden = !e.ok
         if (!e.ok && imSpiel) meldung('Verbindung weg, verbinde neu …', 4000)
@@ -132,6 +143,7 @@ export function mehrspieler(api: MehrApi) {
         api.renderer.mehr = null
         api.renderer.skin = eigenerSkin
         $('mehr-hud').hidden = true
+        $('mehr-reaktion').hidden = true
         $('mehr-countdown').hidden = true
         $('mehr-meldung').hidden = true
         $('mehr-ende').removeAttribute('data-open')
@@ -276,6 +288,7 @@ export function mehrspieler(api: MehrApi) {
     api.renderer.mehr = null
     api.renderer.skin = eigenerSkin
     $('mehr-hud').hidden = true
+    $('mehr-reaktion').hidden = true
     $('mehr-countdown').hidden = true
     $('mehr-meldung').hidden = true
     $('mehr-ende').removeAttribute('data-open')
@@ -353,6 +366,21 @@ export function mehrspieler(api: MehrApi) {
     } catch {
       /* abgebrochen */
     }
+  })
+  // Reaktionen: Knopf oeffnet die Auswahl, ein Tipp schickt
+  const emojis = $('mehr-emojis')
+  REAKTIONEN.forEach((r, i) => {
+    const b = document.createElement('button')
+    b.textContent = r
+    b.setAttribute('aria-label', `Reaktion ${r}`)
+    b.addEventListener('click', () => {
+      client.reaktion(i)
+      emojis.hidden = true
+    })
+    emojis.append(b)
+  })
+  $('mehr-reaktion-knopf').addEventListener('click', () => {
+    emojis.hidden = !emojis.hidden
   })
   $('mehr-hud-weg').addEventListener('click', () => {
     if (confirm('Spiel verlassen?')) client.verlassen()
@@ -511,6 +539,20 @@ export function mehrspieler(api: MehrApi) {
     setTimeout(() => $('mehr-ende').setAttribute('data-open', ''), 900)
   }
 
+  /** Wem die Kamera folgt, wenn man raus ist (naechster, der noch lebt; `weiter` = zum naechsten wechseln) */
+  function folgen(weiter = false): number {
+    const st = client.staende()
+    const n = st.length
+    if (!n) return meinIndex()
+    const lebt = (i: number) => !st[i].raus && i !== client.ich
+    if (!weiter && zuschau >= 0 && lebt(zuschau)) return zuschau
+    for (let s = 1; s <= n; s++) {
+      const i = (Math.max(0, zuschau) + s) % n
+      if (lebt(i)) return (zuschau = i)
+    }
+    return meinIndex()
+  }
+
   /* ================= Fuer main.ts ================= */
 
   return {
@@ -527,18 +569,42 @@ export function mehrspieler(api: MehrApi) {
       if (!g) return
       const mi = meinIndex()
       const meine = client.meine()
-      if (client.start?.modus !== 'rennen') g.wechsel(Math.max(0, mi))
+      const rennen = client.start?.modus === 'rennen'
+      // Raus (auf einem Feld): die Kamera folgt einem, der noch lebt
+      const ziel = !rennen && meine?.raus ? folgen() : mi
+      if (!rennen) g.wechsel(Math.max(0, ziel))
+      api.renderer.skin = skinVon(skins[ziel] ?? 'klassik')
+      const andere = client.fremde(ziel).map((f) => ({ ...f, skin: skinVon(skins[f.wer] ?? f.skin) }))
+      // Reaktionen ueber den Koepfen (2,5 s)
+      const jetzt = performance.now()
+      const liste: { p: { x: number; y: number }; text: string; k: number }[] = []
+      for (const [wer, b] of blasen) {
+        const k = (jetzt - b.seit) / 2500
+        if (k >= 1) {
+          blasen.delete(wer)
+          continue
+        }
+        const kopf = wer === (rennen ? client.ich : ziel) ? g.body[0] : andere.find((f) => f.wer === wer)?.body[0]
+        if (kopf) liste.push({ p: kopf, text: REAKTIONEN[b.e] ?? '', k })
+      }
       api.renderer.mehr = {
-        andere: client.fremde().map((f) => ({ ...f, skin: skinVon(skins[f.wer] ?? f.skin) })),
-        ichTot: !!meine && (meine.tot || meine.raus),
+        andere,
+        ichTot: ziel === mi && !!meine && (meine.tot || meine.raus),
         wahlSichtbar: g.wahlSpieler === mi,
         zone: client.start?.modus === 'royale' ? g.zone() : undefined,
+        blasen: liste,
       }
-      if (meine) g.deathAt = meine.deathAt
+      if (meine && ziel === mi) g.deathAt = meine.deathAt
       api.renderer.draw(g)
       anzeige()
+      if (ziel !== mi && jetzt > meldungBis - 1500) meldung(`Du schaust ${client.start?.spieler[ziel]?.name ?? ''} zu · wischen wechselt`, 1600)
     },
     lenke(d: Dir) {
+      // Raus: wischen wechselt, wem man zuschaut
+      if (client.start?.modus !== 'rennen' && client.meine()?.raus) {
+        zuschau = folgen(true)
+        return
+      }
       client.lenke(d)
     },
     /** App im Hintergrund: wer rechnet, gibt an ein anderes Geraet ab */

@@ -45,7 +45,10 @@ export type AnServer =
   | { t: 'bereit'; bereit: boolean }
   | { t: 'start' }
   | { t: 'nochmal' }
-  | { t: 'dir'; d: Dir }
+  /** Wischer; `bei` = Kopffeld auf diesem Geraet, `k` = Anzahl Erweiterungen (gleiche Karte?) */
+  | { t: 'dir'; d: Dir; bei?: P; k?: number }
+  /** Reaktion (Index in REAKTIONEN) */
+  | { t: 'emoji'; e: number }
   /** Rechner: geaenderte Felder des Stands, Ereignisse; `voll` = ganzer Stand */
   | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean }
   | { t: 'ende'; ergebnis: Ergebnis }
@@ -65,7 +68,8 @@ export type VomServer =
   /** Ganzer Stand fuer ein Geraet, das neu rechnet oder zurueckkommt */
   | { t: 'voll'; z: Zustand }
   | { t: 'rechner'; wer: number }
-  | { t: 'dir'; wer: number; d: Dir }
+  | { t: 'dir'; wer: number; d: Dir; bei?: P; k?: number }
+  | { t: 'emoji'; wer: number; e: number }
   | ({ t: 'geist' } & Geist)
   | { t: 'waehler'; k: number; wer: number }
   | { t: 'gebiet'; k: number; b: P; d: Dir; wer: number }
@@ -73,6 +77,9 @@ export type VomServer =
   | { t: 'ende'; ergebnis: Ergebnis }
   | { t: 'fehler'; text: string }
   | { t: 'pong'; jetzt: number }
+
+/** Reaktionen im Spiel (fest, kein freier Text) */
+export const REAKTIONEN = ['👍', '😂', '😱', '😡', '🔥', '👋'] as const
 
 const ZEICHEN = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 /** Raum-Code: 5 Zeichen ohne Verwechsler (0/O, 1/I) */

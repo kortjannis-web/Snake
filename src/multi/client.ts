@@ -23,6 +23,7 @@ export type ClientEreignis =
   | { art: 'ende'; ergebnis: Ergebnis }
   | { art: 'fehler'; text: string }
   | { art: 'verbindung'; ok: boolean }
+  | { art: 'emoji'; wer: number; e: number }
   | { art: 'verlassen' }
 
 /** Eine andere Schlange, wie sie gezeichnet wird */
@@ -68,6 +69,8 @@ export class MehrClient {
   private pingAb = 0
   /** Wann zuletzt etwas vom Server kam */
   private zuletzt = 0
+  /** Eigener Wischer, den der Rechner noch nicht umgesetzt hat (fuer die sofortige Anzeige) */
+  private vorhersage: { d: Dir; bei: P; seit: number } | null = null
 
   constructor(
     private readonly server: string,
@@ -272,10 +275,14 @@ export class MehrClient {
         anwenden(this.game, m.d)
         this.game.wechsel(Math.max(0, this.ich))
         this.basis = { spiel: this.game.time, lokal: performance.now() }
+        this.vorhersagen()
         for (const e of m.e ?? []) this.melden({ art: 'spiel', e })
         return
       case 'dir':
-        if (this.istRechner && this.game) this.game.lenke(m.wer, m.d)
+        if (this.istRechner && this.game) this.game.lenkeBei(m.wer, m.d, m.bei, m.k)
+        return
+      case 'emoji':
+        this.melden({ art: 'emoji', wer: m.wer, e: m.e })
         return
       case 'geist': {
         const alt = this.geister.get(m.wer)
@@ -334,9 +341,34 @@ export class MehrClient {
   lenke(d: Dir) {
     const g = this.game
     if (!g || !this.laeuft) return
-    if (this.start?.modus === 'rennen') g.lenke(0, d)
-    else if (this.istRechner) g.lenke(this.ich, d)
-    else this.senden({ t: 'dir', d })
+    if (this.start?.modus === 'rennen') return g.lenke(0, d)
+    if (this.istRechner) return g.lenke(this.ich, d)
+    // Mitschicken, an welchem Feld der Kopf hier gerade ist: der Rechner biegt genau dort ab
+    g.wechsel(this.ich)
+    const bei = { ...g.body[0] }
+    this.senden({ t: 'dir', d, bei, k: g.expansions })
+    this.vorhersage = { d, bei, seit: performance.now() }
+    this.vorhersagen()
+  }
+
+  /** Sofort anzeigen, wohin die eigene Schlange gleich faehrt (bis der Rechner es bestaetigt) */
+  private vorhersagen() {
+    const v = this.vorhersage
+    const g = this.game
+    if (!v || !g) return
+    g.wechsel(this.ich)
+    const h = g.body[0]
+    // Umgesetzt, abgelaufen oder schon woanders: vergessen
+    if (g.dir === v.d || performance.now() - v.seit > 600 || !h || (h.x !== v.bei.x || h.y !== v.bei.y)) {
+      this.vorhersage = null
+      return
+    }
+    // Noch am Feld: Kopf zeigt schon in die neue Richtung (keine Kehrtwende)
+    if (v.d !== R.OPP[g.dir]) g.dir = v.d
+  }
+
+  reaktion(e: number) {
+    this.senden({ t: 'emoji', e })
   }
 
   /** Jeden Frame: rechnen oder Gespiegeltes weiterzeichnen */
@@ -405,8 +437,8 @@ export class MehrClient {
 
   /* ================= Anzeige ================= */
 
-  /** Die anderen Schlangen fuer den Zeichner */
-  fremde(): Fremd[] {
+  /** Die anderen Schlangen fuer den Zeichner (alle ausser `ausser`, standardmaessig die eigene) */
+  fremde(ausser = this.ich): Fremd[] {
     const g = this.game
     if (!g || !this.start) return []
     const out: Fremd[] = []
@@ -422,7 +454,7 @@ export class MehrClient {
     }
     g.sichern()
     g.schlangen.forEach((s, wer) => {
-      if (wer === this.ich || s.raus) return
+      if (wer === ausser || s.raus) return
       // Tote liegen noch kurz da, dann verschwinden sie bis zur Rueckkehr
       if (s.tot && g.time - s.deathAt > 1200) return
       const takt = g.time < s.effekt.zeitlupeBis ? g.tick * R.zeitlupe(g.cfg) : g.tick

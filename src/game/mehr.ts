@@ -543,6 +543,39 @@ export class MehrGame extends Game {
     this.turn(d, true)
   }
 
+  /**
+   * Spieler i lenkt, und zwar an dem Feld `bei`, an dem sein Kopf auf seinem Geraet gerade war.
+   * Kommt der Wischer wegen der Verzoegerung erst an, wenn die Schlange schon ein Feld weiter ist,
+   * wird dieser eine Schritt zurueckgenommen und am richtigen Feld abgebogen (wie die Sofort-Wende,
+   * nur ohne Zeitfenster). Hat sie dabei gegessen oder ist gewachsen, geht das nicht: dann normal.
+   */
+  lenkeBei(i: number, d: Dir, bei: P | undefined, k: number | undefined) {
+    if (!this.lebend(i) || this.status !== 'play') return
+    this.wechsel(i)
+    // Feld gilt nur, wenn beide dieselbe Karte meinen (keine Erweiterung dazwischen)
+    const ok = bei && k === this.expansions
+    const h = this.body[0]
+    const p0 = this.prev[0]
+    const zurueck =
+      ok &&
+      !same(h, bei) &&
+      p0 &&
+      same(p0, bei) &&
+      !this.queue.length &&
+      !this.ate &&
+      !this.halt &&
+      !this.gnade &&
+      this.prev.length === this.body.length &&
+      d !== this.prevDir &&
+      d !== R.OPP[this.prevDir] &&
+      !this.aufEis(p0)
+    if (!zurueck) return this.turn(d, true)
+    this.body = this.prev.map((p) => ({ ...p }))
+    this.dir = this.prevDir
+    this.queue = [d]
+    this.step()
+  }
+
   protected die(cause: Cause) {
     const i = this.aktiv
     const s = this.schlangen[i]
