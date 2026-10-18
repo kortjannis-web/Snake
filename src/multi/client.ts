@@ -285,6 +285,8 @@ export class MehrClient {
         this.melden({ art: 'emoji', wer: m.wer, e: m.e })
         return
       case 'geist': {
+        // Die eigene Schlange nie als Geist zeigen (nur die der anderen)
+        if (m.wer === this.ich) return
         const alt = this.geister.get(m.wer)
         const kopf = (b: P[]) => (b[0] ? `${b[0].x},${b[0].y}` : '')
         const neu = !alt || kopf(alt.b) !== kopf(m.b)
@@ -445,7 +447,7 @@ export class MehrClient {
     if (this.start.modus === 'rennen') {
       const o = g.ursprung
       for (const [wer, s] of this.geister) {
-        if (s.raus) continue
+        if (s.raus || wer === this.ich) continue
         const info = this.start.spieler[wer]
         const mv = (b: P[]) => b.map((p) => ({ x: p.x + o.x, y: p.y + o.y }))
         out.push({ wer, body: mv(s.b), prev: mv(s.prev.length === s.b.length ? s.prev : s.b), dir: s.d, alpha: Math.min(1, (performance.now() - s.seit) / g.tick), tot: s.tot, deck: 0.42, name: info?.name ?? '', skin: info?.skin ?? 'klassik' })

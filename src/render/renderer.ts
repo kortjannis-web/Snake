@@ -65,6 +65,22 @@ const RAND_VORN = 7.2
 /** Letzte Sicherung in Laufrichtung (Felder ab Kopfmitte): 5 ganze Felder vor dem Kopf */
 const RAND_SICHER = 5.5
 /** Seite des Ausschnitts je Achse und Richtung */
+/** Kantenlaenge einer Boden-Kachel in Feldern, und wie viele Kacheln hoechstens im Speicher bleiben */
+const GRUND = 8
+const GRUND_MAX = 48
+/** Jedes Spiel bekommt eine Nummer (der Boden haengt an Welt und Einstellungen) */
+const spielNr = new WeakMap<Game, number>()
+let naechsteSpielNr = 1
+const nummer = (g: Game) => spielNr.get(g) ?? (spielNr.set(g, naechsteSpielNr), naechsteSpielNr++)
+
+/** Erdfeld nah an der Karte ist heller: 1 direkt daneben, 2 einen Schritt weiter, sonst 0 */
+const erdRing = (drin: (x: number, y: number) => boolean, x: number, y: number) =>
+  drin(x + 1, y) || drin(x - 1, y) || drin(x, y + 1) || drin(x, y - 1)
+    ? 1
+    : drin(x + 1, y + 1) || drin(x - 1, y - 1) || drin(x + 1, y - 1) || drin(x - 1, y + 1) || drin(x + 2, y) || drin(x - 2, y) || drin(x, y + 2) || drin(x, y - 2)
+      ? 2
+      : 0
+
 const SEITE: Record<'x' | 'y', Record<1 | -1, Dir>> = { x: { 1: 'r', [-1]: 'l' }, y: { 1: 'd', [-1]: 'u' } }
 
 /** Eine Schlange eines anderen Spielers (Mehrspieler): echt oder als Geist (Wettrennen) */
@@ -142,6 +158,13 @@ export class Renderer {
   minikarte = true
   private shake = { until: 0, amp: 0 }
   private lastReal = 0
+  /** Vorgerenderter Boden (Erde, Schachbrett, Grasrand) in Kacheln von GRUND x GRUND Feldern, in Geraetepixeln */
+  private grund = new Map<string, { cv: HTMLCanvasElement; benutzt: number }>()
+  private grundStand = ''
+  private grundBild = 0
+  /** Feste Einzelbilder (Stein einer Mauer, liegender Baum), einmal je Feldgroesse vorgerendert */
+  private bilder = new Map<string, HTMLCanvasElement>()
+  private bilderStand = ''
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -352,6 +375,10 @@ export class Renderer {
     const drin = (x: number, y: number) => g.inside({ x, y })
     const tunnel = new Set(g.tunnel.map((t) => t.x * 100_003 + t.y))
     const lavaStein: P[] = []
+    // Waehrend ein neuer Block aufklappt, wird der Boden direkt gezeichnet, sonst kommt er aus den Kacheln
+    const gb = g.gebiet && now - g.gebiet.t < 2600 && !this.reduce ? g.gebiet : null
+    const kacheln = !gb
+    if (kacheln) this.grundKacheln(g, cell, ox, oy, ex0, ey0, ex1, ey1)
     for (let y = ey0; y <= ey1; y++)
       for (let x = ex0; x <= ex1; x++) {
         if (drin(x, y)) continue
@@ -366,17 +393,17 @@ export class Renderer {
           ctx.fillRect(x * cell + cell * z * 0.6, y * cell + cell * 0.3, cell * 0.12, cell * 0.08)
           continue
         }
-        const ring = drin(x + 1, y) || drin(x - 1, y) || drin(x, y + 1) || drin(x, y - 1) ? 1 : drin(x + 1, y + 1) || drin(x - 1, y - 1) || drin(x + 1, y - 1) || drin(x - 1, y + 1) || drin(x + 2, y) || drin(x - 2, y) || drin(x, y + 2) || drin(x, y - 2) ? 2 : 0
-        drawErdFeld(ctx, x * cell, y * cell, cell, ring, z)
+        if (!kacheln) drawErdFeld(ctx, x * cell, y * cell, cell, erdRing(drin, x, y), z)
         if (g.lavaImStein(wx, wy)) {
           lavaStein.push({ x, y })
           continue
         }
         const deko = erdeBei(g.cfg, wx, wy)
         if (!deko) continue
+        // Erze glaenzen (bewegt), Stein, Kohle und Skelett liegen schon in der Kachel
         if (deko === 'gold' || deko === 'dia' || deko === 'rubin' || deko === 'opal') {
           if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now, false)
-        } else drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
+        } else if (!kacheln) drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
     // Lava im Stein: das einzige, was in der Erde pulsierend glueht. Der Schein reicht ein paar Felder
     // weit durch die Erde, auch von knapp ausserhalb des Bildes, damit man sieht, wo Lava steckt
@@ -391,7 +418,7 @@ export class Renderer {
 
     // Schachbrett nur auf der Karte; der neue Block klappt als Welle auf. Erst die
     // dunkle Flaeche je Block, dann die hellen Felder etwas groesser (sonst feine Fugen)
-    const gb = g.gebiet && now - g.gebiet.t < 2600 && !this.reduce ? g.gebiet : null
+    if (!kacheln) {
     ctx.fillStyle = C.dunkel
     for (const b of g.blocks) {
       if (gb && b.x * g.bw === gb.x && b.y * g.bh === gb.y) continue
@@ -426,6 +453,7 @@ export class Renderer {
         if (!drin(x - 1, y)) ctx.fillRect(x * cell, y * cell, kante, cell)
         if (!drin(x + 1, y)) ctx.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
       }
+    }
 
     // Schrumpfende Karte: die Zone ist dunkelrot gestreift, der naechste Ring blinkt
     if (this.mehr?.zone) {
@@ -494,7 +522,9 @@ export class Renderer {
       for (let i = 0; i < m.grown; i++) {
         if (!sicht(m.cells[i])) continue
         const s = this.reduce ? 1 : backOut(clamp01((now - m.t[i]) / 320))
-        drawStein(ctx, m.cells[i].x * cell, m.cells[i].y * cell, cell, s)
+        // Fertig gewachsene Steine kommen als Bild (viele Mauern = viele Steine)
+        if (s >= 1 && now - m.t[i] > 320) this.bild('stein', m.cells[i], cell, 0.2, (c, o) => drawStein(c, o, o, cell, 1))
+        else drawStein(ctx, m.cells[i].x * cell, m.cells[i].y * cell, cell, s)
       }
 
     // Baeume und Haeuser (bleiben), dazu das Licht aus den Fenstern.
@@ -508,7 +538,9 @@ export class Renderer {
       }
       const p = this.reduce ? 1 : clamp01((now - b.fallT) / BAUM_FALL)
       if (p >= 1) {
-        drawBaum(ctx, b.root, b.dir, cell, s)
+        // Liegender Baum (mit Schatten, teuer zu rastern): als Bild
+        if (s >= 1) this.bild(`baum-${b.dir}`, b.root, cell, 4, (_c, _o, mitte) => drawBaum(_c, mitte, b.dir, cell, 1))
+        else drawBaum(ctx, b.root, b.dir, cell, s)
         continue
       }
       // Faellt: immer schneller (wie mit Schwerkraft). Von oben gesehen wird der liegende Baum
@@ -685,6 +717,118 @@ export class Renderer {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
     if (g.status === 'play') this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
+  }
+
+  /**
+   * Boden aus Kacheln: Erde mit Kruemeln, Steinen, Kohle und Skeletten, das Schachbrett und der Grasrand sind fest.
+   * Statt jedes Bild hunderte Formen zu rastern, wird jede Kachel einmal gezeichnet und danach nur kopiert.
+   * Aendert sich die Karte (neuer Block, neue Feldgroesse, neues Spiel), wird neu gezeichnet.
+   */
+  private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
+    const stand = `${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}`
+    if (stand !== this.grundStand) {
+      this.grund.clear()
+      this.grundStand = stand
+    }
+    const bild = ++this.grundBild
+    const { ctx, dpr } = this
+    const kx0 = Math.floor(ex0 / GRUND)
+    const ky0 = Math.floor(ey0 / GRUND)
+    const kx1 = Math.floor(ex1 / GRUND)
+    const ky1 = Math.floor(ey1 / GRUND)
+    // In Geraetepixeln zeichnen, an ganzen Pixeln ausgerichtet: die Kacheln stossen ohne Fuge aneinander
+    const bx = Math.round(ox * dpr)
+    const by = Math.round(oy * dpr)
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    for (let ky = ky0; ky <= ky1; ky++)
+      for (let kx = kx0; kx <= kx1; kx++) {
+        const k = `${kx},${ky}`
+        let e = this.grund.get(k)
+        if (!e) {
+          e = { cv: this.grundKachel(g, cell, kx, ky), benutzt: bild }
+          this.grund.set(k, e)
+        }
+        e.benutzt = bild
+        ctx.drawImage(e.cv, bx + Math.round(kx * GRUND * cell * dpr), by + Math.round(ky * GRUND * cell * dpr))
+      }
+    ctx.restore()
+    // Speicher begrenzen: am laengsten nicht gebrauchte Kacheln weg
+    if (this.grund.size > GRUND_MAX) {
+      const alt = [...this.grund.entries()].sort((a, b) => a[1].benutzt - b[1].benutzt)
+      for (const [k] of alt.slice(0, this.grund.size - GRUND_MAX)) this.grund.delete(k)
+    }
+  }
+
+  /**
+   * Feste Zeichnung als Bild: einmal in Geraetepixeln gerendert (Feld plus `rand` Felder ringsum), danach nur kopiert.
+   * `zeichne` bekommt den Versatz des Feldes im Bild (in Pixeln und in Feldern).
+   */
+  private bild(name: string, p: P, cell: number, rand: number, zeichne: (c: CanvasRenderingContext2D, o: number, mitte: P) => void) {
+    const stand = `${cell}|${this.dpr}`
+    if (stand !== this.bilderStand) {
+      this.bilder.clear()
+      this.bilderStand = stand
+    }
+    const seite = (1 + 2 * rand) * cell
+    let cv = this.bilder.get(name)
+    if (!cv) {
+      cv = document.createElement('canvas')
+      cv.width = Math.ceil(seite * this.dpr)
+      cv.height = cv.width
+      const c = cv.getContext('2d')!
+      c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+      zeichne(c, rand * cell, { x: rand, y: rand })
+      this.bilder.set(name, cv)
+    }
+    this.ctx.drawImage(cv, (p.x - rand) * cell, (p.y - rand) * cell, cv.width / this.dpr, cv.height / this.dpr)
+  }
+
+  /** Eine Boden-Kachel zeichnen (Felder kx*GRUND .. kx*GRUND+GRUND-1, dazu ein Feld Rand, damit nichts abgeschnitten wird) */
+  private grundKachel(g: Game, cell: number, kx: number, ky: number): HTMLCanvasElement {
+    const dpr = this.dpr
+    const x0d = Math.round(kx * GRUND * cell * dpr)
+    const y0d = Math.round(ky * GRUND * cell * dpr)
+    const cv = document.createElement('canvas')
+    cv.width = Math.round((kx + 1) * GRUND * cell * dpr) - x0d
+    cv.height = Math.round((ky + 1) * GRUND * cell * dpr) - y0d
+    const c = cv.getContext('2d', { alpha: false })!
+    c.setTransform(dpr, 0, 0, dpr, -x0d, -y0d)
+    c.fillStyle = '#2C1E14'
+    c.fillRect(kx * GRUND * cell, ky * GRUND * cell, GRUND * cell + 1, GRUND * cell + 1)
+    const drin = (x: number, y: number) => g.inside({ x, y })
+    const xa = kx * GRUND - 1
+    const ya = ky * GRUND - 1
+    const xb = (kx + 1) * GRUND
+    const yb = (ky + 1) * GRUND
+    // Erde (wie im Bild: zuerst alles ausserhalb der Karte)
+    for (let y = ya; y <= yb; y++)
+      for (let x = xa; x <= xb; x++) {
+        if (drin(x, y)) continue
+        const wx = x - g.ursprung.x
+        const wy = y - g.ursprung.y
+        const z = feldZufall(wx, wy)
+        drawErdFeld(c, x * cell, y * cell, cell, erdRing(drin, x, y), z)
+        if (g.lavaImStein(wx, wy)) continue
+        const deko = erdeBei(g.cfg, wx, wy)
+        if (deko === 'stein' || deko === 'kohle' || deko === 'skelett') drawErdDeko(c, x * cell, y * cell, cell, deko, z, 0)
+      }
+    // Schachbrett: dunkel genau je Feld, hell etwas groesser (sonst feine Fugen), dann der Grasrand
+    c.fillStyle = C.dunkel
+    for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y)) c.fillRect(x * cell, y * cell, cell, cell)
+    c.fillStyle = C.hell
+    for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y) && !((x + y) % 2)) c.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
+    c.fillStyle = 'rgba(46, 96, 58, 0.7)'
+    const kante = Math.max(2, cell * 0.1)
+    for (let y = ya; y <= yb; y++)
+      for (let x = xa; x <= xb; x++) {
+        if (!drin(x, y)) continue
+        if (!drin(x, y - 1)) c.fillRect(x * cell, y * cell, cell, kante)
+        if (!drin(x, y + 1)) c.fillRect(x * cell, (y + 1) * cell - kante, cell, kante)
+        if (!drin(x - 1, y)) c.fillRect(x * cell, y * cell, kante, cell)
+        if (!drin(x + 1, y)) c.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
+      }
+    return cv
   }
 
   private drawSchlange(g: Game, head: P, a: number) {
