@@ -12,6 +12,13 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 - **Web/iPhone:** über GitHub Pages (einmalig in *Settings → Pages* die Quelle „GitHub Actions“
   wählen). Im Browser „Zum Home-Bildschirm“ macht daraus eine App im Vollbild.
 
+## Online-Bestenliste und Updates
+
+Mit Supabase (kostenlos) gibt es eine Bestenliste „Heute / Für immer“ mit Namen und Live-Aktualisierung.
+Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). Ohne Einrichtung läuft das
+Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge von selbst, die Android-App
+weist auf dem Startbildschirm auf eine neuere APK hin. Geplanter Ausbau (Mehrspieler): [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
+
 ## Spielregeln
 
 Level = gegessene Äpfel + 1. Alle Werte stehen in `src/game/rules.ts`.
@@ -96,6 +103,8 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `src/render/` Canvas: Kamera, Schachbrett, Schlange (`renderer.ts`), Zeichnungen (`sprites.ts`)
 - `src/audio.ts` alle Töne und die Musik per Web Audio, keine Dateien
 - `src/main.ts` Menüs, Spielschleife, Speicher (Rekord und Statistik im Gerät)
+- `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Update-Hinweis der Android-App
+- `supabase/migrations/` Datenbank der Bestenliste (Tabellen, Regeln, Schummelschutz)
 - `android/` Capacitor-Projekt (Hochformat, Vollbild)
 
 ### Signierte Release-APK

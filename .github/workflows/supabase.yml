@@ -1,0 +1,40 @@
+# Spielt die Datenbank-Aenderungen aus supabase/migrations auf das Supabase-Projekt, sobald
+# sie auf den Hauptzweig kommen. Laeuft nur, wenn die drei Secrets eingetragen sind
+# (siehe docs/ONLINE-EINRICHTEN.md, Schritt "Automatisch"); sonst wird der Lauf uebersprungen.
+name: Supabase-Datenbank
+
+on:
+  push:
+    paths: ['supabase/**']
+  workflow_dispatch:
+
+concurrency:
+  group: supabase
+  cancel-in-progress: false
+
+jobs:
+  migrieren:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secrets vorhanden?
+        id: pruefen
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_DB_PASSWORD" ] && [ -n "$SUPABASE_PROJECT_REF" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Supabase-Secrets fehlen: Datenbank wird nicht automatisch aktualisiert."
+          fi
+      - if: steps.pruefen.outputs.ok == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - if: steps.pruefen.outputs.ok == 'true'
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - if: steps.pruefen.outputs.ok == 'true'
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"

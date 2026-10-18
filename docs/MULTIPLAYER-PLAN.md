@@ -4,6 +4,9 @@ Stand: 17.10.2026, Version 1.13.0. Dieses Dokument beschreibt, wie aus Snake End
 Freunden schickt (Android und iPhone), mit Gast-Namen, Online-Leaderboard (heute / für immer), Einladungen und
 zwei Mehrspieler-Modi (**Gegeneinander** und **Füreinander**). Jede Phase ist für sich fertig und spielbar.
 
+> **Umgesetzt in 1.16.0:** Phase 0 (Update-Hinweis der APK), Phase 1 (Name, Gast-Konto) und Phase 2 (Bestenliste mit Live-Update).
+> Einrichtung: [`ONLINE-EINRICHTEN.md`](ONLINE-EINRICHTEN.md). Offen: Phase 3 bis 5.
+
 ## 0. Was schon da ist
 
 | Baustein | Stand |
