@@ -27,7 +27,7 @@ import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, freundEntfernen, freundHinzufuegen, ladeListe, lobby, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type Freund, type OnlineSpieler } from './online'
+import { abonniere, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, lobby, meineAnfragen, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Anfrage, type Art, type Einladung, type Freund, type HallZeile, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinBewegt, skinVon, STUFEN } from './render/skins'
@@ -36,7 +36,7 @@ import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over' | 'mehr'
-type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'liste' | 'mehr'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'liste' | 'mehr' | 'hall' | 'chat'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -128,6 +128,7 @@ function openPage(p: Page) {
   if (p === 'shop') renderShop()
   if (p === 'liste') oeffneListe()
   if (p === 'mehr') void freundeLaden()
+  if (p === 'hall') void ladeHallAnzeige()
   show(p, true)
 }
 function closePage() {
@@ -364,6 +365,140 @@ $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
   } finally {
     knopf.disabled = false
   }
+})
+
+/* ================= Hall of Snakes ================= */
+
+const HALL_SEITE = 100
+let hallZeilen: HallZeile[] = []
+let hallIch: string | null = null
+let hallZahl = HALL_SEITE
+let hallNr = 0
+/** Offene Freundschaftsanfragen (eingehend und ausgehend) */
+let anfragen: Anfrage[] = []
+
+async function anfragenLaden() {
+  anfragen = await meineAnfragen()
+}
+
+async function ladeHallAnzeige() {
+  const nr = ++hallNr
+  if (!hallZeilen.length) $('hall-info').textContent = 'Lade …'
+  try {
+    const [{ zeilen, ich }] = await Promise.all([ladeHall(), anfragenLaden(), freundeLaden()])
+    if (nr !== hallNr) return
+    hallZeilen = zeilen
+    hallIch = ich
+    hallZeichnen()
+  } catch {
+    if (nr !== hallNr) return
+    $('hall-zeilen').replaceChildren()
+    $('hall-info').textContent = 'Keine Verbindung. Die Hall of Snakes braucht Internet.'
+  }
+}
+
+function hallZeichnen() {
+  const box = $('hall-zeilen')
+  const such = $<HTMLInputElement>('hall-suche').value.trim().toLowerCase()
+  const treffer = such ? hallZeilen.filter((z) => z.name.toLowerCase().includes(such)) : hallZeilen
+  box.replaceChildren()
+  if (!treffer.length) {
+    const leer = document.createElement('p')
+    leer.className = 'liste__leer'
+    leer.textContent = such ? 'Niemand mit diesem Namen.' : 'Noch keine Spieler.'
+    box.append(leer)
+  }
+  for (const z of treffer.slice(0, hallZahl)) {
+    const el = document.createElement('div')
+    el.className = z.user_id === hallIch ? 'liste__zeile hall-zeile liste__zeile--ich' : 'liste__zeile hall-zeile'
+    const cv = document.createElement('canvas')
+    cv.className = 'liste__skin'
+    cv.width = 96
+    cv.height = 64
+    const name = document.createElement('span')
+    name.className = 'liste__name'
+    name.textContent = z.name
+    const troph = document.createElement('span')
+    troph.className = 'hall-troph'
+    troph.textContent = String(z.trophaeen)
+    troph.setAttribute('aria-label', `${z.trophaeen} Trophäen`)
+    setIcon(troph, 'Trophy')
+    const rekord = document.createElement('b')
+    rekord.className = 'liste__level'
+    rekord.textContent = z.rekord > 0 ? String(z.rekord) : '–'
+    rekord.setAttribute('aria-label', z.rekord > 0 ? `Rekord Level ${z.rekord}` : 'Noch kein Rekord')
+    el.append(cv, name, troph, rekord, hallAktion(z))
+    box.append(el)
+    drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
+  }
+  $('hall-mehr').hidden = treffer.length <= hallZahl
+  $('hall-info').textContent =
+    `${hallZeilen.length} Snakes, sortiert nach Rekord, dann Trophäen. „–“ heißt: noch nicht gespielt.` +
+    (profil.name ? '' : ' Für Freundschaftsanfragen brauchst du einen Namen (unter Bestenliste).')
+}
+
+/** Knopf am Ende der Zeile: Anfrage schicken, zurueckziehen, annehmen oder (Freund) chatten */
+function hallAktion(z: HallZeile): HTMLElement {
+  if (z.user_id === hallIch || !profil.name) return document.createElement('span')
+  const k = document.createElement('button')
+  k.className = 'icon-btn hall-aktion'
+  const los = (f: () => Promise<void>) => async () => {
+    audio.click()
+    k.disabled = true
+    try {
+      await f()
+    } catch (err) {
+      toast('gebiet', z.name, err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+    }
+    await ladeHallAnzeige()
+  }
+  const a = anfragen.find((x) => x.user_id === z.user_id)
+  if (freundeUids.has(z.user_id)) {
+    k.classList.add('hall-aktion--freund')
+    setIcon(k, 'Check')
+    k.setAttribute('aria-label', `${z.name} ist dein Freund`)
+    k.disabled = true
+  } else if (a?.richtung === 'aus') {
+    k.classList.add('hall-aktion--warten')
+    setIcon(k, 'Clock')
+    k.setAttribute('aria-label', `Anfrage an ${z.name} zurückziehen`)
+    k.title = 'Anfrage gesendet'
+    k.addEventListener('click', () => {
+      if (confirm(`Anfrage an ${z.name} zurückziehen?`)) void los(() => anfrageLoeschen(z.user_id))()
+    })
+  } else if (a?.richtung === 'ein') {
+    k.classList.add('hall-aktion--ein')
+    setIcon(k, 'Check')
+    k.setAttribute('aria-label', `Anfrage von ${z.name} annehmen`)
+    k.addEventListener(
+      'click',
+      los(async () => {
+        await anfrageAnnehmen(z.user_id)
+        toast('gebiet', `${z.name} ist jetzt dein Freund`, 'Ihr seht euch online und könnt chatten.')
+      }),
+    )
+  } else {
+    setIcon(k, 'UserPlus')
+    k.setAttribute('aria-label', `${z.name} eine Freundschaftsanfrage schicken`)
+    k.addEventListener(
+      'click',
+      los(async () => {
+        const r = await anfrageSenden(z.user_id)
+        toast('gebiet', r === 'freunde' ? `${z.name} ist jetzt dein Freund` : `Anfrage an ${z.name}`, r === 'freunde' ? 'Ihr hattet euch beide gefragt.' : 'Gesendet. Sobald angenommen, seid ihr Freunde.')
+      }),
+    )
+  }
+  return k
+}
+
+$('hall-suche').addEventListener('input', () => {
+  hallZahl = HALL_SEITE
+  hallZeichnen()
+})
+$('hall-mehr').addEventListener('click', () => {
+  audio.click()
+  hallZahl += HALL_SEITE
+  hallZeichnen()
 })
 
 /* Erster Start: Name gleich am Anfang, ohne Konto. Ohne Netz gilt er trotzdem sofort. */
@@ -1549,7 +1684,7 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 
-$('btn-liste').hidden = !onlineAktiv
+$('home-online').hidden = !onlineAktiv
 
 /* ================= Mehrspieler ================= */
 

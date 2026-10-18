@@ -2432,3 +2432,98 @@ html[data-install] #app {
     height: 40px;
   }
 }
+
+/* ---------------- Hall of Snakes ---------------- */
+.home__paar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.home__paar[hidden] {
+  display: none;
+}
+
+.home__paar .btn {
+  min-width: 0;
+  padding: 0 10px;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.hall-kopf,
+.hall-zeile {
+  grid-template-columns: 48px minmax(0, 1fr) 50px 48px 44px;
+  gap: 8px;
+}
+
+.hall-kopf {
+  display: grid;
+  padding: 0 12px;
+  font: 600 0.66rem/1 var(--sans);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--creme-leise);
+}
+
+.hall-kopf span:first-child {
+  grid-column: 1 / 3;
+}
+
+.hall-kopf span:last-child {
+  grid-column: 4 / 6;
+}
+
+.hall-zeile {
+  padding: 6px 12px;
+}
+
+.hall-troph {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--orange);
+  font: 600 0.9rem/1 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.hall-troph svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.hall-zeile .liste__level {
+  font-size: 1.25rem;
+}
+
+.hall-aktion {
+  width: 44px;
+  height: 44px;
+  background: rgba(143, 214, 189, 0.16);
+  color: var(--mint);
+}
+
+.hall-aktion--warten,
+.hall-aktion--freund {
+  background: rgba(245, 239, 230, 0.06);
+  color: var(--creme-leise);
+}
+
+.hall-aktion--ein {
+  background: rgba(242, 154, 76, 0.18);
+  color: var(--orange);
+}
+
+.hall-suche {
+  width: 100%;
+}
+
+@media (max-width: 370px) {
+  .home__paar .btn {
+    font-size: 0.9rem;
+  }
+  .home__paar .btn svg {
+    display: none;
+  }
+}

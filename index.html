@@ -94,7 +94,10 @@
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
             <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Tages-Herausforderung</button>
-            <button class="btn btn--ghost" id="btn-liste" data-go="liste" hidden><span data-icon="Trophy"></span>Bestenliste</button>
+            <div class="home__paar" id="home-online" hidden>
+              <button class="btn btn--ghost" id="btn-liste" data-go="liste"><span data-icon="Trophy"></span>Bestenliste</button>
+              <button class="btn btn--ghost" id="btn-hall" data-go="hall"><span data-icon="Crown"></span>Hall of Snakes</button>
+            </div>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
             <div class="home__row home__row--4 home__row--flex">
@@ -465,6 +468,40 @@
             <div id="master-list"></div>
             <button class="btn btn--danger" id="btn-master-reset"><span data-icon="RotateCcw"></span>Alles auf Standard</button>
           </div>
+        </div>
+      </section>
+
+      <!-- Hall of Snakes: alle Spieler mit Schlange, Name, Trophaeen und Rekord -->
+      <section class="screen screen--page" id="hall">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Hall of Snakes</h2>
+          </header>
+          <div class="page__body">
+            <input class="name-feld hall-suche" type="search" id="hall-suche" placeholder="Spieler suchen" aria-label="Spieler suchen" autocomplete="off" spellcheck="false" />
+            <div class="hall-kopf" aria-hidden="true"><span>Spieler</span><span class="hall-troph" data-icon="Trophy"></span><span>Rekord</span></div>
+            <div class="liste" id="hall-zeilen" aria-live="polite"></div>
+            <button class="btn btn--ghost" id="hall-mehr" hidden>Mehr zeigen</button>
+            <p class="fine" id="hall-info"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Chat mit einem Freund -->
+      <section class="screen screen--page" id="chat">
+        <div class="page chat">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <canvas class="chat__skin" id="chat-skin" width="96" height="64" aria-hidden="true"></canvas>
+            <h2 class="chat__name" id="chat-name"></h2>
+            <button class="icon-btn chat__sperren" id="chat-sperren" aria-label="Spieler sperren" title="Sperren" data-icon="Ban"></button>
+          </header>
+          <div class="chat__verlauf" id="chat-verlauf" aria-live="polite"></div>
+          <form class="chat__eingabe" id="chat-form" autocomplete="off">
+            <input type="text" id="chat-text" maxlength="500" placeholder="Nachricht" aria-label="Nachricht" enterkeyhint="send" autocomplete="off" />
+            <button class="icon-btn chat__senden" type="submit" aria-label="Senden" data-icon="Send"></button>
+          </form>
         </div>
       </section>
     </div>
