@@ -15,7 +15,7 @@ type Platz = { info: SpielerInfo; kanal: Kanal | null }
 type Stand = { a: number; l: number; tot: boolean; raus: boolean; rausBei: number }
 
 const MAX_NACHRICHT = 256 * 1024
-const MODI: Modus[] = ['vs', 'koop', 'rennen']
+const MODI: Modus[] = ['vs', 'koop', 'rennen', 'jagd', 'royale']
 const TEMPI: Tempo[] = ['langsam', 'normal', 'schnell']
 
 export class RaumLogik {

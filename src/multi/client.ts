@@ -7,7 +7,7 @@
  * gezeichnet, Wischer gehen an den Rechner. Wettrennen: hier laeuft die eigene Welt, die anderen
  * kommen als Geister.
  */
-import { KLASSISCH, MehrGame, type Ergebnis, type Modus, type SpielerInfo } from '../game/mehr'
+import { DUELL, GEGNER_MODI, KLASSISCH, MehrGame, type Ergebnis, type Modus, type SpielerInfo } from '../game/mehr'
 import * as R from '../game/rules'
 import type { Dir, GameEvent, P } from '../game/types'
 import { Abgleich, anwenden, zustand, type Zustand } from '../game/zustand'
@@ -320,7 +320,7 @@ export class MehrClient {
     this.rechner = info.modus === 'rennen' ? -1 : info.rechner
     const ich = Math.max(0, this.ich)
     const spieler: SpielerInfo[] = info.modus === 'rennen' ? [info.spieler[ich]] : info.spieler
-    this.game = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: info.seed, modus: info.modus, spieler, tempo: info.tempo ?? 'normal', cfg: info.klassisch ? KLASSISCH : undefined })
+    this.game = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: info.seed, modus: info.modus, spieler, tempo: info.tempo ?? 'normal', cfg: { ...(GEGNER_MODI.includes(info.modus) ? DUELL : {}), ...(info.klassisch ? KLASSISCH : {}) } })
     this.game.wechsel(info.modus === 'rennen' ? 0 : ich)
     this.basis = { spiel: 0, lokal: performance.now() }
     this.waehler = -1

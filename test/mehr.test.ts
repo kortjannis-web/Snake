@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { abstandGrenze, gebietTakt, KLASSISCH, LEBEN, MehrGame, ZURUECK_MS, type MehrOpts, type Modus } from '../src/game/mehr'
+import { abstandGrenze, DUELL, gebietTakt, JAGD_MS, JAGD_STRAFE, JAGD_ZURUECK, KLASSISCH, LEBEN, MehrGame, ROYALE_START, ROYALE_TAKT, ZURUECK_MS, type MehrOpts, type Modus } from '../src/game/mehr'
 import type { Dir, GameEvent, P } from '../src/game/types'
 import { Abgleich, anwenden, zustand } from '../src/game/zustand'
 
@@ -281,6 +281,107 @@ describe('Koop', () => {
     sterben(0)
     expect(g.pool).toBe(0)
     expect(g.status).toBe('over')
+  })
+})
+
+describe('Apfeljagd', () => {
+  it('ein Tod kostet 3 Aepfel statt eines Lebens, nach 3 s geht es weiter', () => {
+    const g = new MehrGame(opts('jagd'))
+    g.schlangen[0].aepfel = 5
+    g.wechsel(0)
+    ;(g as unknown as { die: (c: string) => void }).die('mauer')
+    expect(g.schlangen[0].aepfel).toBe(5 - JAGD_STRAFE)
+    expect(g.schlangen[0].leben).toBe(LEBEN)
+    expect(g.schlangen[0].zurueckBei - g.time).toBe(JAGD_ZURUECK)
+    g.schlangen[0].tot = false
+    ;(g as unknown as { die: (c: string) => void }).die('mauer')
+    expect(g.schlangen[0].aepfel).toBe(0)
+    expect(g.schlangen[0].raus).toBe(false)
+  })
+  it('nach 3 Minuten gewinnt, wer die meisten Aepfel hat', () => {
+    const g = new MehrGame(opts('jagd'))
+    g.schlangen[1].aepfel = 4
+    g.schlangen[0].aepfel = 2
+    g.time = JAGD_MS - 10
+    takt(g)
+    expect(g.status).toBe('over')
+    expect(g.ergebnis?.sieger).toBe(1)
+  })
+  it('Gleichstand nach 3 Minuten: Unentschieden', () => {
+    const g = new MehrGame(opts('jagd'))
+    g.time = JAGD_MS - 10
+    takt(g)
+    expect(g.ergebnis?.sieger).toBeNull()
+  })
+})
+
+describe('Schrumpfende Karte', () => {
+  it('die Zone rueckt Ring fuer Ring vor, nie unter das Minimum, Apfel nie in der Zone', () => {
+    const g = new MehrGame(opts('royale'))
+    expect(g.blocks.length).toBe(4)
+    expect(g.zone().zellen.length).toBe(0)
+    g.time = ROYALE_START
+    takt(g)
+    expect(g.zoneStufe).toBe(1)
+    const ring = g.zone().zellen
+    expect(ring.length).toBe(2 * (g.w + g.h) - 4)
+    expect(g.inZone({ x: 0, y: 0 })).toBe(true)
+    expect(g.inZone({ x: 1, y: 1 })).toBe(false)
+    expect(g.inZone(g.apple.p)).toBe(false)
+    for (let i = 0; i < 40; i++) {
+      g.time = g.zoneNaechste
+      takt(g)
+    }
+    const frei = g.mask.reduce((a, b) => a + b, 0) - g.zone().zellen.length
+    expect(frei).toBeGreaterThanOrEqual(16)
+    expect(g.zoneStufe).toBeLessThan(12)
+    expect(ROYALE_TAKT).toBeGreaterThan(0)
+  })
+  it('wer in die Zone faehrt, verliert ein Leben', () => {
+    const g = new MehrGame(opts('royale'))
+    g.time = ROYALE_START
+    takt(g)
+    setze(g, 0, [{ x: 2, y: 5 }, { x: 3, y: 5 }, { x: 4, y: 5 }], 'l')
+    setze(g, 1, [{ x: 12, y: 12 }, { x: 13, y: 12 }, { x: 14, y: 12 }], 'u')
+    const ev = takt(g, 2)
+    expect(ev.some((e) => e.type === 'die' && e.cause === 'zone' && e.wer === 0)).toBe(true)
+  })
+})
+
+describe('Duell-Power-ups', () => {
+  it('Schere kuerzt im Gegeneinander die naechste fremde Schlange', () => {
+    const g = new MehrGame({ ...opts('vs', 3), cfg: { gnade: 0, ...DUELL } })
+    const lang = Array.from({ length: 10 }, (_, k) => ({ x: 14 - k, y: 12 }))
+    setze(g, 1, lang, 'r')
+    setze(g, 2, Array.from({ length: 10 }, (_, k) => ({ x: 14 - k, y: 20 })), 'r')
+    g.schlangen[1].aepfel = 8
+    setze(g, 0, [{ x: 8, y: 9 }, { x: 7, y: 9 }, { x: 6, y: 9 }], 'r')
+    g.wechsel(0)
+    g.drain()
+    g.powerAn('schere')
+    const ev = g.drain()
+    g.sichern()
+    expect(g.schlangen[0].body.length).toBe(3)
+    expect(g.schlangen[1].body.length).toBeLessThan(10)
+    expect(g.schlangen[2].body.length).toBe(10)
+    expect(ev.some((e) => e.type === 'duell' && e.art === 'schere' && e.von === 0 && e.an === 1)).toBe(true)
+  })
+  it('Zeitlupe bremst alle anderen, nicht einen selbst', () => {
+    const g = new MehrGame(opts('vs', 3))
+    g.wechsel(0)
+    g.powerAn('zeitlupe')
+    g.sichern()
+    expect(g.schlangen[0].effekt.zeitlupeBis).toBe(0)
+    expect(g.schlangen[1].effekt.zeitlupeBis).toBeGreaterThan(g.time)
+    expect(g.schlangen[2].effekt.zeitlupeBis).toBeGreaterThan(g.time)
+  })
+  it('im Koop wirken Power-ups wie im Einzelspiel', () => {
+    const g = new MehrGame(opts('koop'))
+    g.wechsel(0)
+    g.powerAn('zeitlupe')
+    g.sichern()
+    expect(g.schlangen[0].effekt.zeitlupeBis).toBeGreaterThan(g.time)
+    expect(g.schlangen[1].effekt.zeitlupeBis).toBe(0)
   })
 })
 

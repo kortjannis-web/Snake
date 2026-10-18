@@ -86,6 +86,8 @@ export type MehrAnzeige = {
   ichTot: boolean
   /** Leuchtende Waende nur fuer den, der waehlen darf */
   wahlSichtbar: boolean
+  /** Schrumpfende Karte: Felder der Zone und der Ring, der gleich dazukommt */
+  zone?: { zellen: P[]; bald: P[] }
 }
 
 export class Renderer {
@@ -422,6 +424,26 @@ export class Renderer {
         if (!drin(x - 1, y)) ctx.fillRect(x * cell, y * cell, kante, cell)
         if (!drin(x + 1, y)) ctx.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
       }
+
+    // Schrumpfende Karte: die Zone ist dunkelrot gestreift, der naechste Ring blinkt
+    if (this.mehr?.zone) {
+      const { zellen, bald } = this.mehr.zone
+      ctx.fillStyle = 'rgba(110, 18, 26, 0.62)'
+      for (const c of zellen) if (sicht(c, 1)) ctx.fillRect(c.x * cell, c.y * cell, cell, cell)
+      ctx.strokeStyle = 'rgba(229, 70, 59, 0.35)'
+      ctx.lineWidth = Math.max(1, cell * 0.08)
+      ctx.beginPath()
+      for (const c of zellen) {
+        if (!sicht(c, 1)) continue
+        ctx.moveTo(c.x * cell, (c.y + 1) * cell)
+        ctx.lineTo((c.x + 1) * cell, c.y * cell)
+      }
+      ctx.stroke()
+      if (bald.length && (this.reduce || Math.sin(now / 90) > 0)) {
+        ctx.fillStyle = 'rgba(229, 70, 59, 0.28)'
+        for (const c of bald) if (sicht(c, 1)) ctx.fillRect(c.x * cell, c.y * cell, cell, cell)
+      }
+    }
 
     // Neues Gebiet waehlen: die Waende, an die ein Block passt, gluehen (die letzten 5 s blinken sie)
     const blinkt = g.wahlBis - now < 5000 && !this.reduce && Math.sin(now / 70) < 0

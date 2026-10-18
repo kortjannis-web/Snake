@@ -2,7 +2,7 @@
  * Oberflaeche fuer den Mehrspieler: Raum erstellen/beitreten, Lobby, Anzeige im Spiel
  * (Leben, Lebensleiste, Countdown, Meldungen) und Ergebnis. main.ts reicht nur Frame und Wischer durch.
  */
-import { abstandGrenze, type Modus, type SpielerInfo } from '../game/mehr'
+import { abstandGrenze, JAGD_MS, type Modus, type SpielerInfo } from '../game/mehr'
 import type { Cause, Dir, GameEvent } from '../game/types'
 import type { Renderer } from '../render/renderer'
 import { drawSkinVorschau, skinVon } from '../render/skins'
@@ -32,6 +32,8 @@ const MODUS_TEXT: Record<Modus, string> = {
   vs: 'Alle auf einem Feld, jeder hat 3 Leben. Wer 5 Äpfel hinter dem Führenden liegt, ist raus.',
   rennen: 'Jeder in seiner eigenen Welt, die anderen als Geist. 3 Leben, 5 Äpfel Abstand.',
   koop: 'Zusammen auf einem Feld, 3 gemeinsame Leben, Äpfel zählen für alle.',
+  jagd: '3 Minuten, wer die meisten Äpfel hat, gewinnt. Unendlich Leben, aber jeder Tod kostet 3 Äpfel.',
+  royale: 'Größere Karte, 3 Leben. Nach 20 s rückt alle 12 s die Zone vom Rand zu. Der Letzte gewinnt.',
 }
 
 export type MehrApi = {
@@ -184,6 +186,17 @@ export function mehrspieler(api: MehrApi) {
       case 'zurueck':
         if (mein) api.haptic.success()
         break
+      case 'zone':
+        api.audio.powerEnde()
+        api.haptic.medium()
+        break
+      case 'duell': {
+        const name = (i: number) => client.start?.spieler[i]?.name ?? '?'
+        const ich = meinIndex()
+        if (e.an === ich) api.toast(e.art === 'schere' ? `${name(e.von)} hat dich gekürzt` : `${name(e.von)} bremst euch aus`, e.art === 'schere' ? `−${e.weg} Glieder` : 'Zeitlupe für alle anderen')
+        else if (e.von === ich) api.toast(e.art === 'schere' ? `${name(e.an)} gekürzt` : 'Alle anderen sind langsamer', e.art === 'schere' ? `−${e.weg} Glieder` : '')
+        break
+      }
       case 'raus':
         // Gegeneinander/Koop: kommt vom Rechner mit den Spiel-Ereignissen
         if (client.start?.modus !== 'rennen') ereignis({ art: 'raus', wer: e.wer, grund: e.grund })
@@ -386,23 +399,42 @@ export function mehrspieler(api: MehrApi) {
     const staende = client.staende()
     const ich = client.ich
     const meine = client.meine()
-    // Leben (Koop: gemeinsam)
+    // Leben (Koop: gemeinsam), bei der Apfeljagd die Restzeit
     const leben = start.modus === 'koop' ? g.pool : (meine?.leben ?? 0)
     const lb = $('mehr-leben')
     lb.replaceChildren()
     const titel = document.createElement('b')
     titel.textContent = start.modus === 'koop' ? `Level ${g.level}` : `${meine?.aepfel ?? 0} Äpfel`
     lb.append(titel)
-    for (let i = 0; i < 3; i++) {
-      const h = document.createElement('span')
-      if (i >= leben) h.className = 'leer'
-      setIcon(h, 'Heart')
-      lb.append(h)
-    }
+    if (start.modus === 'jagd') {
+      const rest = Math.max(0, Math.ceil((JAGD_MS - g.time) / 1000))
+      const uhr = document.createElement('b')
+      uhr.className = rest <= 15 ? 'mehr-uhr mehr-uhr--knapp' : 'mehr-uhr'
+      uhr.textContent = `${Math.floor(rest / 60)}:${String(rest % 60).padStart(2, '0')}`
+      lb.append(uhr)
+    } else
+      for (let i = 0; i < 3; i++) {
+        const h = document.createElement('span')
+        if (i >= leben) h.className = 'leer'
+        setIcon(h, 'Heart')
+        lb.append(h)
+      }
     // Lebensleiste (nicht im Koop)
     const box = $('mehr-leiste')
     box.replaceChildren()
-    if (start.modus !== 'koop') {
+    if (start.modus === 'jagd' || start.modus === 'royale') {
+      // Rangliste nach Aepfeln (kein Ausscheiden durch Abstand)
+      const best = Math.max(1, ...staende.map((s) => s.aepfel))
+      for (const s of [...staende].sort((a, b) => b.aepfel - a.aepfel)) {
+        const row = document.createElement('div')
+        row.className = `reihe${s.raus ? ' reihe--raus' : ''}`
+        row.innerHTML = '<span></span><i><em></em></i><b></b>'
+        row.querySelector('span')!.textContent = s.wer === ich ? 'Du' : s.name
+        ;(row.querySelector('em') as HTMLElement).style.transform = `scaleX(${s.aepfel / best})`
+        row.querySelector('b')!.textContent = String(s.aepfel)
+        box.append(row)
+      }
+    } else if (start.modus !== 'koop') {
       const im = staende.filter((s) => !s.raus)
       const best = Math.max(0, ...im.map((s) => s.aepfel))
       const grenze = abstandGrenze(best, staende.length)
@@ -455,12 +487,12 @@ export function mehrspieler(api: MehrApi) {
       sub.textContent = `Zusammen bis Level ${client.game?.level ?? 1}.`
     } else if (erg.sieger === ich) {
       titel.textContent = 'Gewonnen!'
-      sub.textContent = 'Du warst die letzte Schlange.'
+      sub.textContent = start.modus === 'jagd' ? `Mit ${staende[ich]?.aepfel ?? 0} Äpfeln vorn.` : 'Du warst die letzte Schlange.'
       api.audio.record()
     } else {
       const s = erg.sieger !== null ? start.spieler[erg.sieger] : null
-      titel.textContent = s ? `${s.name} gewinnt` : 'Vorbei'
-      sub.textContent = 'Nächstes Mal!'
+      titel.textContent = s ? `${s.name} gewinnt` : start.modus === 'jagd' ? 'Unentschieden' : 'Vorbei'
+      sub.textContent = s ? 'Nächstes Mal!' : 'Gleich viele Äpfel.'
     }
     const ol = $('mehr-rang')
     ol.replaceChildren()
@@ -500,6 +532,7 @@ export function mehrspieler(api: MehrApi) {
         andere: client.fremde().map((f) => ({ ...f, skin: skinVon(skins[f.wer] ?? f.skin) })),
         ichTot: !!meine && (meine.tot || meine.raus),
         wahlSichtbar: g.wahlSpieler === mi,
+        zone: client.start?.modus === 'royale' ? g.zone() : undefined,
       }
       if (meine) g.deathAt = meine.deathAt
       api.renderer.draw(g)

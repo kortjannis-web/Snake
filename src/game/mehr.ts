@@ -20,7 +20,7 @@ import { Game, type GameOpts } from './game'
 import * as R from './rules'
 import type { Cause, Dir, GameEvent, P } from './types'
 
-export type Modus = 'vs' | 'koop' | 'rennen'
+export type Modus = 'vs' | 'koop' | 'rennen' | 'jagd' | 'royale'
 export type SpielerInfo = { id: string; name: string; skin: string }
 
 /** Sekunden bis zur Rueckkehr nach einem Tod */
@@ -28,6 +28,21 @@ export const ZURUECK_MS = 5000
 /** So lange gleitet eine zurueckgekehrte Schlange als Geist (ms) */
 export const SCHUTZ_MS = 2500
 export const LEBEN = 3
+/** Apfeljagd: Spieldauer, was ein Tod kostet, wann es weitergeht (ms / Aepfel) */
+export const JAGD_MS = 180_000
+export const JAGD_STRAFE = 3
+export const JAGD_ZURUECK = 3000
+/** Schrumpfende Karte: erste Zone, dann alle ROYALE_TAKT ms ein Ring; vorher blinkt er ROYALE_WARN ms */
+export const ROYALE_START = 20_000
+export const ROYALE_TAKT = 12_000
+export const ROYALE_WARN = 3000
+/** So viele freie Felder bleiben mindestens (dann schrumpft nichts mehr) */
+export const ROYALE_MIN_FREI = 16
+
+/** Modi, in denen die Schlangen gegeneinander spielen (andere Schlangen sind Hindernisse, Duell-Power-ups) */
+export const GEGNER_MODI: readonly Modus[] = ['vs', 'jagd', 'royale']
+/** Im Duell holt der Magnet von weiter weg */
+export const DUELL: Partial<R.Config> = { magnetRadius: 4 }
 
 /** Felder, die jede Schlange fuer sich hat (werden beim Wechsel in `Game` geladen) */
 const TAUSCH = ['body', 'prev', 'dir', 'prevDir', 'ate', 'halt', 'gnade', 'gnadeVorbei', 'queue', 'wachsRest', 'effekt', 'rueckSchritte', 'tunnel', 'schutzBis', 'last'] as const
@@ -112,6 +127,11 @@ export class MehrGame extends Game {
   protected stossMit = -1
   /** Anzahl Spieler beim Start (fuer den Gebiets-Takt) */
   readonly anzahl: number
+  /** Schrumpfende Karte: wie viele Ringe vom Rand schon Zone sind, wann der naechste kommt */
+  zoneStufe = 0
+  zoneNaechste = ROYALE_START
+  /** Abstand jedes Felds zum Kartenrand (0 = Randfeld), fuer die Zone; wird neu berechnet */
+  protected randAbstand: Int32Array | null = null
 
   constructor(o: MehrOpts) {
     super({ ...o, startLevel: 1, kreativ: null, sandbox: null })
@@ -128,7 +148,8 @@ export class MehrGame extends Game {
   /** Mehr Spieler, mehr Platz: bei 3 Spielern ein Block mehr, bei 4 zwei (auf einem Feld) */
   protected startKarte() {
     if (this.modus === 'rennen') return
-    const dazu = this.anzahl >= 4 ? 2 : this.anzahl === 3 ? 1 : 0
+    // Schrumpfende Karte: immer 4 Bloecke, die Zone braucht Platz
+    const dazu = this.modus === 'royale' || this.anzahl >= 4 ? 2 : this.anzahl === 3 ? 1 : 0
     if (!dazu) return
     const hoch = this.blocks.some((b) => b.y > 0)
     const neu: P[] = hoch ? [{ x: 1, y: 0 }, { x: 1, y: 1 }] : [{ x: 0, y: 1 }, { x: 1, y: 1 }]
@@ -270,7 +291,8 @@ export class MehrGame extends Game {
   }
 
   protected andereTreffen(n: P): Cause | null {
-    if (this.modus !== 'vs') return null
+    if (this.modus === 'royale' && this.inZone(n)) return 'zone'
+    if (!GEGNER_MODI.includes(this.modus)) return null
     for (let i = 0; i < this.schlangen.length; i++) {
       if (i === this.aktiv || !this.lebend(i)) continue
       const b = this.schlangen[i].body
@@ -295,7 +317,7 @@ export class MehrGame extends Game {
 
   protected levelHoch() {
     // Gegeneinander: die Welt waechst mit dem Fuehrenden (Level = meiste Aepfel + 1)
-    if (this.modus === 'vs') return this.ich.aepfel + 1 > this.level
+    if (GEGNER_MODI.includes(this.modus)) return this.ich.aepfel + 1 > this.level
     return true
   }
 
@@ -372,6 +394,146 @@ export class MehrGame extends Game {
     const erste = this.schlangen.findIndex((_, i) => this.lebend(i))
     if (erste >= 0) this.wechsel(erste)
     this.umweltTakt()
+    if (this.modus === 'jagd' && this.time >= JAGD_MS) this.beenden(this.meisteAepfel())
+    if (this.modus === 'royale') this.zoneTakt()
+  }
+
+  /** Wer die meisten Aepfel hat (null bei Gleichstand) */
+  protected meisteAepfel(): number | null {
+    const best = Math.max(...this.schlangen.map((s) => s.aepfel))
+    const mit = this.schlangen.map((s, i) => ({ s, i })).filter(({ s }) => s.aepfel === best)
+    return mit.length === 1 ? mit[0].i : null
+  }
+
+  /* ================= Schrumpfende Karte ================= */
+
+  /** Abstand jedes Kartenfelds zum Rand (Breitensuche von aussen) */
+  protected abstaende(): Int32Array {
+    if (this.randAbstand && this.randAbstand.length === this.w * this.h) return this.randAbstand
+    const { w, h } = this
+    const d = new Int32Array(w * h).fill(-1)
+    const q: number[] = []
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        if (!this.inside({ x, y })) continue
+        const rand = R.DIRS.some((dir) => !this.inside({ x: x + R.STEP[dir].x, y: y + R.STEP[dir].y }))
+        if (rand) {
+          d[y * w + x] = 0
+          q.push(y * w + x)
+        }
+      }
+    for (let qi = 0; qi < q.length; qi++) {
+      const i = q[qi]
+      const x = i % w
+      const y = (i - x) / w
+      for (const dir of R.DIRS) {
+        const nx = x + R.STEP[dir].x
+        const ny = y + R.STEP[dir].y
+        if (!this.inside({ x: nx, y: ny })) continue
+        const j = ny * w + nx
+        if (d[j] >= 0) continue
+        d[j] = d[i] + 1
+        q.push(j)
+      }
+    }
+    this.randAbstand = d
+    return d
+  }
+
+  inZone(p: P, stufe = this.zoneStufe) {
+    if (this.modus !== 'royale' || stufe <= 0 || !this.inside(p)) return false
+    const d = this.abstaende()[p.y * this.w + p.x]
+    return d >= 0 && d < stufe
+  }
+
+  /** Felder der Zone (fuer die Darstellung) und des naechsten Rings, falls er gleich kommt */
+  zone(): { zellen: P[]; bald: P[] } {
+    const zellen: P[] = []
+    const bald: P[] = []
+    if (this.modus !== 'royale') return { zellen, bald }
+    const warn = this.time >= this.zoneNaechste - ROYALE_WARN && this.zoneWaechst()
+    const d = this.abstaende()
+    for (let y = 0; y < this.h; y++)
+      for (let x = 0; x < this.w; x++) {
+        const v = d[y * this.w + x]
+        if (v < 0) continue
+        if (v < this.zoneStufe) zellen.push({ x, y })
+        else if (warn && v === this.zoneStufe) bald.push({ x, y })
+      }
+    return { zellen, bald }
+  }
+
+  /** Bleibt nach dem naechsten Ring noch genug Platz? */
+  protected zoneWaechst() {
+    const d = this.abstaende()
+    let frei = 0
+    for (const v of d) if (v > this.zoneStufe) frei++
+    return frei >= ROYALE_MIN_FREI
+  }
+
+  protected zoneTakt() {
+    if (this.time < this.zoneNaechste || this.status !== 'play') return
+    this.zoneNaechste = this.time + ROYALE_TAKT
+    if (!this.zoneWaechst()) return
+    this.zoneStufe++
+    // Was jetzt in der Zone liegt, verschwindet (der Apfel kommt woandershin)
+    if (this.inZone(this.apple.p)) this.neuerApfel()
+    this.powers = this.powers.filter((p) => !this.inZone(p.p))
+    this.funde = this.funde.filter((f) => !this.inZone(f.p))
+    this.emit({ type: 'zone', stufe: this.zoneStufe })
+  }
+
+  /** In der schrumpfenden Karte ist die Zone fuer Platzsuche und Gegner ein Hindernis */
+  hindernisse(mitGegnern = true): Set<number> {
+    const s = super.hindernisse(mitGegnern)
+    if (this.modus === 'royale' && this.zoneStufe > 0) for (const p of this.zone().zellen) s.add((p.y + 1) * 4096 + (p.x + 1))
+    return s
+  }
+
+  /* ================= Duell-Power-ups ================= */
+
+  /** Naechste andere lebende Schlange (Kopfabstand) */
+  protected naechsterGegner(): number {
+    let best = -1
+    let bestD = Infinity
+    const h = this.body[0]
+    for (let i = 0; i < this.schlangen.length; i++) {
+      if (i === this.aktiv || !this.lebend(i)) continue
+      const d = manhattan(this.schlangen[i].body[0], h)
+      if (d < bestD) {
+        bestD = d
+        best = i
+      }
+    }
+    return best
+  }
+
+  /** Im Duell wirken Schere und Zeitlupe auf die anderen */
+  powerAn(art: Parameters<Game['powerAn']>[0], p: P = this.body[0]) {
+    const duell = GEGNER_MODI.includes(this.modus) && (art === 'schere' || art === 'goldschere' || art === 'zeitlupe')
+    const ziel = duell ? this.naechsterGegner() : -1
+    if (ziel < 0) return super.powerAn(art, p)
+    const ich = this.aktiv
+    if (art === 'zeitlupe') {
+      const bis = this.time + this.cfg.effektDauer * 1000
+      for (let j = 0; j < this.schlangen.length; j++) if (j !== ich && this.lebend(j)) this.schlangen[j].effekt.zeitlupeBis = bis
+      this.emit({ type: 'power', art, p: { ...p } })
+      this.emit({ type: 'duell', art: 'zeitlupe', von: ich, an: ziel, weg: 0 })
+      return
+    }
+    // Schere: die naechste fremde Schlange verliert, was sie in den letzten Leveln gewachsen ist
+    const n = Math.round(art === 'schere' ? this.cfg.schereLevel : this.cfg.goldSchereLevel)
+    this.wechsel(ziel)
+    const a = this.ich.aepfel + 1
+    const soll = Math.max(2, R.gewachsen(this.cfg, a - n, a))
+    const weg = Math.min(soll, Math.max(0, this.body.length - 3))
+    const len = this.body.length - weg
+    if (weg > 0) this.abgeschnitten.push({ cells: this.body.slice(len).map((q) => ({ ...q })), von: len, laenge: this.body.length, t: this.time })
+    this.body = this.body.slice(0, len)
+    this.prev = this.prev.slice(0, len)
+    this.wechsel(ich)
+    this.emit({ type: 'power', art, p: { ...p } })
+    this.emit({ type: 'duell', art: 'schere', von: ich, an: ziel, weg })
   }
 
   /** Spieler i lenkt */
@@ -392,7 +554,11 @@ export class MehrGame extends Game {
     s.deathAt = this.time
     s.zurueckBei = this.time + ZURUECK_MS
     this.emit({ type: 'die', cause, wer: i })
-    if (this.modus === 'koop') {
+    if (this.modus === 'jagd') {
+      // Apfeljagd: unendlich Leben, ein Tod kostet Aepfel
+      s.aepfel = Math.max(0, s.aepfel - JAGD_STRAFE)
+      s.zurueckBei = this.time + JAGD_ZURUECK
+    } else if (this.modus === 'koop') {
       this.pool = Math.max(0, this.pool - 1)
       if (this.pool <= 0) {
         for (let j = 0; j < this.schlangen.length; j++) this.ausscheiden(j, 'leben')
@@ -498,12 +664,12 @@ export class MehrGame extends Game {
       return
     }
     this.zuege++
-    if (this.zuege % gebietTakt(this.modus, this.anzahl) === 0) this.starteWahl()
+    if (this.modus !== 'royale' && this.zuege % gebietTakt(this.modus, this.anzahl) === 0) this.starteWahl()
     if (this.modus === 'vs') this.pruefeAbstand()
   }
 
   setback(n: number, grund: 'wolke' | 'licht' | 'kegel' | 'ameise') {
-    if (this.modus !== 'vs') {
+    if (!GEGNER_MODI.includes(this.modus)) {
       super.setback(n, grund)
       if (this.modus === 'rennen') this.ich.aepfel = this.level - 1
       return
@@ -516,7 +682,7 @@ export class MehrGame extends Game {
     s.aepfel = auf - 1
     this.schutzBis = this.time + this.cfg.schutz * 1000
     this.emit({ type: 'setback', von, auf, grund })
-    this.pruefeAbstand()
+    if (this.modus === 'vs') this.pruefeAbstand()
   }
 
   /* ================= Gebiete ================= */
@@ -607,7 +773,7 @@ export class MehrGame extends Game {
       if (im.length === 0) this.beenden(null)
       return
     }
-    if (this.modus === 'vs' && this.schlangen.length > 1 && im.length <= 1) this.beenden(im[0] ?? null)
+    if ((this.modus === 'vs' || this.modus === 'royale') && this.schlangen.length > 1 && im.length <= 1) this.beenden(im[0] ?? this.meisteAepfel())
     if (this.modus === 'rennen' && im.length === 0) this.beenden(null)
   }
 

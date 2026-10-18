@@ -2295,3 +2295,17 @@ html[data-install] #app {
   background: rgba(143, 214, 189, 0.16);
   color: var(--mint);
 }
+
+/* Modus-Wahl mit 5 Modi: zwei Reihen */
+#mehr-modus {
+  border-radius: 22px;
+}
+
+.mehr-uhr {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.mehr-uhr--knapp {
+  color: #ff8a73 !important;
+}
