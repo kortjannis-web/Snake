@@ -9,7 +9,13 @@ zwei Mehrspieler-Modi (**Gegeneinander** und **Füreinander**). Jede Phase ist f
 > (Einrichtung: [`MEHRSPIELER-EINRICHTEN.md`](MEHRSPIELER-EINRICHTEN.md)). Die Regeln weichen von diesem Plan ab (so gewünscht):
 > Gegeneinander auf **einem** Feld mit 3 Leben je Spieler und Apfel-Abstand, Koop mit 3 gemeinsamen Leben, Gebiete abwechselnd.
 > Der Server ist Cloudflare statt Supabase Realtime (ausgehende Nachrichten kostenlos), und es rechnet ein Handy mit
-> automatischer Übernahme, weil der Gratis-Tarif keine Spielschleife auf dem Server zulässt. Offen: Push-Einladungen bei geschlossener App.
+> automatischer Übernahme, weil der Gratis-Tarif keine Spielschleife auf dem Server zulässt.
+> **Umgesetzt in 1.18.0:** Lobby mit Tempo, „Klassisch“ und Bereit-Knopf, größere Startkarte ab 3 Spielern, Abstand 5/6/7
+> nach Spielerzahl, neue Modi **Apfeljagd** (3 Minuten) und **Zone** (schrumpfende Karte), Duell-Power-ups, Vorausberechnung
+> der eigenen Schlange, Zuschauen nach dem Ausscheiden, Reaktionen, **Freunde per Code** (nur Freunde sehen sich online),
+> eindeutige Namen mit Wortfilter, Sieges- und Koop-Bestenliste, Äpfel und Erfolge für Mehrspieler-Runden,
+> **Tages-Herausforderung** mit eigenem Geist und **Push-Einladungen** über den Snake-Server (Web Push mit VAPID statt
+> einer Supabase Edge Function). Eine eigene Domain ist vorbereitet: [`EIGENE-DOMAIN.md`](EIGENE-DOMAIN.md).
 
 ## 0. Was schon da ist
 

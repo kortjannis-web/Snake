@@ -47,7 +47,9 @@ Spieler bekommen so eine feste Nutzer-Id, ohne ein Konto oder Passwort anzulegen
 4. Erwartet: „Success. No rows returned“.
 5. **Das Gleiche noch einmal** mit einer **neuen Query** und der Datei `supabase/migrations/20261018000100_alle_spieler.sql`
    (sie schaltet die Liste „Alle Spieler“ frei), danach mit `supabase/migrations/20261018000200_skin_und_online.sql`
-   (Skin in der Spielerliste). Immer der Reihe nach, jede Datei in ein eigenes, leeres Feld.
+   (Skin in der Spielerliste), `supabase/migrations/20261018000300_freunde_siege.sql` (Freunde, eindeutige Namen, Siege und Koop)
+   und `supabase/migrations/20261018000400_tages_und_push.sql` (Tages-Herausforderung, Push-Einladungen).
+   Immer der Reihe nach, jede Datei in ein eigenes, leeres Feld.
 6. Kontrolle: links **Table Editor** → Du siehst die Tabellen `profile` und `score`.
 
 Das Skript legt an: Tabellen, Schutzregeln (jeder darf lesen, schreiben nur das Eigene, nichts ändern oder löschen),
@@ -147,6 +149,7 @@ Ohne diese Secrets überspringt der Workflow still. Bereits von Hand ausgeführt
 
 - Nur normale Runden: kein Kreativ-Modus, keine Sandbox, keine geänderten **Master-Einstellungen**, kein `?level=`.
 - Reiter **Heute**, **Für immer** und **Alle Spieler**. In „Alle Spieler“ steht jeder, der einen Namen eingetragen hat, auch wer noch nicht gespielt hat („–“).
+- Außerdem **Siege** (gewonnene Mehrspieler-Runden), **Koop** (bestes Team) und **Täglich** (Tages-Herausforderung von heute).
 - Gewertet wird der **höchste erreichte Level** der Runde. „Heute“ gilt nach deutscher Zeit, „Für immer“ ist die Bestzeit überhaupt.
 - Das Tempo (langsam / normal / schnell) steht hinter dem Namen, wenn es nicht „normal“ ist.
 - Ergebnisse ohne Netz werden auf dem Handy gemerkt (bis zu 20) und später gesendet.

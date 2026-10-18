@@ -1513,7 +1513,10 @@ const online = onlineAktiv ? lobby(() => ({ geraet: geraetId(), name: profil.nam
 
 if (online) onlineMelden = () => void online.melden()
 // Zum Testen: ?debug gibt Mehrspieler, Zeichner und die Online-Rueckrufe in der Konsole frei
-if (params.has('debug')) Object.assign(window, { __mehr: mehr, __renderer: renderer, __lobby: lobbyRueckruf, __geraet: geraetId() })
+if (params.has('debug')) {
+  Object.assign(window, { __mehr: mehr, __renderer: renderer, __lobby: lobbyRueckruf, __geraet: geraetId() })
+  Object.defineProperty(window, '__spiel', { get: () => game })
+}
 
 /** Jemanden einladen: Raum (falls noch keiner) und Einladung schicken */
 async function einladen(o: OnlineSpieler) {
