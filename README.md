@@ -35,7 +35,7 @@ Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dieselbe We
 
 Level = gegessene Äpfel + 1. Alle Werte stehen in `src/game/rules.ts`.
 
-Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
+Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar, nur mit Master-Code, siehe `docs/SPIELFUNKTIONEN.md` 16b):
 
 | Ab Level | Was passiert |
 |---|---|
