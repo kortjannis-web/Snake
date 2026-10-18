@@ -20,10 +20,11 @@ import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Sid
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
 import { installPflicht, zeigeInstallation } from './install'
+import { geraetId, mehrspieler } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, ladeListe, melde, nameGueltig, onlineAktiv, profil, setzeName, type Art } from './online'
+import { abonniere, ladeListe, lobby, melde, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
 import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
@@ -31,8 +32,8 @@ import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
 
-type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over'
-type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'liste'
+type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over' | 'mehr'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'liste' | 'mehr'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -50,6 +51,8 @@ renderer.reduce = reduce
 renderer.skin = skinVon(wallet.skin)
 
 let mode: Mode = 'home'
+/** Online-Status ("spielt gerade") neu melden; wird gesetzt, sobald der Online-Teil steht */
+let onlineMelden = () => {}
 /** Offene Unterseiten (Optionen -> Master liegt ueber Optionen) */
 const pages: Page[] = []
 const page = () => pages[pages.length - 1] ?? null
@@ -101,8 +104,10 @@ function setMode(m: Mode) {
   $('ready').hidden = m !== 'ready'
   $('dpad').hidden = !(settings.dpad && (m === 'ready' || m === 'play' || m === 'paused'))
   $('steuer').hidden = !(m === 'ready' || m === 'play')
-  audio.music(true, m !== 'play')
+  if (m === 'mehr') $('dpad').hidden = !settings.dpad
+  audio.music(true, m !== 'play' && m !== 'mehr')
   if (m === 'home') updateHome()
+  onlineMelden()
 }
 
 function openPage(p: Page) {
@@ -198,6 +203,7 @@ function resume() {
 function onDir(d: Dir) {
   audio.unlock()
   if (page()) return
+  if (mode === 'mehr') return mehr.lenke(d)
   if (mode === 'ready') return begin(d)
   if (mode === 'play') game?.turn(d)
 }
@@ -260,8 +266,30 @@ async function ladeListeAnzeige() {
       const level = document.createElement('b')
       level.className = 'liste__level'
       level.textContent = z.level > 0 ? String(z.level) : '–'
-      el.append(platz, name, level)
+      // Aussehen der Schlange, online und Einladen
+      const cv = document.createElement('canvas')
+      cv.className = 'liste__skin'
+      cv.width = 96
+      cv.height = 64
+      const da = onlineListe.find((o) => o.uid === z.user_id)
+      if (da) {
+        const punkt = document.createElement('i')
+        punkt.className = 'online-punkt'
+        punkt.title = da.imSpiel ? 'spielt gerade' : 'online'
+        name.prepend(punkt)
+      }
+      el.classList.add('liste__zeile--skin')
+      el.append(platz, cv, name, level)
+      if (da && z.user_id !== ich && mehr.verfuegbar) {
+        const k = document.createElement('button')
+        k.className = 'icon-btn liste__einladen'
+        k.setAttribute('aria-label', `${z.name} einladen`)
+        setIcon(k, 'UserPlus')
+        k.addEventListener('click', () => void einladen(da))
+        el.append(k)
+      }
       box.append(el)
+      drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
     })
     info.textContent =
       listeArt === 'alle'
@@ -325,6 +353,8 @@ $<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
   audio.click()
   $<HTMLInputElement>('willkommen-name').blur()
   show('willkommen', false)
+  linkRaum()
+  void online?.start()
 })
 
 function gameOver() {
@@ -773,6 +803,7 @@ function kaufen(id: string) {
     saveStats()
   } else audio.click()
   wallet.skin = id
+  setzeSkin(id)
   saveWallet()
   renderer.skin = sk
   renderShop()
@@ -1273,7 +1304,7 @@ bindInput(app, {
     audio.unlock()
     if (mode === 'ready' && fine) begin()
   },
-  enabled: () => !page() && (mode === 'ready' || mode === 'play'),
+  enabled: () => !page() && (mode === 'ready' || mode === 'play' || mode === 'mehr'),
 })
 bindDpad($('dpad'), onDir)
 // Spielende: Enter oder Leertaste startet neu
@@ -1291,6 +1322,7 @@ window.addEventListener('pointerdown', () => !gesperrt && audio.unlock(), { once
 // App im Hintergrund oder Fenster verlassen: Pause
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    if (mode === 'mehr') mehr.hintergrund()
     pause()
     audio.suspend()
   } else audio.resume()
@@ -1301,6 +1333,7 @@ window.addEventListener('blur', pause)
 if (nativ) {
   void App.addListener('backButton', () => {
     if (page()) return closePage()
+    if (mode === 'mehr') return
     if (mode === 'play') return pause()
     if (mode === 'paused') return resume()
     if (mode === 'ready' || mode === 'over') {
@@ -1314,6 +1347,7 @@ if (nativ) {
   })
   void App.addListener('appStateChange', ({ isActive }) => {
     if (!isActive) {
+      if (mode === 'mehr') mehr.hintergrund()
       pause()
       audio.suspend()
     } else audio.resume()
@@ -1339,6 +1373,8 @@ function frame(now: number) {
     d.update(dt)
     d.drain()
     renderer.draw(d)
+  } else if (mode === 'mehr') {
+    mehr.frame(dt)
   } else if (game) {
     if (mode === 'play' || mode === 'over') {
       if (auto && mode === 'play' && !game.queue.length) {
@@ -1356,6 +1392,137 @@ function frame(now: number) {
 }
 
 $('btn-liste').hidden = !onlineAktiv
+
+/* ================= Mehrspieler ================= */
+
+const mehr = mehrspieler({
+  renderer,
+  audio,
+  haptic,
+  modus: (m) => {
+    if (m === 'mehr') {
+      game = null
+      setMode('mehr')
+    } else if (mode === 'mehr') {
+      newDemo()
+      setMode('home')
+    }
+  },
+  seiteOeffnen: (p) => openPage(p),
+  seitenZu: () => closeAllPages(),
+  toast: (titel, text) => toast('gebiet', titel, text),
+  raumGeaendert: () => onlineZeichnen(),
+  ichInfo: () => ({ id: geraetId(), name: profil.name || 'Spieler', skin: wallet.skin }),
+})
+$('btn-mehr').hidden = !(mehr.verfuegbar && onlineAktiv)
+// Zum Testen: ?debug gibt den Mehrspieler in der Konsole frei
+
+/* ================= Wer ist online, Einladungen ================= */
+
+const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop' }
+let onlineListe: OnlineSpieler[] = []
+let offeneEinladung: Einladung | null = null
+const lobbyRueckruf: Parameters<typeof lobby>[1] = {
+      liste: (o) => {
+        onlineListe = o
+        onlineZeichnen()
+        if (page() === 'liste' && listeArt === 'alle') void ladeListeAnzeige()
+      },
+      einladung: (e) => {
+        // Waehrend eines Mehrspieler-Spiels nicht stoeren
+        if (mode === 'mehr') return online?.antworten(e.von, false)
+        offeneEinladung = e
+        if (mode === 'play') pause()
+        $('einladung-text').textContent = `${e.vonName} lädt dich ein: ${MODUS_NAME[e.modus] ?? 'Mehrspieler'}.`
+        show('einladung', true)
+        audio.wahl()
+        haptic.success()
+      },
+      antwort: (a) => {
+        if (!a.ja) toast('gebiet', `${a.vonName} kann gerade nicht`, 'Einladung abgelehnt')
+      },
+    }
+const online = onlineAktiv ? lobby(() => ({ geraet: geraetId(), name: profil.name, skin: wallet.skin, imSpiel: mode === 'mehr' || mode === 'play' }), lobbyRueckruf) : null
+
+if (online) onlineMelden = () => void online.melden()
+// Zum Testen: ?debug gibt Mehrspieler, Zeichner und die Online-Rueckrufe in der Konsole frei
+if (params.has('debug')) Object.assign(window, { __mehr: mehr, __renderer: renderer, __lobby: lobbyRueckruf, __geraet: geraetId() })
+
+/** Jemanden einladen: Raum (falls noch keiner) und Einladung schicken */
+async function einladen(o: OnlineSpieler) {
+  audio.click()
+  const code = await mehr.raumFuerEinladung()
+  if (!code || !online) return toast('gebiet', 'Mehrspieler', 'Keine Verbindung zum Server.')
+  online.einladen(o.geraet, code, mehr.raum?.modus ?? 'vs')
+  toast('gebiet', `Einladung an ${o.name}`, `Raum ${code}`)
+  if (page() !== 'mehr') openPage('mehr')
+}
+
+/** Online-Liste in der Lobby: wer noch nicht im Raum ist, kann eingeladen werden */
+function onlineZeichnen() {
+  const box = $('mehr-online')
+  const imRaum = new Set((mehr.raum?.spieler ?? []).map((s) => s.id))
+  const frei = onlineListe.filter((o) => !imRaum.has(o.geraet))
+  box.replaceChildren()
+  if (!frei.length) {
+    const p = document.createElement('p')
+    p.className = 'liste__leer'
+    p.textContent = 'Gerade ist niemand sonst online.'
+    box.append(p)
+    return
+  }
+  for (const o of frei) {
+    const el = document.createElement('div')
+    el.className = 'mehr-zeile'
+    const cv = document.createElement('canvas')
+    cv.width = 112
+    cv.height = 80
+    const name = document.createElement('span')
+    name.className = 'mehr-zeile__name'
+    name.textContent = o.name
+    const klein = document.createElement('small')
+    klein.textContent = o.imSpiel ? 'spielt gerade' : 'online'
+    name.append(klein)
+    const k = document.createElement('button')
+    k.className = 'btn btn--ghost btn--klein'
+    k.textContent = 'Einladen'
+    k.addEventListener('click', () => void einladen(o))
+    el.append(cv, name, k)
+    box.append(el)
+    drawSkinVorschau(cv, skinVon(o.skin), 0)
+  }
+}
+
+$('einladung-ja').addEventListener('click', () => {
+  const e = offeneEinladung
+  offeneEinladung = null
+  show('einladung', false)
+  if (!e) return
+  audio.click()
+  if (mode === 'paused' || mode === 'ready' || mode === 'over') {
+    game = null
+    newDemo()
+    setMode('home')
+  }
+  if (mehr.raum && mehr.raum.code !== e.code) mehr.client.verlassen()
+  mehr.beitreten(e.code)
+})
+$('einladung-nein').addEventListener('click', () => {
+  const e = offeneEinladung
+  offeneEinladung = null
+  show('einladung', false)
+  audio.click()
+  if (e) online?.antworten(e.von, false)
+})
+
+/** Einladungs-Link ?raum=CODE: beitreten, sobald ein Name da ist */
+let raumAusLink = mehr.verfuegbar && onlineAktiv ? (params.get('raum') ?? '').toUpperCase() : ''
+function linkRaum() {
+  if (!raumAusLink || !profil.name || gesperrt) return
+  const code = raumAusLink
+  raumAusLink = ''
+  mehr.beitreten(code)
+}
 if (nativ) {
   void neueVersion().then((v) => {
     if (v === null) return
@@ -1371,6 +1538,9 @@ newDemo()
 setMode('home')
 if (!gesperrt) {
   zeigeWillkommen()
+  linkRaum()
+  if (profil.name) void online?.start()
+  setzeSkin(wallet.skin)
   requestAnimationFrame(frame)
 }
 

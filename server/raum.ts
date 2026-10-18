@@ -177,7 +177,8 @@ export class RaumLogik {
         if (this.phase !== 'spiel' || i !== this.rechner || !m.d || typeof m.d !== 'object') return
         if (m.voll) this.zustand = { ...m.d }
         else Object.assign(this.zustand, m.d)
-        this.letzterStand = this.uhr()
+        // Nicht vor dem Ende des Countdowns zuruecksetzen (bis dahin gilt die Startfrist)
+        this.letzterStand = Math.max(this.letzterStand, this.uhr())
         for (const p of this.plaetze) if (p.kanal && p.kanal !== k) this.roh(p.kanal, text)
         return
       case 'dir':

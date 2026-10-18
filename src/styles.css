@@ -1927,3 +1927,366 @@ html[data-install] #app {
 @media (prefers-reduced-motion: reduce) {
   .puls { animation: none; }
 }
+
+/* ---------------- Mehrspieler ---------------- */
+/* Im Mehrspieler gibt es eine eigene Anzeige: die obere Leiste faellt weg, das Spielfeld bekommt die Hoehe */
+#app[data-mode='mehr'] {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+#app[data-mode='mehr'] .hud {
+  display: none;
+}
+
+.mehr-start,
+.mehr-raum,
+.mehr-modi {
+  display: grid;
+  gap: 12px;
+}
+
+.mehr-modi .opt__t small {
+  line-height: 1.4;
+}
+
+.mehr-code {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 16px;
+  border-radius: 22px;
+  background: var(--tanne);
+}
+
+.mehr-code small {
+  font: 600 0.75rem/1 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mint);
+}
+
+.mehr-code b {
+  font: 600 2.6rem/1 var(--sans);
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.mehr-spieler,
+.mehr-online {
+  display: grid;
+  gap: 6px;
+}
+
+.mehr-zeile {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 18px;
+  background: var(--mokka-karte);
+}
+
+.mehr-zeile--ich {
+  box-shadow: inset 0 0 0 1px rgba(143, 214, 189, 0.45);
+}
+
+.mehr-zeile canvas {
+  width: 56px;
+  height: 40px;
+}
+
+.mehr-zeile__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 1rem/1.2 var(--sans);
+}
+
+.mehr-zeile__name small {
+  display: block;
+  margin-top: 2px;
+  font: 500 0.75rem/1.2 var(--sans);
+  color: var(--creme-leise);
+}
+
+.mehr-tag {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(242, 154, 76, 0.18);
+  color: var(--orange);
+  font: 700 0.68rem/1 var(--sans);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mehr-tag--aus {
+  background: rgba(245, 239, 230, 0.08);
+  color: var(--creme-leise);
+}
+
+.mehr-modus-text {
+  margin: -4px 0 0;
+  text-align: left;
+}
+
+.online-punkt {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  vertical-align: 1px;
+}
+
+/* Im Spiel */
+.mehr-hud {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0 calc(var(--safe-r) + 12px) 0 calc(var(--safe-l) + 12px);
+  pointer-events: none;
+}
+
+.mehr-hud > * {
+  pointer-events: auto;
+}
+
+.mehr-hud__weg {
+  flex: none;
+  background: rgba(23, 21, 19, 0.6);
+}
+
+.mehr-hud__mitte {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.mehr-leben {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  min-height: 20px;
+  color: #ff6b6b;
+}
+
+.mehr-leben svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.mehr-leben .leer {
+  color: rgba(245, 239, 230, 0.25);
+}
+
+.mehr-leben .leer svg {
+  fill: none;
+}
+
+.mehr-leben b {
+  margin-right: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(23, 21, 19, 0.6);
+  font: 700 0.85rem/1.4 var(--sans);
+  color: var(--creme);
+}
+
+.mehr-leiste {
+  display: grid;
+  gap: 4px;
+}
+
+/* Tauziehen (2 Spieler): der Punkt wandert zum Fuehrenden */
+.zug {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: rgba(23, 21, 19, 0.62);
+  font: 700 0.78rem/1 var(--sans);
+}
+
+.zug span {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zug__bahn {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e5463b, rgba(245, 239, 230, 0.2) 50%, #8fd6bd);
+}
+
+.zug__mitte {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: rgba(245, 239, 230, 0.6);
+}
+
+.zug__punkt {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: var(--creme);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: left 0.3s var(--ease);
+}
+
+/* Mehr als 2 Spieler: eine Zeile je Spieler, Balken = Luft bis zum Ausscheiden */
+.reihe {
+  display: grid;
+  grid-template-columns: 70px 1fr 26px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: rgba(23, 21, 19, 0.6);
+  font: 700 0.72rem/1.4 var(--sans);
+}
+
+.reihe span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reihe i {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(245, 239, 230, 0.15);
+  overflow: hidden;
+}
+
+.reihe i em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mint);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease);
+}
+
+.reihe--knapp i em {
+  background: #e5463b;
+}
+
+.reihe--raus {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.mehr-countdown {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  font: 500 7rem/1 var(--serif);
+  color: var(--creme);
+  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.mehr-countdown[hidden] {
+  display: none;
+}
+
+.mehr-meldung {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 24px);
+  z-index: 4;
+  max-width: min(90%, 360px);
+  padding: 10px 16px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgba(23, 21, 19, 0.82);
+  font: 600 0.9rem/1.3 var(--sans);
+  text-align: center;
+  pointer-events: none;
+}
+
+.mehr-meldung[hidden] {
+  display: none;
+}
+
+.mehr-rang {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.mehr-rang li {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(245, 239, 230, 0.06);
+  font: 600 0.95rem/1.2 var(--sans);
+}
+
+.mehr-rang li:first-child {
+  background: var(--tanne);
+}
+
+.mehr-rang li b {
+  color: var(--orange);
+  font: 600 1rem/1 var(--serif);
+}
+
+.mehr-rang li small {
+  color: var(--creme-leise);
+  font: 600 0.8rem/1 var(--sans);
+}
+
+/* Alle Spieler: Aussehen der Schlange und Einladen */
+.liste__zeile--skin {
+  grid-template-columns: 26px 48px 1fr auto;
+}
+
+.liste__zeile--skin:has(.liste__einladen) {
+  grid-template-columns: 26px 48px 1fr auto 40px;
+}
+
+.liste__skin {
+  width: 48px;
+  height: 32px;
+}
+
+.liste__einladen {
+  width: 40px;
+  height: 40px;
+  background: rgba(143, 214, 189, 0.16);
+  color: var(--mint);
+}
