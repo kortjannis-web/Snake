@@ -30,7 +30,7 @@ import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, freundEntfernen, freundHinzufuegen, ladeListe, lobby, meineFreunde, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, setzeName, setzeSkin, type Art, type Einladung, type Freund, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
-import { drawSkinVorschau, hatSkin, SKINS, skinVon, STUFEN } from './render/skins'
+import { drawSkinVorschau, hatSkin, SKINS, skinBewegt, skinVon, STUFEN } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
@@ -818,6 +818,19 @@ function videoStart(v: HTMLVideoElement) {
 }
 
 function skinVorschau(id: string): HTMLElement {
+  // Ohne bewegtes Muster: nur das Standbild (ein Bild statt eines Videos)
+  if (!skinBewegt(skinVon(id))) {
+    const img = document.createElement('img')
+    img.src = `skins/${id}.webp`
+    img.alt = ''
+    img.decoding = 'async'
+    img.addEventListener('error', () => {
+      const cv = document.createElement('canvas')
+      img.replaceWith(cv)
+      requestAnimationFrame(() => drawSkinVorschau(cv, skinVon(id), 0))
+    })
+    return img
+  }
   const v = document.createElement('video')
   v.muted = true
   v.defaultMuted = true

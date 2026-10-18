@@ -85,6 +85,9 @@ export const LILA_SKIN: Skin = { id: 'lila', name: 'Lila', preis: 0, kopf: [150,
  */
 export const TAKT = { regenbogen: 4000, aurora: 6000, sterne: 2000, glut: 1000, funkeln: 1500, blinzeln: 3000, glanzVorschau: 450 }
 const welle = (now: number, takt: number) => ((now % takt) / takt) * Math.PI * 2
+/** Bewegt sich am Skin etwas (ausser dem Blinzeln)? Wenn nicht, reicht im Shop ein Bild statt eines Videos */
+export const skinBewegt = (skin: Skin) => !!skin.muster && skin.muster !== 'streifen' && skin.muster !== 'punkte'
+
 /** Wie lang ein Video sein muss, damit alles darin genau einmal (oder ganzzahlig oft) durchlaeuft */
 export function schleifeMs(skin: Skin): number {
   const ggt = (a: number, b: number): number => (b ? ggt(b, a % b) : a)

@@ -117,7 +117,7 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `src/game/` Spiellogik ohne Darstellung (`game.ts`, Regeln in `rules.ts`, Autopilot für Startmenü und Tests)
 - `src/render/` Canvas: Kamera, Schachbrett, Schlange (`renderer.ts`), Zeichnungen (`sprites.ts`). Fester Boden (Erde, Schachbrett,
   Grasrand) kommt aus vorgerenderten Kacheln, Mauersteine und liegende Bäume aus Einzelbildern; nur Bewegtes wird jedes Bild gezeichnet
-- `public/skins/` Shop-Vorschauen als kurze Videos (MP4 und WebM) mit Standbild, erzeugt von `scripts/skin-videos.mjs`
+- `public/skins/` Shop-Vorschauen: Standbild (WebP) für jeden Skin, bewegte Muster zusätzlich als kurzes Video (MP4 und WebM), erzeugt von `scripts/skin-videos.mjs`
 - `src/audio.ts` alle Töne und die Musik per Web Audio, keine Dateien
 - `src/main.ts` Menüs, Spielschleife, Speicher (Rekord und Statistik im Gerät)
 - `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Update-Hinweis der Android-App
