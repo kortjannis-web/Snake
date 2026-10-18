@@ -49,7 +49,11 @@ export default defineConfig({
         ],
       },
       // push-sw.js: zeigt Push-Einladungen und oeffnet beim Tippen den Raum
-      workbox: { globPatterns: ['**/*.{js,css,html,woff2,png,svg}'], importScripts: ['push-sw.js'] },
+      workbox: {
+        // Shop-Videos und Standbilder sind klein (zusammen ca. 0,6 MB): mit in den Offline-Speicher
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg,webp,mp4,webm}'],
+        importScripts: ['push-sw.js'],
+      },
     }),
   ],
 })
