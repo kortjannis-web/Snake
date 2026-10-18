@@ -20,23 +20,27 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar):
 
 | Ab Level | Was passiert |
 |---|---|
-| 1 | Ein Bildschirm = zwei Kartenblöcke. Äpfel essen, die Schlange wächst (ab 50 jedes zweite, ab 300 jedes dritte Level). |
-| 8 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
+| 1 | Ein Bildschirm = zwei Kartenblöcke, das **Bild steht still**, bis das erste neue Gebiet dazukommt. Die Schlange wächst **alle 2 Äpfel** ein Glied (ab 50 alle 4, ab 300 alle 6). **Lava im Stein:** In 30 % der Blöcke rund um die Karte steckt ein einzelnes Lavafeld, man sieht es in der Erde. |
+| 5 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
+| 10 | **Power-ups** (Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, Spitzhacke). |
 | 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
-| 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s (die letzten 5 blinken), wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. |
-| 45 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende. |
-| 55 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell) ab und zu, weichen aus, eingekesselt zerplatzen sie und bringen Äpfel, werden mit der Zeit länger (höchstens 1 / 2 / 3 ab Level 55 / 155 / 255). Schiebt man sich bis 3 Felder vor sie, lenken sie nicht mehr rechtzeitig und zerplatzen an der Schlange. |
-| 90 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). **Bäume** alle 40 Level: stehen erst als Plus, kippen nach 10–60 s langsam um (nie auf die Schlange, sie kann sie aufhalten) und liegen dann 1-1-3-1. **Maulwurf** als Power-up. |
-| 100 | **Hütten** (2 × 2, Licht 1 Feld) alle 30 Level, ab 190 große Häuser. Das nächste Neue nach dem Baum. |
-| 110 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
-| 135 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
-| 165 | **Eis** (4–10 Felder) alle 30 Level, bleibt; darauf kann man nicht lenken. |
-| 180 | **Frösche** (höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
-| 190 | **Große Häuser** (2 × 3 oder mit Ecke) statt Hütten, vier Fenster, Licht 2 Felder (nie auf die Schlange, zugebaut = dunkel). Haus = Tod, Licht = **5 Level zurück**. |
-| 215 | **Ameisen** chillen, kommen im 2-Felder-Umkreis langsam auf dich zu, Biss −3 Level, der Kopf zertritt sie. |
-| 245 | **Lava**: alle 30 Level ein See, beginnt mit 1 Feld, wächst jeden 2. Apfel um eins, hört bei 6–15 auf. Tödlich. |
-| 285 | **Jägertürme** (2 × 2) alle 40 Level, Lichtkegel 2 × 6, dreht jede Runde im Uhrzeigersinn, Schlange wirft Schatten. Turm = Tod, Kegel = **10 Level zurück**. |
-| 150 / 200 / 300 | Mindestens 1 / 2 / 3 Ereignisse (Falle, Wolke, Frosch) gleichzeitig. |
+| 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s (die letzten 5 blinken), wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. Steckt im Block Lava, bricht sie als Lavasee aus (wächst jeden 2. Apfel um eins bis 6–15 Felder, tödlich). |
+| 30 | **Frösche** (alle 1–3 Level, höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
+| 40 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende (2 ab 110, 3 ab 180, 4 ab 250). |
+| 50 | **Goldene Schere** (selten), Äpfel ×2 wert. |
+| 60 | **Bäume** alle 40 Level: stehen erst als Plus, kippen nach 10–60 s langsam um (nie auf die Schlange, sie kann sie aufhalten) und liegen dann 1-1-3-1. |
+| 70 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). |
+| 80 | **Hütten** (2 × 2) alle 30 Level, ab 130 große Häuser. Licht immer 2 Felder tief, Licht = **5 Level zurück**. |
+| 90 | **Maulwurf** als Power-up. |
+| 100 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell), **selten**: alle 30–45 Level eine, höchstens 1 (ab 200: 2). Bei Mauern, Bäumen, Häusern schlau, bei der Schlange langsam: Läuft eine auf die Schlange zu, braucht sie 2 Felder zum Reagieren, baut sich die Schlange gerade vor ihr auf, 4 Felder. Sonst rast sie hinein, zerplatzt und bringt Äpfel. |
+| 110 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
+| 120 | **Eis** (4–10 Felder) alle 30 Level, bleibt; darauf kann man nicht lenken. |
+| 130 | **Große Häuser** (2 × 3 oder mit Ecke) statt Hütten, vier Fenster, Licht 2 Felder (nie auf die Schlange, kein Platz = dunkel). Haus = Tod. |
+| 140 | **Ameisen** chillen, kommen im 2-Felder-Umkreis langsam auf dich zu, Biss −3 Level, der Kopf zertritt sie. |
+| 150 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
+| 160 | **Jägertürme** (2 × 2) alle 40 Level, Lichtkegel 2 × 6, dreht jede Runde im Uhrzeigersinn, Schlange wirft Schatten. Turm = Tod, Kegel = **10 Level zurück**. Giftwolken größer (wieder bei 210, 260). |
+| 170 / 230 / 290 | Mindestens 1 / 2 / 3 Ereignisse (Falle, Wolke, Frosch) gleichzeitig. |
+| 190 | Alle zufälligen Abstände 1 Level kürzer. |
 
 **Level zurück:** Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen war,
 danach ist sie gut 2 s geschützt (blinkt). Was schon da ist, bleibt, beim zweiten Erreichen eines
@@ -45,8 +49,8 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 **Äpfel als Währung und Skins:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
 Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel). Außerhalb der Karte ist Erde mit Steinen, Kohle,
-Skeletten, Lava, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
-die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 9: Schild (ein Leben mehr,
+Skeletten, Lavafeldern, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
+die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild (ein Leben mehr,
 läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,
 Schere (schneidet dauerhaft ab, was in 3 Leveln gewachsen ist, das Stück liegt noch 1 s), ab Level 50 selten die goldene Schere (8 Level), Füttern (20 s Tiere und Gegner fressen und durch sich selbst), Magnet (15 s, holt alles im
 2-Felder-Umkreis sofort), ab Level 90 Maulwurf (20 s durch die Erde graben, ohne Grenze, Warndreieck, wenn du in 2 s umkehren musst,
@@ -58,7 +62,7 @@ Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im S
 jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
 normal weiter. Zählt nicht für den Rekord.
 
-**Kamera** (Optionen): **Bereich** (Standard) hat einen festen Ausschnitt, lehnt sich ab der Mittellinie zu
+**Kamera** (Optionen): Bis zum ersten neuen Gebiet steht das Bild still. **Bereich** (Standard) hat einen festen Ausschnitt, lehnt sich ab der Mittellinie zu
 Öffnungen hinüber (je näher, desto mehr, an der Schwelle halb im neuen Bereich, auch um die Ecke und hinter Erde),
 zieht wie ein Gummiseil in die Laufrichtung und hält zu jeder Seite mit Karte mindestens 5 ganze Felder Abstand zum
 Bildrand. **Dynamisch** fliegt wie eine Drohne hinterher. Die Kamera zeigt je Richtung 2 Felder mehr als ein Bildschirm. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).

@@ -104,6 +104,8 @@ export type Gegner = {
   angst: number
   /** Ueberrascht: so viele Schritte noch stur geradeaus (keine Zeit zum Lenken) */
   stur: number
+  /** Das Glied der Schlange in seiner Bahn, das er schon bemerkt hat (Feld-Schluessel) */
+  gesehen?: number
 }
 
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }

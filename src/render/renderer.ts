@@ -319,6 +319,7 @@ export class Renderer {
     const sicht = (p: P, m = 2) => p.x >= x0 - m && p.x <= x1 + m && p.y >= y0 - m && p.y <= y1 + m
     const drin = (x: number, y: number) => g.inside({ x, y })
     const tunnel = new Set(g.tunnel.map((t) => t.x * 100_003 + t.y))
+    const lavaStein: P[] = []
     for (let y = ey0; y <= ey1; y++)
       for (let x = ex0; x <= ex1; x++) {
         if (drin(x, y)) continue
@@ -335,12 +336,18 @@ export class Renderer {
         }
         const ring = drin(x + 1, y) || drin(x - 1, y) || drin(x, y + 1) || drin(x, y - 1) ? 1 : drin(x + 1, y + 1) || drin(x - 1, y - 1) || drin(x + 1, y - 1) || drin(x - 1, y + 1) || drin(x + 2, y) || drin(x - 2, y) || drin(x, y + 2) || drin(x, y - 2) ? 2 : 0
         drawErdFeld(ctx, x * cell, y * cell, cell, ring, z)
+        if (g.lavaImStein(wx, wy)) {
+          lavaStein.push({ x, y })
+          continue
+        }
         const deko = erdeBei(g.cfg, wx, wy)
         if (!deko) continue
         if (deko === 'gold' || deko === 'dia' || deko === 'rubin' || deko === 'opal') {
           if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now)
         } else drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
+    // Lava im Stein: einzelne Felder, die beim Freilegen ausbrechen
+    for (const p of lavaStein) drawLava(ctx, [p], [-1e9], cell, now, this.reduce)
 
     // Schachbrett nur auf der Karte; der neue Block klappt als Welle auf. Erst die
     // dunkle Flaeche je Block, dann die hellen Felder etwas groesser (sonst feine Fugen)
@@ -408,7 +415,8 @@ export class Renderer {
         }
     }
 
-    // Lava und Eis
+    // Lava und Eis. Freigelegte Lava, die noch nicht ausbrechen konnte, glimmt schon
+    for (const p of g.lavaOffen) if (sicht(p)) drawErdDeko(ctx, p.x * cell, p.y * cell, cell, 'lava', feldZufall(p.x, p.y), now)
     for (const l of g.lava) if (l.cells.some((c) => sicht(c))) drawLava(ctx, l.cells, l.t, cell, now, this.reduce)
     for (const e of g.eis) if (e.cells.some((c) => sicht(c))) drawEis(ctx, e.cells, cell, this.reduce ? 1 : backOut(clamp01((now - e.t) / 500)), now)
 
@@ -751,12 +759,24 @@ export class Renderer {
    *  Feder vor dem Kopf (in Laufrichtung), so dass sie im Lauf knapp vor ihm schwebt. Biegt die
    *  Schlange ab, springt nur das Ziel: die Kamera selbst fliegt in einem lockeren Bogen hinueber,
    *  nie um eine Ecke. Steht die Schlange, gleitet sie zum Kopf. Mit "Bewegung reduzieren" haftet
-   *  die Kamera immer genau am Kopf */
+   *  die Kamera immer genau am Kopf.
+   *  Bei jeder Art gilt: Solange die Karte nur aus den Startbloecken besteht (bis das erste neue
+   *  Gebiet freigeschaltet ist), steht das Bild still, die ganze Karte in der Mitte. Danach faehrt
+   *  die Kamera weich von dort los */
   private kamera(g: Game, cell: number, dt: number, kopf: P): P {
     let tx = (kopf.x + 0.5) * cell
     let ty = (kopf.y + 0.5) * cell
     const lief = g.time !== this.camZeit
     this.camZeit = g.time
+    if (this.standbild(g)) {
+      this.cam = { x: (g.w / 2) * cell, y: (g.h / 2) * cell }
+      this.camZiel = { ...this.cam }
+      this.camV = { x: 0, y: 0 }
+      this.camInit = true
+      this.frameOk = false
+      this.sichtGlatt = { x: [0, 0], y: [0, 0] }
+      return this.cam
+    }
     const laeuft = lief && g.status === 'play' && !g.halt && !g.gnade
     const art = this.reduce ? 'kopf' : this.kameraArt
     if (art !== 'bereich') {
@@ -791,6 +811,11 @@ export class Renderer {
       s[1] += (s[0] - s[1]) * k
     }
     return { x: this.cam.x + this.sichtGlatt.x[1], y: this.cam.y + this.sichtGlatt.y[1] }
+  }
+
+  /** Standbild: die Karte ist noch die vom Start (kein neues Gebiet, nichts freigegraben) und passt ganz ins Bild */
+  private standbild(g: Game) {
+    return g.blocks.length <= 2 && !g.extra.length && g.inside(g.body[0]) && g.w <= this.vw / this.cell && g.h <= this.vh / this.cell
   }
 
   /** Bereich-Kamera, letzte Sicherung: zu jeder Seite sieht man immer mindestens 5 ganze Felder
