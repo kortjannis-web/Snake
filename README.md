@@ -29,8 +29,7 @@ fügt man per Code hinzu; nur Freunde sehen sich online und können sich einlade
 Ein Handy rechnet, ein kleiner Cloudflare-Server (`server/`) verteilt und übernimmt, wenn es ausfällt. Einrichtung:
 [`docs/MEHRSPIELER-EINRICHTEN.md`](docs/MEHRSPIELER-EINRICHTEN.md). Hintergrund: [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
 
-Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dieselbe Welt, eigene Bestenliste) und der **eigene
-Geist**, der den besten Lauf nachfährt (abschaltbar in den Einstellungen). Eigene Domain: [`docs/EIGENE-DOMAIN.md`](docs/EIGENE-DOMAIN.md).
+Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dieselbe Welt, eigene Bestenliste).
 
 ## Spielregeln
 
@@ -77,10 +76,10 @@ Schere (schneidet dauerhaft ab, was in 3 Leveln gewachsen ist, das Stück liegt 
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
-**Kreativ-Modus:** Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,
+**Kreativ-Modus** (Stift oben rechts im Startmenü): Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,
 Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im Spiel Level springen und
 jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
-normal weiter. Zählt nicht für den Rekord.
+normal weiter. Zählt nicht für den Rekord und die Online-Bestenliste, Äpfel gibt es dort keine.
 
 **Kamera** (Optionen): Bis zum ersten neuen Gebiet steht das Bild still. **Bereich** (Standard) hat einen festen Ausschnitt, lehnt sich ab der Mittellinie zu
 Öffnungen hinüber (je näher, desto mehr, an der Schwelle halb im neuen Bereich, auch um die Ecke und hinter Erde),
@@ -123,7 +122,7 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `src/game/mehr.ts` Mehrspieler-Logik (mehrere Schlangen, Leben, Abstand, Gebiete), `src/game/zustand.ts` Spielstand verschicken und übernehmen
 - `src/multi/` Mehrspieler in der App (Verbindung, Lobby, Anzeige) und das gemeinsame Protokoll
 - `server/` Snake-Server auf Cloudflare Workers (`raum.ts` sind die Regeln, testbar ohne Cloudflare; `push.ts` Web Push ohne Bibliothek)
-- `src/geist.ts` eigener Geist und Tages-Herausforderung, `src/push.ts` und `public/push-sw.js` Push-Einladungen
+- `src/tages.ts` Tages-Herausforderung, `src/push.ts` und `public/push-sw.js` Push-Einladungen
 - `android/` Capacitor-Projekt (Hochformat, Vollbild)
 
 ### Signierte Release-APK

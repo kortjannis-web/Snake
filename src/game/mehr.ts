@@ -9,9 +9,10 @@
  * Modi:
  * - vs: ein Feld, Schlangen sind fuereinander Hindernisse. Jeder hat 3 Leben. Raus ist, wer keine Leben
  *   mehr hat oder zu weit hinter dem Fuehrenden liegt (5 Aepfel, alle 20 Aepfel des Fuehrenden einer mehr).
- *   Der Letzte gewinnt. Erweitern abwechselnd alle 10 / 5 / 3 Aepfel (2 / 3 / 4 Spieler).
+ *   Der Letzte gewinnt.
  * - koop: ein Feld, man faehrt durcheinander hindurch, Aepfel zaehlen gemeinsam, 3 gemeinsame Leben.
- *   Erweitern abwechselnd alle 15 Level.
+ * - Karte (auf einem Feld): ein Block je Spieler zum Start, alle 10 Aepfel insgesamt (und wenn es eng wird)
+ *   waehlt abwechselnd einer einen Block dazu. So hat jeder unabhaengig von der Spielerzahl gleich viel Platz.
  * - rennen: jeder hat seine eigene Welt (dieses Objekt enthaelt dann nur die eigene Schlange), die
  *   anderen sieht man als Geist. Das naechste Gebiet waehlt abwechselnd einer, es kommt bei allen an
  *   dieselbe Stelle (siehe `gebietVonAussen`). Abstand und Sieger bestimmt der Server.
@@ -105,8 +106,16 @@ const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 
 /** Erlaubter Apfel-Abstand zum Fuehrenden: 5 bei 2 Spielern, 6 bei 3, 7 bei 4; alle 20 Aepfel des Fuehrenden einer mehr */
 export const abstandGrenze = (fuehrend: number, spieler = 2) => (spieler >= 4 ? 7 : spieler === 3 ? 6 : 5) + Math.floor(fuehrend / 20)
-/** Alle wie viele Aepfel ein Gebiet dazukommt */
-export const gebietTakt = (modus: Modus, spieler: number) => (modus === 'koop' ? 15 : spieler >= 4 ? 3 : spieler === 3 ? 5 : 10)
+/**
+ * Gleicher Platz pro Kopf: Jede Schlange waechst um ihre eigenen Aepfel, also braucht die Karte je Apfel
+ * (egal von wem) gleich viel mehr Platz. Darum kommt alle GEBIET_TAKT Aepfel insgesamt ein Block dazu,
+ * unabhaengig von der Spielerzahl, und jeder hat immer etwa gleich viel Raum.
+ */
+export const GEBIET_TAKT = 10
+/** Wird es enger als so viele freie Felder je lebender Schlange, kommt sofort ein Block extra */
+export const ENG_PRO_KOPF = 60
+/** Bloecke zum Start: einer je Spieler (mindestens die zwei des Einzelspiels), die Zone braucht doppelt so viel */
+export const startBloecke = (modus: Modus, spieler: number) => (modus === 'rennen' ? 2 : modus === 'royale' ? 2 * Math.max(2, spieler) : Math.max(2, spieler))
 
 export class MehrGame extends Game {
   readonly modus: Modus
@@ -145,19 +154,54 @@ export class MehrGame extends Game {
     this.events = []
   }
 
-  /** Mehr Spieler, mehr Platz: bei 3 Spielern ein Block mehr, bei 4 zwei (auf einem Feld) */
+  /** Mehr Spieler, mehr Platz: ein Block je Spieler, angebaut so, dass die Karte moeglichst kompakt bleibt */
   protected startKarte() {
-    if (this.modus === 'rennen') return
-    // Schrumpfende Karte: immer 4 Bloecke, die Zone braucht Platz
-    const dazu = this.modus === 'royale' || this.anzahl >= 4 ? 2 : this.anzahl === 3 ? 1 : 0
-    if (!dazu) return
-    const hoch = this.blocks.some((b) => b.y > 0)
-    const neu: P[] = hoch ? [{ x: 1, y: 0 }, { x: 1, y: 1 }] : [{ x: 0, y: 1 }, { x: 1, y: 1 }]
-    for (const b of neu.slice(0, dazu)) {
-      this.blocks.push(b)
-      this.startBloecke.add((b.x + 100_000) * 200_003 + (b.y + 100_000))
+    const soll = startBloecke(this.modus, this.anzahl)
+    if (this.blocks.length >= soll) return
+    const k = (b: P) => `${b.x},${b.y}`
+    const da = new Set(this.blocks.map(k))
+    while (this.blocks.length < soll) {
+      // Kandidaten: alle freien Nachbarn; gewinnt der, nach dem die laengste Seite am kuerzesten ist (kein langer Streifen),
+      // dann der mit den wenigsten leeren Ecken
+      let best: P | null = null
+      let wert = Infinity
+      for (const b of this.blocks)
+        for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+          const c = { x: b.x + dx, y: b.y + dy }
+          if (da.has(k(c))) continue
+          const xs = [...this.blocks.map((q) => q.x), c.x]
+          const ys = [...this.blocks.map((q) => q.y), c.y]
+          const w = (Math.max(...xs) - Math.min(...xs) + 1) * this.bw
+          const h = (Math.max(...ys) - Math.min(...ys) + 1) * this.bh
+          const leer = w * h - (this.blocks.length + 1) * this.bw * this.bh
+          // Bei Gleichstand rechts und unten anbauen (Startplaetze bleiben, wo sie sind)
+          const v = Math.max(w, h) * 1e6 + leer * 10 + (c.x < 0 || c.y < 0 ? 5 : 0)
+          if (v < wert) {
+            wert = v
+            best = c
+          }
+        }
+      if (!best) break
+      this.blocks.push(best)
+      da.add(k(best))
+      this.startBloecke.add((best.x + 100_000) * 200_003 + (best.y + 100_000))
     }
     this.baueMaske()
+  }
+
+  /** Freie Felder je lebender Schlange (ohne Hindernisse, Schlangen und Zone) */
+  freiProKopf(): number {
+    const belegt = this.hindernisse(true)
+    let lebende = 0
+    for (let i = 0; i < this.schlangen.length; i++) {
+      if (!this.lebend(i)) continue
+      lebende++
+      const body = i === this.aktiv ? this.body : this.schlangen[i].body
+      for (const p of body) belegt.add((p.y + 1) * 4096 + (p.x + 1))
+    }
+    let frei = 0
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.inside({ x, y }) && !belegt.has((y + 1) * 4096 + (x + 1))) frei++
+    return frei / Math.max(1, lebende)
   }
 
   /** Startplatz: jede Schlange in einer eigenen Reihe, abwechselnd von links und rechts */
@@ -697,7 +741,11 @@ export class MehrGame extends Game {
       return
     }
     this.zuege++
-    if (this.modus !== 'royale' && this.zuege % gebietTakt(this.modus, this.anzahl) === 0) this.starteWahl()
+    if (this.modus !== 'royale') {
+      // Regelmaessig alle 10 Aepfel, und sofort, wenn es fuer alle zu eng wird
+      if (this.zuege % GEBIET_TAKT === 0) this.starteWahl()
+      else if (this.wahl === 0 && this.freiProKopf() < ENG_PRO_KOPF) this.starteWahl()
+    }
     if (this.modus === 'vs') this.pruefeAbstand()
   }
 

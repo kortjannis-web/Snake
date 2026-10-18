@@ -149,8 +149,9 @@ grant select on public.sieg to anon, authenticated;
 grant insert on public.sieg to authenticated;
 grant usage, select on sequence public.sieg_id_seq to authenticated;
 
+-- Trophaeen: eine je besiegtem Gegner
 create or replace view public.sieger_liste with (security_invoker = on) as
-  select s.user_id, p.name, p.skin, count(*)::int as level
+  select s.user_id, p.name, p.skin, sum(s.gegner)::int as level
   from public.sieg s join public.profile p on p.id = s.user_id
   group by s.user_id, p.name, p.skin;
 grant select on public.sieger_liste to anon, authenticated;

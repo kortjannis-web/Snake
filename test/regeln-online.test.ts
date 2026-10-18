@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { belohnung } from '../src/multi/ui'
+import { belohnung, trophaeen } from '../src/multi/ui'
 import { nameErlaubt, nameGueltig } from '../src/online'
 
 describe('Namen', () => {
@@ -22,6 +22,9 @@ describe('Belohnung im Mehrspieler', () => {
     expect(belohnung('jagd', true, 4, 1)).toBe(90)
     expect(belohnung('royale', false, 4, 1)).toBe(5)
     expect(belohnung('koop', false, 2, 41)).toBe(20)
+    // Trophaeen: eine je besiegtem Gegner, nur fuer den Sieger
+    expect([2, 3, 4].map((n) => trophaeen(true, n))).toEqual([1, 2, 3])
+    expect(trophaeen(false, 4)).toBe(0)
     expect(belohnung('koop', false, 2, 3)).toBe(5)
   })
 })

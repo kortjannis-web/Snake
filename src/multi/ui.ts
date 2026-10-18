@@ -34,7 +34,7 @@ export function anzeigeSkins(spieler: { skin: string }[]): string[] {
 }
 
 const MODUS_TEXT: Record<Modus, string> = {
-  vs: 'Alle auf einem Feld, jeder hat 3 Leben. Wer 5 Äpfel hinter dem Führenden liegt, ist raus.',
+  vs: 'Alle auf einem Feld, jeder hat 3 Leben. Wer zu weit hinter dem Führenden liegt, ist raus.',
   rennen: 'Jeder in seiner eigenen Welt, die anderen als Geist. 3 Leben, 5 Äpfel Abstand.',
   koop: 'Zusammen auf einem Feld, 3 gemeinsame Leben, Äpfel zählen für alle.',
   jagd: '3 Minuten, wer die meisten Äpfel hat, gewinnt. Unendlich Leben, aber jeder Tod kostet 3 Äpfel.',
@@ -62,10 +62,15 @@ export type MehrApi = {
   seiteOeffnen: (p: 'mehr') => void
   seitenZu: () => void
   toast: (titel: string, text: string) => void
+  /** Aepfel oder Trophaeen haben sich geaendert (Anzeige auffrischen) */
+  geldGeaendert: () => void
   ichInfo: () => SpielerInfo
   /** Raum oder Spielerliste hat sich geaendert (z. B. Online-Liste neu zeichnen) */
   raumGeaendert?: () => void
 }
+
+/** Trophaeen fuer einen Sieg: eine je besiegtem Gegner */
+export const trophaeen = (sieg: boolean, spieler: number) => (sieg ? Math.max(1, spieler - 1) : 0)
 
 /** Belohnung in Aepfeln: Sieg 30 je Gegner, Mitspielen 5, Koop die Haelfte des Levels */
 export function belohnung(modus: Modus, sieg: boolean, spieler: number, level: number) {
@@ -537,15 +542,19 @@ export function mehrspieler(api: MehrApi) {
       titel.textContent = s ? `${s.name} gewinnt` : start.modus === 'jagd' ? 'Unentschieden' : 'Vorbei'
       sub.textContent = s ? 'Nächstes Mal!' : 'Gleich viele Äpfel.'
     }
-    // Belohnung (einmal je Spiel): Aepfel, Erfolge, Siege- und Koop-Liste
+    // Belohnung (einmal je Spiel): Aepfel, Trophaeen, Erfolge, Siege- und Koop-Liste
     let plus = 0
+    let tro = 0
     if (belohnt !== start.seed) {
       belohnt = start.seed
       const sieg = start.modus !== 'koop' && erg.sieger === ich
       const level = client.game?.level ?? 1
       plus = belohnung(start.modus, sieg, start.spieler.length, level)
+      tro = trophaeen(sieg, start.spieler.length)
       wallet.aepfel += plus
+      wallet.trophaeen = (wallet.trophaeen ?? 0) + tro
       saveWallet()
+      api.geldGeaendert()
       zaehle('mehrspiele')
       if (sieg) {
         zaehle('siege')
@@ -562,6 +571,7 @@ export function mehrspieler(api: MehrApi) {
       saveStats()
     }
     if (plus) sub.textContent += ` +${plus} Äpfel`
+    if (tro) sub.textContent += ` · +${tro} ${tro === 1 ? 'Trophäe' : 'Trophäen'} 🏆`
     const ol = $('mehr-rang')
     ol.replaceChildren()
     erg.reihenfolge.forEach((wer, platz) => {

@@ -106,13 +106,13 @@ Damit Freunde eine Benachrichtigung bekommen, wenn sie Snake gerade nicht offen 
    > Den geheimen Schlüssel niemandem schicken und nicht in den Chat kopieren. Er gehört nur in die GitHub-Secrets.
 3. **Actions** → **Snake-Server (Cloudflare)** → **Run workflow** (der Server bekommt die Schlüssel und die
    Supabase-Adresse), danach **Web-App (GitHub Pages)** → **Run workflow**.
-4. In der App: **Mehrspieler** → bei „Einladungen aufs Handy“ **Einschalten** → Benachrichtigungen erlauben.
+4. In der App: **Online** (unten im Startmenü) → bei „Einladungen aufs Handy“ **Einschalten** → Benachrichtigungen erlauben.
 
 Die Schlüssel nur einmal erzeugen. Wer sie später austauscht, muss bei allen Spielern Push neu einschalten.
 
 ## Spielen
 
-1. App öffnen (vom Home-Bildschirm), Startmenü → **Mehrspieler**.
+1. App öffnen (vom Home-Bildschirm), unten im Startmenü → **Online**.
 2. **Freunde hinzufügen** (einmalig): Unter „Freunde“ steht dein **Freundes-Code**. **Code teilen** und dein Freund tippt
    ihn bei „Freund hinzufügen“ ein (oder umgekehrt). Danach seid ihr gegenseitig Freunde.
    Nur Freunde sehen sich online und können sich einladen.
@@ -133,13 +133,16 @@ Die Schlüssel nur einmal erzeugen. Wer sie später austauscht, muss bei allen S
 | Andere Schlange | Hindernis (Kopf an Kopf: beide verlieren ein Leben) | Geist, keine Berührung | man fährt hindurch | Hindernis | Hindernis |
 | Leben | 3 je Spieler, nach einem Tod 5 s später zurück (kurz als Geist) | wie Gegeneinander | 3 gemeinsam | unendlich, jeder Tod kostet 3 Äpfel, 3 s später zurück | wie Gegeneinander |
 | Raus | ohne Leben, oder zu weit hinter dem Führenden (siehe unten) | wie Gegeneinander | gemeinsame Leben weg: Spiel vorbei | niemand | ohne Leben |
-| Neues Gebiet | abwechselnd einer, alle 10 / 5 / 3 Äpfel (2 / 3 / 4 Spieler) | abwechselnd einer, alle 20 Level, bei allen an derselben Stelle | abwechselnd einer, alle 15 Level | wie Gegeneinander | keins: ab 20 s wird alle 12 s der Rand tödlich (3 s vorher rot gestrichelt) |
+| Neues Gebiet | abwechselnd einer, alle 10 Äpfel insgesamt und sofort, wenn es eng wird | abwechselnd einer, alle 20 Level, bei allen an derselben Stelle | wie Gegeneinander | wie Gegeneinander | keins: ab 20 s wird alle 12 s der Rand tödlich (3 s vorher rot gestrichelt) |
 | Sieg | der Letzte | der Letzte | gemeinsam so weit wie möglich | nach 3 Minuten die meisten Äpfel | der Letzte |
 
 - **Abstand:** Raus ist, wer 5 (2 Spieler), 6 (3 Spieler) oder 7 Äpfel (4 Spieler) hinter dem Führenden liegt.
   Alle 20 Äpfel des Führenden kommt einer dazu.
 - **Gleichstand** (alle scheiden im selben Moment aus): Es gewinnt, wer mehr Äpfel hat.
-- **Startkarte:** bei 3 Spielern ein Block größer, bei 4 zwei.
+- **Gleicher Platz pro Kopf:** Die Karte startet mit einem Block je Spieler (mindestens zwei, bei der Zone doppelt so
+  viele) und wird kompakt angebaut. Weil jede Schlange um ihre eigenen Äpfel wächst, kommt alle 10 Äpfel insgesamt ein
+  Block dazu, egal wie viele mitspielen. Hat eine lebende Schlange im Schnitt weniger als 60 freie Felder, gibt es sofort
+  einen Block extra.
 - **Duell-Power-ups** (Gegeneinander, Apfeljagd, Zone): Die **Schere** kürzt die nächste fremde Schlange,
   die **Zeitlupe** bremst alle anderen.
 - **Vorausberechnung:** Die eigene Schlange reagiert sofort auf den Wischer, auch wenn ein anderes Handy rechnet.
@@ -150,15 +153,16 @@ Führenden), bei 3 oder 4 eine Zeile je Spieler. Bei der Apfeljagd stehen dort d
 ### Belohnung
 
 Mehrspieler-Runden zählen nicht für den Einzelspieler-Rekord. Dafür gibt es:
+- **Trophäen** 🏆 für jeden Sieg: eine je besiegtem Gegner (zu zweit 1, zu dritt 2, zu viert 3). Man sammelt sie, sie
+  stehen oben im Startmenü neben den Äpfeln und in der Bestenliste (Reiter **Trophäen**).
 - **Äpfel** für den Vorrat: Sieg 30 je Gegner, sonst 5. Koop: der halbe erreichte Level (mindestens 5).
 - **Erfolge** (erster Mehrspieler, 1 / 10 / 50 Siege, Apfeljagd gewonnen, Zone gewonnen, Koop Level 50).
-- In der **Bestenliste** die Reiter **Siege** (gewonnene Runden) und **Koop** (bestes Team).
+- In der **Bestenliste** die Reiter **Trophäen** und **Koop** (bestes Team).
 
-## Tages-Herausforderung und Geist
+## Tages-Herausforderung
 
 Im Startmenü **Tages-Herausforderung**: Heute spielen alle dieselbe Welt (wechselt um Mitternacht deutscher Zeit),
-mit eigener Bestenliste (Reiter **Täglich**). Dein bester Lauf fährt als silberner **Geist** mit, im normalen Spiel ebenso
-dein bester Lauf ab Level 1. Abschalten: **Einstellungen** → „Geist zeigen“.
+mit eigener Bestenliste (Reiter **Täglich**).
 
 ## Kosten und Grenzen (bitte auf cloudflare.com gegenprüfen)
 

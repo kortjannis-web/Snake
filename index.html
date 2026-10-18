@@ -78,7 +78,12 @@
       <section class="screen screen--home" id="home" data-open>
         <div class="home">
           <div class="home__top">
-            <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
+            <div class="home__pillen">
+              <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
+              <span class="geld-pille geld-pille--trophaee" aria-label="Trophäen aus Mehrspieler-Siegen" title="Trophäen aus Mehrspieler-Siegen"><span data-icon="Trophy"></span><b id="home-trophaeen">0</b></span>
+            </div>
+            <button class="icon-btn" data-go="kreativ" aria-label="Kreativ-Modus" title="Kreativ-Modus" data-icon="Pencil"></button>
+            <button class="icon-btn" data-go="help" aria-label="Anleitung" title="Anleitung" data-icon="CircleHelp"></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
           <div class="home__brand">
@@ -88,15 +93,13 @@
           </div>
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
-            <button class="btn btn--ghost" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
             <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Tages-Herausforderung</button>
-            <button class="btn btn--ghost" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Mehrspieler</button>
             <button class="btn btn--ghost" id="btn-liste" data-go="liste" hidden><span data-icon="Trophy"></span>Bestenliste</button>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
-            <div class="home__row home__row--4">
+            <div class="home__row home__row--4 home__row--flex">
               <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Skins</button>
-              <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
+              <button class="tile-btn" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online</button>
               <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
               <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
             </div>
@@ -130,7 +133,7 @@
           <span class="card__max" id="over-max" hidden></span>
           <span class="badge" id="over-record" hidden><span data-icon="Trophy"></span>Neuer Rekord</span>
           <span class="badge badge--heute" id="over-heute" hidden><span data-icon="Sun"></span>Neuer Tagesrekord</span>
-          <span class="badge badge--heute" id="over-tages" hidden><span data-icon="Ghost"></span>Tages-Herausforderung</span>
+          <span class="badge badge--heute" id="over-tages" hidden><span data-icon="Sun"></span>Tages-Herausforderung</span>
           <div class="facts">
             <div><b id="over-apples">0</b><small>Äpfel</small></div>
             <div><b id="over-len">3</b><small>Länge</small></div>
@@ -167,7 +170,7 @@
               <button data-v="heute" role="radio">Heute</button>
               <button data-v="immer" role="radio">Für immer</button>
               <button data-v="alle" role="radio">Alle Spieler</button>
-              <button data-v="siege" role="radio">Siege</button>
+              <button data-v="siege" role="radio">Trophäen</button>
               <button data-v="koop" role="radio">Koop</button>
               <button data-v="tages" role="radio">Täglich</button>
             </div>
@@ -233,12 +236,13 @@
                 <button class="btn btn--ghost btn--klein" id="push-knopf">Einschalten</button>
               </div>
               <div class="mehr-online" id="freunde-liste"></div>
+              <p class="fine">Jeder hat gleich viel Platz: Die Karte startet mit einem Block pro Spieler, alle 10 Äpfel (und wenn es eng wird) baut abwechselnd einer einen Block an.</p>
               <div class="mehr-modi">
-                <div class="opt opt--col"><div class="opt__row"><span data-icon="Swords"></span><span class="opt__t">Gegeneinander<small>Alle auf einem Feld. Wer in eine andere Schlange fährt, verliert ein Leben (jeder hat 3). Wer 5 Äpfel hinter dem Führenden liegt, ist raus. Der Letzte gewinnt.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Swords"></span><span class="opt__t">Gegeneinander<small>Alle auf einem Feld. Wer in eine andere Schlange fährt, verliert ein Leben (jeder hat 3). Wer zu weit hinter dem Führenden liegt (5 Äpfel, zu dritt 6, zu viert 7), ist raus. Der Letzte gewinnt.</small></span></div></div>
                 <div class="opt opt--col"><div class="opt__row"><span data-icon="Ghost"></span><span class="opt__t">Wettrennen<small>Jeder in seiner eigenen Welt, die anderen siehst du als Geist. Gleiche Regeln mit Leben und Abstand. Das nächste Gebiet bestimmt abwechselnd einer.</small></span></div></div>
                 <div class="opt opt--col"><div class="opt__row"><span data-icon="Timer"></span><span class="opt__t">Apfeljagd<small>3 Minuten, die meisten Äpfel gewinnen. Unendlich Leben, aber jeder Tod kostet 3 Äpfel.</small></span></div></div>
                 <div class="opt opt--col"><div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Schrumpfende Karte (Zone)<small>Größere Karte, 3 Leben. Nach 20 Sekunden rückt alle 12 Sekunden die Zone vom Rand zu. Der Letzte gewinnt.</small></span></div></div>
-                <div class="opt opt--col"><div class="opt__row"><span data-icon="Handshake"></span><span class="opt__t">Koop<small>Zusammen auf einem Feld, ihr fahrt durcheinander hindurch. Äpfel zählen gemeinsam, ihr habt 3 Leben zusammen. Alle 15 Level erweitert abwechselnd einer.</small></span></div></div>
+                <div class="opt opt--col"><div class="opt__row"><span data-icon="Handshake"></span><span class="opt__t">Koop<small>Zusammen auf einem Feld, ihr fahrt durcheinander hindurch. Äpfel zählen gemeinsam, ihr habt 3 Leben zusammen.</small></span></div></div>
               </div>
             </div>
             <div class="mehr-raum" id="mehr-raum" hidden>
@@ -323,7 +327,6 @@
             <label class="opt"><span data-icon="Volume2"></span><span class="opt__t">Töne</span><input type="checkbox" id="opt-sound" class="switch" /></label>
             <label class="opt"><span data-icon="Music"></span><span class="opt__t">Musik</span><input type="checkbox" id="opt-music" class="switch" /></label>
             <label class="opt"><span data-icon="Vibrate"></span><span class="opt__t">Vibration</span><input type="checkbox" id="opt-vibration" class="switch" /></label>
-            <label class="opt"><span data-icon="Ghost"></span><span class="opt__t">Geist zeigen<small>Dein bester Lauf fährt als durchscheinende Schlange mit (in der Tages-Herausforderung dein bester Lauf von heute)</small></span><input type="checkbox" id="opt-geist" class="switch" /></label>
             <label class="opt"><span data-icon="Gamepad2"></span><span class="opt__t">Steuerkreuz<small>Tasten statt Wischen (gilt ab dem nächsten Spiel)</small></span><input type="checkbox" id="opt-dpad" class="switch" /></label>
             <div class="opt opt--col">
               <div class="opt__row"><span data-icon="Gauge"></span><span class="opt__t">Tempo<small>Gilt ab dem nächsten Spiel</small></span></div>

@@ -3,7 +3,7 @@
  * version.json der Web-App ab (liegt bei jedem Build auf GitHub Pages) und weist auf eine
  * neuere APK hin. Die Web-App selbst aktualisiert sich ueber den Service Worker.
  */
-/** Adresse der Web-App (eigene Domain ueber die Variable VITE_PAGES_URL, endet mit /) */
+/** Adresse der Web-App (endet mit /) */
 const roh = (import.meta.env.VITE_PAGES_URL as string | undefined)?.trim() || 'https://kortjannis-web.github.io/Snake/'
 export const WEB_URL = roh.endsWith('/') ? roh : `${roh}/`
 const BASIS = WEB_URL

@@ -20,7 +20,7 @@ import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Sid
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
 import { installPflicht, zeigeInstallation } from './install'
-import { Aufnahme, geistKoerper, geistLaden, geistSpeichern, tagBerlin, tagesSeed, type Lauf } from './geist'
+import { tagBerlin, tagesSeed } from './tages'
 import { MEHR_BILD } from './multi/protokoll'
 import { perPushEinladen, pushAuffrischen, pushEinschalten, pushErlaubt, pushMoeglich } from './push'
 import { geraetId, mehrspieler, SERVER } from './multi/ui'
@@ -64,9 +64,6 @@ let istKreativ = false
 /** Laeuft gerade die Tages-Herausforderung (gleiche Welt fuer alle)? */
 let istTages = false
 let tagesTag = ''
-/** Aufnahme des laufenden Laufs und der Geist, gegen den man faehrt */
-let aufnahme = new Aufnahme()
-let geistLauf: Lauf | null = null
 let game: Game | null = null
 let demo: Game | null = null
 let startedAt = 0
@@ -172,9 +169,6 @@ function newGame(alsKreativ = istKreativ, tages = istTages) {
       kreativ: istKreativ ? { ...k } : null,
       sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
     })
-  // Eigener Geist: bester Lauf (Endlos) bzw. bester Lauf heute (Tages-Herausforderung)
-  aufnahme = new Aufnahme()
-  geistLauf = settings.geist && !istKreativ && !auto && (istTages || startLevel === 1) ? geistLaden(istTages ? 'tages' : 'endlos', tagesTag) : null
   renderer.reset()
   readyText()
   setMode('ready')
@@ -273,7 +267,7 @@ async function ladeListeAnzeige() {
           : listeArt === 'alle'
             ? 'Noch keine Spieler.'
             : listeArt === 'siege'
-              ? 'Noch hat niemand ein Mehrspieler-Spiel gewonnen.'
+              ? 'Noch hat niemand eine Trophäe gewonnen.'
               : listeArt === 'koop'
                 ? 'Noch kein Koop-Team in der Liste.'
                 : listeArt === 'tages'
@@ -328,7 +322,7 @@ async function ladeListeAnzeige() {
       listeArt === 'alle'
         ? `${zeilen.length} Spieler insgesamt, sortiert nach bestem Level. „–“ heißt: noch nicht gespielt.`
         : listeArt === 'siege'
-          ? 'Gewonnene Mehrspieler-Spiele (Gegeneinander, Wettrennen, Apfeljagd, Zone).'
+          ? 'Trophäen: Jeder Mehrspieler-Sieg bringt eine je besiegtem Gegner (Gegeneinander, Wettrennen, Apfeljagd, Zone).'
           : listeArt === 'koop'
             ? 'Die besten Koop-Teams nach erreichtem Level.'
             : listeArt === 'tages'
@@ -422,8 +416,6 @@ function gameOver() {
     saveStats()
     if (zaehltOnline() && g.gegessen > 0 && g.maxLevel >= 2)
       melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istTages ? 'normal' : settings.tempo, tages: istTages })
-    // Bester Lauf wird zum Geist fuer die naechsten Runden
-    if (!auto && g.gegessen > 0 && (istTages || startLevel === 1)) geistSpeichern(istTages ? 'tages' : 'endlos', { level: g.maxLevel, datum: istTages ? tagesTag : undefined, p: aufnahme.p })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
@@ -712,6 +704,7 @@ function updateGeld(pop = false) {
     el.classList.add('pop')
   }
   $('home-geld').textContent = String(wallet.aepfel)
+  $('home-trophaeen').textContent = String(wallet.trophaeen ?? 0)
   $('shop-geld').textContent = String(wallet.aepfel)
 }
 
@@ -979,7 +972,6 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
-  $<HTMLInputElement>('opt-geist').checked = settings.geist !== false
   for (const [id, v] of [['opt-tempo', settings.tempo], ['opt-kamera', settings.kamera]])
     $(id)
       .querySelectorAll<HTMLButtonElement>('button')
@@ -1312,7 +1304,7 @@ document.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => b.addEventLis
 }))
 document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', closePage))
 
-for (const k of ['sound', 'music', 'vibration', 'dpad', 'geist'] as const)
+for (const k of ['sound', 'music', 'vibration', 'dpad'] as const)
   $<HTMLInputElement>(`opt-${k}`).addEventListener('change', (e) => {
     settings[k] = (e.target as HTMLInputElement).checked
     applySettings()
@@ -1439,13 +1431,9 @@ function frame(now: number) {
         if (dir) game.turn(dir, false)
       }
       game.update(dt)
-      if (mode === 'play') aufnahme.aufnehmen(game)
       for (const e of game.drain()) handle(e)
     }
-    const gk = geistLauf && mode !== 'ready' ? geistKoerper(geistLauf, game.time, game.ursprung) : null
-    renderer.mehr = gk
-      ? { andere: [{ ...gk, skin: skinVon('silber'), tot: false, name: istTages ? 'Bester heute' : `Rekord ${geistLauf!.level}` }], ichTot: false, wahlSichtbar: true }
-      : null
+    renderer.mehr = null
     renderer.draw(game)
   }
   updateEffekte()
@@ -1473,6 +1461,7 @@ const mehr = mehrspieler({
   seiteOeffnen: (p) => openPage(p),
   seitenZu: () => closeAllPages(),
   toast: (titel, text) => toast('gebiet', titel, text),
+  geldGeaendert: () => updateGeld(),
   raumGeaendert: () => onlineZeichnen(),
   ichInfo: () => ({ id: geraetId(), name: profil.name || 'Spieler', skin: wallet.skin }),
 })

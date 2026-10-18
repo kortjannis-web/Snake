@@ -14,8 +14,8 @@ zwei Mehrspieler-Modi (**Gegeneinander** und **Füreinander**). Jede Phase ist f
 > nach Spielerzahl, neue Modi **Apfeljagd** (3 Minuten) und **Zone** (schrumpfende Karte), Duell-Power-ups, Vorausberechnung
 > der eigenen Schlange, Zuschauen nach dem Ausscheiden, Reaktionen, **Freunde per Code** (nur Freunde sehen sich online),
 > eindeutige Namen mit Wortfilter, Sieges- und Koop-Bestenliste, Äpfel und Erfolge für Mehrspieler-Runden,
-> **Tages-Herausforderung** mit eigenem Geist und **Push-Einladungen** über den Snake-Server (Web Push mit VAPID statt
-> einer Supabase Edge Function). Eine eigene Domain ist vorbereitet: [`EIGENE-DOMAIN.md`](EIGENE-DOMAIN.md).
+> **Tages-Herausforderung** und **Push-Einladungen** über den Snake-Server (Web Push mit VAPID statt einer Supabase
+> Edge Function). Die Karte wächst nach Platz pro Kopf, Siege bringen Trophäen.
 
 ## 0. Was schon da ist
 

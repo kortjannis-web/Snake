@@ -1307,12 +1307,45 @@ svg {
   height: 19px;
 }
 
+.home__pillen {
+  display: flex;
+  gap: 8px;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.home__pillen .geld-pille {
+  margin-right: 0;
+}
+
+.geld-pille--trophaee {
+  padding: 0 14px 0 12px;
+  color: #f2c14c;
+}
+
+.geld-pille--trophaee b {
+  color: var(--creme);
+}
+
+.geld-pille--trophaee [data-icon] svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* Ist ein Feld ausgeblendet (z. B. Online ohne Server), teilen sich die uebrigen die Breite */
+.home__row--4.home__row--flex {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
 .geld-pille--still {
   margin: 0 0 0 auto;
 }
 
 .home__top {
   align-items: center;
+  gap: 6px;
 }
 
 .home__row--4 {
@@ -2371,4 +2404,24 @@ html[data-install] #app {
 
 .mehr-zeile--freund {
   grid-template-columns: 56px 1fr auto auto;
+}
+
+/* Schmale Handys: Startleiste oben kompakter, damit Stift, Anleitung und Ton daneben passen */
+@media (max-width: 370px) {
+  .home__top {
+    gap: 4px;
+  }
+  .home__pillen {
+    gap: 4px;
+  }
+  .home__top .geld-pille {
+    gap: 5px;
+    height: 40px;
+    padding: 0 10px 0 9px;
+    font-size: 0.95rem;
+  }
+  .home__top .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
 }

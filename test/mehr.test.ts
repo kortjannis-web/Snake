@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { abstandGrenze, DUELL, gebietTakt, JAGD_MS, JAGD_STRAFE, JAGD_ZURUECK, KLASSISCH, LEBEN, MehrGame, ROYALE_START, ROYALE_TAKT, ZURUECK_MS, type MehrOpts, type Modus } from '../src/game/mehr'
+import { abstandGrenze, DUELL, ENG_PRO_KOPF, GEBIET_TAKT, startBloecke, JAGD_MS, JAGD_STRAFE, JAGD_ZURUECK, KLASSISCH, LEBEN, MehrGame, ROYALE_START, ROYALE_TAKT, ZURUECK_MS, type MehrOpts, type Modus } from '../src/game/mehr'
 import type { Dir, GameEvent, P } from '../src/game/types'
 import { Abgleich, anwenden, zustand } from '../src/game/zustand'
 
@@ -91,10 +91,47 @@ describe('Mehrspieler: Start', () => {
 })
 
 describe('Einstellungen', () => {
-  it('bei 3 und 4 Spielern ist die Startkarte groesser', () => {
-    const felder = (n: number) => new MehrGame(opts('vs', n)).mask.reduce((a, b) => a + b, 0)
-    expect(felder(3)).toBe(felder(2) * 1.5)
-    expect(felder(4)).toBe(felder(2) * 2)
+  it('gleicher Platz pro Kopf: ein Block je Spieler, die Zone doppelt so viel, kompakt angebaut', () => {
+    const felder = (m: Modus, n: number) => new MehrGame(opts(m, n)).mask.reduce((a, b) => a + b, 0)
+    expect(felder('vs', 3)).toBe(felder('vs', 2) * 1.5)
+    expect(felder('vs', 4)).toBe(felder('vs', 2) * 2)
+    expect(felder('royale', 2)).toBe(felder('vs', 4))
+    expect(felder('royale', 4)).toBe(felder('vs', 2) * 4)
+    expect([2, 3, 4].map((n) => startBloecke('koop', n))).toEqual([2, 3, 4])
+    // 4 Bloecke ergeben ein Rechteck aus 2 x 2, keine lange Schlange; auch 6 und 8 bleiben kompakt
+    const g = new MehrGame(opts('vs', 4))
+    expect(g.w * g.h).toBe(felder('vs', 4))
+    expect([g.w, g.h]).toEqual([26, 24])
+    const z3 = new MehrGame(opts('royale', 3))
+    expect([z3.w, z3.h]).toEqual([26, 36])
+    const z4 = new MehrGame(opts('royale', 4))
+    expect(Math.max(z4.w, z4.h)).toBeLessThanOrEqual(39)
+    // Jede Schlange hat zum Start Platz vor sich
+    for (const n of [2, 3, 4])
+      for (const m of ['vs', 'koop', 'jagd', 'royale'] as Modus[]) {
+        const k = new MehrGame(opts(m, n))
+        for (const s of k.schlangen) {
+          const d = { r: [1, 0], l: [-1, 0], u: [0, -1], d: [0, 1] }[s.dir]!
+          expect(k.inside({ x: s.body[0].x + 3 * d[0], y: s.body[0].y + 3 * d[1] })).toBe(true)
+        }
+      }
+  })
+  it('wird es eng, kommt sofort ein Block extra', () => {
+    const g = new MehrGame(opts('vs'))
+    expect(g.freiProKopf()).toBeGreaterThan(ENG_PRO_KOPF)
+    // Lange Schlangen fuellen die Karte
+    const reihe = (y0: number) => {
+      const out: { x: number; y: number }[] = []
+      for (let r = 0; r < 12; r++) for (let c = 0; c < g.w; c++) out.push({ x: r % 2 ? g.w - 1 - c : c, y: y0 + r })
+      return out.filter((p) => g.inside(p))
+    }
+    setze(g, 0, reihe(0).slice(0, 120), 'r')
+    setze(g, 1, reihe(12).slice(0, 120), 'r')
+    expect(g.freiProKopf()).toBeLessThan(ENG_PRO_KOPF)
+    g.zuege = 1
+    g.wahl = 0
+    ;(g as unknown as { eat: (p: { x: number; y: number }) => void }).eat(g.apple.p)
+    expect(g.wahl).toBe(1)
   })
   it('Klassisch: auch nach vielen Aepfeln keine Mauern, Tiere oder Power-ups', () => {
     const g = new MehrGame({ ...opts('koop'), cfg: { gnade: 0, ...KLASSISCH } })
@@ -107,7 +144,7 @@ describe('Einstellungen', () => {
       g.update(60)
       g.drain()
     }
-    expect(g.level).toBeGreaterThan(60)
+    expect(g.level).toBeGreaterThan(40)
     expect(g.mauern.length + g.teiche.length + g.gegner.length + g.froesche.length + g.powers.length + g.baeume.length + g.lava.length).toBe(0)
   })
 })
@@ -199,11 +236,8 @@ describe('Gegeneinander', () => {
     expect(g.schlangen.map((s) => s.aepfel)).toEqual([1, 1])
   })
 
-  it('alle 10 Aepfel (2 Spieler) darf abwechselnd einer erweitern, nur er sieht die Wand', () => {
-    expect(gebietTakt('vs', 2)).toBe(10)
-    expect(gebietTakt('vs', 3)).toBe(5)
-    expect(gebietTakt('vs', 4)).toBe(3)
-    expect(gebietTakt('koop', 2)).toBe(15)
+  it('alle 10 Aepfel (egal wie viele Spieler) darf abwechselnd einer erweitern, nur er sieht die Wand', () => {
+    expect(GEBIET_TAKT).toBe(10)
     const g = new MehrGame(opts('vs'))
     const wahlen: number[] = []
     for (let a = 0; a < 20; a++) {
