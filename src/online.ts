@@ -268,6 +268,151 @@ export async function meineFreunde(): Promise<Freund[]> {
   }
 }
 
+/* ================= Hall of Snakes, Freundschaftsanfragen, Sperren, Chat ================= */
+
+export type HallZeile = { user_id: string; name: string; skin: string; rekord: number; trophaeen: number }
+export type Anfrage = { richtung: 'ein' | 'aus'; user_id: string; name: string; skin: string }
+export type Gesperrt = { user_id: string; name: string }
+export type Nachricht = { id: number; von: string; an: string; text: string; gelesen: boolean; created_at: string }
+export type ChatInfo = { user_id: string; zuletzt: string; ungelesen: number }
+
+/** Meldungen aus der Datenbank (P0001) sind fuer Spieler gedacht, alles andere ist meist das Netz */
+function fehlerText(e: { code?: string; message?: string } | null) {
+  if (e?.code === 'P0001' && e.message) return e.message.replace('moeglich', 'möglich')
+  return 'Das hat nicht geklappt. Bist du online?'
+}
+
+/** Alle Spieler mit Skin, Rekord und Trophaeen (bis zu 1000), dazu die eigene Nutzer-Id */
+export async function ladeHall(): Promise<{ zeilen: HallZeile[]; ich: string | null }> {
+  const sb = await client()
+  const { data, error } = await sb
+    .from('hall_of_snakes')
+    .select('user_id,name,skin,rekord,trophaeen')
+    .order('rekord', { ascending: false })
+    .order('trophaeen', { ascending: false })
+    .order('name', { ascending: true })
+    .limit(1000)
+  if (error) throw error
+  const { data: s } = await sb.auth.getSession()
+  return { zeilen: (data ?? []) as HallZeile[], ich: s.session?.user.id ?? null }
+}
+
+export async function meineAnfragen(): Promise<Anfrage[]> {
+  if (!onlineAktiv || !profil.name) return []
+  try {
+    await nutzerId()
+    const sb = await client()
+    const { data, error } = await sb.from('meine_anfragen').select('richtung,user_id,name,skin').order('created_at', { ascending: false })
+    return error ? [] : ((data ?? []) as Anfrage[])
+  } catch {
+    return []
+  }
+}
+
+/** Anfrage schicken. 'freunde': der andere hatte schon gefragt, ihr seid jetzt Freunde */
+export async function anfrageSenden(uid: string): Promise<'gesendet' | 'freunde'> {
+  await nutzerId()
+  const sb = await client()
+  const { data, error } = await sb.rpc('anfrage_senden', { ziel: uid })
+  if (error) throw new Error(fehlerText(error))
+  return data === 'freunde' ? 'freunde' : 'gesendet'
+}
+
+async function rufe(fn: string, args: Record<string, string>) {
+  await nutzerId()
+  const sb = await client()
+  const { error } = await sb.rpc(fn, args)
+  if (error) throw new Error(fehlerText(error))
+}
+export const anfrageAnnehmen = (uid: string) => rufe('anfrage_annehmen', { von_id: uid })
+/** Eingehende Anfrage ablehnen oder eigene zurueckziehen */
+export const anfrageLoeschen = (uid: string) => rufe('anfrage_loeschen', { andere: uid })
+export const sperren = (uid: string) => rufe('sperren', { ziel: uid })
+export const entsperren = (uid: string) => rufe('entsperren', { ziel: uid })
+
+export async function meineSperren(): Promise<Gesperrt[]> {
+  if (!onlineAktiv || !profil.name) return []
+  try {
+    await nutzerId()
+    const sb = await client()
+    const { data, error } = await sb.from('meine_sperren').select('user_id,name').order('name')
+    return error ? [] : ((data ?? []) as Gesperrt[])
+  } catch {
+    return []
+  }
+}
+
+const NSPALTEN = 'id,von,an,text,gelesen,created_at'
+
+/** Die letzten 200 Nachrichten mit einem Freund, aelteste zuerst */
+export async function ladeNachrichten(partner: string): Promise<Nachricht[]> {
+  const ich = await nutzerId()
+  const sb = await client()
+  const { data, error } = await sb
+    .from('nachricht')
+    .select(NSPALTEN)
+    .or(`and(von.eq.${ich},an.eq.${partner}),and(von.eq.${partner},an.eq.${ich})`)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (error) throw error
+  return ((data ?? []) as Nachricht[]).reverse()
+}
+
+export async function sendeNachricht(partner: string, text: string): Promise<Nachricht> {
+  const ich = await nutzerId()
+  const sb = await client()
+  const { data, error } = await sb.from('nachricht').insert({ von: ich, an: partner, text: text.trim().slice(0, 500) }).select(NSPALTEN).single()
+  if (error) throw new Error(error.code === '42501' ? 'Ihr seid keine Freunde mehr.' : fehlerText(error))
+  return data as Nachricht
+}
+
+export async function chatGelesen(partner: string) {
+  try {
+    const sb = await client()
+    await sb.rpc('chat_gelesen', { partner })
+  } catch {
+    /* kein Netz: beim naechsten Oeffnen */
+  }
+}
+
+export async function meineChats(): Promise<ChatInfo[]> {
+  if (!onlineAktiv || !profil.name) return []
+  try {
+    await nutzerId()
+    const sb = await client()
+    const { data, error } = await sb.from('meine_chats').select('user_id,zuletzt,ungelesen')
+    return error ? [] : ((data ?? []) as ChatInfo[])
+  } catch {
+    return []
+  }
+}
+
+/** Live: neue Nachricht an mich, neue Anfrage an mich, neue Freundschaft. Gibt die Abmeldung zurueck */
+export function abonniereSozial(bei: { nachricht: (n: Nachricht) => void; anfrage: () => void; freund: () => void }): () => void {
+  let weg = false
+  let kanal: ReturnType<SupabaseClient['channel']> | null = null
+  let sb: SupabaseClient | null = null
+  void (async () => {
+    try {
+      const ich = await nutzerId()
+      sb = await client()
+      if (weg) return
+      kanal = sb
+        .channel(`sozial-${ich}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nachricht', filter: `an=eq.${ich}` }, (p) => bei.nachricht(p.new as Nachricht))
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'freund_anfrage', filter: `an=eq.${ich}` }, () => bei.anfrage())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'freund', filter: `von=eq.${ich}` }, () => bei.freund())
+        .subscribe()
+    } catch {
+      /* kein Netz */
+    }
+  })()
+  return () => {
+    weg = true
+    if (kanal && sb) void sb.removeChannel(kanal)
+  }
+}
+
 /** Eigenen Sieg eintragen (fuer die Sieges-Bestenliste) */
 export async function meldeSieg(modus: string, gegner: number) {
   if (!onlineAktiv || !profil.name) return
