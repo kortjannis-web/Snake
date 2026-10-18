@@ -53,6 +53,8 @@ type Sicht = {
   /** Feld vor dem Kopf der Schlange */
   vorKopf: P
 }
+/** Jeder Kartenblock ist in jede Richtung so viele Felder groesser als ein halber Bildschirm */
+export const BLOCK_PLUS = 1
 /** So lange zerfaellt eine besiegte Gegner-Schlange (ms) */
 export const GEGNER_WEG = 700
 /** So lange sieht man eine zertretene Ameise (ms) */
@@ -186,14 +188,15 @@ export class Game {
     this.tempo = o.tempo ?? 'normal'
     this.r = rng(o.seed)
     this.lavaSalz = 11 + 3 * ((o.seed ?? Math.floor(Math.random() * 2 ** 31)) % 100_000)
-    // Block = halber Bildschirm, am Handy (hochkant) uebereinander, quer nebeneinander
+    // Block = halber Bildschirm, am Handy (hochkant) uebereinander, quer nebeneinander.
+    // Jeder Block hat je Richtung BLOCK_PLUS Felder mehr: die Karte ist etwas groesser als ein Bildschirm
     if (o.screenH >= o.screenW) {
-      this.bw = o.screenW
-      this.bh = Math.max(4, Math.floor(o.screenH / 2))
+      this.bw = o.screenW + BLOCK_PLUS
+      this.bh = Math.max(4, Math.floor(o.screenH / 2)) + BLOCK_PLUS
       this.blocks = [{ x: 0, y: 0 }, { x: 0, y: 1 }]
     } else {
-      this.bh = o.screenH
-      this.bw = Math.max(4, Math.floor(o.screenW / 2))
+      this.bh = o.screenH + BLOCK_PLUS
+      this.bw = Math.max(4, Math.floor(o.screenW / 2)) + BLOCK_PLUS
       this.blocks = [{ x: 0, y: 0 }, { x: 1, y: 0 }]
     }
     this.baueMaske()

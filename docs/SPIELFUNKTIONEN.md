@@ -1,12 +1,12 @@
 # Snake Endlos: alle Spielfunktionen
 
-Stand: Version 1.14.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
+Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen in `src/game/rules.ts` (`DEFAULTS`) und lassen sich im Spiel unter **Optionen → Master-Einstellungen** ändern.
 
 ## 1. Grundprinzip
 
 - **Ein Modus: Endlos.** Kein Ziel, es geht so lange, bis die Schlange stirbt.
 - **Level = gegessene Äpfel + 1.** Jeder Apfel ist ein Level.
-- **Start:** Die Karte ist genau ein Bildschirm groß (zwei Blöcke, siehe 4.), die Schlange ist 3 Glieder lang und läuft nach rechts. Das Spiel wartet, bis man wischt (Handy) oder eine Pfeiltaste drückt (PC).
+- **Start:** Die Karte ist etwas größer als ein Bildschirm (zwei Blöcke, je Richtung ein Feld mehr, siehe 4.), die Schlange ist 3 Glieder lang und läuft nach rechts. Das Spiel wartet, bis man wischt (Handy) oder eine Pfeiltaste drückt (PC).
 - **Feldgröße:** Ein Bildschirm hat immer ca. 300 Felder, egal welches Gerät (Handy hochkant z. B. 12 × 23). So spielt es sich überall gleich.
 - **Wachsen:** bis Level 50 **alle 2 Äpfel** ein Glied mehr, bis Level 300 alle 4, danach alle 6 (halb so schnell wie früher; einstellbar: Master-Einstellungen → Schlange). Sonst wäre die Schlange auf Dauer länger als die Karte.
 - **Regelmäßig Neues:** Bis Level 300 kommt **alle 10 Level** etwas Neues oder etwas wird schwerer (Übersicht in der README und in der Zeitleiste der Master-Einstellungen).
@@ -32,17 +32,17 @@ Stand: Version 1.14.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ## 4. Karte und neue Gebiete (Blöcke wie bei Minecraft)
 
-- Die Karte besteht aus **Blöcken von je einem halben Bildschirm**. Am Handy (hochkant) ist ein Block fast quadratisch, leicht hochkant (z. B. 12 × 11 Felder). Am Anfang liegen zwei Blöcke übereinander = ein Bildschirm.
+- Die Karte besteht aus **Blöcken von je einem halben Bildschirm plus einem Feld in jede Richtung**. Am Handy (hochkant) ist ein Block fast quadratisch (z. B. 13 × 12 statt 12 × 11 Felder). Am Anfang liegen zwei Blöcke übereinander (z. B. 13 × 24). Jeder neue Block ist genauso groß, die Karte wächst also mit jedem Gebiet etwas mehr.
 - **Bis Level 300 alle 20 Level, dann alle 30 (300, 330 … 480), ab Level 500 alle 50** (alles einstellbar) darfst du **selbst wählen**, wo der neue Block hinkommt. Die Karte hört also nie auf zu wachsen, nur langsamer. Die Wände, an die ein Block passt, **glühen** (goldener, pulsierender Rand), dazu Glocken und der Hinweis „Öffne eine Wand“ (der einzige Hinweis im Spiel).
 - **Du hast 30 Sekunden:** oben links läuft ein Countdown mit Fahne, **die letzten 5 Sekunden blinken** Wände und Countdown. **Fährst du gegen eine glühende Wand**, kommt genau dort der Block hin und du fährst direkt hinein. Verpasst du die Zeit, kommt der Block an eine zufällige Stelle („Zu spät“). Beim Aufbau (Startlevel, Kreativ-Springen) zufällig wie bisher. Die Karte wird so unregelmäßig (L-Formen, Treppen, Buchten), aber nach deinem Plan.
 - Jeder Block hat genau die gleiche Fläche.
-- **Ab Level 300** (einstellbar) kommt kein Block mehr dazu. Bei alle 20 Level sind das 14 neue Blöcke, insgesamt 16 Blöcke = 8 Bildschirme.
+- **Ab Level 300** (einstellbar) kommt kein Block mehr dazu. Bei alle 20 Level sind das 14 neue Blöcke, insgesamt 16 Blöcke = gut 8 Bildschirme.
 - Der neue Block klappt von der Seite auf, an der er angesetzt wird, Feld für Feld als Welle. Dazu „Whoosh“ mit Akkord.
-- **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, **Golderz** (ca. 0,9 %) und selten **Diamanten** (ca. 0,12 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf. Dazu einzelne glühende **Lavafelder im Stein** (siehe 12c).
+- **Außerhalb der Karte ist Erde:** dunkelbraun, direkt am Spielfeld eine hellere Erdkante (zwei Ringe), am Spielfeld selbst ein dunkler Grasrand. In der Erde liegen fest verteilt (immer gleich für dasselbe Feld): **Steine**, **Kohle**, **Schlangenskelette**, **Golderz** (ca. 0,9 %) und selten **Diamanten** (ca. 0,12 %), die funkeln. Hineinfahren ist der Rand (Tod), außer mit dem Maulwurf. Dazu einzelne glühende **Lavafelder im Stein** (siehe 12c). **Nur Lava glüht in der Erde:** Ihr pulsierender Schein reicht gut 2 Felder weit durch die Erde, auch von knapp außerhalb des Bildes. Erze funkeln nur kurz, ohne Schein.
 - **Erze** (je 1000 Erdfelder): **Golderz** 9 (= **3 ×** der aktuelle Apfelwert), **Diamant** 1,2 (**6 ×**), **Rubin** 0,5 (rot, **10 ×**), **Opal** 0,15 (leuchtet und schimmert zwischen Pink und Lila, **20 ×**).
 - **Erze freilegen:** Wird Erde zu Spielfeld (neuer Block, Maulwurf), liegen die Erze darin als Brocken auf der Karte. Drüberfahren gräbt sie aus. Jedes Erz gibt es nur einmal.
 - **Standbild am Anfang:** Solange die Karte nur aus den zwei Startblöcken besteht (bis das erste neue Gebiet freigeschaltet ist, also frühestens Level 20), steht das Bild still, die ganze Karte in der Mitte. Das gilt für jede Kamera-Einstellung. Danach fährt die Kamera weich los.
-- **Sichtfeld:** Die Kamera zeigt je Richtung **2 Felder mehr** als ein Bildschirm der Spiellogik (am Handy hochkant z. B. ca. 14 × 25 statt 12 × 23). Die Schlange wirkt dadurch etwas kleiner, Karte und Blöcke bleiben gleich.
+- **Sichtfeld:** Die Kamera zeigt je Richtung **2 Felder mehr** als ein Bildschirm der Spiellogik (am Handy hochkant z. B. ca. 15 × 26 bei einer Startkarte von 13 × 24). Die Schlange wirkt dadurch etwas kleiner, Karte und Blöcke bleiben gleich.
 - **Kamera (zwei Einstellungen, Optionen → Kamera):**
   - **Bereich (Standard):** arbeitet in drei Schichten, darauf folgt die Kamera an einer zweistufigen, kritisch gedämpften Feder (**Gummiseil an einem Gummiseil**: weich anfahren, weich abbremsen, kein Überschwingen).
     1. **Kasten:** Der Ausschnitt ist so groß wie das Bild, an den Kartenblöcken ausgerichtet, und steht. Überschreitet der Kopf seinen Rand (die Schwelle), kommt der nächste Ausschnitt (einen Block weiter). Passt die Karte in einer Richtung ganz ins Bild, steht die Kamera dort mittig still.
@@ -278,7 +278,7 @@ Stand: Version 1.14.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Schlange wächst** an/aus, sonst **feste Länge** (1 bis 500). Beim Ausschalten im Spiel wird die aktuelle Länge übernommen.
 - **Während des Spiels** (Pause → Kreativ-Optionen): alles oben live umschalten, Level **−10 / −1 / +1 / +10** oder direkt springen (höher baut die Welt mit auf, niedriger kürzt die Schlange), **Falle, Wolke, Frosch oder Gegner-Schlange sofort auslösen**.
 - **Sandbox** (Schalter im Kreativ-Menü): eigene Welt zum Testen von Mechaniken.
-  - **Kartengröße** in Blöcken: Breite und Höhe je 1 bis 8 (ein Block = halber Bildschirm), immer rechteckig.
+  - **Kartengröße** in Blöcken: Breite und Höhe je 1 bis 8 (ein Block = halber Bildschirm plus ein Feld je Richtung), immer rechteckig.
   - **Länge** der Schlange (1 bis 300), sie wächst in den ersten Schritten darauf.
   - **Objekte:** Anzahl je Art: Mauer, Teich, Giftapfel, Baum, Haus, Turm, Falle, Wolke, Frosch, Gegner rot, Gegner lila, Ameise, Lava, Eis (je 0 bis 50, so viele wie Platz haben).
   - **Danach:** „Bleibt so“ = nichts Neues kommt dazu, Mauern bleiben stehen, nur der Apfel wandert (Mechaniken laufen weiter: Licht wechselt, Türme drehen, Lava wächst, Gegner wachsen, Wolken und Fallen laufen ab). „Normal weiter“ = ab dem Startlevel geht es weiter wie im echten Spiel.

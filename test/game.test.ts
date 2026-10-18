@@ -80,12 +80,17 @@ describe('Regeln', () => {
 })
 
 describe('Karte aus Bloecken', () => {
-  it('Start: zwei Bloecke = ein Bildschirm, jeder Block ein halber Bildschirm', () => {
+  it('Start: zwei Bloecke, jeder ein halber Bildschirm plus ein Feld je Richtung', () => {
     const g = new Game({ screenW: SW, screenH: SH, seed: 1 })
     expect(g.blocks).toHaveLength(2)
-    expect(g.bw).toBe(12)
-    expect(g.bh).toBe(11)
-    expect(felderAufKarte(g)).toBe(2 * 12 * 11)
+    expect(g.bw).toBe(13)
+    expect(g.bh).toBe(12)
+    expect(felderAufKarte(g)).toBe(2 * 13 * 12)
+    // Quer genauso: nebeneinander, je ein Feld groesser
+    const q = new Game({ screenW: SH, screenH: SW, seed: 1 })
+    expect(q.bw).toBe(12)
+    expect(q.bh).toBe(13)
+    expect(q.w).toBe(24)
   })
 
   it('jeder neue Block ist gleich gross, liegt im Raster und grenzt an die Karte', () => {

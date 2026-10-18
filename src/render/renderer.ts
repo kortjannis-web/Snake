@@ -22,6 +22,7 @@ import {
   drawErz,
   drawFrosch,
   drawLava,
+  drawLavaSchein,
   drawPower,
   drawKegel,
   drawTurm,
@@ -55,6 +56,8 @@ const DROHNE_VORAUS = 1.5
 /** Bereich-Kamera: Federhaerte (1/ms) und Dauer des weichen Wechsels in den neuen Ausschnitt (ms) */
 const BEREICH = 0.013
 const BEREICH_WECHSEL = 1100
+/** So viele Felder weit leuchtet Lava im Stein durch die Erde */
+const LAVA_SCHEIN = 2.5
 /** Mindestabstand Kopf (Mitte) zum Bildrand in Feldern, wo Karte ist: auf der Seite, von der die
  *  Schlange wegfaehrt, und auf der, auf die sie zufaehrt (quer dazwischen) */
 const RAND_HINTEN = 6
@@ -343,10 +346,18 @@ export class Renderer {
         const deko = erdeBei(g.cfg, wx, wy)
         if (!deko) continue
         if (deko === 'gold' || deko === 'dia' || deko === 'rubin' || deko === 'opal') {
-          if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now)
+          if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now, false)
         } else drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
-    // Lava im Stein: einzelne Felder, die beim Freilegen ausbrechen
+    // Lava im Stein: das einzige, was in der Erde pulsierend glueht. Der Schein reicht ein paar Felder
+    // weit durch die Erde, auch von knapp ausserhalb des Bildes, damit man sieht, wo Lava steckt
+    const ls = Math.ceil(LAVA_SCHEIN)
+    for (let y = ey0 - ls; y <= ey1 + ls; y++)
+      for (let x = ex0 - ls; x <= ex1 + ls; x++) {
+        if (drin(x, y) || !g.lavaImStein(x - g.ursprung.x, y - g.ursprung.y)) continue
+        const puls = this.reduce ? 0.6 : 0.5 + 0.5 * Math.sin(now / 520 + x * 1.7 + y)
+        drawLavaSchein(ctx, px(x), px(y), cell * (LAVA_SCHEIN + 0.6 + 0.4 * puls), 0.35 + 0.3 * puls)
+      }
     for (const p of lavaStein) drawLava(ctx, [p], [-1e9], cell, now, this.reduce)
 
     // Schachbrett nur auf der Karte; der neue Block klappt als Welle auf. Erst die
