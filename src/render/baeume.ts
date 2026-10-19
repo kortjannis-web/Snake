@@ -128,13 +128,33 @@ function tanne(ctx: CanvasRenderingContext2D, u: number, schnee: boolean, weihna
   const lagen: [number, string, string][] = schnee
     ? [[1, '#2E6A48', '#3F8A5E'], [0.7, '#36795A', '#E9F3F8'], [0.42, '#CFE2EC', '#FFFFFF']]
     : [[1, '#1F6234', '#2E8448'], [0.7, '#2A7A43', '#46A563'], [0.42, '#3A9256', '#62C27E']]
+  // Rundes, weiches Fundament unter den Spitzen: ein Kreis mit acht Wuelsten (keine harten Winkel)
+  ctx.fillStyle = lagen[0][1]
+  ctx.beginPath()
+  ctx.arc(0, 0, u * 0.82, 0, TAU)
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4
+    const d = u * (i % 2 ? 0.72 : 0.86)
+    ctx.moveTo(Math.cos(a) * d + u * 0.34, Math.sin(a) * d)
+    ctx.arc(Math.cos(a) * d, Math.sin(a) * d, u * 0.34, 0, TAU)
+  }
+  ctx.fill()
+  ohneSchatten(ctx)
+  ctx.fillStyle = schnee ? 'rgba(240, 248, 252, 0.9)' : 'rgba(90, 170, 110, 0.35)'
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * 1.05 + (i / 4) * Math.PI * 0.75
+    ctx.beginPath()
+    ctx.arc(Math.cos(a) * u * 0.78, Math.sin(a) * u * 0.78, u * 0.2, 0, TAU)
+    ctx.fill()
+  }
+  ctx.lineJoin = 'round'
   lagen.forEach(([k, dunkel, hell], lage) => {
     for (let i = 0; i < 8; i++) {
       const w = (i * Math.PI) / 4
       const lang = i % 2 === 0
-      const sp = (lang ? 1.45 : 1.0) * u * k
-      const breite = Math.PI / (lang ? 7 : 9)
-      const ecke = 0.42 * u * k
+      const sp = (lang ? 1.28 : 1.05) * u * k
+      const breite = Math.PI / (lang ? 5.5 : 7)
+      const ecke = 0.5 * u * k
       const tx = Math.cos(w) * sp
       const ty = Math.sin(w) * sp
       const lx = Math.cos(w - breite) * ecke
@@ -143,18 +163,24 @@ function tanne(ctx: CanvasRenderingContext2D, u: number, schnee: boolean, weihna
       const ry = Math.sin(w + breite) * ecke
       // Licht von oben links: die Seite, die dorthin zeigt, ist hell
       const links = Math.cos(w - Math.PI / 2 - Math.PI * 1.25) > 0
-      ctx.fillStyle = links ? hell : dunkel
+      // Facetten mit gleichfarbigem, rundem Rand: die Spitzen werden weicher
+      ctx.lineWidth = u * 0.09 * k
+      ctx.fillStyle = ctx.strokeStyle = links ? hell : dunkel
       ctx.beginPath()
       ctx.moveTo(0, 0)
       ctx.lineTo(lx, ly)
       ctx.lineTo(tx, ty)
+      ctx.closePath()
       ctx.fill()
-      ctx.fillStyle = links ? dunkel : hell
+      ctx.stroke()
+      ctx.fillStyle = ctx.strokeStyle = links ? dunkel : hell
       ctx.beginPath()
       ctx.moveTo(0, 0)
       ctx.lineTo(rx, ry)
       ctx.lineTo(tx, ty)
+      ctx.closePath()
       ctx.fill()
+      ctx.stroke()
       // kleine Zweige an den langen Spitzen
       if (lang && lage === 0) {
         ctx.fillStyle = dunkel
@@ -376,130 +402,228 @@ function kaktus(ctx: CanvasRenderingContext2D, u: number, bluete: boolean) {
 
 /* ================= Kristall (Bergwerk) ================= */
 
-function kristallSpitze(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, a: number, f: [string, string, string]) {
-  // Sechseckiger Kristall von oben, Spitze in der Mitte, Facetten
-  const pts: P[] = []
-  for (let i = 0; i < 6; i++) pts.push({ x: x + Math.cos(a + (i / 6) * TAU) * r, y: y + Math.sin(a + (i / 6) * TAU) * r })
-  for (let i = 0; i < 6; i++) {
-    const p = pts[i]
-    const q = pts[(i + 1) % 6]
-    const licht = Math.cos(a + ((i + 0.5) / 6) * TAU + Math.PI * 0.75)
-    ctx.fillStyle = licht > 0.3 ? f[2] : licht > -0.3 ? f[1] : f[0]
+const KRISTALL: [string, string, string][] = [
+  ['#5A2C9C', '#9B6BEA', '#E2CCFF'],
+  ['#1C6E8C', '#3FB4DA', '#C8F6FF'],
+]
+
+/** Ein Kristall, der aus dem Boden ragt (seitlich gesehen): sechseckiges Prisma mit Spitze. x/y = Fuss, h = Hoehe,
+ *  b = Breite, neig = Neigung (Bogenmass), ab = abgebrochen (oben eine schraege Bruchkante statt Spitze) */
+function kristallSaeule(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, b: number, neig: number, f: [string, string, string], ab = false) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(neig)
+  const sp = ab ? 0 : b * 0.9
+  const oben = -h + sp
+  // linke helle, mittlere, rechte dunkle Flaeche
+  const flaeche = (pts: [number, number][], farbe: string) => {
+    ctx.fillStyle = farbe
     ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.lineTo(p.x, p.y)
-    ctx.lineTo(q.x, q.y)
+    pts.forEach(([a, c], i) => (i ? ctx.lineTo(a, c) : ctx.moveTo(a, c)))
+    ctx.closePath()
+    ctx.fill()
+  }
+  if (ab) {
+    flaeche([[-b / 2, 0], [-b / 2, oben + b * 0.25], [-b * 0.1, oben - b * 0.05], [-b * 0.1, 0]], f[2])
+    flaeche([[-b * 0.1, 0], [-b * 0.1, oben - b * 0.05], [b * 0.2, oben + b * 0.3], [b * 0.2, 0]], f[1])
+    flaeche([[b * 0.2, 0], [b * 0.2, oben + b * 0.3], [b / 2, oben + b * 0.1], [b / 2, 0]], f[0])
+    // Bruchflaeche
+    flaeche([[-b / 2, oben + b * 0.25], [-b * 0.1, oben - b * 0.05], [b * 0.2, oben + b * 0.3], [b / 2, oben + b * 0.1], [b * 0.1, oben + b * 0.45]], 'rgba(255,255,255,0.75)')
+  } else {
+    flaeche([[-b / 2, 0], [-b / 2, oben], [0, -h], [-b * 0.1, oben], [-b * 0.1, 0]], f[2])
+    flaeche([[-b * 0.1, 0], [-b * 0.1, oben], [0, -h], [b * 0.2, oben], [b * 0.2, 0]], f[1])
+    flaeche([[b * 0.2, 0], [b * 0.2, oben], [0, -h], [b / 2, oben], [b / 2, 0]], f[0])
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'
+    ctx.lineWidth = Math.max(1, b * 0.06)
+    ctx.beginPath()
+    ctx.moveTo(-b * 0.32, -h * 0.15)
+    ctx.lineTo(-b * 0.32, oben + b * 0.1)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+/** Felssockel, aus dem die Kristalle wachsen (Ellipse am Boden mit Steinen) */
+function kristallSockel(ctx: CanvasRenderingContext2D, u: number, seed: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'
+  ctx.beginPath()
+  ctx.ellipse(u * 0.05, u * 0.38, u * 0.95, u * 0.32, 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#4B4650'
+  ctx.beginPath()
+  ctx.ellipse(0, u * 0.3, u * 0.85, u * 0.28, 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#6A6370'
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath()
+    ctx.ellipse((hash(i + seed) - 0.5) * u * 1.4, u * (0.25 + hash(i * 3 + seed) * 0.12), u * 0.16, u * 0.09, 0, 0, TAU)
     ctx.fill()
   }
 }
 
+/** Kristallgruppe, die aus dem Boden ragt (Bergwerk statt Baum). Der grosse Kristall in der Mitte reicht ins Feld darueber */
 function kristall(ctx: CanvasRenderingContext2D, u: number, now: number, seed: number) {
-  const f: [string, string, string] = hash(seed) > 0.5 ? ['#5A2C9C', '#8E5BE0', '#D6B8FF'] : ['#1C6E8C', '#35A9CF', '#B8F2FF']
-  const puls = 0.25 + 0.1 * Math.sin(now / 700 + seed)
-  ctx.fillStyle = `rgba(190, 150, 255, ${puls})`
-  ctx.save()
-  ctx.globalAlpha *= 0.6
-  ctx.beginPath()
-  ctx.arc(0, 0, u * 1.4, 0, TAU)
-  ctx.fill()
-  ctx.restore()
-  ctx.save()
-  schatten(ctx, u, 0.4, 0.12)
-  ctx.fillStyle = '#4B4650'
-  ctx.beginPath()
-  ctx.arc(0, 0, u * 0.62, 0, TAU)
-  ctx.fill()
-  ohneSchatten(ctx)
-  for (const [x, y, r] of [[0.85, 0, 0.32], [-0.85, 0, 0.32], [0, 0.85, 0.32], [0, -0.85, 0.32], [0.5, 0.5, 0.18], [-0.5, 0.5, 0.18], [0.5, -0.5, 0.18], [-0.5, -0.5, 0.18]] as const)
-    kristallSpitze(ctx, x * u, y * u, r * u, hash(x * 3 + y * 7 + seed), f)
-  kristallSpitze(ctx, 0, 0, u * 0.5, seed, f)
+  const f = KRISTALL[hash(seed) > 0.5 ? 0 : 1]
+  const puls = 0.22 + 0.1 * Math.sin(now / 700 + seed)
+  const g = ctx.createRadialGradient(0, -u * 0.3, 0, 0, -u * 0.3, u * 1.7)
+  g.addColorStop(0, f === KRISTALL[0] ? `rgba(190, 140, 255, ${puls})` : `rgba(110, 220, 255, ${puls})`)
+  g.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(-u * 1.7, -u * 2, u * 3.4, u * 3.4)
+  kristallSockel(ctx, u, seed)
+  // hinten kleine, vorne grosse; der mittlere ragt bis ins obere Feld
+  for (const [x, h, b, n] of [[-0.75, 0.75, 0.3, -0.5], [0.8, 0.85, 0.32, 0.45], [-0.4, 1.05, 0.38, -0.25], [0.42, 1.15, 0.4, 0.22], [0, 1.75, 0.55, 0.02], [-0.18, 0.7, 0.26, -0.1], [0.3, 0.6, 0.24, 0.35]] as const)
+    kristallSaeule(ctx, x * u, u * 0.3, h * u, b * u, n, f)
   const tw = Math.max(0, Math.sin(now / 400 + seed * 3))
   ctx.strokeStyle = `rgba(255,255,255,${tw})`
   ctx.lineWidth = 1.2
   ctx.beginPath()
-  ctx.moveTo(-u * 0.15, -u * 0.32)
-  ctx.lineTo(-u * 0.15, -u * 0.08)
-  ctx.moveTo(-u * 0.27, -u * 0.2)
-  ctx.lineTo(-u * 0.03, -u * 0.2)
+  ctx.moveTo(-u * 0.12, -u * 1.35)
+  ctx.lineTo(-u * 0.12, -u * 1.05)
+  ctx.moveTo(-u * 0.27, -u * 1.2)
+  ctx.lineTo(u * 0.03, -u * 1.2)
   ctx.stroke()
-  ctx.restore()
 }
 
+/** Abgebrochen und umgefallen: Stumpf am Fuss, der grosse Kristall liegt in Fallrichtung, Splitter daneben */
 function kristallLiegend(ctx: CanvasRenderingContext2D, u: number, seed: number) {
-  const f: [string, string, string] = hash(seed) > 0.5 ? ['#5A2C9C', '#8E5BE0', '#D6B8FF'] : ['#1C6E8C', '#35A9CF', '#B8F2FF']
+  const f = KRISTALL[hash(seed) > 0.5 ? 0 : 1]
+  // Stumpf (bleibt am Stamm-Feld stehen); die Zeichnung ist hier entlang +x gedreht, der Stumpf zeigt nach "oben" im Bild:
+  // dafuer zurueckdrehen
+  const m = ctx.getTransform()
+  const dreh = Math.atan2(m.b, m.a)
+  ctx.save()
+  ctx.rotate(-dreh)
+  ctx.scale(0.75, 0.75)
+  kristallSockel(ctx, u, seed)
+  for (const [x, h, b, n] of [[-0.45, 0.6, 0.3, -0.3], [0.45, 0.5, 0.3, 0.3], [0, 0.55, 0.5, 0]] as const) kristallSaeule(ctx, x * u, u * 0.3, h * u, b * u, n, f, true)
+  ctx.restore()
+  // Liegender Kristall: langes Prisma, Bruchkante am Stamm, Spitze am Ende
   ctx.save()
   schatten(ctx, u, 0.4, 0.12)
-  // Gebrochene Kristallsaeule: lange Prismen-Seitenansicht
   ctx.fillStyle = f[1]
   ctx.beginPath()
-  ctx.moveTo(-0.45 * u, -0.3 * u)
-  ctx.lineTo(2.9 * u, -0.45 * u)
+  ctx.moveTo(0.35 * u, -0.38 * u)
+  ctx.lineTo(2.85 * u, -0.42 * u)
   ctx.lineTo(3.48 * u, 0)
-  ctx.lineTo(2.9 * u, 0.45 * u)
-  ctx.lineTo(-0.45 * u, 0.3 * u)
+  ctx.lineTo(2.85 * u, 0.42 * u)
+  ctx.lineTo(0.35 * u, 0.38 * u)
+  ctx.lineTo(0.45 * u, 0.1 * u)
+  ctx.lineTo(0.3 * u, -0.12 * u)
   ctx.closePath()
   ctx.fill()
   ohneSchatten(ctx)
   ctx.fillStyle = f[2]
   ctx.beginPath()
-  ctx.moveTo(-0.45 * u, -0.3 * u)
-  ctx.lineTo(2.9 * u, -0.45 * u)
+  ctx.moveTo(0.35 * u, -0.38 * u)
+  ctx.lineTo(2.85 * u, -0.42 * u)
   ctx.lineTo(3.48 * u, 0)
-  ctx.lineTo(-0.45 * u, -0.05 * u)
+  ctx.lineTo(0.35 * u, -0.06 * u)
   ctx.closePath()
   ctx.fill()
   ctx.fillStyle = f[0]
   ctx.beginPath()
-  ctx.moveTo(-0.45 * u, 0.12 * u)
-  ctx.lineTo(3.2 * u, 0.2 * u)
-  ctx.lineTo(2.9 * u, 0.45 * u)
-  ctx.lineTo(-0.45 * u, 0.3 * u)
+  ctx.moveTo(0.4 * u, 0.16 * u)
+  ctx.lineTo(3.1 * u, 0.2 * u)
+  ctx.lineTo(2.85 * u, 0.42 * u)
+  ctx.lineTo(0.35 * u, 0.38 * u)
   ctx.closePath()
   ctx.fill()
-  // Splitter in der Breite (Feld 2)
-  for (const [x, y, r] of [[2.0, -0.95, 0.32], [2.0, 0.95, 0.32], [1.6, -0.6, 0.18], [2.4, 0.65, 0.2]] as const) kristallSpitze(ctx, x * u, y * u, r * u, x + y + seed, f)
+  // Splitter in Feld 2 (drei breit)
+  for (const [x, y, r] of [[2.0, -0.95, 0.28], [2.0, 0.95, 0.28], [1.5, -0.62, 0.16], [2.5, 0.68, 0.18], [1.2, 0.6, 0.12]] as const) {
+    ctx.save()
+    ctx.translate(x * u, y * u)
+    ctx.rotate(hash(x * 7 + y + seed) * TAU)
+    ctx.fillStyle = f[2]
+    ctx.beginPath()
+    ctx.moveTo(-r * u, 0)
+    ctx.lineTo(0, -r * u * 0.5)
+    ctx.lineTo(r * u, 0)
+    ctx.lineTo(0, r * u * 0.5)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = f[0]
+    ctx.beginPath()
+    ctx.moveTo(-r * u, 0)
+    ctx.lineTo(r * u, 0)
+    ctx.lineTo(0, r * u * 0.5)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
   ctx.restore()
 }
 
-/* ================= Leuchtpilz (Zauberwald) und toter Baum (Gruselwald) ================= */
+/* ================= Fliegenpilz (Zauberwald) und toter Baum (Gruselwald) ================= */
 
-function pilz(ctx: CanvasRenderingContext2D, u: number, now: number, seed: number, lappen: Lappen[]) {
-  const cyan = hash(seed) > 0.5
-  const f = cyan ? ['#145A6E', '#1F8FA8', '#5FE0F5', '#E8FFFF'] : ['#6A1F78', '#A033B5', '#E27BF0', '#FFE8FF']
-  const puls = 0.35 + 0.15 * Math.sin(now / 800 + seed)
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, u * 1.8)
-  g.addColorStop(0, cyan ? `rgba(95, 224, 245, ${puls})` : `rgba(226, 123, 240, ${puls})`)
-  g.addColorStop(1, 'rgba(0,0,0,0)')
+/** Fliegenpilz-Hut von oben: rund, rot, mit weissen Tupfen und hellem Rand, leicht magisch leuchtend */
+function pilzHut(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, now: number, seed: number) {
+  const puls = 0.25 + 0.12 * Math.sin(now / 800 + seed)
+  const g = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 1.5)
+  g.addColorStop(0, `rgba(255, 120, 180, ${puls})`)
+  g.addColorStop(1, 'rgba(255, 120, 180, 0)')
   ctx.fillStyle = g
-  ctx.fillRect(-u * 1.8, -u * 1.8, u * 3.6, u * 3.6)
+  ctx.fillRect(x - r * 1.5, y - r * 1.5, r * 3, r * 3)
   ctx.save()
-  schatten(ctx, u, 0.4, 0.12)
-  for (const [x, y, r] of lappen) {
-    ctx.fillStyle = f[0]
-    ctx.beginPath()
-    ctx.arc(x * u, y * u, r * u, 0, TAU)
-    ctx.fill()
-  }
+  schatten(ctx, r, 0.45, 0.25)
+  const hut = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r)
+  hut.addColorStop(0, '#FF6A55')
+  hut.addColorStop(0.6, '#D62A26')
+  hut.addColorStop(1, '#8E1418')
+  ctx.fillStyle = hut
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, TAU)
+  ctx.fill()
   ohneSchatten(ctx)
-  for (const [x, y, r] of lappen) {
-    const rg = ctx.createRadialGradient((x - r * 0.25) * u, (y - r * 0.25) * u, 0, x * u, y * u, r * u)
-    rg.addColorStop(0, f[2])
-    rg.addColorStop(1, f[1])
-    ctx.fillStyle = rg
+  ctx.strokeStyle = 'rgba(255, 220, 200, 0.55)'
+  ctx.lineWidth = Math.max(1, r * 0.06)
+  ctx.beginPath()
+  ctx.arc(x, y, r * 0.94, 0, TAU)
+  ctx.stroke()
+  // Weisse Tupfen, die groesseren zur Mitte hin
+  ctx.fillStyle = '#FFF8F0'
+  const tupfen: [number, number, number][] = [[0, 0, 0.17], [0.5, -0.2, 0.13], [-0.45, -0.32, 0.12], [-0.2, 0.5, 0.12], [0.35, 0.45, 0.11], [0.68, 0.25, 0.08], [-0.66, 0.15, 0.09], [0.1, -0.62, 0.1], [-0.55, 0.55, 0.07], [0.62, -0.55, 0.07]]
+  for (const [dx, dy, s] of tupfen) {
     ctx.beginPath()
-    ctx.arc(x * u, y * u, r * u * 0.9, 0, TAU)
+    ctx.ellipse(x + dx * r, y + dy * r, s * r, s * r * 0.85, hash(dx + dy + seed), 0, TAU)
     ctx.fill()
-    // Leuchtpunkte auf dem Hut
-    for (let k = 0; k < 3; k++) {
-      const a = hash(x * 9 + y * 5 + k + seed) * TAU
-      const rr = hash(x + y * 3 + k) * r * 0.6
-      ctx.fillStyle = f[3]
-      ctx.beginPath()
-      ctx.arc((x + Math.cos(a) * rr) * u, (y + Math.sin(a) * rr) * u, u * r * 0.14, 0, TAU)
-      ctx.fill()
-    }
   }
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'
+  ctx.beginPath()
+  ctx.ellipse(x - r * 0.4, y - r * 0.45, r * 0.32, r * 0.16, -0.6, 0, TAU)
+  ctx.fill()
   ctx.restore()
+}
+
+function pilz(ctx: CanvasRenderingContext2D, u: number, now: number, seed: number) {
+  // Ein grosser, runder Fliegenpilz (darf ueber die Ecken ragen), dazu zwei kleine an der Seite
+  pilzHut(ctx, u * 0.85, u * 0.75, u * 0.32, now, seed + 1)
+  pilzHut(ctx, -u * 0.9, -u * 0.6, u * 0.26, now, seed + 2)
+  pilzHut(ctx, 0, 0, u * 1.3, now, seed)
+}
+
+function pilzLiegend(ctx: CanvasRenderingContext2D, u: number, now: number, seed: number) {
+  // Stiel mit Ring, der Hut liegt am Ende
+  ctx.save()
+  schatten(ctx, u, 0.35, 0.12)
+  const st = ctx.createLinearGradient(0, -0.3 * u, 0, 0.3 * u)
+  st.addColorStop(0, '#FFFFFF')
+  st.addColorStop(1, '#D9CFC4')
+  ctx.fillStyle = st
+  ctx.beginPath()
+  ctx.roundRect(-0.45 * u, -0.26 * u, 2.2 * u, 0.52 * u, 0.22 * u)
+  ctx.fill()
+  ohneSchatten(ctx)
+  ctx.fillStyle = '#EDE4D8'
+  ctx.beginPath()
+  ctx.ellipse(1.1 * u, 0, 0.14 * u, 0.36 * u, 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#C9BFB2'
+  ctx.beginPath()
+  ctx.ellipse(-0.45 * u, 0, 0.12 * u, 0.24 * u, 0, 0, TAU)
+  ctx.fill()
+  ctx.restore()
+  pilzHut(ctx, 2.3 * u, 0, u * 1.15, now, seed)
 }
 
 function totbaum(ctx: CanvasRenderingContext2D, u: number, seed: number, liegend: boolean) {
@@ -612,7 +736,7 @@ export function drawBaumStehend(ctx: CanvasRenderingContext2D, art: BaumArt, roo
       kristall(ctx, u, now, seed)
       break
     case 'pilz':
-      pilz(ctx, u, now, seed, PLUS)
+      pilz(ctx, u, now, seed)
       break
     case 'totbaum':
       totbaum(ctx, u, seed, false)
@@ -698,8 +822,7 @@ export function drawBaumLiegend(ctx: CanvasRenderingContext2D, art: BaumArt, roo
       kristallLiegend(ctx, u, seed)
       break
     case 'pilz':
-      stamm(ctx, u, ['#E8E0F0', '#B8A8C8'], 1.9)
-      pilz(ctx, u, now, seed, [[2.05, 0, 0.7], [2.0, -0.92, 0.48], [2.0, 0.92, 0.48], [2.9, 0, 0.5], [1.6, -0.5, 0.35], [1.6, 0.5, 0.35]])
+      pilzLiegend(ctx, u, now, seed)
       break
     case 'totbaum':
       totbaum(ctx, u, seed, true)
@@ -729,7 +852,7 @@ export function blattFarbe(art: BaumArt, schnee = false): string[] {
     case 'kristall':
       return ['#D6B8FF', '#B8F2FF']
     case 'pilz':
-      return ['#7CF5FF', '#E27BF0']
+      return ['#FF6A55', '#FFF8F0']
     case 'totbaum':
       return ['#7A4A2A', '#5A3A28']
     default:
