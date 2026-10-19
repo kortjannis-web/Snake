@@ -82,7 +82,7 @@ export function resetStats() {
  * Im Code steht nur sein Hash (dieselbe Pruefung macht die Datenbank beim Loeschen). Das Passwort bleibt auf
  * dem Geraet gespeichert, damit es beim Loeschen mitgeschickt werden kann. */
 const MKEY = 'snake.master.v1'
-const MASTER_HASH = '1a2b9cbe444ab8afbbf5206aeb6b1f272650bec146387e3d3ab856e828cf4693'
+const MASTER_HASH = '6dd580d2375e5b91013e1e283bf7265ed7decfea23c7b1bd678550f1f4cb7f5d'
 
 const gespeichert = read(MKEY, { frei: false, code: '' } as { frei: boolean; code?: string })
 export const master = { frei: gespeichert.frei === true, code: gespeichert.code ?? '' }

@@ -114,6 +114,7 @@ export function mehrspieler(api: MehrApi) {
     switch (e.art) {
       case 'raum':
         lobbyZeichnen(e.raum)
+        revancheZeichnen(e.raum)
         api.raumGeaendert?.()
         if (e.raum.phase === 'lobby' && imSpiel) zurueckInDieLobby()
         return
@@ -301,6 +302,22 @@ export function mehrspieler(api: MehrApi) {
         : 'Tippe auf „Bereit“, wenn du mitspielen willst.'
   }
 
+  /** Ergebnis: wer will Revanche? Wollen alle, geht der Raum von selbst zurueck in die Lobby (alle bereit) */
+  function revancheZeichnen(r: RaumInfo) {
+    if (r.phase !== 'ende') return
+    const ich = r.spieler[r.ich]
+    const da = r.spieler.filter((s) => s.online)
+    const will = da.filter((s) => s.revanche)
+    const knopf = $<HTMLButtonElement>('mehr-revanche')
+    knopf.disabled = da.length < 2
+    knopf.lastChild!.textContent = ich?.revanche ? 'Revanche zurücknehmen' : 'Revanche!'
+    knopf.classList.toggle('btn--ghost', !!ich?.revanche)
+    knopf.classList.toggle('btn--play', !ich?.revanche)
+    const fehlt = da.filter((s) => !s.revanche).map((s) => s.name)
+    $('mehr-revanche-info').textContent =
+      da.length < 2 ? 'Die anderen sind weg.' : will.length ? `${will.length} von ${da.length} wollen Revanche.${fehlt.length ? ` Es fehlt: ${fehlt.join(', ')}` : ''}` : 'Noch eine Runde mit denselben Einstellungen?'
+  }
+
   function zurueckInDieLobby() {
     imSpiel = false
     api.renderer.mehr = null
@@ -404,6 +421,11 @@ export function mehrspieler(api: MehrApi) {
   })
   $('mehr-hud-weg').addEventListener('click', () => {
     if (confirm('Spiel verlassen?')) client.verlassen()
+  })
+  $('mehr-revanche').addEventListener('click', () => {
+    api.audio.click()
+    const ich = client.raum?.spieler[client.raum.ich]
+    client.revanche(!ich?.revanche)
   })
   $('mehr-nochmal').addEventListener('click', () => {
     api.audio.click()
@@ -585,7 +607,7 @@ export function mehrspieler(api: MehrApi) {
       ol.append(li)
     })
     $('mehr-nochmal').hidden = !client.gastgeber
-    $('mehr-warte').hidden = client.gastgeber
+    if (client.raum) revancheZeichnen(client.raum)
     setTimeout(() => $('mehr-ende').setAttribute('data-open', ''), 900)
   }
 

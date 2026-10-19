@@ -25,8 +25,8 @@ weist auf dem Startbildschirm auf eine neuere APK hin.
 Bis zu 4 Spieler, fünf Modi: **Gegeneinander** (ein Feld, 3 Leben, wer zu weit zurückliegt, ist raus), **Wettrennen**
 (eigene Welt, die anderen als Geist), **Koop** (zusammen, 3 gemeinsame Leben), **Apfeljagd** (3 Minuten, die meisten Äpfel
 gewinnen) und **Zone** (die Karte schrumpft). Der Gastgeber wählt „Klassisch“, alle tippen „Bereit“. Freunde
-fügt man per Code hinzu; nur Freunde sehen sich online und können sich einladen, auch per Benachrichtigung aufs Handy.
-Ein Handy rechnet, ein kleiner Cloudflare-Server (`server/`) verteilt und übernimmt, wenn es ausfällt. Einrichtung:
+fügt man per Code hinzu; alle Online-Spieler sehen sich und können sich einladen, auch per Benachrichtigung aufs Handy.
+Jeden Spieler kann man in der Hall of Snakes antippen und zum Gefecht einladen (online sofort, sonst als Benachrichtigung), im Ergebnis gibt es eine Revanche-Abstimmung. Ein Handy rechnet, ein kleiner Cloudflare-Server (`server/`) verteilt und übernimmt, wenn es ausfällt. Einrichtung:
 [`docs/MEHRSPIELER-EINRICHTEN.md`](docs/MEHRSPIELER-EINRICHTEN.md). Hintergrund: [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
 
 Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dasselbe Level, eigener Tab in der Hall of Snakes), der **Speedrun** (25 % schneller, Zeitlimit je Apfel), **Effekte** (Auren, freigeschaltet mit Silber- und Gold-Trophäen) und die

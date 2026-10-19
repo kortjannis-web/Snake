@@ -3140,3 +3140,29 @@ html[data-install] #app {
     font-size: 0.92rem;
   }
 }
+
+/* ---------------- Spieler-Karte, Fragen und Einladungen liegen ueber den Seiten ---------------- */
+#spieler-karte,
+#push-frage,
+#einladung {
+  z-index: 30;
+}
+
+.karte-skin {
+  justify-self: center;
+  width: 160px;
+  height: 110px;
+}
+
+.karte-name {
+  font-size: 1.9rem;
+  overflow-wrap: anywhere;
+}
+
+.liste__zeile--antippbar {
+  cursor: pointer;
+}
+
+.liste__zeile--antippbar:active {
+  background: rgba(245, 239, 230, 0.06);
+}

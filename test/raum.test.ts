@@ -184,6 +184,49 @@ describe('Raum: Spiel auf einem Feld', () => {
     expect(r.phase).toBe('lobby')
     expect(b.k.letzte('raum')?.phase).toBe('lobby')
   })
+
+  it('Revanche: erst wenn alle wollen, dann Lobby mit allen bereit', () => {
+    const { r, rein } = raum()
+    const a = rein('a')
+    const b = rein('b')
+    const c = rein('c')
+    for (const p of [b, c]) sag(r, p.k, { t: 'bereit', bereit: true })
+    sag(r, a.k, { t: 'start' })
+    sag(r, a.k, { t: 'ende', ergebnis: { sieger: 1, reihenfolge: [1, 0, 2] } })
+    // In der Lobby (oder im Spiel) gibt es keine Revanche-Stimmen
+    sag(r, b.k, { t: 'revanche' })
+    sag(r, c.k, { t: 'revanche' })
+    expect(r.phase).toBe('ende')
+    expect(a.k.letzte('raum')?.spieler.map((s) => s.revanche)).toEqual([false, true, true])
+    // Zuruecknehmen
+    sag(r, c.k, { t: 'revanche', revanche: false })
+    expect(a.k.letzte('raum')?.spieler[2].revanche).toBe(false)
+    sag(r, c.k, { t: 'revanche' })
+    expect(r.phase).toBe('ende')
+    sag(r, a.k, { t: 'revanche' })
+    expect(r.phase).toBe('lobby')
+    const raum2 = b.k.letzte('raum')
+    expect(raum2?.spieler.every((s) => s.bereit && !s.revanche)).toBe(true)
+    // Die Gastgeberin kann sofort wieder starten
+    sag(r, a.k, { t: 'start' })
+    expect(r.phase).toBe('spiel')
+  })
+
+  it('Revanche: geht ein Spieler, reicht die Zusage der Uebrigen', () => {
+    const { r, rein } = raum()
+    const a = rein('a')
+    const b = rein('b')
+    const c = rein('c')
+    for (const p of [b, c]) sag(r, p.k, { t: 'bereit', bereit: true })
+    sag(r, a.k, { t: 'start' })
+    sag(r, a.k, { t: 'ende', ergebnis: { sieger: 0, reihenfolge: [0, 1, 2] } })
+    sag(r, a.k, { t: 'revanche' })
+    sag(r, b.k, { t: 'revanche' })
+    expect(r.phase).toBe('ende')
+    r.verlassen(c.k)
+    expect(r.phase).toBe('lobby')
+    expect(r.plaetze).toHaveLength(2)
+  })
 })
 
 describe('Raum: Wettrennen', () => {

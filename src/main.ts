@@ -23,7 +23,7 @@ import { installPflicht, zeigeInstallation } from './install'
 import { tagBerlin, tagesSeed } from './tages'
 import { eckenFelder, tagesLevel, wochentag } from './game/tageslevel'
 import { MEHR_BILD } from './multi/protokoll'
-import { perPushEinladen, pushAuffrischen, pushEinschalten, pushErlaubt, pushMoeglich } from './push'
+import { perPushEinladen, pushAuffrischen, pushAusschalten, pushEinschalten, pushErlaubt, pushFrageMerken, pushFrageOffen, pushMoeglich } from './push'
 import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
@@ -161,6 +161,7 @@ function openPage(p: Page) {
   if (p === 'liste') oeffneListe()
   if (p === 'mehr') void freundeLaden()
   if (p === 'hall') void ladeHallAnzeige()
+  if (p === 'mehr' || p === 'hall') pushFragen()
   show(p, true)
 }
 function closePage() {
@@ -373,7 +374,7 @@ async function ladeListeAnzeige() {
       cv.className = 'liste__skin'
       cv.width = 96
       cv.height = 64
-      const da = freundeUids.has(z.user_id) ? onlineListe.find((o) => o.uid === z.user_id) : undefined
+      const da = onlineVon(z.user_id)
       if (da) {
         const punkt = document.createElement('i')
         punkt.className = 'online-punkt'
@@ -529,15 +530,77 @@ function hallZeichnen() {
     zahl.className = `liste__level hall-wert hall-wert--${hallSort}`
     zahl.textContent = w > 0 ? kurzZahl(w) : '–'
     zahl.setAttribute('aria-label', hallSort === 'rekord' ? (w > 0 ? `Rekord Level ${w}` : 'Noch kein Rekord') : `${w} ${hallSort === 'gold' ? 'Gold' : 'Silber'}-Trophäen`)
+    const da = onlineVon(z.user_id)
+    if (da) {
+      const punkt = document.createElement('i')
+      punkt.className = 'online-punkt'
+      punkt.title = da.imSpiel ? 'spielt gerade' : 'online'
+      name.prepend(punkt)
+    }
     el.append(platz, cv, name, zahl, hallAktion(z))
+    spielerAntippbar(el, z)
     box.append(el)
     drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
   })
   $('hall-mehr').hidden = treffer.length <= hallZahl
   $('hall-info').textContent =
-    `${treffer.length} Snakes. Gold: Trophäen aus Mehrspieler-Siegen. Silber: alle je verdienten Äpfel. „–“ heißt: noch nichts.` +
+    `${treffer.length} Snakes. Tippe einen Spieler an, um ihn zum Gefecht einzuladen. Gold: Trophäen aus Mehrspieler-Siegen. Silber: alle je verdienten Äpfel. „–“ heißt: noch nichts.` +
     (profil.name ? '' : ' Für Freundschaftsanfragen brauchst du oben einen Namen.')
 }
+
+/* ================= Spieler antippen: zum Gefecht einladen ================= */
+
+let karteSpieler: HallZeile | null = null
+
+/** Zeile antippbar machen (die kleinen Knoepfe in der Zeile behalten ihre eigene Aufgabe) */
+function spielerAntippbar(el: HTMLElement, z: HallZeile) {
+  if (z.user_id === hallIch || !mehr.verfuegbar || !profil.name) return
+  el.classList.add('liste__zeile--antippbar')
+  el.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    karteOeffnen(z)
+  })
+}
+
+function freundText(z: HallZeile) {
+  const a = anfragen.find((x) => x.user_id === z.user_id)
+  return freundeUids.has(z.user_id) ? 'Chat' : a?.richtung === 'aus' ? 'Anfrage zurückziehen' : a?.richtung === 'ein' ? 'Anfrage annehmen' : 'Freundschaftsanfrage'
+}
+
+function karteOeffnen(z: HallZeile) {
+  audio.click()
+  karteSpieler = z
+  const da = onlineVon(z.user_id)
+  $('karte-name').textContent = z.name
+  const rekord = z.rekord > 0 ? `Rekord Level ${z.rekord}` : 'Noch kein Rekord'
+  $('karte-info').textContent = `${da ? (da.imSpiel ? 'Spielt gerade' : 'Online') : 'Gerade nicht online'} · ${rekord}`
+  $('karte-freund-text').textContent = freundText(z)
+  setIcon($('karte-freund'), freundeUids.has(z.user_id) ? 'MessageCircle' : 'UserPlus')
+  // Offline: Einladung als Nachricht aufs Handy (wenn der andere sie eingeschaltet hat)
+  $('karte-einladen').lastChild!.textContent = da ? 'Zum Gefecht einladen' : 'Einladung aufs Handy schicken'
+  drawSkinVorschau($<HTMLCanvasElement>('karte-skin'), skinVon(z.skin ?? 'klassik'), 0)
+  show('spieler-karte', true)
+}
+$('karte-zu').addEventListener('click', () => {
+  audio.click()
+  show('spieler-karte', false)
+})
+$('karte-einladen').addEventListener('click', () => {
+  const z = karteSpieler
+  show('spieler-karte', false)
+  if (!z) return
+  const da = onlineVon(z.user_id)
+  if (da) return void einladen(da)
+  void einladenPerPush({ user_id: z.user_id, name: z.name, skin: z.skin ?? 'klassik', level: z.rekord })
+})
+$('karte-freund').addEventListener('click', () => {
+  const z = karteSpieler
+  show('spieler-karte', false)
+  if (!z) return
+  audio.click()
+  // Dieselbe Aufgabe wie der kleine Knopf am Zeilenende (Anfrage, zurueckziehen, annehmen, Chat)
+  hallAktion(z).click()
+})
 
 /** Tab „Täglich“: wer alle Aepfel holt, steht nach Zeit vorn, dahinter nach geholten Aepfeln */
 function tagesZeichnen() {
@@ -568,6 +631,7 @@ function tagesZeichnen() {
     const s = Math.round((z.dauer_ms ?? 0) / 1000)
     zahl.textContent = z.level >= tl.ziel && z.dauer_ms ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${z.level}/${tl.ziel}`
     el.append(platz, cv, name, zahl, document.createElement('span'))
+    spielerAntippbar(el, { user_id: z.user_id, name: z.name, skin: z.skin ?? 'klassik', rekord: z.level, trophaeen: 0 })
     box.append(el)
     drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
   })
@@ -1719,6 +1783,7 @@ function renderStats() {
 }
 
 function renderSettings() {
+  pushOptionenZeichnen()
   $<HTMLInputElement>('opt-sound').checked = settings.sound
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
@@ -2341,6 +2406,11 @@ let onlineListe: OnlineSpieler[] = []
 let freunde: Freund[] = []
 let freundeUids = new Set<string>()
 let offeneEinladung: Einladung | null = null
+let gesperrteUids = new Set<string>()
+/** Wann zuletzt eine Einladung von wem kam (gegen Dauer-Einladungen) */
+const einladungVon = new Map<string, number>()
+/** Ist dieser Spieler gerade online (irgendein Geraet)? */
+const onlineVon = (uid: string) => onlineListe.find((o) => o.uid === uid)
 const lobbyRueckruf: Parameters<typeof lobby>[1] = {
       liste: (o) => {
         onlineListe = o
@@ -2349,8 +2419,10 @@ const lobbyRueckruf: Parameters<typeof lobby>[1] = {
         if (page() === 'liste' && listeArt === 'alle') void ladeListeAnzeige()
       },
       einladung: (e) => {
-        // Nur Freunde duerfen einladen
-        if (!e.vonUid || !freundeUids.has(e.vonUid)) return
+        // Jeder darf einladen, ausser gesperrte Spieler; hoechstens eine Einladung je Absender alle 10 s
+        if (!e.vonUid || gesperrteUids.has(e.vonUid)) return
+        if (Date.now() - (einladungVon.get(e.vonUid) ?? 0) < 10_000) return
+        einladungVon.set(e.vonUid, Date.now())
         // Waehrend eines Mehrspieler-Spiels nicht stoeren
         if (mode === 'mehr') return online?.antworten(e.von, false)
         offeneEinladung = e
@@ -2387,12 +2459,16 @@ async function einladen(o: OnlineSpieler) {
 function onlineZeichnen() {
   const box = $('mehr-online')
   const imRaum = new Set((mehr.raum?.spieler ?? []).map((s) => s.id))
-  const frei = onlineListe.filter((o) => !imRaum.has(o.geraet) && !!o.uid && freundeUids.has(o.uid))
+  // Alle, die online sind (Freunde zuerst); derselbe Account auf zwei Geraeten nur einmal
+  const gesehen = new Set<string>()
+  const frei = onlineListe
+    .filter((o) => !imRaum.has(o.geraet) && !!o.uid && !gesperrteUids.has(o.uid) && !gesehen.has(o.uid) && gesehen.add(o.uid))
+    .sort((a, b) => Number(freundeUids.has(b.uid!)) - Number(freundeUids.has(a.uid!)) || a.name.localeCompare(b.name))
   box.replaceChildren()
   if (!frei.length) {
     const p = document.createElement('p')
     p.className = 'liste__leer'
-    p.textContent = freunde.length ? 'Gerade ist kein Freund online.' : 'Noch keine Freunde. Tauscht unter „Mehrspieler“ eure Freundes-Codes.'
+    p.textContent = 'Gerade ist niemand online. In der Hall of Snakes kannst du jeden antippen und einladen, auch als Nachricht aufs Handy.'
     box.append(p)
     return
   }
@@ -2406,7 +2482,7 @@ function onlineZeichnen() {
     name.className = 'mehr-zeile__name'
     name.textContent = o.name
     const klein = document.createElement('small')
-    klein.textContent = o.imSpiel ? 'spielt gerade' : 'online'
+    klein.textContent = `${freundeUids.has(o.uid!) ? 'Freund · ' : ''}${o.imSpiel ? 'spielt gerade' : 'online'}`
     name.append(klein)
     const k = document.createElement('button')
     k.className = 'btn btn--ghost btn--klein'
@@ -2435,8 +2511,57 @@ function pushZeichnen() {
   if (zeile.hidden) return
   const an = pushErlaubt()
   $('push-knopf').hidden = an
-  $('push-info').textContent = an ? 'Ist an: Freunde können dich einladen, auch wenn Snake gerade zu ist.' : Notification.permission === 'denied' ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Freunde können dich einladen, auch wenn Snake gerade zu ist.'
+  $('push-info').textContent = an ? 'Ist an: Du bekommst eine Nachricht, wenn dich jemand einlädt, auch wenn Snake gerade zu ist.' : Notification.permission === 'denied' ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Eine Nachricht, wenn dich jemand zum Spielen einlädt, auch wenn Snake gerade zu ist.'
+  pushOptionenZeichnen()
 }
+
+/** Optionen: Schalter fuer Benachrichtigungen (nur bei Einladungen) */
+function pushOptionenZeichnen() {
+  const zeile = $('opt-push-zeile')
+  zeile.hidden = !mehr.verfuegbar || !onlineAktiv
+  if (zeile.hidden) return
+  const sw = $<HTMLInputElement>('opt-push')
+  const info = $('opt-push-info')
+  if (!pushMoeglich()) {
+    sw.disabled = true
+    sw.checked = false
+    info.textContent = 'In der Android-App kommen Einladungen nur, solange Snake offen ist. Als Web-App vom Home-Bildschirm auch bei geschlossener App.'
+    return
+  }
+  sw.disabled = false
+  sw.checked = pushErlaubt()
+  info.textContent = Notification.permission === 'denied' ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Nur wenn dich jemand zum Spielen einlädt, sonst nie.'
+}
+$('opt-push').addEventListener('change', async (e) => {
+  const sw = e.target as HTMLInputElement
+  audio.click()
+  if (sw.checked) {
+    const r = await pushEinschalten()
+    toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Einstellungen des Handys ändern.' : 'Das hat nicht geklappt.')
+  } else {
+    await pushAusschalten()
+    toast('gebiet', 'Benachrichtigungen', 'Ausgeschaltet.')
+  }
+  pushZeichnen()
+})
+
+/** Beim ersten Besuch von Hall of Snakes oder Mehrspieler einmal fragen (die Erlaubnis kann nur nach einem Tipp angefragt werden) */
+function pushFragen() {
+  if (!onlineAktiv || !mehr.verfuegbar || !profil.name || !pushFrageOffen()) return
+  pushFrageMerken()
+  window.setTimeout(() => show('push-frage', true), 350)
+}
+$('push-frage-ja').addEventListener('click', async () => {
+  audio.click()
+  show('push-frage', false)
+  const r = await pushEinschalten()
+  toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Optionen ändern.' : 'Das hat nicht geklappt.')
+  pushZeichnen()
+})
+$('push-frage-nein').addEventListener('click', () => {
+  audio.click()
+  show('push-frage', false)
+})
 $('push-knopf').addEventListener('click', async () => {
   audio.click()
   const r = await pushEinschalten()
@@ -2459,6 +2584,7 @@ async function freundeLaden() {
   freundeZeichnen()
   onlineZeichnen()
   anfragenZeichnen()
+  gesperrteUids = new Set(sp.map((x) => x.user_id))
   sperrenZeichnen(sp)
   badgeZeichnen()
   const code = await meinCode()
