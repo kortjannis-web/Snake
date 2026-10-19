@@ -500,9 +500,10 @@ export async function ladeHall(): Promise<{ zeilen: HallZeile[]; ich: string | n
 
 /** Admin: Spieler loeschen (Profil mit allem Drumherum). Das Passwort prueft die Datenbank */
 export async function adminLoeschen(code: string, ziel: string) {
+  await nutzerId() // ohne Sitzung laeuft der Aufruf als anonym und die Datenbank lehnt ihn ab
   const sb = await client()
   const { error } = await sb.rpc('admin_spieler_loeschen', { code, ziel })
-  if (error) throw new Error(fehlerText(error))
+  if (error) throw new Error(error.code === 'P0001' ? fehlerText(error) : `${fehlerText(error)} (${error.code ?? '?'}: ${error.message})`)
 }
 
 export async function meineAnfragen(): Promise<Anfrage[]> {
