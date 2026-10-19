@@ -1609,6 +1609,7 @@ export class Game {
   /** Stehende Baeume kippen, wenn ihre Zeit um ist. Gelandet: dumpfer Schlag */
   protected baeumeTakt() {
     for (const b of this.baeume) {
+      if (b.kippBei !== null && !b.ankDir && this.time >= b.kippBei - R.BAUM_WARNUNG) b.ankDir = this.baumAnkuendigen(b)
       if (b.kippBei !== null && this.time >= b.kippBei) this.baumKippen(b)
       if (!b.gelandet && this.time >= b.fallT + R.BAUM_FALL) {
         b.gelandet = true
@@ -1621,17 +1622,40 @@ export class Game {
    *  nicht knapp vor oder neben ihren Kopf), nie auf andere Hindernisse, Tiere, Apfel oder Power-ups,
    *  und er schliesst nichts ab. Ist ringsum alles belegt (die Schlange haelt ihn auf), wartet er
    *  und versucht es kurz darauf wieder */
-  protected baumKippen(b: Baum) {
+  /** Kurz vor dem Kippen: eine Richtung ankuendigen, in die er gerade Platz haette (ohne Zufallszahlen,
+   *  damit sich im Mehrspieler nichts verschiebt). Beim Kippen wird sie bevorzugt */
+  protected baumAnkuendigen(b: Baum): Dir | undefined {
+    const frei = this.baumFrei(b)
+    const start = (b.root.x * 7 + b.root.y * 13) % 4
+    for (let i = 0; i < 4; i++) {
+      const dir = DIRS[(start + i) % 4]
+      if (this.baumLiegend(b.root, dir).every(frei)) return dir
+    }
+    return undefined
+  }
+
+  /** Wohin ein Baum fallen darf: nie auf die Schlange (auch nicht knapp vor oder neben ihren Kopf),
+   *  nie auf andere Hindernisse, Tiere, Apfel oder Power-ups */
+  protected baumFrei(b: Baum) {
     const wand = this.hindernisse()
     for (const c of b.cells) wand.delete(key(c.x, c.y))
     const belegt = new Set([this.apple.p, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.eis.flatMap((e) => e.cells)].map((p) => key(p.x, p.y)))
     const head = this.body[0]
-    const frei = (c: P) => {
+    return (c: P) => {
       const k = key(c.x, c.y)
       return this.inside(c) && !wand.has(k) && !belegt.has(k) && !this.aufSchlange(c) && manhattan(c, head) > 2 && !this.imWeg(c, 3)
     }
+  }
+
+  protected baumKippen(b: Baum) {
+    const wand = this.hindernisse()
+    for (const c of b.cells) wand.delete(key(c.x, c.y))
+    const frei = this.baumFrei(b)
     let vorher: ReturnType<Game['erreichbar']> | null = null
-    for (const dir of this.r.shuffle([...DIRS])) {
+    const reihe = this.r.shuffle([...DIRS])
+    // Angekuendigte Richtung zuerst (die Reihenfolge der Zufallszahlen bleibt gleich)
+    if (b.ankDir) reihe.sort((x, y) => Number(y === b.ankDir) - Number(x === b.ankDir))
+    for (const dir of reihe) {
       const cells = this.baumLiegend(b.root, dir)
       if (!cells.every(frei)) continue
       vorher ??= this.erreichbar(wand)
@@ -1644,6 +1668,7 @@ export class Game {
       return true
     }
     b.kippBei = this.time + 500
+    b.ankDir = undefined
     return false
   }
 

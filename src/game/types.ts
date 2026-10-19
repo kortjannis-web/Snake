@@ -49,8 +49,9 @@ export type Frosch = {
 
 /** Tannenbaum. Erst steht er (von oben ein Plus um `root`), bis `kippBei` (null = liegt schon).
  *  Dann faellt er ab `fallT` langsam in Richtung `dir` und liegt danach 1-1-3-1 Felder entlang
- *  `dir` (Stamm, Stamm, Krone breit, Spitze), symmetrisch. `gelandet` = Aufschlag schon gemeldet */
-export type Baum = { cells: P[]; root: P; dir: Dir; t: number; kippBei: number | null; fallT: number; gelandet: boolean }
+ *  `dir` (Stamm, Stamm, Krone breit, Spitze), symmetrisch. `gelandet` = Aufschlag schon gemeldet.
+ *  `ankDir` = kurz vor dem Kippen angekuendigte Richtung (er wackelt und verliert ein paar Blaetter dorthin) */
+export type Baum = { cells: P[]; root: P; dir: Dir; t: number; kippBei: number | null; fallT: number; gelandet: boolean; ankDir?: Dir }
 /** Fenster: Wandfeld des Hauses und Richtung nach aussen */
 export type Fenster = { p: P; d: Dir }
 /** Haus: bleibt stehen. Vier Fenster (eins je Seite), eins davon leuchtet 2 Felder weit */

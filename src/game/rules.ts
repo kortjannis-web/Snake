@@ -430,6 +430,8 @@ export const baumMax = (c: Config, felder: number) => Math.max(1, Math.floor(fel
 export const BAUM_STEHEND: P[] = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]
 /** So lange (ms) faellt ein Baum um */
 export const BAUM_FALL = 1600
+/** So lange vor dem Kippen wackelt ein Baum und verliert Blaetter in die Fallrichtung (ms) */
+export const BAUM_WARNUNG = 1500
 /** Liegende Tanne 1-1-3-1 (symmetrisch): Felder entlang der Achse (a) und quer dazu (q) */
 export const BAUM_FORM: { a: number; q: number }[] = [
   { a: 0, q: 0 },
