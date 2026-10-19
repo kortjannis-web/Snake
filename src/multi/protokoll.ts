@@ -23,7 +23,8 @@ export const COUNTDOWN = 3000
 export const RECHNER_STILL = 2500
 
 export type Phase = 'lobby' | 'spiel' | 'ende'
-export type Teilnehmer = SpielerInfo & { online: boolean; bereit: boolean }
+/** `revanche`: will nach dem Spiel noch eine Runde (Abstimmung im Ergebnis) */
+export type Teilnehmer = SpielerInfo & { online: boolean; bereit: boolean; revanche?: boolean }
 export type Einstellungen = { tempo: Tempo; klassisch: boolean }
 
 export type StartInfo = {
@@ -45,6 +46,8 @@ export type AnServer =
   | { t: 'bereit'; bereit: boolean }
   | { t: 'start' }
   | { t: 'nochmal' }
+  /** Ergebnis: Revanche wollen (true, Standard) oder zuruecknehmen. Wollen alle, geht es zurueck in die Lobby */
+  | { t: 'revanche'; revanche?: boolean }
   /** Wischer; `bei` = Kopffeld auf diesem Geraet, `k` = Anzahl Erweiterungen (gleiche Karte?) */
   | { t: 'dir'; d: Dir; bei?: P; k?: number }
   /** Reaktion (Index in REAKTIONEN) */

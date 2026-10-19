@@ -27,6 +27,8 @@ export class RaumLogik {
   klassisch = false
   /** Wer in der Lobby "Bereit" getippt hat (Kennungen) */
   bereit = new Set<string>()
+  /** Wer im Ergebnis "Revanche" getippt hat (Kennungen). Wollen alle, geht es zurueck in die Lobby, alle bereit */
+  revanche = new Set<string>()
   start: StartInfo | null = null
   /** Letzter Stand des Rechners (Felder zusammengefuehrt) */
   zustand: Record<string, unknown> = {}
@@ -79,7 +81,7 @@ export class RaumLogik {
         modus: this.modus,
         tempo: this.tempo,
         klassisch: this.klassisch,
-        spieler: this.plaetze.map((q) => ({ ...q.info, online: !!q.kanal, bereit: q.info.id === this.gastgeber || this.bereit.has(q.info.id) })),
+        spieler: this.plaetze.map((q) => ({ ...q.info, online: !!q.kanal, bereit: q.info.id === this.gastgeber || this.bereit.has(q.info.id), revanche: this.revanche.has(q.info.id) })),
         ich: i,
       }),
     )
@@ -140,6 +142,7 @@ export class RaumLogik {
     if (!this.plaetze.some((q) => q.info.id === this.gastgeber && q.kanal)) this.gastgeber = this.plaetze.find((q) => q.kanal)?.info.id ?? ''
     if (this.phase === 'spiel' && i === this.rechner) this.rechnerWechseln()
     this.raumAnAlle()
+    this.revanchePruefen()
   }
 
   private zuruecksetzen() {
@@ -151,6 +154,18 @@ export class RaumLogik {
     this.stand = []
     this.gebiet = 0
     this.waehler = -1
+    this.revanche.clear()
+  }
+
+  /** Wollen alle, die noch da sind (mindestens 2), eine Revanche? Dann zurueck in die Lobby, alle schon bereit */
+  private revanchePruefen() {
+    if (this.phase !== 'ende') return
+    const da = this.plaetze.filter((p) => p.kanal)
+    if (da.length < 2 || !da.every((p) => this.revanche.has(p.info.id))) return
+    this.zuruecksetzen()
+    this.plaetze = da
+    this.bereit = new Set(da.map((p) => p.info.id))
+    this.raumAnAlle()
   }
 
   nachricht(k: Kanal, text: string) {
@@ -191,7 +206,15 @@ export class RaumLogik {
       case 'start':
         if (gast && this.phase === 'lobby') this.starten(i)
         return
+      case 'revanche':
+        if (this.phase !== 'ende') return
+        if (m.revanche === false) this.revanche.delete(this.plaetze[i].info.id)
+        else this.revanche.add(this.plaetze[i].info.id)
+        this.raumAnAlle()
+        this.revanchePruefen()
+        return
       case 'nochmal':
+        // Gastgeber: zurueck in die Lobby (zum Beispiel, um den Modus zu wechseln)
         if (gast && this.phase !== 'lobby') {
           this.zuruecksetzen()
           this.plaetze = this.plaetze.filter((p) => p.kanal)

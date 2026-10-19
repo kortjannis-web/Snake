@@ -24,10 +24,20 @@ const json = (d: object, status = 200) => new Response(JSON.stringify(d), { stat
 const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop', jagd: 'Apfeljagd', royale: 'Schrumpfende Karte' }
 /** Hoechstens eine Einladung je Absender und Empfaenger alle 10 s (je Server-Instanz) */
 const zuletzt = new Map<string, number>()
+/** Einladungen je Absender (Nutzer-Id aus dem Token) in der letzten Stunde */
+const proStunde = new Map<string, number[]>()
+const HOECHSTENS_PRO_STUNDE = 30
+const jwtNutzer = (token: string) => {
+  try {
+    return String((JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: string }).sub ?? '')
+  } catch {
+    return ''
+  }
+}
 
 /**
- * Push-Einladung an einen Freund, der die App gerade nicht offen hat. Der Absender schickt sein
- * Supabase-Token mit; Supabase gibt das Push-Abo nur heraus, wenn beide befreundet sind.
+ * Push-Einladung an einen Spieler, der die App gerade nicht offen hat. Der Absender schickt sein
+ * Supabase-Token mit; Supabase gibt das Push-Abo nur heraus, wenn keiner den anderen gesperrt hat.
  */
 async function einladen(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
@@ -53,6 +63,16 @@ async function einladen(req: Request, env: Env): Promise<Response> {
     body: JSON.stringify({ ziel: an }),
   })
   if (!r.ok) return json({ ok: false, grund: 'kein Zugriff' }, 403)
+  // Token ist gueltig (Supabase hat geantwortet): jetzt je Absender bremsen
+  const sender = jwtNutzer(token)
+  if (sender) {
+    const jetzt = Date.now()
+    const liste = (proStunde.get(sender) ?? []).filter((t) => jetzt - t < 3_600_000)
+    if (liste.length >= HOECHSTENS_PRO_STUNDE) return json({ ok: false, grund: 'zu oft' }, 429)
+    liste.push(jetzt)
+    proStunde.set(sender, liste)
+    if (proStunde.size > 5000) proStunde.clear()
+  }
   const abo = (await r.json()) as PushAbo | null
   if (!abo?.endpoint || !abo.keys?.p256dh || !abo.keys?.auth) return json({ ok: false, grund: 'kein Abo' }, 404)
   const name = String(d.vonName ?? 'Jemand').slice(0, 16)

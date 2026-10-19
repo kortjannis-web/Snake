@@ -229,6 +229,9 @@ export class MehrClient {
   nochmal() {
     this.senden({ t: 'nochmal' })
   }
+  revanche(will: boolean) {
+    this.senden({ t: 'revanche', revanche: will })
+  }
   /** App geht in den Hintergrund: wer rechnet, gibt ab */
   abgeben() {
     if (this.istRechner && this.raum?.phase === 'spiel') this.senden({ t: 'abgabe' })

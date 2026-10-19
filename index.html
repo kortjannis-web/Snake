@@ -195,8 +195,9 @@
           <h2 class="card__title" id="mehr-ende-titel">Gewonnen!</h2>
           <p class="card__sub" id="mehr-ende-sub"></p>
           <ol class="mehr-rang" id="mehr-rang"></ol>
-          <button class="btn btn--play" id="mehr-nochmal"><span data-icon="RotateCcw"></span>Nochmal</button>
-          <p class="fine" id="mehr-warte" hidden>Warte auf den Gastgeber …</p>
+          <button class="btn btn--play" id="mehr-revanche"><span data-icon="Swords"></span>Revanche</button>
+          <p class="fine" id="mehr-revanche-info"></p>
+          <button class="btn btn--ghost" id="mehr-nochmal" hidden><span data-icon="RotateCcw"></span>Zurück in die Lobby</button>
           <button class="btn btn--ghost" id="mehr-ende-weg"><span data-icon="LogOut"></span>Raum verlassen</button>
         </div>
       </section>
@@ -226,7 +227,7 @@
                 <button class="btn btn--ghost btn--klein" id="freund-teilen"><span data-icon="Share2"></span>Code teilen</button>
               </div>
               <form class="opt opt--col liste-name" id="freund-form" autocomplete="off">
-                <label class="opt__t" for="freund-eingabe">Freund hinzufügen<small>Code von deinem Freund eintippen. Nur Freunde siehst du online und kannst sie einladen.</small></label>
+                <label class="opt__t" for="freund-eingabe">Freund hinzufügen<small>Code von deinem Freund eintippen. Freunde kannst du anschreiben und auch einladen, wenn sie gerade nicht online sind.</small></label>
                 <div class="liste-name__row">
                   <input type="text" id="freund-eingabe" maxlength="6" placeholder="z. B. 3FA9C1" autocapitalize="characters" spellcheck="false" />
                   <button class="btn btn--ghost btn--klein" type="submit">Hinzufügen</button>
@@ -279,11 +280,33 @@
               <button class="btn btn--play" id="mehr-los"><span data-icon="Play"></span>Starten</button>
               <button class="btn btn--play" id="mehr-bereit" hidden><span data-icon="Check"></span>Bereit</button>
               <p class="fine" id="mehr-hinweis"></p>
-              <h3 class="erfolge-titel">Freunde einladen</h3>
-              <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist kein Freund online.</p></div>
+              <h3 class="erfolge-titel">Online einladen</h3>
+              <div class="mehr-online" id="mehr-online"><p class="liste__leer">Gerade ist niemand online.</p></div>
               <button class="btn btn--ghost" id="mehr-verlassen"><span data-icon="LogOut"></span>Raum verlassen</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Spieler antippen: zum Gefecht einladen, Freundschaft, Chat -->
+      <section class="screen screen--dim" id="spieler-karte">
+        <div class="card">
+          <canvas class="karte-skin" id="karte-skin" width="160" height="110"></canvas>
+          <h2 class="card__title karte-name" id="karte-name"></h2>
+          <p class="card__sub" id="karte-info"></p>
+          <button class="btn btn--play" id="karte-einladen"><span data-icon="Swords"></span>Zum Gefecht einladen</button>
+          <button class="btn btn--ghost" id="karte-freund"><span data-icon="UserPlus"></span><span id="karte-freund-text">Freundschaftsanfrage</span></button>
+          <button class="btn btn--ghost" id="karte-zu"><span data-icon="X"></span>Schließen</button>
+        </div>
+      </section>
+
+      <!-- Einmalige Frage nach Benachrichtigungen -->
+      <section class="screen screen--dim" id="push-frage">
+        <div class="card">
+          <h2 class="card__title">Einladungen?</h2>
+          <p class="card__sub">Möchtest du eine Benachrichtigung bekommen, wenn dich jemand zum Spielen einlädt? Das geht auch, wenn Snake gerade zu ist. Mehr kommt nie. Du kannst es jederzeit in den Optionen ändern.</p>
+          <button class="btn btn--play" id="push-frage-ja"><span data-icon="Bell"></span>Ja, benachrichtigen</button>
+          <button class="btn btn--ghost" id="push-frage-nein"><span data-icon="X"></span>Nicht jetzt</button>
         </div>
       </section>
 
@@ -334,6 +357,7 @@
             <label class="opt"><span data-icon="Volume2"></span><span class="opt__t">Töne</span><input type="checkbox" id="opt-sound" class="switch" /></label>
             <label class="opt"><span data-icon="Music"></span><span class="opt__t">Musik</span><input type="checkbox" id="opt-music" class="switch" /></label>
             <label class="opt"><span data-icon="Vibrate"></span><span class="opt__t">Vibration</span><input type="checkbox" id="opt-vibration" class="switch" /></label>
+            <label class="opt" id="opt-push-zeile" hidden><span data-icon="Bell"></span><span class="opt__t">Benachrichtigungen<small id="opt-push-info">Nur wenn dich jemand zum Spielen einlädt.</small></span><input type="checkbox" id="opt-push" class="switch" /></label>
             <label class="opt"><span data-icon="Gamepad2"></span><span class="opt__t">Steuerkreuz<small>Tasten statt Wischen (gilt ab dem nächsten Spiel)</small></span><input type="checkbox" id="opt-dpad" class="switch" /></label>
             <!-- Tempo gibt es nicht mehr (nur normal, schnell ist der Speedrun); bleibt unsichtbar fuer alten Code -->
             <div class="opt opt--col" style="display: none">
