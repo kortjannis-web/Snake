@@ -331,6 +331,14 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Sperren** (im Chat oben rechts oder bei einer Anfrage): beendet die Freundschaft, löscht offene Anfragen, danach keine Anfragen und Nachrichten mehr in beide Richtungen.
 - Braucht SQL-Datei 6 (`supabase/migrations/20261019000000_hall_anfragen_chat.sql`).
 
+## 16d. Account aus dem Namen (seit 1.22.0)
+
+- **Der Name ist der Account.** Beim ersten Start (Willkommen) oder in der Hall of Snakes den Namen eingeben: Gibt es ihn noch nicht, legt sich der Account von selbst an („Account … angelegt“). Gibt es ihn schon, meldet sich das Gerät in diesem Account an („Willkommen zurück“). Groß-/Kleinschreibung ist egal, ein Passwort gibt es nicht. Wer den Namen kennt, kommt in den Account (gewollt: nur Familie und Freunde).
+- Im Account liegen Name, Hall-of-Snakes-Eintrag, Ergebnisse, Freunde, Anfragen und Chat. **Äpfel, Skins, Statistik und Einstellungen bleiben pro Gerät.**
+- **Ändern** (Hall of Snakes): benennt den Account um, der alte Name wird frei. Ist der neue Name schon vergeben, fragt die App, ob man stattdessen in diesen Account wechseln will (z. B. nach einem Tippfehler); danach lädt die App neu.
+- **Bestandsspieler** (Gast-Account von vor 1.22): beim ersten Start nach dem Update wird der Gast-Account ohne Datenverlust auf den Namen umgestellt (gleiche Nutzer-Id). Bis das auf dem alten Gerät passiert ist, meldet ein neues Gerät „Diesen Namen gibt es schon (alter Gast-Account)“.
+- Technik: `src/konto.ts` leitet aus dem Namen E-Mail und Passwort ab (SHA-256), `src/online.ts` meldet damit bei Supabase an oder legt das Konto an. Voraussetzung im Dashboard: E-Mail-Anmeldung an, „Confirm email“ aus (`docs/ONLINE-EINRICHTEN.md`, Schritt 2b). Sonst läuft alles wie vorher als Gast pro Gerät.
+
 ## 17. Töne, Musik, Vibration
 
 - Alle Töne werden im Gerät erzeugt (Web Audio), keine Audiodateien: Klick, Biss, Zehner-Akkord, neues Gebiet, Hinweis, Tod (je nach Ursache: Falle schnappt, Teich platscht, Giftapfel wabert), Falle, Wolke zischt, Frosch quakt und ploppt beim Sprung, Gegner zischt beim Erscheinen und ploppt beim Einkesseln, Jägerturm, Apfel geschnappt, Teich blubbert, Baum fällt, Haus wird gebaut, Licht klickt, Rückschlag, Rekord-Fanfare.

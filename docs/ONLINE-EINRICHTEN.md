@@ -39,6 +39,26 @@ Spieler bekommen so eine feste Nutzer-Id, ohne ein Konto oder Passwort anzulegen
 
 > Ist der Schalter aus, erscheint im Spiel beim Speichern des Namens „Das hat nicht geklappt“.
 
+## Schritt 2b: Account per Name einschalten (ab Version 1.22)
+
+Der **Name ist der Account**: Wer auf einem anderen Gerät denselben Namen eingibt (Groß-/Kleinschreibung egal), landet im selben
+Account, ohne Passwort. Dafür legt die App im Hintergrund pro Name ein Supabase-Konto mit einer abgeleiteten E-Mail-Adresse und
+einem abgeleiteten Passwort an. Es wird nie eine E-Mail verschickt. Einmal im Dashboard:
+
+1. **Authentication → Sign In / Providers → Email** öffnen.
+2. **Enable Email provider** an lassen.
+3. **Confirm email** **ausschalten** (sonst kann sich niemand per Name anmelden) und **Save** klicken.
+4. Falls es die Option gibt: **Secure password change** ausschalten.
+
+> Solange 3. nicht gemacht ist, läuft alles wie vorher (ein Gast pro Gerät). Sobald es umgestellt ist, werden bestehende Spieler beim
+> nächsten Start automatisch auf ihren Namen umgestellt (gleiche Nutzer-Id, nichts geht verloren).
+> Wichtig für Bestandsspieler: Einen Namen, der noch zu einem alten Gast gehört, kann ein neues Gerät erst nutzen, wenn die App
+> auf dem **alten** Gerät einmal gestartet wurde.
+
+Die Adressen sehen aus wie `snake-<zufall>@topsichtbar.de` (Domain über die Variable `VITE_KONTO_DOMAIN` änderbar). Sicherheit: Wer den
+Namen kennt, kommt in den Account. Das ist für den Familien- und Freundeskreis gewollt. **Äpfel, Skins und Statistik** bleiben pro Gerät,
+im Account liegen Name, Hall-of-Snakes-Eintrag, Ergebnisse, Freunde und Chat.
+
 ## Schritt 3: Datenbank einrichten (ein Mal Kopieren und Einfügen)
 
 1. Links **SQL Editor** öffnen und **New query** klicken.
@@ -110,12 +130,12 @@ zu öffnen, und bietet „Link kopieren“ an.
 **Updates:** Die installierte Web-App holt neue Versionen beim Start von selbst. Die APK zeigt auf dem Startbildschirm
 **„Neue Version: jetzt laden“**, sobald eine neuere da ist (dann drüberinstallieren, die Spielstände bleiben).
 
-**Erster Start in der App (jeder Spieler):** Ein Fenster fragt nach dem **Namen** (2 bis 16 Zeichen). Ein Konto oder Passwort
-gibt es nicht, jeder ist ein Gast. Rekord, Äpfel und Skins bleiben lokal auf dem Handy. Online liegen nur der Name und die
+**Erster Start in der App (jeder Spieler):** Ein Fenster fragt nach dem **Namen** (2 bis 16 Zeichen). Den Account legt die App aus dem Namen selbst an, ein Passwort
+gibt es nicht. Rekord, Äpfel und Skins bleiben lokal auf dem Handy. Online liegen nur der Name und die
 Ergebnisse. Der Name lässt sich jederzeit unter **Bestenliste** ändern.
 
-> Der Gast gehört zu dieser App auf diesem Handy. Wer die App löscht und neu installiert oder ein anderes Gerät benutzt, ist ein
-> **neuer Gast** und gibt den Namen noch einmal ein.
+> Der Account gehört zum Namen (siehe Schritt 2b). Wer die App neu installiert oder ein anderes Gerät benutzt, gibt einfach denselben Namen
+> ein und ist wieder im selben Account. Äpfel und Skins liegen nur auf dem Gerät.
 
 ---
 
@@ -168,6 +188,8 @@ Ohne diese Secrets überspringt der Workflow still. Bereits von Hand ausgeführt
 |---|---|
 | Reiter „Alle Spieler“ zeigt „Keine Verbindung“ | Die zweite SQL-Datei aus Schritt 3 wurde noch nicht ausgeführt. |
 | Kein Menüpunkt „Bestenliste“ | Die Variablen aus Schritt 5 fehlen oder heißen anders. Eintragen und danach einen neuen Build auslösen (Actions → Web-App → **Run workflow**). |
+| „Diesen Namen gibt es schon (alter Gast-Account)“ | Der Name gehört zu einem Spieler von vor Version 1.22. Die App einmal auf dessen Gerät starten, dann geht der Name überall. |
+| Name auf zweitem Gerät landet in einem neuen Account | Schritt 2b nicht gemacht (Confirm email an): alles läuft noch als Gast pro Gerät. |
 | „Das hat nicht geklappt. Bist du online?“ beim Namen | Schritt 2 (Anonyme Anmeldung) nicht aktiv, Schritt 3 nicht ausgeführt, oder Projekt pausiert. |
 | „Keine Verbindung“ in der Liste | Kein Internet, Projekt pausiert oder falsche URL in Schritt 5. |
 | Ergebnis fehlt in der Liste | Beim Speichern war kein Netz (kommt später von selbst), Master-Einstellungen geändert, Kreativ-Modus, oder die Runde war unter 2 Level. |
