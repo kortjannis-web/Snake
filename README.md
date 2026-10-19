@@ -83,10 +83,10 @@ Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im S
 jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
 normal weiter. Zählt nicht für den Rekord und die Online-Bestenliste, Äpfel gibt es dort keine.
 
-**Kamera** (Optionen): Bis zum ersten neuen Gebiet steht das Bild still. **Bereich** (Standard) hat einen festen Ausschnitt, lehnt sich ab der Mittellinie zu
+**Kamera** (es gibt nur noch eine): Bis zum ersten neuen Gebiet steht das Bild still. **Bereich** hat einen festen Ausschnitt, lehnt sich ab der Mittellinie zu
 Öffnungen hinüber (je näher, desto mehr, an der Schwelle halb im neuen Bereich, auch um die Ecke und hinter Erde),
 zieht wie ein Gummiseil in die Laufrichtung und hält zu jeder Seite mit Karte mindestens 5 ganze Felder Abstand zum
-Bildrand. **Dynamisch** fliegt wie eine Drohne hinterher. Die Kamera zeigt je Richtung 2 Felder mehr als ein Bildschirm. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
+Bildrand. Die Kamera zeigt je Richtung 2 Felder mehr als ein Bildschirm. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 
