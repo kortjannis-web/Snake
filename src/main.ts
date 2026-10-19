@@ -14,7 +14,8 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
-import { apfelFaktor, DEFAULTS, gebietFortschritt, SCHEMA, type ConfigKey } from './game/rules'
+import { apfelFaktor, DEFAULTS, gebietFortschritt, SCHEMA, type ConfigKey, type Tempo } from './game/rules'
+import { modusProzent, SPIELMODUS_NAME, type SpielModus } from './modus'
 import { ERFOLGE, erfolgePruefen, stand, zaehle } from './erfolge'
 import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
@@ -30,7 +31,7 @@ import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, wallet, type LookWahl } from './storage'
+import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, WELTEN, weltFrei, weltVon, type Welt } from './render/welten'
@@ -82,8 +83,12 @@ const page = () => pages[pages.length - 1] ?? null
 let istKreativ = false
 /** Laeuft gerade die Tages-Herausforderung (gleiche Welt fuer alle)? */
 let istTages = false
+/** Welcher Modus laeuft gerade (Abenteuer, Normal, Speedrun)? Tages- und Kreativ-Runden sind immer Normal */
+let laufModus: SpielModus = 'normal'
 /** Laeuft gerade ein Speedrun (25 % schneller, jeder Apfel mit Zeitlimit)? */
 let istSpeedrun = false
+/** Aepfel, die in dieser Runde gutgeschrieben wurden (Anzeige am Ende) */
+let laufGeld = 0
 /** Tageslevel: so viele Aepfel muessen geholt werden */
 let tagesZiel = 0
 /** Das heutige Tageslevel (fuer alle gleich) */
@@ -184,11 +189,13 @@ function closeAllPages() {
 
 /* ================= Spiel ================= */
 
-function newGame(alsKreativ = istKreativ, tages = istTages, speedrun = istSpeedrun) {
+function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = laufModus) {
   clearTimeout(overTimer)
   istKreativ = alsKreativ
   istTages = !alsKreativ && tages
-  istSpeedrun = !alsKreativ && !istTages && speedrun
+  laufModus = !alsKreativ && !istTages ? modus : 'normal'
+  istSpeedrun = laufModus === 'speedrun'
+  laufGeld = 0
   renderer.blitzApfel = istSpeedrun
   frist = null
   app.toggleAttribute('data-kreativ', istKreativ)
@@ -218,7 +225,7 @@ function newGame(alsKreativ = istKreativ, tages = istTages, speedrun = istSpeedr
     game = new Game({
       screenW: sc.w,
       screenH: sc.h,
-      tempo: istSpeedrun ? 'schnell' : 'normal',
+      tempo: tempoVon(laufModus),
       cfg: { ...config },
       startLevel: istKreativ ? start : startLevel,
       kreativ: istKreativ ? { ...k } : null,
@@ -235,6 +242,9 @@ function newGame(alsKreativ = istKreativ, tages = istTages, speedrun = istSpeedr
   updateGeld()
   toastsClear()
 }
+
+/** Tempo-Stufe fuer den Server und die Ranglisten: Abenteuer 'langsam', Speedrun 'schnell' */
+const tempoVon = (m: SpielModus): Tempo => (m === 'abenteuer' ? 'langsam' : m === 'speedrun' ? 'schnell' : 'normal')
 
 function readyText() {
   $('ready-text').textContent = fine
@@ -358,7 +368,7 @@ async function ladeListeAnzeige() {
       name.textContent = z.name
       if (z.tempo !== 'normal') {
         const t = document.createElement('small')
-        t.textContent = z.tempo === 'schnell' ? 'Speedrun' : z.tempo
+        t.textContent = z.tempo === 'schnell' ? 'Speedrun' : z.tempo === 'langsam' ? 'Abenteuer' : z.tempo
         name.append(t)
       }
       const level = document.createElement('b')
@@ -773,7 +783,7 @@ function gameOver() {
     setzeSilber(wallet.verdient ?? 0)
     // Tageslevel: gemeldet werden die geholten Aepfel (alle = geschafft) und die Zeit
     if (zaehltOnline() && g.gegessen > 0 && (istTages || g.maxLevel >= 2))
-      melde({ level: istTages ? Math.min(g.gegessen, tagesZiel) : g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istSpeedrun ? 'schnell' : 'normal', tages: istTages })
+      melde({ level: istTages ? Math.min(g.gegessen, tagesZiel) : g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: tempoVon(laufModus), tages: istTages })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
@@ -789,8 +799,8 @@ function gameOver() {
     const sec = Math.round((performance.now() - startedAt) / 1000)
     $('over-time').textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
     const geld = $('over-geld')
-    geld.hidden = istKreativ || g.verdient <= 0
-    geld.querySelector('b')!.textContent = `+${g.verdient} ${g.verdient === 1 ? 'Apfel' : 'Äpfel'}`
+    geld.hidden = istKreativ || laufGeld <= 0
+    geld.querySelector('b')!.textContent = `+${laufGeld} ${laufGeld === 1 ? 'Apfel' : 'Äpfel'}`
     const on = $('over-online')
     on.hidden = !(onlineAktiv && zaehltOnline() && g.gegessen > 0)
     on.textContent = profil.name ? `In der Hall of Snakes als ${profil.name}` : 'Noch ohne Namen: Trag dich in der Hall of Snakes ein, dann zählt dieses Ergebnis.'
@@ -931,15 +941,15 @@ function handle(e: GameEvent) {
     case 'geld':
       // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt
       if (!istKreativ) {
-        // Speedrun: ab den orangen Aepfeln (Level 50) zaehlt jeder Apfel doppelt
-        const speedBonus = istSpeedrun && e.quelle === 'apfel' && !!game && apfelFaktor(game.cfg, game.level) >= 2
         // Tageslevel: der letzte (pinke) Apfel bringt 10 Aepfel, aber nur einmal am Tag
         const tagesBonus = istTages && e.quelle === 'apfel' && !!game && game.gegessen >= tagesZiel && stats.tagesBonus !== tagesTag
         if (tagesBonus) {
           stats.tagesBonus = tagesTag
           saveStats()
         }
-        verdienen(tagesBonus ? 10 : speedBonus ? e.wert * 2 : e.wert)
+        // Abenteuer 75 %, Normal 100 %, Speedrun 125 % (ab Orange 150 %): nur volle Aepfel zaehlen, der Rest wird zwischengespeichert
+        const prozent = tagesBonus ? 100 : modusProzent(laufModus, game ? apfelFaktor(game.cfg, game.level) : 1)
+        laufGeld += verdienenModus(tagesBonus ? 10 : e.wert, prozent)
         saveWallet()
       }
       updateGeld(true)
@@ -1712,6 +1722,7 @@ function toastsClear() {
 /* ================= Startmenue ================= */
 
 function updateHome() {
+  modusZeichnen()
   $('home-best').textContent = stats.best ? `Heute: ${heuteBest() || '–'} · Rekord: ${stats.best}` : 'Iss Äpfel, die Karte wächst mit.'
   updateGeld()
   const cv = $<HTMLCanvasElement>('home-apple')
@@ -2159,22 +2170,40 @@ function speedrunTakt(g: Game) {
 $('btn-play').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false, false, false)
+  newGame(false, false, settings.modus)
+  if (settings.modus !== 'normal') toast(settings.modus === 'speedrun' ? 'apfel' : 'zeitlupe', SPIELMODUS_NAME[settings.modus], modusInfo(settings.modus))
 })
 $('btn-tages').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false, true, false)
+  newGame(false, true, 'normal')
   const tl = heutigesLevel()
   const bonus = stats.tagesBonus === tagBerlin() ? 'Den 10er-Bonus hast du heute schon.' : 'Der letzte leuchtet pink und bringt 10 Äpfel.'
   toast('gebiet', `Tageslevel: ${tl.motto}`, `Hol ${tl.ziel} Äpfel. ${bonus} Schwierigkeit ${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][wochentag(tagBerlin())]}: ${tl.schwierigkeit}.`)
 })
-$('btn-speedrun').addEventListener('click', () => {
-  audio.unlock()
-  audio.click()
-  newGame(false, false, true)
-  toast('apfel', 'Speedrun', `25 % schneller, jeder Apfel hat ein Zeitlimit. Ab Level ${game?.cfg.apfelWertAlle ?? 50} werden die Äpfel orange, blitzen und zählen doppelt.`)
-})
+
+/** Auswahl Abenteuer / Normal / Speedrun im Startmenue */
+function modusInfo(m: SpielModus) {
+  const wert = game?.cfg.apfelWertAlle ?? 50
+  return m === 'abenteuer'
+    ? 'Genau 25 % langsamer, dafür 25 % weniger Äpfel.'
+    : m === 'speedrun'
+      ? `25 % schneller, jeder Apfel hat ein Zeitlimit. 25 % mehr Äpfel, ab Level ${wert} (orange) sogar 50 % mehr.`
+      : 'Das normale Spiel.'
+}
+function modusZeichnen() {
+  for (const b of $('home-modus').querySelectorAll<HTMLButtonElement>('button')) b.setAttribute('aria-checked', String(b.dataset.v === settings.modus))
+  const rest = wallet.rest ?? 0
+  $('home-modus-text').textContent = modusInfo(settings.modus) + (settings.modus !== 'normal' && rest > 0 ? ` Zwischengespeichert: ${(rest / 100).toLocaleString('de-DE')} Apfel.` : '')
+}
+$('home-modus').querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+  b.addEventListener('click', () => {
+    audio.click()
+    settings.modus = b.dataset.v as SpielModus
+    saveSettings()
+    modusZeichnen()
+  }),
+)
 $('btn-pause').addEventListener('click', () => {
   audio.click()
   pause()
@@ -3013,5 +3042,19 @@ if (!gesperrt) {
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)
 if (!nativ && import.meta.env.PROD && 'serviceWorker' in navigator) {
-  void import('virtual:pwa-register').then(({ registerSW }) => registerSW({ immediate: true }))
+  void import('virtual:pwa-register').then(({ registerSW }) =>
+    registerSW({
+      immediate: true,
+      // Eine App, die lange im Hintergrund lag, holt sich sonst nie eine neue Version: beim Zurueckkehren und alle 30 Minuten
+      // nachsehen, aber nur im Startmenue und nicht mitten im Spiel (die neue Version laedt die Seite neu)
+      onRegisteredSW(_url, reg) {
+        if (!reg) return
+        const pruefen = () => {
+          if (mode === 'home' || mode === 'over') void reg.update().catch(() => undefined)
+        }
+        window.setInterval(pruefen, 30 * 60_000)
+        document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && pruefen())
+      },
+    }),
+  )
 }
