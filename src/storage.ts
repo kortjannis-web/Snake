@@ -142,8 +142,19 @@ export const saveKreativ = () => write(KKEY, kreativ)
 
 /* ---------------- Aepfel (Waehrung) und Skins ---------------- */
 const WKEY = 'snake.wallet.v1'
-/** Aepfel (Waehrung), Skins und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg, werden nur gesammelt) */
-export type Wallet = { aepfel: number; skins: string[]; skin: string; trophaeen: number }
+/** Was im Aussehen gewaehlt ist (Ids). Farbe oder Skin (muster) ist aktiv, Accessoires und Spur kommen dazu */
+export type LookWahl = {
+  farben: string[]
+  teilung: 'abschnitt' | 'ringe' | 'laengs'
+  /** Zahl der Farben (1 bis 3, je nach gekauftem Modus) */
+  anzahl: number
+  muster: string | null
+  acc: Partial<Record<'augen' | 'kopf' | 'gesicht' | 'schwanz', string>>
+  spur: string | null
+}
+/** Aepfel (Waehrung), gekaufte Sachen (skins: Ids aller Kategorien), das Aussehen als Text (skin, so geht es auch
+ *  online weiter), die Wahl im Einzelnen (look), die Welt und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg) */
+export type Wallet = { aepfel: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number }
 export const wallet: Wallet = read(WKEY, { aepfel: 0, skins: ['klassik'], skin: 'klassik', trophaeen: 0 } as Wallet)
 export const saveWallet = () => write(WKEY, wallet)
 // Muenzen aus aelteren Fassungen werden zu Aepfeln

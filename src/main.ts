@@ -29,14 +29,14 @@ import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet } from './storage'
-import { drawSkinVorschau, hatSkin, SKINS, skinBewegt, skinVon, STUFEN } from './render/skins'
+import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet, type LookWahl } from './storage'
+import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over' | 'mehr'
-type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'liste' | 'mehr' | 'hall' | 'chat'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'shopteil' | 'liste' | 'mehr' | 'hall' | 'chat'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -126,6 +126,7 @@ function openPage(p: Page) {
   if (p === 'kreativ') renderKreativ()
   if (p === 'master') renderMaster()
   if (p === 'shop') renderShop()
+  if (p === 'shopteil') renderTeil()
   if (p === 'liste') oeffneListe()
   if (p === 'mehr') void freundeLaden()
   if (p === 'hall') void ladeHallAnzeige()
@@ -138,6 +139,7 @@ function closePage() {
   show(p, false)
   if (p === 'liste') schliesseListe()
   if (p === 'chat') chatPartner = null
+  if (p === 'shopteil' && page() === 'shop') renderShop()
 }
 function closeAllPages() {
   while (pages.length) {
@@ -844,6 +846,7 @@ function updateGeld(pop = false) {
   $('home-geld').textContent = String(wallet.aepfel)
   $('home-trophaeen').textContent = String(wallet.trophaeen ?? 0)
   $('shop-geld').textContent = String(wallet.aepfel)
+  $('shopteil-geld').textContent = String(wallet.aepfel)
 }
 
 /* ================= Aktive Power-ups (Pillen oben links) ================= */
@@ -916,18 +919,19 @@ function updateSchild() {
   }
 }
 
-/* ================= Shop ================= */
+/* ================= Aussehen (Shop) ================= */
 
-/** Skins ohne Video (Video fehlt oder laedt nicht): werden wie frueher jedes Bild gezeichnet */
-const skinCanvas: { cv: HTMLCanvasElement; id: string }[] = []
+/** Vorschauen ohne Video oder Bild (fehlt oder laedt nicht): werden jedes Bild gezeichnet */
+const skinCanvas: { cv: HTMLCanvasElement; skin: Skin; fokus: Fokus }[] = []
 /** Shop-Vorschauen als fertige Videos (scripts/skin-videos.mjs): nur die sichtbaren laufen */
 const skinVideos: HTMLVideoElement[] = []
+const istShop = () => page() === 'shop' || page() === 'shopteil'
 const ruhig = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 const sichtbar = typeof IntersectionObserver === 'function'
   ? new IntersectionObserver((eintraege) => {
       for (const e of eintraege) {
         const v = e.target as HTMLVideoElement
-        if (e.isIntersecting && page() === 'shop' && !ruhig) videoStart(v)
+        if (e.isIntersecting && istShop() && !ruhig) videoStart(v)
         else v.pause()
       }
     })
@@ -950,23 +954,27 @@ function videoStart(v: HTMLVideoElement) {
     .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
     .then((b) => {
       v.src = URL.createObjectURL(b)
-      if (page() === 'shop') void v.play().catch(() => {})
+      if (istShop()) void v.play().catch(() => {})
     })
     .catch(() => v.dispatchEvent(new Event('error')))
 }
 
+/** Gezeichnete Vorschau (Ersatz, wenn es kein Bild/Video gibt, und fuer zusammengesetzte Looks) */
+function vorschauCanvas(skin: Skin, fokus: Fokus = 'ganz') {
+  const cv = document.createElement('canvas')
+  skinCanvas.push({ cv, skin, fokus })
+  return cv
+}
+
+/** Vorschau einer kaufbaren Sache: Bild (steht still) oder Video (bewegt), sonst gezeichnet */
 function skinVorschau(id: string): HTMLElement {
-  // Ohne bewegtes Muster: nur das Standbild (ein Bild statt eines Videos)
-  if (!skinBewegt(skinVon(id))) {
+  const v0 = vorschauFuer(id)
+  if (!v0.bewegt) {
     const img = document.createElement('img')
     img.src = `skins/${id}.webp`
     img.alt = ''
     img.decoding = 'async'
-    img.addEventListener('error', () => {
-      const cv = document.createElement('canvas')
-      img.replaceWith(cv)
-      requestAnimationFrame(() => drawSkinVorschau(cv, skinVon(id), 0))
-    })
+    img.addEventListener('error', () => img.replaceWith(vorschauCanvas(v0.skin, v0.fokus)))
     return img
   }
   const v = document.createElement('video')
@@ -982,12 +990,10 @@ function skinVorschau(id: string): HTMLElement {
   v.poster = `skins/${id}.webp`
   v.dataset.video = `skins/${id}.${videoEndung}`
   if (!videoEndung) queueMicrotask(() => v.dispatchEvent(new Event('error')))
-  // Kein Video (z. B. offline und noch nie geladen): selbst zeichnen wie frueher
+  // Kein Video (z. B. offline und noch nie geladen): selbst zeichnen
   v.addEventListener('error', () => {
-    const cv = document.createElement('canvas')
-    v.replaceWith(cv)
     sichtbar?.unobserve(v)
-    skinCanvas.push({ cv, id })
+    v.replaceWith(vorschauCanvas(v0.skin, v0.fokus))
   })
   skinVideos.push(v)
   if (sichtbar) sichtbar.observe(v)
@@ -995,79 +1001,259 @@ function skinVorschau(id: string): HTMLElement {
   return v
 }
 
-function renderShop() {
-  updateGeld()
-  const box = $('skins')
+/** Gewaehltes Aussehen (alte Speicherstaende: aus dem bisherigen Skin) */
+const look: LookWahl = (() => {
+  if (wallet.look) return { ...wallet.look, acc: { ...wallet.look.acc } }
+  const alt = skinVon(wallet.skin)
+  return { farben: alt.muster ? ['klassik'] : alt.farben.map((f) => f.id), teilung: 'abschnitt', anzahl: 1, muster: alt.muster?.id ?? null, acc: {}, spur: null }
+})()
+/** Aktuelles Aussehen bauen, speichern, online melden und im Spiel zeigen */
+function lookAnwenden() {
+  const s = baueSkin({ farben: look.farben.slice(0, look.anzahl), teilung: look.teilung, muster: look.muster ?? undefined, acc: Object.values(look.acc), spur: look.spur ?? undefined })
+  wallet.look = { ...look, acc: { ...look.acc } }
+  wallet.skin = s.code
+  setzeSkin(s.code)
+  saveWallet()
+  renderer.skin = s
+}
+
+type Teil = 'farben' | 'skins' | 'acc' | 'spuren'
+let shopTeil: Teil = 'farben'
+/** Welcher Teil der Schlange gerade eine Farbe bekommt (zwei- und dreifarbig) */
+let farbTeil = 0
+const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren' }
+const PLATZ_NAME: Record<Platz, string> = { augen: 'Augen', kopf: 'Kopf', gesicht: 'Gesicht', schwanz: 'Schwanz' }
+
+function vorschauenLeeren() {
   for (const v of skinVideos) {
     sichtbar?.unobserve(v)
     if (v.src.startsWith('blob:')) URL.revokeObjectURL(v.src)
   }
   skinVideos.length = 0
-  box.innerHTML = ''
   skinCanvas.length = 0
-  for (const sk of SKINS) {
-    // Ueberschrift je Preisstufe
-    const stufe = STUFEN.find((st) => st.preis === sk.preis)
-    if (stufe && SKINS.find((o) => o.preis === sk.preis) === sk) {
-      const h = document.createElement('h3')
-      h.className = 'skin-stufe'
-      h.textContent = stufe.name
-      if (stufe.preis > 0) {
-        const pr = document.createElement('span')
-        pr.innerHTML = `<i class="apfel-ico"></i>${stufe.preis}`
-        h.append(pr)
-      }
-      box.append(h)
-    }
-    const hat = hatSkin(wallet.skins, sk.id)
-    const an = wallet.skin === sk.id
-    const card = document.createElement('button')
-    card.className = 'skin'
-    card.dataset.id = sk.id
-    if (an) card.dataset.an = ''
-    if (!hat) card.dataset.zu = ''
-    card.innerHTML = `<span class="skin__name"></span><span class="skin__preis"></span>`
-    card.prepend(skinVorschau(sk.id))
-    card.querySelector('.skin__name')!.textContent = sk.name
-    const preis = card.querySelector('.skin__preis') as HTMLElement
-    if (an) {
-      preis.innerHTML = '<span></span>Aktiv'
-      setIcon(preis.querySelector('span')!, 'Check')
-    } else if (hat) preis.textContent = 'Wählen'
-    else {
-      preis.innerHTML = `<i class="apfel-ico"></i>${sk.preis}`
-      if (wallet.aepfel < sk.preis) preis.classList.add('zu-teuer')
-    }
-    card.addEventListener('click', () => kaufen(sk.id))
-    box.append(card)
+}
+
+/** Startseite des Aussehens: grosse Knoepfe */
+function renderShop() {
+  updateGeld()
+  vorschauenLeeren()
+  const box = $('aussehen')
+  box.innerHTML = ''
+  const zahl = (ids: string[]) => `${ids.filter((id) => hatSkin(wallet.skins, id)).length} von ${ids.length}`
+  const farbIds = FARBEN.filter((f) => !f.versteckt).map((f) => f.id)
+  const skinIds = MUSTER.filter((m) => !m.versteckt).map((m) => m.id)
+  const basis = { farben: look.farben.slice(0, look.anzahl), teilung: look.teilung }
+  const kacheln: [Teil, string, Skin][] = [
+    ['farben', `${zahl(farbIds)}${look.anzahl > 1 ? ` · ${look.anzahl === 2 ? 'Zweifarbig' : 'Dreifarbig'}` : ''}`, baueSkin(basis)],
+    ['skins', `${zahl(skinIds)}${look.muster ? ` · ${MUSTER.find((m) => m.id === look.muster)?.name ?? ''}` : ''}`, baueSkin({ muster: look.muster ?? 'tiger' })],
+    ['acc', zahl(ACCS.map((a) => a.id)), baueSkin({ ...basis, acc: Object.values(look.acc).length ? Object.values(look.acc) : ['krone', 'sonnenbrille'] })],
+    ['spuren', zahl(SPUREN.map((s) => s.id)), baueSkin({ ...basis, spur: look.spur ?? 'spur-herzen' })],
+  ]
+  for (const [teil, sub, skin] of kacheln) {
+    const b = document.createElement('button')
+    b.className = 'aussehen__kachel'
+    b.append(vorschauCanvas(skin))
+    const t = document.createElement('b')
+    t.textContent = TEIL_TITEL[teil]
+    const s = document.createElement('span')
+    s.textContent = sub
+    b.append(t, s)
+    b.addEventListener('click', () => {
+      shopTeil = teil
+      farbTeil = 0
+      openPage('shopteil')
+    })
+    box.append(b)
   }
 }
 
-function kaufen(id: string) {
+/** Karte fuer eine kaufbare Sache. an = gerade getragen */
+function shopKarte(id: string, name: string, an: boolean, waehlen: () => void, zeile = false) {
+  const hat = hatSkin(wallet.skins, id)
+  const preisWert = preisVon(id)
+  const card = document.createElement('button')
+  card.className = zeile ? 'skin skin--zeile' : 'skin'
+  card.dataset.id = id
+  if (an) card.dataset.an = ''
+  if (!hat) card.dataset.zu = ''
+  card.innerHTML = `<span class="skin__name"></span><span class="skin__preis"></span>`
+  card.prepend(skinVorschau(id))
+  card.querySelector('.skin__name')!.textContent = name
+  const preis = card.querySelector('.skin__preis') as HTMLElement
+  if (an) {
+    preis.innerHTML = '<span></span>Aktiv'
+    setIcon(preis.querySelector('span')!, 'Check')
+  } else if (hat) preis.textContent = preisWert ? 'Wählen' : 'Gratis'
+  else {
+    preis.innerHTML = `<i class="apfel-ico"></i>${preisWert}`
+    if (wallet.aepfel < preisWert) preis.classList.add('zu-teuer')
+  }
+  card.addEventListener('click', () => kaufen(id, waehlen))
+  return card
+}
+
+/** Teile der Schlange je Teilung (Namen der Chips) */
+function teilNamen(): string[] {
+  const n = look.anzahl
+  if (look.teilung === 'laengs') return ['Rücken', 'Bauch', 'Streifen'].slice(0, n)
+  if (look.teilung === 'ringe') return ['Ring 1', 'Ring 2', 'Ring 3'].slice(0, n)
+  return n === 2 ? ['Kopfhälfte', 'Schwanzhälfte'] : ['Kopf', 'Mitte', 'Schwanz']
+}
+
+/** Kopf der Farben-Seite: Modus (ein-, zwei-, dreifarbig), Teilung und Schlangen-Symbol mit antippbaren Teilen */
+function farbenKopf(box: HTMLElement) {
+  const seg = document.createElement('div')
+  seg.className = 'segment'
+  const modi: [number, string, string | null][] = [[1, 'Einfarbig', null], [2, 'Zweifarbig', 'zweifarbig'], [3, 'Dreifarbig', 'dreifarbig']]
+  for (const [n, name, id] of modi) {
+    const b = document.createElement('button')
+    b.setAttribute('aria-pressed', String(look.anzahl === n && !look.muster))
+    b.textContent = name
+    if (id && !hatSkin(wallet.skins, id)) {
+      const i = document.createElement('i')
+      i.innerHTML = `<i class="apfel-ico"></i>${preisVon(id)}`
+      b.append(i)
+    }
+    b.addEventListener('click', () => {
+      const setze = () => {
+        look.anzahl = n
+        look.muster = null
+        while (look.farben.length < n) look.farben.push(['tuerkis', 'sonne', 'pink'][look.farben.length] ?? 'klassik')
+        farbTeil = Math.min(farbTeil, n - 1)
+      }
+      if (id) kaufen(id, setze, b)
+      else {
+        audio.click()
+        setze()
+        lookAnwenden()
+        renderTeil()
+      }
+    })
+    seg.append(b)
+  }
+  box.append(seg)
+  if (look.anzahl < 2) return
+  const tSeg = document.createElement('div')
+  tSeg.className = 'segment segment--klein'
+  for (const t of TEILUNGEN) {
+    const b = document.createElement('button')
+    b.textContent = t.name
+    b.setAttribute('aria-pressed', String(look.teilung === t.id))
+    b.addEventListener('click', () => {
+      audio.click()
+      look.teilung = t.id
+      lookAnwenden()
+      renderTeil()
+    })
+    tSeg.append(b)
+  }
+  box.append(tSeg)
+  // Symbol: die eigene Schlange gross, Tippen waehlt den Teil
+  const sym = vorschauCanvas(baueSkin({ farben: look.farben.slice(0, look.anzahl), teilung: look.teilung }))
+  sym.className = 'farb-symbol'
+  sym.addEventListener('click', (e) => {
+    const r = sym.getBoundingClientRect()
+    const fx = (e.clientX - r.left) / r.width
+    const fy = (e.clientY - r.top) / r.height
+    if (look.teilung === 'abschnitt') farbTeil = Math.min(look.anzahl - 1, Math.floor((1 - fx) * look.anzahl))
+    else if (look.teilung === 'laengs') farbTeil = look.anzahl === 3 && Math.abs(fy - 0.45) < 0.08 ? 2 : fy < 0.5 ? 0 : 1
+    else farbTeil = (farbTeil + 1) % look.anzahl
+    audio.click()
+    renderTeil()
+  })
+  box.append(sym)
+  const chips = document.createElement('div')
+  chips.className = 'farb-chips'
+  teilNamen().forEach((name, i) => {
+    const f = FARBEN.find((x) => x.id === look.farben[i]) ?? FARBEN[0]
+    const c = document.createElement('button')
+    c.className = 'farb-chip'
+    c.setAttribute('aria-pressed', String(i === farbTeil))
+    c.innerHTML = `<i style="background:rgb(${f.kopf.join(',')})"></i>`
+    c.append(name)
+    c.addEventListener('click', () => {
+      audio.click()
+      farbTeil = i
+      renderTeil()
+    })
+    chips.append(c)
+  })
+  box.append(chips)
+}
+
+/** Unterseite des Aussehens */
+function renderTeil() {
+  updateGeld()
+  vorschauenLeeren()
+  $('shopteil-titel').textContent = TEIL_TITEL[shopTeil]
+  const kopf = $('shopteil-kopf')
+  kopf.innerHTML = ''
+  const box = $('skins')
+  box.innerHTML = ''
+  box.className = shopTeil === 'farben' ? 'skins skins--liste' : 'skins'
+  if (shopTeil === 'farben') {
+    farbenKopf(kopf)
+    for (const f of FARBEN) {
+      if (f.versteckt && !hatSkin(wallet.skins, f.id)) continue
+      const an = !look.muster && look.farben[look.anzahl > 1 ? farbTeil : 0] === f.id
+      box.append(
+        shopKarte(f.id, f.name, an, () => {
+          look.muster = null
+          look.farben[look.anzahl > 1 ? farbTeil : 0] = f.id
+        }, true),
+      )
+    }
+  } else if (shopTeil === 'skins') {
+    const p = document.createElement('p')
+    p.className = 'hinweis'
+    p.textContent = 'Ein Skin ersetzt die Farbe. Nochmal antippen: zurück zur Farbe. Accessoires und Spur bleiben.'
+    kopf.append(p)
+    for (const m of MUSTER) {
+      if (m.versteckt && !hatSkin(wallet.skins, m.id)) continue
+      box.append(shopKarte(m.id, m.name, look.muster === m.id, () => (look.muster = look.muster === m.id ? null : m.id)))
+    }
+  } else if (shopTeil === 'acc') {
+    for (const platz of ['augen', 'kopf', 'gesicht', 'schwanz'] as Platz[]) {
+      const h = document.createElement('h3')
+      h.className = 'skin-stufe'
+      h.textContent = PLATZ_NAME[platz]
+      box.append(h)
+      for (const a of ACCS.filter((x) => x.platz === platz))
+        box.append(
+          shopKarte(a.id, a.name, look.acc[platz] === a.id, () => {
+            if (look.acc[platz] === a.id) delete look.acc[platz]
+            else look.acc[platz] = a.id
+          }),
+        )
+    }
+  } else {
+    for (const s of SPUREN) box.append(shopKarte(s.id, s.name, look.spur === s.id, () => (look.spur = look.spur === s.id ? null : s.id)))
+  }
+}
+
+/** Kaufen (wenn noch nicht gekauft und genug Aepfel), dann waehlen */
+function kaufen(id: string, waehlen: () => void, knopf?: HTMLElement) {
   audio.unlock()
-  const sk = skinVon(id)
   if (!hatSkin(wallet.skins, id)) {
-    if (wallet.aepfel < sk.preis) {
+    if (wallet.aepfel < preisVon(id)) {
       audio.nein()
       haptic.medium()
-      const card = $('skins').querySelector<HTMLElement>(`[data-id="${id}"]`)
+      const card = knopf ?? $('skins').querySelector<HTMLElement>(`[data-id="${id}"]`)
       card?.classList.remove('wackeln')
       void card?.offsetWidth
       card?.classList.add('wackeln')
       return
     }
-    wallet.aepfel -= sk.preis
+    wallet.aepfel -= preisVon(id)
     wallet.skins.push(id)
     audio.kauf()
     haptic.success()
     erfolgeMelden()
     saveStats()
   } else audio.click()
-  wallet.skin = id
-  setzeSkin(id)
-  saveWallet()
-  renderer.skin = sk
-  renderShop()
+  waehlen()
+  lookAnwenden()
+  renderTeil()
 }
 
 /* ================= Hinweise ================= */
@@ -1682,7 +1868,7 @@ function frame(now: number) {
     if (!verdeckt) renderer.draw(game)
   }
   updateEffekte()
-  if (page() === 'shop') for (const s of skinCanvas) drawSkinVorschau(s.cv, skinVon(s.id), now)
+  if (istShop()) for (const s of skinCanvas) drawSkinVorschau(s.cv, s.skin, now, s.fokus)
   else if (skinVideos.length && !skinVideos.every((v) => v.paused)) for (const v of skinVideos) v.pause()
   requestAnimationFrame(frame)
 }

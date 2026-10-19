@@ -101,7 +101,7 @@
             <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
             <div class="home__row home__row--4 home__row--flex">
-              <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Skins</button>
+              <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Aussehen</button>
               <button class="tile-btn" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online<i class="tile-badge" id="online-badge" hidden></i></button>
               <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
               <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
@@ -440,16 +440,31 @@
         </div>
       </section>
 
-      <!-- Shop: Skins fuer Aepfel -->
+      <!-- Aussehen: Knoepfe zu Farben, Skins, Accessoires, Spuren und Welten -->
       <section class="screen screen--page" id="shop">
         <div class="page">
           <header class="page__head">
             <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
-            <h2>Skins</h2>
+            <h2>Aussehen</h2>
             <span class="geld-pille geld-pille--still"><i class="apfel-ico" aria-hidden="true"></i><b id="shop-geld">0</b></span>
           </header>
           <div class="page__body">
-            <p class="hinweis">Vier Grundfarben hast du immer, alle anderen Skins kaufst du mit Äpfeln, von einfarbig bis legendär. Äpfel sind die Währung: Jeder gegessene Apfel kommt in den Vorrat, Gold- und Diamanterz bringen das 3- und 10-fache. Ab Level 50 ist er doppelt so viel wert (orange), ab 100 dreifach (gelb), dann grün, türkis, blau, lila, rosa und schillernd. Eingekesselte Gegner-Schlangen bringen extra Äpfel. Im Kreativ-Modus wird nichts gesammelt.</p>
+            <div class="aussehen" id="aussehen"></div>
+            <p class="hinweis">Die vier Grundfarben hast du immer, alles andere kaufst du mit Äpfeln. Jeder gegessene Apfel kommt in den Vorrat, Gold- und Diamanterz bringen das 3- und 10-fache. Ab Level 50 ist er doppelt so viel wert (orange), ab 100 dreifach (gelb), dann grün, türkis, blau, lila, rosa und schillernd. Eingekesselte Gegner-Schlangen bringen extra Äpfel. Im Kreativ-Modus wird nichts gesammelt.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Unterseite im Aussehen: Farben, Skins, Accessoires, Spuren oder Welten -->
+      <section class="screen screen--page" id="shopteil">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2 id="shopteil-titel">Farben</h2>
+            <span class="geld-pille geld-pille--still"><i class="apfel-ico" aria-hidden="true"></i><b id="shopteil-geld">0</b></span>
+          </header>
+          <div class="page__body">
+            <div id="shopteil-kopf"></div>
             <div class="skins" id="skins"></div>
           </div>
         </div>

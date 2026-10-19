@@ -26,7 +26,7 @@ const ERSATZ = ['klassik', 'ozean', 'sonne', 'pink', 'orange', 'tuerkis', 'flied
 export function anzeigeSkins(spieler: { skin: string }[]): string[] {
   const vergeben = new Set<string>()
   return spieler.map((s) => {
-    let id = skinVon(s.skin).id
+    let id = skinVon(s.skin).code
     if (vergeben.has(id)) id = ERSATZ.find((e) => !vergeben.has(e)) ?? id
     vergeben.add(id)
     return id

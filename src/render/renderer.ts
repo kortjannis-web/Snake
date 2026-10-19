@@ -6,7 +6,7 @@
 import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
 import { BAUM_FALL, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
-import { drawSchlange, GEGNER_SKIN, LILA_SKIN, SKINS, type Skin } from './skins'
+import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   C,
   apfelFarbe,
@@ -114,7 +114,9 @@ export class Renderer {
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
   reduce = false
-  skin: Skin = SKINS[0]
+  skin: Skin = STANDARD
+  /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
+  private spuren = new Spuren()
   private dpr = 1
   vw = 0
   vh = 0
@@ -190,6 +192,7 @@ export class Renderer {
     this.funken = []
     this.texte = []
     this.shake = { until: 0, amp: 0 }
+    this.spuren.leeren()
   }
 
   /** Feldgroesse so, dass ein Bildschirm (screenW x screenH) und je Richtung 2 Felder mehr hineinpassen */
@@ -313,6 +316,7 @@ export class Renderer {
   /** Die Karte ist um dx/dy Felder gerutscht: alles, was die Kamera sich merkt, mitnehmen */
   private kameraRutschen(dx: number, dy: number) {
     const { cell } = this
+    this.spuren.verschieben(dx, dy)
     for (const v of [this.cam, this.camZiel]) {
       v.x += dx * cell
       v.y += dy * cell
@@ -643,6 +647,9 @@ export class Renderer {
       drawAmeise(ctx, px(am.p.x), px(am.p.y), cell * (1 + k * 0.4), DIR_WINKEL[am.dir], -1, 1, 0, 1 - k)
     }
 
+    // Spuren (Teilchen hinter den Schlangen)
+    if (!this.reduce) this.spuren.draw(ctx, cell, now)
+
     // Gegner-Schlangen (und besiegte, die zerfallen)
     for (const e of g.gegner) if (e.body.some((p) => sicht(p))) this.drawGegner(g, e, now)
     for (const w of g.gegnerWeg) if (w.g.body.some((p) => sicht(p))) this.drawGegner(g, w.g, now, w.t)
@@ -840,6 +847,7 @@ export class Renderer {
     const tail = tp ? { x: lerp(tp.x, tl.x, a), y: lerp(tp.y, tl.y, a) } : tl
     const pts: P[] = [head, ...g.body.slice(1), tail]
     const tot = g.status === 'over' || !!this.mehr?.ichTot
+    if (!tot && g.status === 'play' && !this.reduce) this.spuren.takt('ich', this.skin, tail.x, tail.y, now)
     const sinceDeath = now - g.deathAt
     if (tot && !this.reduce && sinceDeath < 900) ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.cos(sinceDeath / 90))
     // Nach einem Rueckschlag geschuetzt: blinkt
@@ -899,6 +907,7 @@ export class Renderer {
     const tp = f.prev[n - 1]
     const tl = f.body[n - 1]
     const tail = tp ? { x: lerp(tp.x, tl.x, a), y: lerp(tp.y, tl.y, a) } : tl
+    if (!f.tot && !this.reduce) this.spuren.takt(`f-${f.name}`, f.skin, tail.x, tail.y, now)
     ctx.globalAlpha = f.deck * (f.tot ? 0.5 : 1)
     drawSchlange(ctx, [head, ...f.body.slice(1), tail], cell, f.dir, f.skin, now, { tot: f.tot, blinzeln: !f.tot && now % 4300 < 120 })
     ctx.globalAlpha = 1
@@ -951,7 +960,7 @@ export class Renderer {
     const sk = this.skin
     st.cells.forEach((c, i) => {
       const f = st.laenge > 1 ? (st.von + i) / (st.laenge - 1) : 1
-      const rgb = sk.kopf.map((v, j) => Math.round(lerp(lerp(v, sk.schwanz[j], f), 120, 0.25)))
+      const rgb = farbeBei(sk, f).map((v) => Math.round(lerp(v, 120, 0.25)))
       const x = (c.x + 0.5) * cell
       const y = (c.y + 0.5) * cell
       const r = cell * 0.37 * (1 - weg * 0.5)

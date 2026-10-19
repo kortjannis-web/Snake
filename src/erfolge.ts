@@ -3,7 +3,7 @@
  * (`belohnung` ist schon vorgesehen, wird aber nicht vergeben).
  * Zaehler stehen in stats.zaehler, manche kommen direkt aus Statistik und Geldbeutel.
  */
-import { hatSkin, SKINS } from './render/skins'
+import { anzahlBesitz } from './render/skins'
 import { stats, wallet } from './storage'
 
 export type Erfolg = {
@@ -56,7 +56,7 @@ export function stand(zaehler: string): number {
   if (zaehler === 'level') return stats.best
   if (zaehler === 'spiele') return stats.games
   if (zaehler === 'gegner') return Math.max(stats.gegner, stats.zaehler.gegner ?? 0)
-  if (zaehler === 'skins') return SKINS.filter((s) => hatSkin(wallet.skins, s.id)).length
+  if (zaehler === 'skins') return anzahlBesitz(wallet.skins)
   return stats.zaehler[zaehler] ?? 0
 }
 
