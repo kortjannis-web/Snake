@@ -527,14 +527,15 @@ export const ERZ_ARTEN: ErzArt[] = ['gold', 'dia', 'rubin', 'opal']
 export const SPITZHACKE_GEWICHT: Record<ErzArt, number> = { gold: 72, dia: 19, rubin: 7, opal: 2 }
 export const erzWert = (c: Config, art: ErzArt) => (art === 'gold' ? c.goldWert : art === 'dia' ? c.diaWert : art === 'rubin' ? c.rubinWert : c.opalWert)
 /**
- * Wueste (Insel im Meer): nach jedem Apfel kann etwas passieren.
+ * Wueste (Insel im Meer): Froesche sind mit wuestenfroschChance % Wuestenfroesche (springen doppelt so oft).
+ * Nach jedem Apfel kann etwas passieren.
  * Sandsturm (sturmChance %): die Sicht ist sturmDauer ms lang schlecht.
  * Flut (flutChance %): erst schlagen die Wellen hoeher (Warnung), mit dem naechsten Apfel steht der Rand
  * flutRand Felder unter Wasser (toedlich), mit dem Apfel danach geht das Wasser zurueck.
- * Sandwurm (wurmChance %): eine Reihe in der Naehe brodelt wurmWarnung ms lang, dann schiesst ein Sandwurm
- * (wurmLaenge Felder) mit wurmTakt ms je Feld hindurch. Trifft er den Kopf, ist es vorbei, den Koerper beisst er ab.
+ * Sandwurm (wurmChance %): zwei Reihen in der Naehe brodeln wurmWarnung ms lang, dann schiesst ein Sandwurm
+ * (wurmBreite Felder breit, wurmLaenge lang, taucht immer wieder auf und ab) mit wurmTakt ms je Feld hindurch. Trifft er den Kopf, ist es vorbei, den Koerper beisst er ab.
  */
-export const WUESTE = { sturmChance: 10, sturmDauer: 7000, flutChance: 5, flutRand: 2, wurmChance: 2, wurmWarnung: 8000, wurmTakt: 45, wurmLaenge: 7 }
+export const WUESTE = { wuestenfroschChance: 50, sturmChance: 10, sturmDauer: 7000, flutChance: 5, flutRand: 2, wurmChance: 2, wurmWarnung: 8000, wurmTakt: 45, wurmLaenge: 18, wurmBreite: 2 }
 
 /** Zeitlupe: Takt so viel laenger (30 % langsamer = Takt / 0,7) */
 export const zeitlupe = (c: Config) => 1 / Math.max(0.2, 1 - c.zeitlupeProzent / 100)

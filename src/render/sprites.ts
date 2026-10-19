@@ -683,7 +683,12 @@ export function drawLicht(ctx: CanvasRenderingContext2D, from: P, d: Dir, len: n
 /** Frosch von oben, Kopf in Richtung `ang` (Bogenmass, 0 = rechts).
  *  anlauf 0..1: macht sich bereit (Hinterbeine spreizen sich, Koerper duckt sich nach hinten).
  *  flug 0..1 (oder <0): im Sprung mit gestreckten Hinterbeinen, hebt ab (Schatten bleibt am Boden). */
-export function drawFrosch(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, anlauf: number, flug: number, s: number, a = 1) {
+/** Farben eines Froschs: gruen (Wiese) oder sandfarben (Wuestenfrosch) */
+export type FroschFarben = { hell: string; mittel: string; dunkel: string; glanz: string; flecken: string; mund: string }
+export const FROSCH_GRUEN: FroschFarben = { hell: '#6CBF55', mittel: '#4C9E42', dunkel: '#2F7334', glanz: '#8FD877', flecken: 'rgba(40, 110, 45, 0.6)', mund: 'rgba(30, 80, 35, 0.6)' }
+export const FROSCH_WUESTE: FroschFarben = { hell: '#E2B262', mittel: '#C4893A', dunkel: '#8C5A22', glanz: '#F6D896', flecken: 'rgba(130, 70, 20, 0.65)', mund: 'rgba(110, 60, 20, 0.7)' }
+
+export function drawFrosch(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, anlauf: number, flug: number, s: number, a = 1, farben: FroschFarben = FROSCH_GRUEN) {
   if (s <= 0 || a <= 0) return
   const L = cell * 0.74 * s
   const imFlug = flug >= 0 && flug <= 1
@@ -691,9 +696,7 @@ export function drawFrosch(ctx: CanvasRenderingContext2D, x: number, y: number, 
   // Streckung der Beine im Sprung: schnell raus, zur Landung wieder angezogen
   const streck = imFlug ? Math.sin(Math.PI * Math.min(1, flug * 1.3)) : 0
   const duck = imFlug ? 0 : anlauf
-  const hell = '#6CBF55'
-  const mittel = '#4C9E42'
-  const dunkel = '#2F7334'
+  const { hell, mittel, dunkel } = farben
   const oval = (cx: number, cy: number, rx: number, ry: number, rot: number, col: string) => {
     ctx.fillStyle = col
     ctx.beginPath()
@@ -745,7 +748,7 @@ export function drawFrosch(ctx: CanvasRenderingContext2D, x: number, y: number, 
   }
   // Koerper und Kopf
   const g = ctx.createRadialGradient(-L * 0.1, -L * 0.12, L * 0.05, 0, 0, L * 0.65)
-  g.addColorStop(0, '#8FD877')
+  g.addColorStop(0, farben.glanz)
   g.addColorStop(1, hell)
   ctx.fillStyle = g
   ctx.beginPath()
@@ -756,7 +759,7 @@ export function drawFrosch(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.fill()
   // Flecken auf dem Ruecken
   for (const [fx, fy, r] of [[-L * 0.28, -L * 0.12, 0.09], [-L * 0.08, L * 0.15, 0.07], [-L * 0.36, L * 0.14, 0.06], [L * 0.05, -L * 0.18, 0.05]] as const)
-    oval(fx, fy, L * r, L * r * 0.85, 0, 'rgba(40, 110, 45, 0.6)')
+    oval(fx, fy, L * r, L * r * 0.85, 0, farben.flecken)
   // Glanz
   oval(-L * 0.2, -L * 0.2, L * 0.16, L * 0.06, -0.3, 'rgba(255, 255, 255, 0.25)')
   // Augen (vorstehend) und Maul
@@ -765,7 +768,7 @@ export function drawFrosch(ctx: CanvasRenderingContext2D, x: number, y: number, 
     oval(L * 0.43, sd * L * 0.23, L * 0.1, L * 0.1, 0, '#FFF6D8')
     oval(L * 0.46, sd * L * 0.23, L * 0.04, L * 0.065, 0, '#16211d')
   }
-  ctx.strokeStyle = 'rgba(30, 80, 35, 0.6)'
+  ctx.strokeStyle = farben.mund
   ctx.lineWidth = Math.max(1, L * 0.04)
   ctx.beginPath()
   ctx.arc(L * 0.38, 0, L * 0.2, -0.9, 0.9)

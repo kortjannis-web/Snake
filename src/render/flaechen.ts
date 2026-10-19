@@ -89,7 +89,7 @@ function tiefe(cells: P[], bis: number) {
   }
 }
 
-type Bild = { cv: HTMLCanvasElement; x0: number; y0: number; w: number; h: number }
+export type Bild = { cv: HTMLCanvasElement; x0: number; y0: number; w: number; h: number }
 type Farbe4 = readonly [number, number, number, number]
 
 /** Flaeche Pixel fuer Pixel faerben (Aufloesung: px Pixel je Feld). farbe bekommt Abstand, Tiefe und Position in Feldern */
@@ -156,7 +156,7 @@ function textur(n: number, per: number, farbe: (v: number, u: number, w: number)
 
 let zwischen: HTMLCanvasElement | null = null
 /** Bewegte Fuellung: Textur verschoben (dx/dy in Pixeln der Textur), nur innerhalb der Maske */
-function fuellung(ctx: CanvasRenderingContext2D, maske: Bild, tex: HTMLCanvasElement, cell: number, dx: number, dy: number, alpha: number, skal = 1) {
+export function fuellung(ctx: CanvasRenderingContext2D, maske: Bild, tex: HTMLCanvasElement, cell: number, dx: number, dy: number, alpha: number, skal = 1) {
   zwischen ??= document.createElement('canvas')
   if (zwischen.width !== maske.cv.width || zwischen.height !== maske.cv.height) {
     zwischen.width = maske.cv.width
@@ -195,7 +195,7 @@ const sstep = (a: number, b: number, x: number) => {
 
 /** Texturen erst bei Bedarf bauen */
 const texturen = new Map<string, HTMLCanvasElement>()
-const tex = (name: string) => {
+export const tex = (name: string) => {
   let t = texturen.get(name)
   if (t) return t
   if (name === 'lava')
@@ -530,4 +530,121 @@ function sumpfBlasen(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, no
     ctx.arc(x, y, cell * 0.1 * (z / 0.8), 0, TAU)
     ctx.stroke()
   })
+}
+
+
+/* ================= Meer um die Insel (Wueste) ================= */
+
+/** Ein Stueck Meer: Wasser mit Strand (basis), Maske fuer die bewegte Oberflaeche, Gischtbaender fuer die Wellen */
+export type MeerKachel = { basis: Bild; maske: Bild; wellen: Bild[] }
+/** Wo die Gischtbaender liegen (Abstand vom Land in Feldern): aussen, mitte, am Strand */
+export const MEER_WELLEN = [0.85, 0.5, 0.2]
+
+/**
+ * Meer fuer das Rechteck x0..x0+n, y0..y0+n (Kartenfelder): Wasser ueberall, wo kein Land ist. Die Kueste ist weich:
+ * Abstand zum Land mit runden Aussenecken, gefuellten Innenecken und leichten Unebenheiten (Rauschen). Am Land erst
+ * Sand, dann nasser Sand, Brandung, flaches tuerkises Wasser und nach aussen immer tiefer.
+ */
+export function meerKachel(land: (x: number, y: number) => boolean, x0: number, y0: number, n: number, px: number, o: P): MeerKachel {
+  const R = 3
+  const rund = 0.32
+  // Land in der Naehe einmal einsammeln (Kachel plus Rand)
+  const nah: P[] = []
+  for (let y = y0 - R; y < y0 + n + R; y++) for (let x = x0 - R; x < x0 + n + R; x++) if (land(x, y)) nah.push({ x, y })
+  const set = new Set(nah.map((c) => c.x * 4096 + c.y))
+  const abst = (x: number, y: number) => {
+    const cx = Math.floor(x)
+    const cy = Math.floor(y)
+    let d = R + 1
+    for (let j = -R; j <= R; j++)
+      for (let i = -R; i <= R; i++) {
+        if (!set.has((cx + i) * 4096 + cy + j)) continue
+        d = smin(d, sdBox(x - (cx + i + 0.5), y - (cy + j + 0.5), 0.5 - rund) - rund, 0.7)
+      }
+    return d + (rauschen((x - o.x) * 2.1, (y - o.y) * 2.1) - 0.5) * 0.16
+  }
+  const w = Math.ceil(n * px)
+  const mk = () => {
+    const cv = document.createElement('canvas')
+    cv.width = w
+    cv.height = w
+    return cv
+  }
+  const bilder = [mk(), mk(), ...MEER_WELLEN.map(mk)]
+  const datas = bilder.map((cv) => cv.getContext('2d')!.createImageData(w, w))
+  const [db, dm, ...dw] = datas
+  const set4 = (img: ImageData, i: number, f: Farbe4) => {
+    img.data[i] = f[0]
+    img.data[i + 1] = f[1]
+    img.data[i + 2] = f[2]
+    img.data[i + 3] = Math.round(cl(f[3]) * 255)
+  }
+  const sand: Farbe4 = [228, 202, 148, 1]
+  const nass: Farbe4 = [200, 174, 122, 1]
+  const brandung: Farbe4 = [176, 226, 212, 1]
+  const flach: Farbe4 = [112, 204, 200, 1]
+  const mitte: Farbe4 = [58, 158, 192, 1]
+  const tief: Farbe4 = [28, 104, 152, 1]
+  for (let py = 0; py < w; py++)
+    for (let pxx = 0; pxx < w; pxx++) {
+      const x = x0 + (pxx + 0.5) / px
+      const y = y0 + (py + 0.5) / px
+      if (set.has(Math.floor(x) * 4096 + Math.floor(y))) continue
+      const d = abst(x, y)
+      const i = (py * w + pxx) * 4
+      const wx = x - o.x
+      const wy = y - o.y
+      let f: Farbe4
+      if (d < 0.04) f = sand
+      else if (d < 0.18) f = mixA(sand, nass, (d - 0.04) / 0.14)
+      else if (d < 0.3) f = mixA(nass, brandung, sstep(0.18, 0.3, d))
+      else {
+        const t = cl((d - 0.3) / 3.4 + (fbm(wx * 0.7, wy * 0.7, 3) - 0.5) * 0.25)
+        f = t < 0.08 ? mixA(brandung, flach, t / 0.08) : t < 0.45 ? mixA(flach, mitte, (t - 0.08) / 0.37) : mixA(mitte, tief, (t - 0.45) / 0.55)
+        f = mixA(f, [255, 255, 255, 1], (fbm(wx * 1.6, wy * 1.6, 3) - 0.5) * 0.12)
+      }
+      set4(db, i, f)
+      // Bewegte Oberflaeche erst im Wasser
+      if (d > 0.26) set4(dm, i, [255, 255, 255, cl((d - 0.26) / 0.3)])
+      // Gischtbaender, leicht unregelmaessig
+      const nz = (fbm(wx * 1.3 + 7, wy * 1.3, 2) - 0.5) * 0.22
+      MEER_WELLEN.forEach((c, k) => {
+        const breite = k === MEER_WELLEN.length - 1 ? 0.09 : 0.07
+        const a = 1 - Math.abs(d - c - nz) / breite
+        if (a > 0) set4(dw[k], i, [255, 255, 255, a * (0.75 + 0.25 * rauschen(wx * 6, wy * 6))])
+      })
+    }
+  bilder.forEach((cv, k) => cv.getContext('2d')!.putImageData(datas[k], 0, 0))
+  const bild = (cv: HTMLCanvasElement): Bild => ({ cv, x0, y0, w: n, h: n })
+  return { basis: bild(bilder[0]), maske: bild(bilder[1]), wellen: bilder.slice(2).map(bild) }
+}
+
+/**
+ * Meer zeichnen: Grund, bewegte Oberflaeche und Wellen, die an den Strand schwappen (aussen zuerst, dann zum Strand).
+ * staerke > 1: hoehere, schnellere Wellen (Flut kommt)
+ */
+export function drawMeer(ctx: CanvasRenderingContext2D, m: MeerKachel, cell: number, now: number, alpha = 1, staerke = 1, reduce = false) {
+  const { basis, maske, wellen } = m
+  const a0 = ctx.globalAlpha
+  ctx.globalAlpha = a0 * alpha
+  ctx.drawImage(basis.cv, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
+  if (!reduce) {
+    // Textur an der Welt ausrichten (nicht an der Kachel), sonst sieht man die Kachelgrenzen
+    const ppc = maske.cv.width / maske.w
+    const ox = maske.x0 * ppc
+    const oy = maske.y0 * ppc
+    fuellung(ctx, maske, tex('kaustik'), cell, ox + now / 60, oy + now / 90, 0.3)
+    fuellung(ctx, maske, tex('kaustik'), cell, ox / 1.3 - now / 80, oy / 1.3 + now / 70, 0.2, 1.3)
+    // Wellen: alle `periode` ms laeuft eine Welle von aussen an den Strand und zieht sich zurueck
+    const periode = staerke > 1 ? 1500 : 2600
+    const p = (now % periode) / periode
+    wellen.forEach((b, k) => {
+      const s = (p - k * 0.2 + 1) % 1
+      const an = Math.max(0, Math.sin(Math.PI * Math.min(1, s / 0.55)))
+      const ruhe = k === wellen.length - 1 ? 0.3 : 0.08
+      ctx.globalAlpha = a0 * alpha * Math.min(1, (ruhe + an * 0.8) * staerke)
+      ctx.drawImage(b.cv, b.x0 * cell, b.y0 * cell, b.w * cell, b.h * cell)
+    })
+  }
+  ctx.globalAlpha = a0
 }

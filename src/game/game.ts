@@ -993,20 +993,21 @@ export class Game {
     return this.flut?.phase === 'aktiv' && this.flut.zellen.has(key(p.x, p.y))
   }
 
-  /** Hat diese Reihe (achse x: y = linie, achse y: x = linie) Kartenfelder? Gibt den Bereich zurueck */
+  /** Haben diese Reihen (achse x: y = linie bis linie + Breite - 1) Kartenfelder? Gibt den Bereich laengs zurueck */
   protected linieBereich(achse: 'x' | 'y', linie: number): [number, number] | null {
     let von = Infinity
     let bis = -Infinity
     const n = achse === 'x' ? this.w : this.h
-    for (let i = 0; i < n; i++) {
-      if (!this.inside(achse === 'x' ? { x: i, y: linie } : { x: linie, y: i })) continue
-      von = Math.min(von, i)
-      bis = Math.max(bis, i)
-    }
+    for (let b = 0; b < R.WUESTE.wurmBreite; b++)
+      for (let i = 0; i < n; i++) {
+        if (!this.inside(achse === 'x' ? { x: i, y: linie + b } : { x: linie + b, y: i })) continue
+        von = Math.min(von, i)
+        bis = Math.max(bis, i)
+      }
     return von <= bis ? [von, bis] : null
   }
 
-  /** Sandwurm ankuendigen: eine Reihe 3 bis 7 Felder neben dem Kopf brodelt, dann bricht er durch */
+  /** Sandwurm ankuendigen: zwei Reihen 3 bis 7 Felder neben dem Kopf brodeln, dann bricht er durch */
   sandwurmStarten(achse?: 'x' | 'y', linie?: number, dir?: 1 | -1) {
     const W = R.WUESTE
     const h = this.body[0]
@@ -1014,7 +1015,9 @@ export class Game {
     if (linie === undefined) {
       const kopf = achse === 'x' ? h.y : h.x
       const kand: number[] = []
-      for (let d = 3; d <= 7; d++) for (const s of [-1, 1]) if (this.linieBereich(achse, kopf + s * d)) kand.push(kopf + s * d)
+      // linie ist die erste der beiden Reihen: dahinter (kopf + d) oder davor (die naehere Reihe bei kopf - d)
+      for (let d = 3; d <= 7; d++)
+        for (const l of [kopf + d, kopf - d - (W.wurmBreite - 1)]) if (this.linieBereich(achse, l)) kand.push(l)
       if (!kand.length) return false
       linie = this.r.pick(kand)
     }
@@ -1026,18 +1029,26 @@ export class Game {
     return true
   }
 
-  /** Felder des Sandwurms gerade (Kopf zuerst). Vor dem Durchbruch leer */
+  /** Wie weit der Kopf des Sandwurms ist (laengs, in Feldern, mit Nachkommastellen). Vor dem Durchbruch null */
+  sandwurmKopf(): number | null {
+    const s = this.sandwurm
+    if (!s || this.time < s.los) return null
+    const weg = (this.time - s.los) / R.WUESTE.wurmTakt
+    return s.dir === 1 ? s.von - 1 + weg : s.bis + 1 - weg
+  }
+
+  /** Felder des Sandwurms gerade (Kopf zuerst, beide Reihen). Vor dem Durchbruch leer */
   sandwurmFelder(): P[] {
     const s = this.sandwurm
-    if (!s || this.time < s.los) return []
+    const k = this.sandwurmKopf()
+    if (!s || k === null) return []
     const W = R.WUESTE
-    const weg = Math.floor((this.time - s.los) / W.wurmTakt)
-    const kopf = s.dir === 1 ? s.von - 1 + weg : s.bis + 1 - weg
+    const kopf = s.dir === 1 ? Math.floor(k) : Math.ceil(k)
     const out: P[] = []
     for (let i = 0; i < W.wurmLaenge; i++) {
       const v = kopf - s.dir * i
       if (v < s.von || v > s.bis) continue
-      out.push(s.achse === 'x' ? { x: v, y: s.linie } : { x: s.linie, y: v })
+      for (let b = 0; b < W.wurmBreite; b++) out.push(s.achse === 'x' ? { x: v, y: s.linie + b } : { x: s.linie + b, y: v })
     }
     return out
   }
@@ -2132,6 +2143,8 @@ export class Game {
       }
     if (!cand.length) return false
     const c = this.r.pick(cand)
+    // Wueste: ein Teil sind Wuestenfroesche, die doppelt so oft springen
+    const schnell = this.wueste && this.r.next() * 100 < R.WUESTE.wuestenfroschChance
     this.froesche.push({
       p: c.p,
       from: { ...c.p },
@@ -2140,7 +2153,8 @@ export class Game {
       drehT: -1e9,
       t: this.time,
       flugAb: -1e9,
-      hopAt: this.time + Math.max(R.FROSCH_ANLAUF + 400, this.cfg.froschSprung * 1000),
+      hopAt: this.time + Math.max(R.FROSCH_ANLAUF + 400, (this.cfg.froschSprung * 1000) / (schnell ? 2 : 1)),
+      ...(schnell ? { schnell } : {}),
     })
     this.emit({ type: 'frog' })
     return true
@@ -2201,7 +2215,7 @@ export class Game {
       f.from = { ...f.p }
       f.p = ziel
       f.flugAb = this.time
-      f.hopAt = this.time + Math.max(R.FROSCH_FLUG + R.FROSCH_DREHEN + 200, c.froschSprung * 1000)
+      f.hopAt = this.time + Math.max(R.FROSCH_FLUG + R.FROSCH_DREHEN + 200, (c.froschSprung * 1000) / (f.schnell ? 2 : 1))
       this.emit({ type: 'hop', p: { ...ziel } })
       if (same(ziel, this.apple.p)) {
         this.neuerApfel()

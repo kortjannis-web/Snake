@@ -4,9 +4,9 @@
  */
 import type { P } from '../game/types'
 import { drawBaumStehend, drawBaumStehendSchnee, type BaumArt } from './baeume'
-import type { WasserArt } from './flaechen'
+import { drawMeer, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
 import { drawSchlange, type Skin } from './skins'
-import { apfelFarben, drawAmeise, drawApfel, drawFalle, drawFrosch, drawStein, rund } from './sprites'
+import { apfelFarben, drawAmeise, drawApfel, drawFalle, drawFrosch, drawStein, FROSCH_WUESTE, rund } from './sprites'
 
 export type WeltId = 'wiese' | 'winter' | 'wueste' | 'bergwerk' | 'zauberwald' | 'gruselwald'
 type RGB = readonly [number, number, number]
@@ -193,39 +193,8 @@ export function drawErdFeldWelt(ctx: CanvasRenderingContext2D, w: Welt, x: numbe
   const v = (z - 0.5) * 10
   ctx.fillStyle = `rgb(${basis[0] + v},${basis[1] + v * 0.7},${basis[2] + v * 0.5})`
   ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
-  if (inselWelt(w)) {
-    // Meer: am Strand flaches, helles Wasser mit Sandbank, weiter draussen tiefer; Wellen und Glitzer
-    if (ring === 1) {
-      ctx.fillStyle = 'rgba(240, 222, 165, 0.3)'
-      ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
-    }
-    ctx.strokeStyle = `rgba(255, 255, 255, ${ring === 1 ? 0.5 : 0.28})`
-    ctx.lineWidth = Math.max(1, cell * 0.04)
-    ctx.lineCap = 'round'
-    for (let i = 0; i < (ring === 1 ? 2 : 3); i++) {
-      const a = (z * 977 + i * 331) % 1
-      const b = (z * 613 + i * 197) % 1
-      const bx = x + a * cell * 0.5
-      const by = y + (0.15 + b * 0.7) * cell
-      ctx.beginPath()
-      ctx.moveTo(bx, by)
-      ctx.quadraticCurveTo(bx + cell * 0.12, by - cell * 0.07, bx + cell * 0.25, by)
-      ctx.quadraticCurveTo(bx + cell * 0.37, by + cell * 0.07, bx + cell * 0.5, by)
-      ctx.stroke()
-    }
-    if (z > 0.86) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
-      const sx = x + ((z * 53) % 1) * cell
-      const sy = y + ((z * 97) % 1) * cell
-      ctx.beginPath()
-      ctx.moveTo(sx, sy - cell * 0.05)
-      ctx.lineTo(sx + cell * 0.03, sy)
-      ctx.lineTo(sx, sy + cell * 0.05)
-      ctx.lineTo(sx - cell * 0.03, sy)
-      ctx.fill()
-    }
-    return
-  }
+  // Insel: das Meer zeichnet der Renderer darueber (weiche Kueste, Wellen), hier nur die Grundfarbe
+  if (inselWelt(w)) return
   if (waldWelt(w)) {
     // Dichter Wald: Baumkronen, die ueber die Feldgrenzen ragen, mit Licht von oben links
     const art = w.id === 'zauberwald' ? 'zauber' : 'grusel'
@@ -827,8 +796,10 @@ export function drawFalleWelt(ctx: CanvasRenderingContext2D, w: Welt, x: number,
 /* ================= Tiere ================= */
 
 /** Frosch-Platz je Welt (huepft wie ein Frosch). flug: 0..1 im Sprung, sonst -1 */
-export function drawFroschWelt(ctx: CanvasRenderingContext2D, w: Welt, x: number, y: number, cell: number, ang: number, anlauf: number, flug: number, s: number, a = 1, now = 0) {
+export function drawFroschWelt(ctx: CanvasRenderingContext2D, w: Welt, x: number, y: number, cell: number, ang: number, anlauf: number, flug: number, s: number, a = 1, now = 0, wuestenfrosch = false) {
   if (w.frosch === 'frosch') return drawFrosch(ctx, x, y, cell, ang, anlauf, flug, s, a)
+  // Wuestenfrosch: sandfarben (springt doppelt so oft)
+  if (wuestenfrosch) return drawFrosch(ctx, x, y, cell, ang, anlauf, flug, s, a, FROSCH_WUESTE)
   if (s <= 0 || a <= 0) return
   const imFlug = flug >= 0 && flug <= 1
   const hoch = imFlug ? Math.sin(flug * Math.PI) : 0
@@ -1423,6 +1394,9 @@ export function drawFackel(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.fill()
 }
 
+/** Meer fuer die Vorschau der Insel (je Groesse einmal berechnet) */
+const vorschauMeer = new Map<string, MeerKachel>()
+
 /** Kleines Vorschaubild einer Welt (fuer die Auswahl im Aussehen): Brett, Erde, ein Baum, Futter, Schlange */
 export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite: number, hoehe: number, now: number, skin: Skin) {
   const cell = hoehe / 4
@@ -1436,6 +1410,16 @@ export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite:
       ctx.fillStyle = (x + y) % 2 ? w.dunkel : w.hell
       ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
     }
+  // Insel: Meer mit weicher Kueste und Wellen auch in der Vorschau
+  if (inselWelt(w)) {
+    const k = `${cols}|${cell}`
+    let m = vorschauMeer.get(k)
+    if (!m) {
+      m = meerKachel((x, y) => x >= 1 && y >= 1, 0, 0, cols + 1, 16, { x: 0, y: 0 })
+      vorschauMeer.set(k, m)
+    }
+    drawMeer(ctx, m, cell, now)
+  }
   ctx.fillStyle = w.kante
   ctx.fillRect(cell, cell, cols * cell, Math.max(2, cell * 0.1))
   ctx.fillRect(cell, cell, Math.max(2, cell * 0.1), hoehe)

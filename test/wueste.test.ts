@@ -126,6 +126,16 @@ describe('Wüste: Sandwurm', () => {
     expect(g.cause).toBe('sandwurm')
   })
 
+  it('ist zwei Felder breit und lang', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 5, wueste: true })
+    g.sandwurmStarten('x', 4, 1)
+    // Kopf am anderen Ende der Karte: der Wurm fuellt die ganze Reihe (die Karte ist schmaler als er lang ist)
+    g.time += R.WUESTE.wurmWarnung + R.WUESTE.wurmTakt * g.w + 1
+    const f = g.sandwurmFelder()
+    expect(new Set(f.map((p) => p.y))).toEqual(new Set([4, 5]))
+    expect(f.length).toBe(Math.min(R.WUESTE.wurmLaenge, g.w) * 2)
+  })
+
   it('den Körper beißt er ab, der Kopf lebt weiter', () => {
     const g = new Game({ screenW: SW, screenH: SH, seed: 5, wueste: true })
     leer(g)
@@ -144,13 +154,14 @@ describe('Wüste: Sandwurm', () => {
     expect(g.drain().some((e) => e.type === 'sandwurmBiss')).toBe(true)
   })
 
-  it('wählt eine Reihe in der Nähe des Kopfs, nie die des Kopfs selbst', () => {
+  it('wählt zwei Reihen in der Nähe des Kopfs, nie die des Kopfs selbst', () => {
     for (let seed = 1; seed < 30; seed++) {
       const g = new Game({ screenW: SW, screenH: SH, seed, wueste: true })
       if (!g.sandwurmStarten()) continue
       const s = g.sandwurm!
       const kopf = s.achse === 'x' ? g.body[0].y : g.body[0].x
-      const d = Math.abs(s.linie - kopf)
+      // Abstand zur naeheren der beiden Reihen
+      const d = Math.min(Math.abs(s.linie - kopf), Math.abs(s.linie + R.WUESTE.wurmBreite - 1 - kopf))
       expect(d).toBeGreaterThanOrEqual(3)
       expect(d).toBeLessThanOrEqual(7)
     }
@@ -166,6 +177,37 @@ describe('Wüste: Sandwurm', () => {
     }
     expect(g.level).toBeGreaterThan(5)
   }, 30_000)
+})
+
+describe('Wüste: Wüstenfrösche', () => {
+  it('in der Wüste ist ein Teil der Frösche Wüstenfrösche, die doppelt so oft springen', () => {
+    let schnell = 0
+    let normal = 0
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed, wueste: true })
+      leer(g)
+      if (!g.neuerFrosch(true)) continue
+      const f = g.froesche[0]
+      const warten = f.hopAt - g.time
+      if (f.schnell) {
+        schnell++
+        expect(warten).toBe(Math.max(R.FROSCH_ANLAUF + 400, (R.DEFAULTS.froschSprung * 1000) / 2))
+      } else {
+        normal++
+        expect(warten).toBe(R.DEFAULTS.froschSprung * 1000)
+      }
+    }
+    expect(schnell).toBeGreaterThan(5)
+    expect(normal).toBeGreaterThan(5)
+  })
+  it('außerhalb der Wüste gibt es keine', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const g = new Game({ screenW: SW, screenH: SH, seed })
+      leer(g)
+      g.neuerFrosch(true)
+      expect(g.froesche.every((f) => !f.schnell)).toBe(true)
+    }
+  })
 })
 
 describe('Zufällige Reihenfolge der Gefahren', () => {
