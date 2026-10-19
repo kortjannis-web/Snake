@@ -163,7 +163,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ## 12a2. Eis (ab Level 120)
 
-- Ab Level 120 **alle 30 Level ein Eisfeld** (120, 150, 180 …), **4 bis 10 Felder** groß, zusammenhängend, bleibt liegen. Höchstens eins je ca. 300 Felder.
+- Ab Level 120 **alle 30 Level ein Eisfeld** (120, 150, 180 …), **12 bis 24 Felder** groß, zusammenhängend, mit weichem Rand, bleibt liegen. Höchstens eins je ca. 300 Felder.
 - Hellblau mit wanderndem Glanz und feinen Rissen.
 - **Auf Eis kann man nicht lenken:** Solange der Kopf auf Eis ist, rutscht die Schlange geradeaus, gedrückte Richtungen verfallen. Erst wieder auf normalem Boden lenkt man.
 - Fair: Eis liegt nie am Kartenrand und hat ein Feld Abstand zu festen Hindernissen. Läuft man trotzdem auf etwas zu, ist es sofort vorbei: rechtzeitig vor dem Eis abbiegen.

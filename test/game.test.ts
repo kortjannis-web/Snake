@@ -1660,14 +1660,14 @@ describe('Gebiet waehlen', () => {
 })
 
 describe('Eis', () => {
-  it('ab Level 120 alle 30 Level, 4 bis 10 Felder', () => {
+  it('ab Level 120 alle 30 Level, 12 bis 24 Felder', () => {
     expect([119, 120, 150, 151].map((l) => R.neuesEis(C, l))).toEqual([false, true, true, false])
     for (let s = 1; s <= 15; s++) {
       const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 120 })
       expect(g.eis.length).toBeGreaterThanOrEqual(1)
       const e = g.eis[0]
-      expect(e.cells.length).toBeGreaterThanOrEqual(4)
-      expect(e.cells.length).toBeLessThanOrEqual(10)
+      expect(e.cells.length).toBeGreaterThanOrEqual(12)
+      expect(e.cells.length).toBeLessThanOrEqual(24)
     }
   })
 
