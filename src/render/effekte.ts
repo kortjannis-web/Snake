@@ -10,35 +10,35 @@ const s = (nr: number, id: string, name: string, ab: number, text: string): Effe
 const g = (nr: number, id: string, name: string, ab: number, text: string): Effekt => ({ id: `fx-${id}`, nr, name, art: 'gold', ab, text })
 
 export const EFFEKTE: Effekt[] = [
-  s(1, 'glimmer', 'Glimmer', 1_000, 'Kleine Funkel um den Kopf'),
+  s(1, 'glimmer', 'Glimmer', 1_000, 'Funkeln um die ganze Schlange'),
   s(2, 'staub', 'Staubwolke', 2_500, 'Staub wirbelt um den Körper'),
   s(3, 'gluehen', 'Glühen', 5_000, 'Weicher Schein um die ganze Schlange'),
-  s(4, 'blaetter', 'Blätterwirbel', 8_000, 'Blätter kreisen um den Kopf'),
+  s(4, 'blaetter', 'Blätterwirbel', 8_000, 'Blätter wirbeln um die Schlange'),
   s(5, 'schnee', 'Schneegestöber', 12_000, 'Schneeflocken wirbeln herum'),
-  s(6, 'funkenring', 'Funkenring', 18_000, 'Ein Ring aus Funken'),
-  s(7, 'herzschlag', 'Herzschlag', 25_000, 'Herzen pochen um den Kopf'),
+  s(6, 'funkenring', 'Funkenring', 18_000, 'Funken sprühen um den Körper'),
+  s(7, 'herzschlag', 'Herzschlag', 25_000, 'Herzen schweben um den Körper'),
   s(8, 'noten', 'Notenwirbel', 35_000, 'Musiknoten tanzen'),
   s(9, 'blasen', 'Blubberblasen', 50_000, 'Blasen steigen auf'),
   s(10, 'rauch', 'Rauchschwaden', 70_000, 'Rauch steigt vom Körper'),
-  s(11, 'sternenkranz', 'Sternenkranz', 100_000, 'Sterne kreisen um den Kopf'),
+  s(11, 'sternenkranz', 'Sternenkranz', 100_000, 'Sterne funkeln entlang der Schlange'),
   s(12, 'gluehwuermchen', 'Glühwürmchen', 140_000, 'Ein kleiner Schwarm folgt dir'),
-  s(13, 'regenwolke', 'Regenwolke', 200_000, 'Eine kleine Wolke regnet auf dich'),
-  s(14, 'wirbelwind', 'Wirbelwind', 280_000, 'Wind wirbelt um den Kopf'),
+  s(13, 'regenwolke', 'Regenwolke', 200_000, 'Regen fällt auf die ganze Schlange'),
+  s(14, 'wirbelwind', 'Wirbelwind', 280_000, 'Wind wirbelt um den ganzen Körper'),
   s(15, 'frost', 'Frostaura', 400_000, 'Eisiger Schein mit Kristallen'),
   s(16, 'flammen', 'Flammenaura', 550_000, 'Flammen lodern am Körper'),
   s(17, 'elektro', 'Elektroaura', 750_000, 'Funkende Stromschläge'),
   s(18, 'gewitter', 'Gewitterwolke', 1_000_000, 'Eine Gewitterwolke schlägt Blitze'),
-  s(19, 'polarlicht', 'Polarlicht', 1_400_000, 'Leuchtende Bänder über dir'),
+  s(19, 'polarlicht', 'Polarlicht', 1_400_000, 'Leuchtende Bänder über dem Körper'),
   s(20, 'regenbogen', 'Regenbogenaura', 2_000_000, 'Pulsierende Regenbogenringe'),
   g(21, 'goldstaub', 'Goldstaub', 3, 'Glitzernder Goldstaub'),
   g(22, 'schatten', 'Schattenaura', 8, 'Dunkle Schwaden mit violettem Glimmen'),
-  g(23, 'feuerkreis', 'Feuerkreis', 15, 'Ein Ring aus Feuer'),
-  g(24, 'kugelblitz', 'Kugelblitze', 25, 'Plasmakugeln umkreisen dich'),
-  g(25, 'geister', 'Geisterschwarm', 40, 'Kleine Geister kreisen'),
-  g(26, 'runen', 'Runenkreis', 60, 'Ein magischer Kreis unter dir'),
+  g(23, 'feuerkreis', 'Feuerkreis', 15, 'Feuer lodert um die Schlange'),
+  g(24, 'kugelblitz', 'Kugelblitze', 25, 'Plasmakugeln umkreisen die Schlange'),
+  g(25, 'geister', 'Geisterschwarm', 40, 'Kleine Geister schweben um dich'),
+  g(26, 'runen', 'Runenkreis', 60, 'Magische Runen um den Körper und ein Kreis am Kopf'),
   g(27, 'fluegel', 'Phönixflügel', 90, 'Flammende Flügel'),
-  g(28, 'korona', 'Sonnenkorona', 130, 'Strahlen wie die Sonne'),
-  g(29, 'strudel', 'Ereignishorizont', 180, 'Ein Strudel saugt alles an'),
+  g(28, 'korona', 'Sonnenkorona', 130, 'Sonnenstrahlen um die ganze Schlange'),
+  g(29, 'strudel', 'Ereignishorizont', 180, 'Ein Strudel saugt Licht in den Körper'),
   g(30, 'goettlich', 'Göttliches Licht', 250, 'Lichtstrahlen, Heiligenschein, Federn'),
 ]
 export const effektVon = (id: string | null | undefined) => EFFEKTE.find((e) => e.id === id)
@@ -107,13 +107,296 @@ function blitz(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number
   ctx.stroke()
 }
 
+
+/* ================= Aura am ganzen Koerper ================= */
+
+type Teil = 'stern' | 'funke' | 'staub' | 'blatt' | 'flocke' | 'herz' | 'note' | 'blase' | 'rauch' | 'wuermchen' | 'tropfen' | 'wind' | 'kristall' | 'flamme' | 'blitz' | 'licht' | 'schatten' | 'geist' | 'rune' | 'feder' | 'kugel'
+type Bew = 'schwebt' | 'steigt' | 'faellt' | 'kreist' | 'saugt'
+/** Farbe (r,g,b) des Leuchtens um den Koerper, Teilchenart und Bewegung je Effekt; glow = Staerke des Leuchtens (0 = keins) */
+const AURA: Record<string, { f: string; t: Teil; b: Bew; glow?: number }> = {
+  glimmer: { f: '255,250,200', t: 'stern', b: 'schwebt' },
+  staub: { f: '190,150,100', t: 'staub', b: 'steigt', glow: 0.5 },
+  gluehen: { f: '255,250,220', t: 'licht', b: 'schwebt', glow: 0 },
+  blaetter: { f: '120,190,70', t: 'blatt', b: 'kreist', glow: 0.5 },
+  schnee: { f: '210,235,255', t: 'flocke', b: 'faellt', glow: 0.6 },
+  funkenring: { f: '255,170,60', t: 'funke', b: 'kreist' },
+  herzschlag: { f: '255,90,150', t: 'herz', b: 'steigt' },
+  noten: { f: '120,130,200', t: 'note', b: 'steigt', glow: 0.5 },
+  blasen: { f: '170,225,255', t: 'blase', b: 'steigt' },
+  rauch: { f: '130,130,140', t: 'rauch', b: 'steigt', glow: 0.4 },
+  sternenkranz: { f: '255,225,110', t: 'stern', b: 'kreist' },
+  gluehwuermchen: { f: '210,255,120', t: 'wuermchen', b: 'schwebt' },
+  regenwolke: { f: '140,190,255', t: 'tropfen', b: 'faellt' },
+  wirbelwind: { f: '230,240,250', t: 'wind', b: 'kreist', glow: 0.5 },
+  frost: { f: '150,220,255', t: 'kristall', b: 'schwebt', glow: 0 },
+  flammen: { f: '255,130,30', t: 'flamme', b: 'steigt', glow: 1.2 },
+  elektro: { f: '120,225,255', t: 'blitz', b: 'schwebt', glow: 1 },
+  gewitter: { f: '210,215,150', t: 'blitz', b: 'faellt', glow: 0.9 },
+  polarlicht: { f: '100,255,180', t: 'licht', b: 'steigt', glow: 0 },
+  regenbogen: { f: '255,120,200', t: 'funke', b: 'kreist', glow: 0 },
+  goldstaub: { f: '255,210,90', t: 'stern', b: 'schwebt', glow: 1 },
+  schatten: { f: '150,70,230', t: 'schatten', b: 'steigt', glow: 1 },
+  feuerkreis: { f: '255,110,30', t: 'flamme', b: 'kreist', glow: 1.2 },
+  kugelblitz: { f: '190,140,255', t: 'kugel', b: 'kreist', glow: 0.9 },
+  geister: { f: '220,230,255', t: 'geist', b: 'kreist', glow: 0.6 },
+  runen: { f: '110,225,255', t: 'rune', b: 'kreist', glow: 0.9 },
+  fluegel: { f: '255,150,50', t: 'feder', b: 'steigt', glow: 1.1 },
+  korona: { f: '255,190,70', t: 'funke', b: 'schwebt', glow: 1.3 },
+  strudel: { f: '170,100,255', t: 'funke', b: 'saugt', glow: 1.1 },
+  goettlich: { f: '255,240,180', t: 'feder', b: 'faellt', glow: 1.2 },
+}
+
+/** Ein Teilchen der Aura. z = Alter 0..1 (blendet ein und aus), i = Nummer, c = Feldgroesse */
+function teilchen(ctx: CanvasRenderingContext2D, art: Teil, x: number, y: number, c: number, z: number, i: number, now: number, f: string) {
+  const a = Math.sin(z * Math.PI)
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.globalAlpha = Math.max(0, Math.min(1, a * 1.4))
+  switch (art) {
+    case 'stern':
+      ctx.fillStyle = `rgb(${f})`
+      stern(ctx, 0, 0, c * (0.08 + 0.1 * a), z * 3)
+      break
+    case 'funke':
+      glanz(ctx, 0, 0, c * 0.28, `rgba(${f}, 0.55)`)
+      ctx.fillStyle = f === '255,120,200' ? `hsl(${(i * 53 + now * 0.2) % 360}, 95%, 70%)` : '#FFF8E0'
+      ctx.beginPath()
+      ctx.arc(0, 0, c * 0.055, 0, TAU)
+      ctx.fill()
+      break
+    case 'staub':
+      ctx.fillStyle = `rgba(${f}, 0.45)`
+      ctx.beginPath()
+      ctx.arc(0, 0, c * (0.12 + z * 0.22), 0, TAU)
+      ctx.fill()
+      break
+    case 'blatt':
+      ctx.rotate(z * 7 + i)
+      ctx.fillStyle = ['#7FBF4A', '#E8A43C', '#D9622B', '#5DA040'][i % 4]
+      ctx.beginPath()
+      ctx.ellipse(0, 0, c * 0.17, c * 0.08, 0, 0, TAU)
+      ctx.fill()
+      break
+    case 'flocke':
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+      ctx.lineWidth = 1.3
+      ctx.rotate(z * 3 + i)
+      for (let k = 0; k < 3; k++) {
+        const b = (k / 3) * Math.PI
+        ctx.beginPath()
+        ctx.moveTo(-Math.cos(b) * c * 0.1, -Math.sin(b) * c * 0.1)
+        ctx.lineTo(Math.cos(b) * c * 0.1, Math.sin(b) * c * 0.1)
+        ctx.stroke()
+      }
+      break
+    case 'herz':
+      ctx.fillStyle = `rgba(${f}, 0.95)`
+      herz(ctx, 0, 0, c * (0.12 + 0.05 * Math.sin(now / 160 + i)))
+      break
+    case 'note':
+      ctx.fillStyle = '#2B2F3A'
+      ctx.font = `700 ${Math.round(c * 0.36)}px serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(i % 2 ? '♪' : '♫', 0, 0)
+      break
+    case 'blase':
+      ctx.strokeStyle = `rgba(${f}, 0.95)`
+      ctx.lineWidth = 1.2
+      ctx.beginPath()
+      ctx.arc(0, 0, c * (0.07 + 0.07 * hash(i)), 0, TAU)
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'
+      ctx.beginPath()
+      ctx.arc(-c * 0.03, -c * 0.03, c * 0.02, 0, TAU)
+      ctx.fill()
+      break
+    case 'rauch':
+      ctx.fillStyle = `rgba(${f}, 0.4)`
+      ctx.beginPath()
+      ctx.arc(0, 0, c * (0.14 + z * 0.3), 0, TAU)
+      ctx.fill()
+      break
+    case 'wuermchen': {
+      const b = 0.5 + 0.5 * Math.sin(now / 250 + i * 3)
+      glanz(ctx, 0, 0, c * 0.3, `rgba(${f}, ${0.8 * b})`)
+      ctx.fillStyle = `rgba(250,255,200,${b})`
+      ctx.beginPath()
+      ctx.arc(0, 0, c * 0.04, 0, TAU)
+      ctx.fill()
+      break
+    }
+    case 'tropfen':
+      ctx.strokeStyle = `rgba(${f}, 0.95)`
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.moveTo(0, -c * 0.1)
+      ctx.lineTo(-c * 0.02, c * 0.1)
+      ctx.stroke()
+      break
+    case 'wind':
+      ctx.strokeStyle = `rgba(${f}, 0.9)`
+      ctx.lineWidth = Math.max(1, c * 0.04)
+      ctx.rotate(i + z * 2)
+      ctx.beginPath()
+      ctx.arc(0, 0, c * 0.2, 0, 2.2)
+      ctx.stroke()
+      break
+    case 'kristall':
+      ctx.strokeStyle = 'rgba(225,247,255,0.95)'
+      ctx.lineWidth = 1.4
+      ctx.rotate(i)
+      for (let k = 0; k < 3; k++) {
+        const b = (k / 3) * Math.PI
+        ctx.beginPath()
+        ctx.moveTo(-Math.cos(b) * c * 0.14, -Math.sin(b) * c * 0.14)
+        ctx.lineTo(Math.cos(b) * c * 0.14, Math.sin(b) * c * 0.14)
+        ctx.stroke()
+      }
+      break
+    case 'flamme': {
+      const r = c * 0.17 * (1 - z * 0.5)
+      ctx.fillStyle = `rgba(255, ${200 - z * 150}, 40, 0.9)`
+      ctx.beginPath()
+      ctx.moveTo(0, -r * 1.9)
+      ctx.quadraticCurveTo(r, 0, 0, r)
+      ctx.quadraticCurveTo(-r, 0, 0, -r * 1.9)
+      ctx.fill()
+      break
+    }
+    case 'blitz':
+      ctx.shadowColor = `rgb(${f})`
+      ctx.shadowBlur = c * 0.25
+      blitz(ctx, -c * 0.2, -c * 0.2, c * 0.2, c * 0.2, Math.floor(now / 100) + i, Math.max(1, c * 0.035))
+      break
+    case 'licht':
+      glanz(ctx, 0, 0, c * 0.4, `rgba(${f}, 0.6)`)
+      break
+    case 'schatten':
+      ctx.fillStyle = 'rgba(30,10,45,0.5)'
+      ctx.beginPath()
+      ctx.arc(0, 0, c * (0.2 + z * 0.25), 0, TAU)
+      ctx.fill()
+      glanz(ctx, 0, 0, c * 0.35, `rgba(${f}, 0.3)`)
+      break
+    case 'geist':
+      ctx.fillStyle = 'rgba(240,245,255,0.9)'
+      ctx.beginPath()
+      ctx.arc(0, -c * 0.03, c * 0.11, Math.PI, 0)
+      ctx.lineTo(c * 0.11, c * 0.1)
+      for (let k = 0; k < 3; k++) ctx.lineTo(c * (0.11 - (k + 0.5) * 0.073), c * (k % 2 ? 0.1 : 0.05))
+      ctx.lineTo(-c * 0.11, c * 0.1)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = '#2A2F45'
+      ctx.fillRect(-c * 0.05, -c * 0.05, c * 0.03, c * 0.04)
+      ctx.fillRect(c * 0.02, -c * 0.05, c * 0.03, c * 0.04)
+      break
+    case 'rune':
+      ctx.fillStyle = `rgba(${f}, 1)`
+      ctx.font = `700 ${Math.round(c * 0.3)}px serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃ'[i % 12], 0, 0)
+      break
+    case 'feder':
+      ctx.rotate(Math.sin(z * 6 + i) * 0.7)
+      ctx.fillStyle = `rgba(${f}, 0.95)`
+      ctx.beginPath()
+      ctx.ellipse(0, 0, c * 0.06, c * 0.17, 0, 0, TAU)
+      ctx.fill()
+      break
+    case 'kugel':
+      glanz(ctx, 0, 0, c * 0.3, `rgba(${f}, 0.8)`)
+      ctx.fillStyle = '#FFFFFF'
+      ctx.beginPath()
+      ctx.arc(0, 0, c * 0.05, 0, TAU)
+      ctx.fill()
+      break
+  }
+  ctx.restore()
+}
+
+/**
+ * Aura um die ganze Schlange: hinten ein Leuchten entlang des Koerpers, vorn Teilchen an jedem Abschnitt
+ * (bei langen Schlangen ueber den ganzen Koerper verteilt). pts = Glieder in Feldkoordinaten.
+ */
+function koerperAura(ctx: CanvasRenderingContext2D, id: string, pts: P[], c: number, now: number, hinten: boolean) {
+  const st = AURA[id]
+  if (!st) return
+  const alle = pts.map((p) => ({ x: (p.x + 0.5) * c, y: (p.y + 0.5) * c }))
+  const schritt = Math.max(1, Math.ceil(alle.length / 64))
+  if (hinten) {
+    const glow = st.glow ?? 0.8
+    if (!glow) return
+    const puls = 1 + 0.18 * Math.sin(w6(now, 3))
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (const [breite, alpha] of [[2.3, 0.1], [1.7, 0.16], [1.25, 0.22]] as const) {
+      ctx.strokeStyle = `rgba(${st.f}, ${Math.min(0.5, alpha * glow * puls)})`
+      ctx.lineWidth = c * breite
+      ctx.beginPath()
+      alle.forEach((p, i) => {
+        if (i % schritt && i !== alle.length - 1) return
+        if (i) ctx.lineTo(p.x, p.y)
+        else ctx.moveTo(p.x, p.y)
+      })
+      ctx.stroke()
+    }
+    return
+  }
+  // Teilchen: an jedem 'abstand'-ten Glied zwei Stueck, hoechstens etwa 24 Glieder
+  const abstand = Math.max(1, Math.ceil(alle.length / 24))
+  const dauer = st.b === 'faellt' ? 1400 : st.b === 'steigt' ? 1800 : 2400
+  alle.forEach((p, i) => {
+    if (i % abstand) return
+    for (let k = 0; k < 2; k++) {
+      const n = i * 2 + k
+      const z = zyk(now, dauer, hash(n))
+      const a0 = hash(n + 7) * TAU
+      let x = p.x
+      let y = p.y
+      switch (st.b) {
+        case 'schwebt': {
+          const r = c * (0.5 + 0.2 * z)
+          x += Math.cos(a0 + z * 1.2) * r
+          y += Math.sin(a0 + z * 1.2) * r
+          break
+        }
+        case 'steigt':
+          x += (hash(n + 3) - 0.5) * c * 1.0 + Math.sin(w6(now, 2) + n) * c * 0.06
+          y += (hash(n + 5) - 0.5) * c * 0.3 - z * c * 1.1
+          break
+        case 'faellt':
+          x += (hash(n + 3) - 0.5) * c * 1.0
+          y += -c * 0.8 + z * c * 1.5
+          break
+        case 'kreist': {
+          const r = c * 0.62
+          const a = a0 + w6(now, 2) * (k ? -1 : 1)
+          x += Math.cos(a) * r
+          y += Math.sin(a) * r
+          break
+        }
+        case 'saugt': {
+          const r = c * 1.1 * (1 - z)
+          x += Math.cos(a0 + z * 3) * r
+          y += Math.sin(a0 + z * 3) * r
+          break
+        }
+      }
+      teilchen(ctx, st.t, x, y, c, z, n, now, st.f)
+    }
+  })
+}
+
 /** Effekt zeichnen. pts = Glieder in Feldkoordinaten (Kopf zuerst), ang = Blickrichtung des Kopfs */
 export function drawEffekt(ctx: CanvasRenderingContext2D, e: Effekt, pts: P[], cell: number, ang: number, now: number, schicht: 'hinten' | 'vorn') {
   if (!pts.length) return
   const c = cell
   const hx = (pts[0].x + 0.5) * c
   const hy = (pts[0].y + 0.5) * c
-  // Koerperpunkte (Pixel), hoechstens die ersten 16 Glieder
+  // Koerperpunkte (Pixel), hoechstens die ersten 16 Glieder (fuer die besonderen Effekte am Kopf)
   const koerper = pts.slice(0, 16).map((p) => ({ x: (p.x + 0.5) * c, y: (p.y + 0.5) * c }))
   const umKopf = (n: number, r: number, umlauf: number, f: (x: number, y: number, i: number, a: number) => void) => {
     for (let i = 0; i < n; i++) {
@@ -126,6 +409,8 @@ export function drawEffekt(ctx: CanvasRenderingContext2D, e: Effekt, pts: P[], c
   ctx.lineJoin = 'round'
   const id = e.id.slice(3)
   const H = schicht === 'hinten'
+  // Aura um den ganzen Koerper (zusaetzlich zu dem, was der Effekt am Kopf zeigt)
+  koerperAura(ctx, id, pts, c, now, H)
   switch (id) {
     case 'glimmer':
       if (H) break

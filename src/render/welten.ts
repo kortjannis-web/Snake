@@ -130,7 +130,7 @@ export const WELTEN: Welt[] = [
     neu: '#386052',
     kante: 'rgba(10, 30, 22, 0.8)',
     erde: { nah: [58, 48, 70], mitte: [44, 36, 56], tief: [28, 22, 38], kruemelNah: 'rgba(160, 120, 220, 0.45)', kruemel: 'rgba(120, 255, 220, 0.18)', grund: '#1A1424' },
-    baeume: ['pilz', 'pilz', 'laub'],
+    baeume: ['laub', 'pilz', 'laub', 'laub'],
     wasser: ['zauber'],
     futter: 'beere',
     falle: 'fliegenfalle',
@@ -161,6 +161,8 @@ export const WELTEN: Welt[] = [
     nacht: [20, 6, 30],
   },
 ]
+/** Waelder mit dichten Baumkronen statt Erde (Zauberwald, Gruselwald) */
+export const waldWelt = (w: Welt) => w.id === 'gruselwald' || w.id === 'zauberwald'
 export const weltVon = (id: string | undefined) => WELTEN.find((w) => w.id === id) ?? WELTEN[0]
 /** Freigeschaltet bei diesem besten Level? */
 export const weltFrei = (w: Welt, best: number) => best >= w.ab
@@ -180,13 +182,16 @@ export function drawErdFeldWelt(ctx: CanvasRenderingContext2D, w: Welt, x: numbe
   const v = (z - 0.5) * 10
   ctx.fillStyle = `rgb(${basis[0] + v},${basis[1] + v * 0.7},${basis[2] + v * 0.5})`
   ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
-  if (w.id === 'gruselwald') {
-    // Dichter Wald: dunkle Baumkronen, die ueber die Feldgrenzen ragen, mit Licht von oben links
+  if (waldWelt(w)) {
+    // Dichter Wald: Baumkronen, die ueber die Feldgrenzen ragen, mit Licht von oben links
+    const art = w.id === 'zauberwald' ? 'zauber' : 'grusel'
     for (let i = 0; i < 4; i++) {
       const a = (z * 977 + i * 331) % 1
       const b = (z * 613 + i * 197) % 1
-      waldKrone(ctx, x + a * cell, y + b * cell, cell * (0.36 + ((a + b) % 0.28)), (z * 50 + i * 13) % 22)
+      waldKrone(ctx, x + a * cell, y + b * cell, cell * (0.36 + ((a + b) % 0.28)), (z * 50 + i * 13) % 22, art)
     }
+    // Zauberwald: hier und da ein Leuchtpilz zwischen den Kronen
+    if (art === 'zauber' && z > 0.62) leuchtPilz(ctx, x + ((z * 53) % 1) * cell * 0.8 + cell * 0.1, y + ((z * 71) % 1) * cell * 0.8 + cell * 0.1, cell * 0.2, z)
     return
   }
   ctx.fillStyle = ring === 1 ? e.kruemelNah : e.kruemel
@@ -212,43 +217,111 @@ export function drawErdFeldWelt(ctx: CanvasRenderingContext2D, w: Welt, x: numbe
   }
 }
 
-/** Eine dunkle Baumkrone von oben (Gruselwald): Grundkreis, drei Blattbueschel, Glanzlicht oben links */
-function waldKrone(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, v: number) {
+/** Eine Baumkrone von oben: Grundkreis, drei Blattbueschel, Glanzlicht oben links.
+ *  grusel = dunkel und gruen-grau, zauber = blau-tuerkis mit leuchtenden Punkten */
+function waldKrone(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, v: number, art: 'grusel' | 'zauber' = 'grusel') {
   const g = Math.round(26 + v)
   ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
   ctx.beginPath()
   ctx.arc(x + r * 0.12, y + r * 0.18, r, 0, TAU)
   ctx.fill()
-  ctx.fillStyle = `rgb(${g - 14}, ${g + 6}, ${g - 6})`
+  ctx.fillStyle = art === 'zauber' ? `rgb(${g + 4}, ${g + 22}, ${g + 48})` : `rgb(${g - 14}, ${g + 6}, ${g - 6})`
   ctx.beginPath()
   ctx.arc(x, y, r, 0, TAU)
   ctx.fill()
-  ctx.fillStyle = `rgb(${g - 6}, ${g + 18}, ${g + 2})`
+  ctx.fillStyle = art === 'zauber' ? `rgb(${g + 6}, ${g + 58}, ${g + 66})` : `rgb(${g - 6}, ${g + 18}, ${g + 2})`
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * TAU + v
     ctx.beginPath()
     ctx.arc(x + Math.cos(a) * r * 0.38 - r * 0.12, y + Math.sin(a) * r * 0.38 - r * 0.12, r * 0.42, 0, TAU)
     ctx.fill()
   }
-  ctx.fillStyle = 'rgba(140, 170, 140, 0.16)'
+  ctx.fillStyle = art === 'zauber' ? 'rgba(160, 255, 230, 0.2)' : 'rgba(140, 170, 140, 0.16)'
   ctx.beginPath()
   ctx.arc(x - r * 0.35, y - r * 0.35, r * 0.3, 0, TAU)
   ctx.fill()
+  if (art === 'zauber') {
+    // Leuchtende Punkte in den Blaettern (Feen- und Sporenlicht)
+    for (let i = 0; i < 3; i++) {
+      const a = v * 1.7 + i * 2.3
+      const px = x + Math.cos(a) * r * 0.5
+      const py = y + Math.sin(a * 1.3) * r * 0.5
+      const gl = ctx.createRadialGradient(px, py, 0, px, py, r * 0.3)
+      gl.addColorStop(0, i % 2 ? 'rgba(210, 150, 255, 0.85)' : 'rgba(150, 255, 225, 0.85)')
+      gl.addColorStop(1, 'rgba(150, 255, 225, 0)')
+      ctx.fillStyle = gl
+      ctx.fillRect(px - r * 0.3, py - r * 0.3, r * 0.6, r * 0.6)
+    }
+  }
 }
 
-/** Gruselwald: Baumkronen vom Waldrand ragen hier und da ein Stueck ins Spielfeld (nur Optik).
+/** Kleiner Leuchtpilz von oben (Zauberwald): Hut mit Punkten und Schein */
+function leuchtPilz(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, z: number) {
+  const farbe = z > 0.8 ? '210, 140, 255' : '120, 255, 215'
+  const gl = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4)
+  gl.addColorStop(0, `rgba(${farbe}, 0.45)`)
+  gl.addColorStop(1, `rgba(${farbe}, 0)`)
+  ctx.fillStyle = gl
+  ctx.fillRect(x - r * 2.4, y - r * 2.4, r * 4.8, r * 4.8)
+  ctx.fillStyle = `rgb(${farbe})`
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)'
+  for (const [dx, dy] of [[-0.35, -0.3], [0.3, -0.1], [-0.05, 0.4]] as const) {
+    ctx.beginPath()
+    ctx.arc(x + dx * r, y + dy * r, r * 0.16, 0, TAU)
+    ctx.fill()
+  }
+}
+
+/**
+ * Zauberwald: Waldboden im Spielfeld (nur Optik, leise, damit Futter und Gefahren auffallen): Moos, Farnblaetter und
+ * hier und da ein kleiner Leuchtpilz in der Feldecke. x, y = linke obere Ecke des Felds, z = Zufall des Felds
+ */
+export function drawWaldBoden(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, z: number) {
+  if (z < 0.2) {
+    // Moos: zwei weiche dunkle Flecken
+    ctx.fillStyle = 'rgba(14, 60, 46, 0.3)'
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath()
+      ctx.ellipse(x + (((z * 53 + i * 0.37) % 1) * 0.7 + 0.15) * cell, y + (((z * 97 + i * 0.61) % 1) * 0.7 + 0.15) * cell, cell * (0.16 + i * 0.08), cell * (0.1 + i * 0.05), z * 6, 0, TAU)
+      ctx.fill()
+    }
+  } else if (z < 0.3) {
+    // Farnblatt in der Ecke: drei Fiedern
+    const cx = x + (z > 0.25 ? 0.82 : 0.18) * cell
+    const cy = y + ((z * 31) % 1 > 0.5 ? 0.82 : 0.18) * cell
+    ctx.strokeStyle = 'rgba(120, 220, 170, 0.35)'
+    ctx.lineWidth = Math.max(1, cell * 0.035)
+    ctx.lineCap = 'round'
+    for (let k = -1; k <= 1; k++) {
+      ctx.beginPath()
+      ctx.moveTo(cx, cy)
+      ctx.quadraticCurveTo(cx + k * cell * 0.1, cy - cell * 0.1, cx + k * cell * 0.2, cy - cell * 0.02)
+      ctx.stroke()
+    }
+  } else if (z > 0.94) {
+    // Kleiner Leuchtpilz in der Ecke
+    const ecke = Math.floor((z * 1000) % 4)
+    leuchtPilz(ctx, x + (ecke % 2 ? 0.86 : 0.14) * cell, y + (ecke > 1 ? 0.86 : 0.14) * cell, cell * 0.07, z > 0.975 ? 0.9 : 0.5)
+  }
+}
+
+/** Zauberwald und Gruselwald: Baumkronen vom Waldrand ragen hier und da ein Stueck ins Spielfeld (nur Optik).
  *  x, y = Erdfeld am Rand, drin = Kartenfelder */
-export function drawWaldRand(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, z: number, drin: (x: number, y: number) => boolean) {
+export function drawWaldRand(ctx: CanvasRenderingContext2D, w: Welt, x: number, y: number, cell: number, z: number, drin: (x: number, y: number) => boolean) {
+  const art = w.id === 'zauberwald' ? 'zauber' : 'grusel'
   for (const [dx, dy, k] of [[0, 1, 0], [0, -1, 1], [1, 0, 2], [-1, 0, 3]] as const) {
     if (!drin(x + dx, y + dy)) continue
     const h = (z * 7.13 + k * 0.37) % 1
-    if (h > 0.55) continue
-    // Mitte auf der Kante, leicht ins Feld geschoben
+    if (h > 0.78) continue
+    // Mitte auf der Kante, ein gutes Stueck ins Feld geschoben
     const t = 0.2 + ((z * 3.7 + k) % 1) * 0.6
-    const ein = 0.08 + h * 0.3
+    const ein = 0.12 + h * 0.42
     const cx = (x + 0.5 + dx * (0.5 + ein) + (dy ? t - 0.5 : 0)) * cell
     const cy = (y + 0.5 + dy * (0.5 + ein) + (dx ? t - 0.5 : 0)) * cell
-    waldKrone(ctx, cx, cy, cell * (0.34 + h * 0.25), (z * 40 + k * 5) % 22)
+    waldKrone(ctx, cx, cy, cell * (0.38 + h * 0.3), (z * 40 + k * 5) % 22, art)
   }
 }
 

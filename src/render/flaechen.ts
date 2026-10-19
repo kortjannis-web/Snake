@@ -285,9 +285,10 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
   // Wasser
   const d = abstand(cells, 0.34, 0.7, 0.1, o)
   const T = tiefe(cells, 1.6)
-  const P: Record<WasserArt, { rand: Farbe4; flach: Farbe4; mitte: Farbe4; tief: Farbe4; nass: Farbe4 }> = {
-    tief: { rand: [224, 244, 248, 0.95], flach: [124, 200, 222, 1], mitte: [63, 147, 181, 1], tief: [31, 92, 128, 1], nass: [60, 110, 70, 0.25] },
-    gras: { rand: [150, 175, 130, 1], flach: [120, 190, 175, 1], mitte: [70, 160, 180, 1], tief: [40, 115, 150, 1], nass: [60, 110, 70, 0.25] },
+  // rb = Breite des Uferstreifens (Felder), nass = feuchter Hof ausserhalb
+  const P: Record<WasserArt, { rand: Farbe4; flach: Farbe4; mitte: Farbe4; tief: Farbe4; nass: Farbe4; rb?: number }> = {
+    tief: { rand: [224, 244, 248, 0.95], flach: [124, 200, 222, 1], mitte: [63, 147, 181, 1], tief: [31, 92, 128, 1], nass: [150, 138, 88, 0.28], rb: 0.09 },
+    gras: { rand: [190, 178, 126, 0.85], flach: [120, 190, 175, 1], mitte: [70, 160, 180, 1], tief: [40, 115, 150, 1], nass: [140, 128, 80, 0.3], rb: 0.1 },
     klar: { rand: [214, 196, 140, 1], flach: [170, 205, 165, 1], mitte: [70, 165, 185, 1], tief: [40, 120, 150, 1], nass: [150, 110, 60, 0.25] },
     winter: { rand: [250, 252, 255, 1], flach: [120, 175, 210, 1], mitte: [50, 100, 160, 1], tief: [24, 52, 104, 1], nass: [200, 220, 235, 0.4] },
     hoehle: { rand: [90, 210, 230, 0.9], flach: [40, 100, 130, 1], mitte: [18, 52, 82, 1], tief: [6, 20, 40, 1], nass: [60, 180, 220, 0.2] },
@@ -295,19 +296,20 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
     sumpf: { rand: [90, 100, 50, 1], flach: [95, 110, 55, 1], mitte: [60, 80, 40, 1], tief: [34, 48, 26, 1], nass: [40, 50, 20, 0.35] },
   }
   const p = P[art as WasserArt]
+  const rb = p.rb ?? 0.08
   const basis = raster(cells, px, 0.3, d, T, (dd, tt, x, y) => {
-    if (dd > 0.08) return null
-    if (dd > 0) return [p.nass[0], p.nass[1], p.nass[2], p.nass[3] * (1 - dd / 0.08)]
+    if (dd > rb) return null
+    if (dd > 0) return [p.nass[0], p.nass[1], p.nass[2], p.nass[3] * (1 - dd / rb)]
     const aa = cl(-dd / 0.04)
     const w = W(x, y)
-    if (dd > -0.08) return [p.rand[0], p.rand[1], p.rand[2], p.rand[3] * aa]
+    if (dd > -rb) return [p.rand[0], p.rand[1], p.rand[2], p.rand[3] * aa]
     const t = cl(tt / 1.2 + (fbm(w.x, w.y, 2) - 0.5) * 0.15)
     let c = t < 0.35 ? mixA(p.flach, p.mitte, t / 0.35) : mixA(p.mitte, p.tief, (t - 0.35) / 0.65)
     c = mixA(c, mixA(p.tief, [0, 0, 0, 1], 0.2), (fbm(w.x * 1.3, w.y * 1.3, 3) - 0.5) * 0.4)
     if ((art === 'klar' || art === 'gras') && t < 0.7 && rauschen(w.x * 7, w.y * 7) > 0.84) c = mixA(c, art === 'klar' ? [150, 145, 125, 1] : [100, 125, 105, 1], 0.45)
     return [c[0], c[1], c[2], 1]
   })
-  const maske = raster(cells, px, 0.3, d, T, (dd) => (dd > -0.08 ? null : [255, 255, 255, cl((-0.08 - dd) / 0.06)]))
+  const maske = raster(cells, px, 0.3, d, T, (dd) => (dd > -rb ? null : [255, 255, 255, cl((-rb - dd) / 0.06)]))
   return { basis, maske, cells, art, T, benutzt: 0 }
 }
 
