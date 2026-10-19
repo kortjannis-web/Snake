@@ -28,7 +28,7 @@ import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
@@ -1892,24 +1892,72 @@ function renderMaster() {
     list.append(box)
   }
 }
-/** Nur mit Master-Code: 7-mal schnell auf die Versionszeile (Optionen) tippen, dann den Code eingeben */
-$('btn-master').hidden = !master.frei
-let versionTipps = 0
-let versionZeit = 0
-$('versionszeile').addEventListener('click', async () => {
-  if (master.frei) return
-  const jetzt = Date.now()
-  versionTipps = jetzt - versionZeit < 1500 ? versionTipps + 1 : 1
-  versionZeit = jetzt
-  if (versionTipps < 7) return
-  versionTipps = 0
-  const code = prompt('Master-Code')
-  if (!code) return
-  if (await masterFreischalten(code)) {
-    $('btn-master').hidden = false
-    alert('Master-Einstellungen freigeschaltet.')
-  } else alert('Falscher Code.')
+/** Admin (Optionen): einmal das Admin-Passwort eingeben, dann Master-Einstellungen und Spieler verwalten */
+$('btn-admin').addEventListener('click', async () => {
+  audio.click()
+  if (!master.frei || !master.code) {
+    const code = prompt('Admin-Passwort')
+    if (!code) return
+    if (!(await masterFreischalten(code))) {
+      alert('Falsches Passwort.')
+      return
+    }
+  }
+  openPage('master')
+  void adminListe()
 })
+
+/** Admin: alle Spieler (aus der Hall of Snakes) mit Loeschen-Knopf, nach Namen filterbar */
+let adminZeilen: HallZeile[] = []
+async function adminListe(neu = true) {
+  const box = $('admin-liste')
+  const info = $('admin-info')
+  if (!onlineAktiv) {
+    info.textContent = 'Online ist nicht eingerichtet.'
+    return
+  }
+  if (neu) {
+    info.textContent = 'Lädt …'
+    try {
+      adminZeilen = (await ladeHall()).zeilen
+    } catch {
+      info.textContent = 'Keine Verbindung.'
+      return
+    }
+  }
+  const such = $<HTMLInputElement>('admin-suche').value.trim().toLowerCase()
+  const treffer = adminZeilen.filter((z) => !such || z.name.toLowerCase().includes(such))
+  box.replaceChildren()
+  for (const z of treffer.slice(0, 200)) {
+    const el = document.createElement('div')
+    el.className = 'liste__zeile admin-zeile'
+    const name = document.createElement('span')
+    name.className = 'liste__name'
+    name.textContent = z.name
+    const rekord = document.createElement('b')
+    rekord.className = 'liste__level'
+    rekord.textContent = z.rekord > 0 ? String(z.rekord) : '–'
+    const weg = document.createElement('button')
+    weg.className = 'icon-btn admin-weg'
+    weg.setAttribute('aria-label', `${z.name} löschen`)
+    setIcon(weg, 'Trash2')
+    weg.addEventListener('click', async () => {
+      if (!confirm(`${z.name} wirklich löschen? Profil, Ergebnisse, Freunde und Nachrichten sind dann weg.`)) return
+      try {
+        await adminLoeschen(master.code, z.user_id)
+        adminZeilen = adminZeilen.filter((x) => x.user_id !== z.user_id)
+        void adminListe(false)
+        toast('schlange', 'Gelöscht', z.name)
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Das hat nicht geklappt.')
+      }
+    })
+    el.append(name, rekord, weg)
+    box.append(el)
+  }
+  info.textContent = `${treffer.length} von ${adminZeilen.length} Spielern`
+}
+$('admin-suche').addEventListener('input', () => void adminListe(false))
 $('btn-master-reset').addEventListener('click', () => {
   if (!confirm('Alle Master-Einstellungen auf Standard zurücksetzen?')) return
   resetConfig()

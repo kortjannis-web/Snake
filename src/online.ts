@@ -299,6 +299,13 @@ export async function ladeHall(): Promise<{ zeilen: HallZeile[]; ich: string | n
   return { zeilen: (data ?? []) as HallZeile[], ich: s.session?.user.id ?? null }
 }
 
+/** Admin: Spieler loeschen (Profil mit allem Drumherum). Das Passwort prueft die Datenbank */
+export async function adminLoeschen(code: string, ziel: string) {
+  const sb = await client()
+  const { error } = await sb.rpc('admin_spieler_loeschen', { code, ziel })
+  if (error) throw new Error(fehlerText(error))
+}
+
 export async function meineAnfragen(): Promise<Anfrage[]> {
   if (!onlineAktiv || !profil.name) return []
   try {

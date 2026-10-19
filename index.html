@@ -359,7 +359,7 @@
                 <button data-v="dynamisch" role="radio">Dynamisch</button>
               </div>
             </div>
-            <button class="btn btn--ghost" data-go="master" id="btn-master" hidden><span data-icon="SlidersHorizontal"></span>Master-Einstellungen</button>
+            <button class="btn btn--ghost" id="btn-admin"><span data-icon="Shield"></span>Admin</button>
             <button class="btn btn--danger" id="btn-reset"><span data-icon="Trash2"></span>Statistik zurücksetzen</button>
             <p class="fine" id="versionszeile">Snake Endlos · Version <span id="version"></span></p>
           </div>
@@ -483,10 +483,17 @@
         <div class="page">
           <header class="page__head">
             <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
-            <h2>Master</h2>
+            <h2>Admin</h2>
           </header>
           <div class="page__body">
-            <p class="hinweis">Alle Häufigkeiten, Wahrscheinlichkeiten und Grenzen des Spiels. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
+            <details class="master zeitleiste" id="admin-spieler">
+              <summary><span data-icon="Users"></span>Spieler verwalten</summary>
+              <p class="hinweis">Spieler löschen (Profil, Ergebnisse, Freunde, Nachrichten). Gilt mit dem Admin-Passwort von jedem Konto aus.</p>
+              <input class="name-feld" type="search" id="admin-suche" placeholder="Spieler suchen" aria-label="Spieler suchen" autocomplete="off" spellcheck="false" />
+              <div class="liste" id="admin-liste"></div>
+              <p class="fine" id="admin-info"></p>
+            </details>
+            <p class="hinweis">Master-Einstellungen: alle Häufigkeiten, Wahrscheinlichkeiten und Grenzen des Spiels. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
             <details class="master zeitleiste" id="zeitleiste">
               <summary><span data-icon="ListOrdered"></span>Zeitleiste: was kommt wann</summary>
               <p class="hinweis">Berechnet aus den Zahlen unten, ändert sich also mit jeder Einstellung. Bauten (Bäume, Hütten, Türme, Lava) nur, wenn Platz ist; Kartengröße wie am Handy hochkant.</p>

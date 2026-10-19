@@ -77,13 +77,15 @@ export function resetStats() {
   saveStats()
 }
 
-/* ---------------- Master-Freischaltung ----------------
- * Die Master-Einstellungen gibt es nur auf Geraeten, auf denen einmal der Master-Code
- * eingegeben wurde. Im Code steht nur sein Hash, nicht der Code selbst. */
+/* ---------------- Admin (Master-Freischaltung) ----------------
+ * Admin-Bereich (Master-Einstellungen, Spieler loeschen) nur nach Eingabe des Admin-Passworts unter Optionen.
+ * Im Code steht nur sein Hash (dieselbe Pruefung macht die Datenbank beim Loeschen). Das Passwort bleibt auf
+ * dem Geraet gespeichert, damit es beim Loeschen mitgeschickt werden kann. */
 const MKEY = 'snake.master.v1'
-const MASTER_HASH = '3448bc06a33411340a6c28fa55458cdc582c17fade658b25d69d7c3e5f8e05f3'
+const MASTER_HASH = '1a2b9cbe444ab8afbbf5206aeb6b1f272650bec146387e3d3ab856e828cf4693'
 
-export const master = { frei: read(MKEY, { frei: false }).frei === true }
+const gespeichert = read(MKEY, { frei: false, code: '' } as { frei: boolean; code?: string })
+export const master = { frei: gespeichert.frei === true, code: gespeichert.code ?? '' }
 
 /** Prueft den Code (Gross-/Kleinschreibung, Leer- und Bindestriche egal) und schaltet frei */
 export async function masterFreischalten(code: string) {
@@ -91,7 +93,8 @@ export async function masterFreischalten(code: string) {
   const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm)))
   if ([...h].map((b) => b.toString(16).padStart(2, '0')).join('') !== MASTER_HASH) return false
   master.frei = true
-  write(MKEY, { frei: true })
+  master.code = code
+  write(MKEY, { frei: true, code })
   Object.assign(config, ladeConfig())
   return true
 }

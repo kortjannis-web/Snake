@@ -3012,3 +3012,12 @@ html[data-install] #app {
 .tages-ziel[hidden] {
   display: none;
 }
+
+/* Admin: Spielerliste mit Loeschen-Knopf */
+.liste__zeile.admin-zeile {
+  grid-template-columns: minmax(0, 1fr) auto 44px;
+}
+
+.admin-weg {
+  color: #ff8a73;
+}
