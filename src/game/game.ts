@@ -30,7 +30,11 @@ export type GameOpts = {
   kreativ?: Kreativ | null
   /** Kreativ-Sandbox: eigene Karte, Laenge und Objekte */
   sandbox?: Sandbox | null
+  /** Wueste (Insel): Sandsturm, Flut und Sandwurm (siehe R.WUESTE) */
+  wueste?: boolean
 }
+/** Feld aus einem Schluessel zurueck */
+const ausKey = (k: number): P => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })
 
 /** Schluessel fuer Sets (funktioniert auch fuer -1 und Karten bis 4000 Felder Kante) */
 export const key = (x: number, y: number) => (y + 1) * 4096 + (x + 1)
@@ -83,6 +87,14 @@ export class Game {
   extra: P[] = []
   /** Felder innerhalb der Bloecke, die nicht zur Karte gehoeren (abgeschnittene Ecken der Tageslevel) */
   aus: P[] = []
+  /** Wueste: Sandsturm, Flut und Sandwurm an? */
+  readonly wueste: boolean
+  /** Sandsturm: Sicht schlecht bis `bis` (Spielzeit) */
+  sandsturm: { t: number; bis: number } | null = null
+  /** Flut: erst Warnung (Wellen schlagen hoeher), dann steht der Rand unter Wasser. zellen = betroffene Felder */
+  flut: { phase: 'warnung' | 'aktiv'; t: number; zellen: Set<number> } | null = null
+  /** Sandwurm: Reihe (achse x = waagrecht, linie = y) brodelt bis `los`, dann laeuft er von `von` bis `bis` durch */
+  sandwurm: { achse: 'x' | 'y'; linie: number; von: number; bis: number; dir: 1 | -1; t: number; los: number; raus: boolean; verschont: boolean } | null = null
   /** Gesamte Verschiebung seit dem Start: Weltkoordinate = Karte - ursprung (fuer Erde, Erze, Deko) */
   ursprung = { x: 0, y: 0 }
   /** Abgebaute Erze (Weltkoordinaten) */
@@ -188,6 +200,7 @@ export class Game {
     this.cfg = { ...R.DEFAULTS, ...(o.cfg ?? {}) }
     this.kreativ = o.kreativ ?? null
     this.tempo = o.tempo ?? 'normal'
+    this.wueste = !!o.wueste
     this.r = rng(o.seed)
     this.lavaSalz = 11 + 3 * ((o.seed ?? Math.floor(Math.random() * 2 ** 31)) % 100_000)
     // Block = halber Bildschirm, am Handy (hochkant) uebereinander, quer nebeneinander.
@@ -319,6 +332,7 @@ export class Game {
     this.gegnerTakt()
     this.ameisenTakt()
     this.fallenTakt()
+    this.sandwurmTakt()
     this.regie()
   }
 
@@ -709,6 +723,7 @@ export class Game {
   gefahr(n: P, rest: P[] = this.body): Cause | null {
     if (!this.inside(n)) return 'rand'
     if (this.geist()) return null
+    if (this.flut?.phase === 'aktiv' && this.flut.zellen.has(key(n.x, n.y))) return 'flut'
     if (this.mauern.some((m) => m.cells.slice(0, m.grown).some((p) => same(p, n)))) return 'mauer'
     if (this.teiche.some((t) => t.drying === undefined && t.cells.some((p) => same(p, n)))) return 'teich'
     if (this.fallen.some((f) => same(f.p, n))) return 'falle'
@@ -808,6 +823,8 @@ export class Game {
     }
     // Lava breitet sich jeden 2. Apfel aus (auch in der festen Sandbox: das ist eine Mechanik)
     if (this.level % Math.max(1, this.cfg.lavaWachsen) === 0) this.lavaWachsen()
+    // Wueste: Sandsturm, Flut, Sandwurm (vor dem neuen Apfel, damit er nicht im Wasser landet)
+    this.wuesteNachApfel()
     this.layout()
     this.tick = R.takt(this.cfg, this.tempo, this.level)
   }
@@ -926,6 +943,140 @@ export class Game {
       if (z < 0) return a
     }
     return arten[arten.length - 1]
+  }
+
+  /* ================= Wueste: Sandsturm, Flut, Sandwurm ================= */
+
+  /** Nach jedem Apfel (nur in der Wueste) */
+  protected wuesteNachApfel() {
+    if (!this.wueste || this.aufbau || this.statisch) return
+    const W = R.WUESTE
+    // Flut: Warnung -> mit dem naechsten Apfel steigt das Wasser -> mit dem Apfel danach geht es zurueck
+    if (this.flut?.phase === 'aktiv') {
+      this.flut = null
+      this.emit({ type: 'flutEnde' })
+    } else if (this.flut?.phase === 'warnung') {
+      this.flut = { phase: 'aktiv', t: this.time, zellen: this.flutZone() }
+      this.emit({ type: 'flut' })
+    } else if (this.r.next() * 100 < W.flutChance) this.flutWarnen()
+    if (this.r.next() * 100 < W.sturmChance) this.sandsturmStarten()
+    if (!this.sandwurm && this.r.next() * 100 < W.wurmChance) this.sandwurmStarten()
+  }
+
+  /** Flut ankuendigen: die Wellen schlagen hoeher, mit dem naechsten Apfel steigt das Wasser */
+  flutWarnen() {
+    this.flut = { phase: 'warnung', t: this.time, zellen: this.flutZone() }
+    this.emit({ type: 'flutWarnung' })
+  }
+
+  sandsturmStarten(dauer = R.WUESTE.sturmDauer) {
+    this.sandsturm = { t: this.time, bis: this.time + dauer }
+    this.emit({ type: 'sandsturm', bis: this.sandsturm.bis })
+  }
+
+  /** Kartenfelder, die bei Flut unter Wasser stehen: alles, was hoechstens flutRand Felder vom Rand entfernt ist */
+  protected flutZone(): Set<number> {
+    const r = Math.max(0, Math.round(R.WUESTE.flutRand))
+    const out = new Set<number>()
+    for (let y = 0; y < this.h; y++)
+      for (let x = 0; x < this.w; x++) {
+        if (!this.inside({ x, y })) continue
+        let rand = false
+        for (let dy = -r; dy <= r && !rand; dy++) for (let dx = -r; dx <= r && !rand; dx++) if (!this.inside({ x: x + dx, y: y + dy })) rand = true
+        if (rand) out.add(key(x, y))
+      }
+    return out
+  }
+
+  /** Steht dieses Feld gerade unter Wasser? */
+  unterWasser(p: P) {
+    return this.flut?.phase === 'aktiv' && this.flut.zellen.has(key(p.x, p.y))
+  }
+
+  /** Hat diese Reihe (achse x: y = linie, achse y: x = linie) Kartenfelder? Gibt den Bereich zurueck */
+  protected linieBereich(achse: 'x' | 'y', linie: number): [number, number] | null {
+    let von = Infinity
+    let bis = -Infinity
+    const n = achse === 'x' ? this.w : this.h
+    for (let i = 0; i < n; i++) {
+      if (!this.inside(achse === 'x' ? { x: i, y: linie } : { x: linie, y: i })) continue
+      von = Math.min(von, i)
+      bis = Math.max(bis, i)
+    }
+    return von <= bis ? [von, bis] : null
+  }
+
+  /** Sandwurm ankuendigen: eine Reihe 3 bis 7 Felder neben dem Kopf brodelt, dann bricht er durch */
+  sandwurmStarten(achse?: 'x' | 'y', linie?: number, dir?: 1 | -1) {
+    const W = R.WUESTE
+    const h = this.body[0]
+    achse ??= this.r.next() < 0.5 ? 'x' : 'y'
+    if (linie === undefined) {
+      const kopf = achse === 'x' ? h.y : h.x
+      const kand: number[] = []
+      for (let d = 3; d <= 7; d++) for (const s of [-1, 1]) if (this.linieBereich(achse, kopf + s * d)) kand.push(kopf + s * d)
+      if (!kand.length) return false
+      linie = this.r.pick(kand)
+    }
+    const b = this.linieBereich(achse, linie)
+    if (!b) return false
+    dir ??= this.r.next() < 0.5 ? 1 : -1
+    this.sandwurm = { achse, linie, von: b[0], bis: b[1], dir, t: this.time, los: this.time + W.wurmWarnung, raus: false, verschont: false }
+    this.emit({ type: 'sandwurmWarnung' })
+    return true
+  }
+
+  /** Felder des Sandwurms gerade (Kopf zuerst). Vor dem Durchbruch leer */
+  sandwurmFelder(): P[] {
+    const s = this.sandwurm
+    if (!s || this.time < s.los) return []
+    const W = R.WUESTE
+    const weg = Math.floor((this.time - s.los) / W.wurmTakt)
+    const kopf = s.dir === 1 ? s.von - 1 + weg : s.bis + 1 - weg
+    const out: P[] = []
+    for (let i = 0; i < W.wurmLaenge; i++) {
+      const v = kopf - s.dir * i
+      if (v < s.von || v > s.bis) continue
+      out.push(s.achse === 'x' ? { x: v, y: s.linie } : { x: s.linie, y: v })
+    }
+    return out
+  }
+
+  /** Sandwurm unterwegs: trifft er den Kopf, ist es vorbei, den Koerper beisst er ab */
+  protected sandwurmTakt() {
+    const s = this.sandwurm
+    if (!s || this.time < s.los) return
+    const W = R.WUESTE
+    if (!s.raus) {
+      s.raus = true
+      this.emit({ type: 'sandwurm' })
+    }
+    const weg = Math.floor((this.time - s.los) / W.wurmTakt)
+    if (weg > s.bis - s.von + 1 + W.wurmLaenge) {
+      this.sandwurm = null
+      this.emit({ type: 'sandwurmWeg' })
+      return
+    }
+    if (s.verschont || this.geist() || (this.kreativ && this.kreativ.tod !== 'an')) return
+    const felder = new Set(this.sandwurmFelder().map((p) => key(p.x, p.y)))
+    const i = this.body.findIndex((p) => felder.has(key(p.x, p.y)))
+    if (i < 0) return
+    // Kopf oder Hals: erwischt (ein Schild rettet, dann laesst der Wurm sie in Ruhe)
+    if (i <= 1) {
+      if (this.schildBrechen()) {
+        s.verschont = true
+        this.schutzBis = this.time + this.cfg.schutz * 1000
+        return
+      }
+      this.die('sandwurm')
+      return
+    }
+    // Koerper: der Wurm beisst durch, alles dahinter ist weg
+    const weg2 = this.body.length - i
+    this.abgeschnitten.push({ cells: this.body.slice(i).map((q) => ({ ...q })), von: i, laenge: this.body.length, t: this.time })
+    this.body = this.body.slice(0, i)
+    this.prev = this.prev.slice(0, i)
+    this.emit({ type: 'sandwurmBiss', weg: weg2 })
   }
 
   /** Kreativ: direkt auf einen Level springen (hoeher: Welt waechst mit, niedriger: kuerzer) */
@@ -1236,6 +1387,15 @@ export class Game {
     })
     this.ameisenWeg.forEach((a) => mv(a.p))
     this.abgeschnitten.forEach((a) => a.cells.forEach(mv))
+    // Flut bleibt auf denselben Feldern (neue Bloecke stehen nicht unter Wasser), der Sandwurm in seiner Reihe
+    if (this.flut) this.flut.zellen = new Set([...this.flut.zellen].map((k) => ausKey(k)).map((p) => key(p.x + dx, p.y + dy)))
+    const sw = this.sandwurm
+    if (sw) {
+      const [quer, laengs] = sw.achse === 'x' ? [dy, dx] : [dx, dy]
+      sw.linie += quer
+      sw.von += laengs
+      sw.bis += laengs
+    }
   }
 
   /* ================= Platz finden ================= */
@@ -1532,6 +1692,8 @@ export class Game {
         if (zu[i] || !seen[i]) continue
         const k = key(x, y)
         if (belegt.has(k) || koerper.has(k)) continue
+        // Flut (auch schon bei der Warnung): nichts an den Rand, was bald unter Wasser steht
+        if (this.flut?.zellen.has(k)) continue
         // Keine Sackgasse: mindestens zwei freie Nachbarn
         const frei = (x > 0 && !zu[i - 1] ? 1 : 0) + (x < w - 1 && !zu[i + 1] ? 1 : 0) + (y > 0 && !zu[i - w] ? 1 : 0) + (y < h - 1 && !zu[i + w] ? 1 : 0)
         if (frei <= 1) continue

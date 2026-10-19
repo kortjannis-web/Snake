@@ -10,6 +10,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Feldgröße:** Ein Bildschirm hat immer ca. 300 Felder, egal welches Gerät (Handy hochkant z. B. 12 × 23). So spielt es sich überall gleich.
 - **Wachsen:** bis Level 50 **alle 2 Äpfel** ein Glied mehr, bis Level 300 alle 4, danach alle 6 (halb so schnell wie früher; einstellbar: Master-Einstellungen → Schlange). Sonst wäre die Schlange auf Dauer länger als die Karte.
 - **Regelmäßig Neues:** Bis Level 300 kommt **alle 10 Level** etwas Neues oder etwas wird schwerer (Übersicht in der README und in der Zeitleiste der Master-Einstellungen).
+- **Zufällige Reihenfolge der Gefahren (seit 1.28, Standard an, Optionen → Zufällige Gefahren):** Die Level, an denen eine neue Gefahr kommt, bleiben (5, 15, 30, 40, 60, 70, 80, 100, 110, 120, 140, 160), aber **welche** dort kommt (Mauern, Teiche, Frösche, Giftäpfel, Bäume, Fallen, Hütten, Eis, Gegner, Giftwolken, Ameisen, Jägertürme), wird jede Runde neu ausgelost. Fair bleibt es so: Jede Gefahr hat eine Schwere 1 bis 6, und Platz i darf nur Gefahren bis Schwere 2 + i/2 bekommen (die ersten beiden Plätze nur Mauern, Teiche, Frösche oder Giftäpfel, Jägertürme frühestens auf dem 9. Platz). **Mauern (Gewicht 4), Teiche, Frösche und Giftäpfel (je 3)** sind wahrscheinlicher als der Rest (1, Fallen 1,5), kommen also meist früh. Große Häuser kommen 50 Level nach den Hütten, lila Gegner 50 Level nach den roten. Nicht im Kreativ-, Tages- und Mehrspielermodus. Die Tabelle in der README zeigt die feste Reihenfolge (Option aus).
 - **Tempo:** Grundtakt 154 ms pro Feld (es gibt nur noch Normal). Mit jedem Level etwas schneller, ab ca. Level 270 bleibt es bei 68 % des Grundtakts.
 - **Spielmodi** (Startmenü: Auswahl **Abenteuer | Normal | Speedrun** unter „Spielen“, die Wahl bleibt gespeichert; Täglich und Kreativ sind immer Normal):
   - **Abenteuer:** **genau 25 % langsamer** (75 % der Geschwindigkeit: Takt 154 / 0,75 = 205,3 ms, auf jedem Level im selben Verhältnis zu Normal) und **25 % weniger Äpfel**.
@@ -248,14 +249,25 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ## 14b. Welten
 
-- Eine Welt tauscht Boden, Erde, Bäume, Wasser, Futter, Fallen, Tiere, Mauern und die Stimmung. **Die Spielregeln bleiben gleich.**
-- Freigeschaltet, wenn man ihren Level einmal erreicht hat (Hinweis im Spiel), wählbar unter Aussehen → Welten:
+- Eine Welt tauscht Boden, Erde, Bäume, Wasser, Futter, Fallen, Tiere, Mauern und die Stimmung. Die Spielregeln bleiben gleich, nur die **Wüste** hat eigene Ereignisse (unten).
+- **Freischalten (seit 1.28):** Wer in einer Welt **Level 100** erreicht, schaltet die **nächste** frei (Hinweis im Spiel, dann unter Aussehen → Welten wählbar). Reihenfolge: **Wiese → Wüstenoase → Winterwald → Bergwerk → Zauberwald → Gruselwald**. Was nach der alten Regel (Rekord-Level) schon frei war, bleibt frei. Zählt in Abenteuer, Normal und Speedrun, nicht im Kreativ- und Tagesmodus.
+- **Belohnungen je Welt** (nicht kaufbar, im Shop mit Schloss und „Level 100 · Welt“): bei **Level 100** ein passender **Skin**, bei **150** ein **Accessoire**, bei **200** ein **epischer Skin mit Glimmer** (funkelt über den ganzen Körper) und eine passende **Spur**. Die Weltenkarte im Shop zeigt den Rekord in der Welt und die Belohnungen mit Haken.
+  - Wiese: Wiesenblume, Blumenkranz, Frühlingszauber + Blütenblätter
+  - Wüstenoase: Sandviper, Pharaonenhaube, Pharao + Goldsand
+  - Winterwald: Norweger, Pudelmütze, Eiskönig + Eiskristalle
+  - Bergwerk: Erzader, Grubenhelm (mit Lampe), Amethyst + Edelsteine
+  - Zauberwald: Leuchtpilz, Zauberhut, Feenzauber + Feenstaub
+  - Gruselwald: Kürbis, Hexenhut, Nachtmahr + Irrlichter
+- Die Welten:
   - **Wiese** (immer): Laub-, Kirsch- und Herbstbäume gemischt, Teiche mal tief mit Seerosen, mal klar mit bemoostem Ufer.
-  - **Winterwald (ab Level 50):** Schnee-Schachbrett, verschneite Tannen und Weihnachtsbäume mit Kugeln und Lichterkette, kalte Seen mit Eisschollen, **Geschenke statt Äpfel**, Pinguine, Eiskäfer, Schneelöcher als Fallen, Steine mit Schneehaube, Schneefall.
-  - **Wüstenoase (ab 80):** Eine **Sandinsel mitten im Meer** (rundherum Wasser statt Erde: flach und hell am Strand, nach außen tiefer, mit Wellen), Sand, Palmen und Kakteen, Oasen mit Sand und Kieseln oder tiefe Seen, **Kaktusfeigen**, Wüstenspringmäuse, Feuerameisen, **Skorpione im Sand** als Fallen, Sandstein, ab und zu ein Steppenläufer.
-  - **Bergwerk (ab 120):** Felsboden im Halbdunkel mit **Fackeln** an den Wänden, Kristallsäulen statt Bäumen, dunkle Höhlenseen, **Edelsteine** statt Äpfeln, Fledermäuse, Höhlenspinnen, **TNT** als Falle, Felsen mit Kristallsplittern, Staub in der Luft.
-  - **Zauberwald (ab 160):** Nacht mit Mondlicht, **dichter Wald** (blau-türkise Baumkronen mit Leuchtpunkten rund um die Karte, ragen nur leicht ins Feld; Moos, Farn und kleine Leuchtpilze auf dem Boden, mehr Laubbäume), Leuchtpilze, leuchtende Seen, **Zauberbeeren**, Leuchtfrösche, Glühkäfer, **fleischfressende Pflanzen** als Fallen, Moossteine, Glühwürmchen.
-  - **Gruselwald (ab 200):** Außerhalb der Karte dichter dunkler Wald (Kronen ragen leicht ins Feld), tote Bäume, Sumpf, **Kürbisse** mit leuchtendem Gesicht, Kröten, Spinnen, **Grabsteine** als Mauern, eine **Knochenhand** greift aus dem Boden, Nebel und fernes Wetterleuchten.
+  - **Wüstenoase:** Eine **Sandinsel mitten im Meer** (rundherum Wasser statt Erde: flach und hell am Strand, nach außen tiefer, mit Wellen), Sand, Palmen und Kakteen, Oasen mit Sand und Kieseln oder tiefe Seen, **Kaktusfeigen**, Wüstenspringmäuse, Feuerameisen, **Skorpione im Sand** als Fallen, Sandstein, ab und zu ein Steppenläufer. Nach jedem Apfel kann etwas passieren:
+    - **Sandsturm** (10 %): 7 s lang ist die Sicht schlecht, nur rund um den Kopf bleibt etwas frei.
+    - **Flut** (5 %): erst schlagen die Wellen am Rand höher (Warnung), mit dem **nächsten Apfel** steht der Rand **2 Felder tief unter Wasser** (hineinfahren = Spielende), mit dem Apfel danach geht das Wasser zurück. Während Warnung und Flut landen Äpfel und Power-ups nie im Wasser; neue Gebiete stehen nicht unter Wasser.
+    - **Sandwurm** (2 %): eine Reihe oder Spalte 3 bis 7 Felder neben dem Kopf **brodelt 8 Sekunden**, dann schießt ein Sandwurm (7 Felder lang, sehr schnell) einmal komplett durch. **Trifft er den Kopf, ist es vorbei**; trifft er nur den Körper, beißt er ihn dort ab (alles dahinter ist weg). Ein Schild rettet einmal.
+  - **Winterwald:** Schnee-Schachbrett, verschneite Tannen und Weihnachtsbäume mit Kugeln und Lichterkette, kalte Seen mit Eisschollen, **Geschenke statt Äpfel**, Pinguine, Eiskäfer, Schneelöcher als Fallen, Steine mit Schneehaube, Schneefall.
+  - **Bergwerk:** Felsboden im Halbdunkel mit **Fackeln** an den Wänden, Kristallsäulen statt Bäumen, dunkle Höhlenseen, **Edelsteine** statt Äpfeln, Fledermäuse, Höhlenspinnen, **TNT** als Falle, Felsen mit Kristallsplittern, Staub in der Luft.
+  - **Zauberwald:** Nacht mit Mondlicht, **dichter Wald** (blau-türkise Baumkronen mit Leuchtpunkten rund um die Karte, ragen nur leicht ins Feld; Moos, Farn und kleine Leuchtpilze auf dem Boden, mehr Laubbäume), Leuchtpilze, leuchtende Seen, **Zauberbeeren**, Leuchtfrösche, Glühkäfer, **fleischfressende Pflanzen** als Fallen, Moossteine, Glühwürmchen.
+  - **Gruselwald:** Außerhalb der Karte dichter dunkler Wald (Kronen ragen leicht ins Feld), tote Bäume, Sumpf, **Kürbisse** mit leuchtendem Gesicht, Kröten, Spinnen, **Grabsteine** als Mauern, eine **Knochenhand** greift aus dem Boden, Nebel und fernes Wetterleuchten.
 - In dunklen Welten leuchten Schlangenkopf, Futter, Power-ups, Lava, Fackeln, Kristalle, Pilze und leuchtendes Wasser.
 
 **Landschaft (alle Welten)**

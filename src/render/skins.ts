@@ -13,7 +13,8 @@ import { drawEffekt, EFFEKTE, type Effekt } from './effekte'
 
 export type RGB = readonly [number, number, number]
 export type Farbe = { id: string; nr: number; name: string; preis: number; kopf: RGB; schwanz: RGB; versteckt?: boolean }
-export type Muster = { id: string; nr: number; name: string; preis: number; art: string; kopf: RGB; schwanz: RGB; extra?: RGB[]; bewegt: boolean; versteckt?: boolean }
+/** glimmer: epischer Skin, funkelt zusaetzlich in dieser Farbe */
+export type Muster = { id: string; nr: number; name: string; preis: number; art: string; kopf: RGB; schwanz: RGB; extra?: RGB[]; bewegt: boolean; versteckt?: boolean; glimmer?: RGB }
 export type Platz = 'augen' | 'kopf' | 'gesicht' | 'schwanz'
 export type Acc = { id: string; nr: number; name: string; preis: number; platz: Platz; bewegt?: boolean }
 export type SpurArt = { id: string; nr: number; name: string; preis: number }
@@ -116,6 +117,19 @@ export const MUSTER: Muster[] = [
   mu(43, 'drache', 'Drache', 11000, 'drache', [60, 150, 70], [20, 60, 30], true),
   mu(44, 'phoenix', 'Phönix', 13000, 'phoenix', [255, 210, 80], [210, 40, 20], true),
   mu(45, 'void', 'Schwarzes Loch', 15000, 'void', [14, 8, 24], [0, 0, 4], true),
+  // Belohnungen der Welten (nicht kaufbar): Level 100 ein passender Skin, Level 200 ein epischer mit Glimmer
+  mu(46, 'wiesenblume', 'Wiesenblume', 0, 'blumen', [120, 200, 90], [50, 130, 60], false, [[255, 255, 255], [255, 170, 210], [200, 160, 255]]),
+  mu(47, 'sandviper', 'Sandviper', 0, 'python', [226, 196, 140], [176, 138, 86], false, [[140, 92, 44], [245, 226, 180]]),
+  mu(48, 'norweger', 'Norweger', 0, 'strick', [200, 40, 50], [130, 20, 32], false, [[250, 250, 250]]),
+  mu(49, 'erzader', 'Erzader', 0, 'erz', [96, 90, 88], [48, 45, 44], false),
+  mu(50, 'leuchtpilz', 'Leuchtpilz', 0, 'leuchten', [64, 52, 128], [24, 18, 58], true, [[120, 255, 220], [255, 140, 230]]),
+  mu(51, 'kuerbis', 'Kürbis', 0, 'rillen', [246, 146, 40], [196, 96, 20], false, [[150, 66, 10]]),
+  { ...mu(52, 'fruehling', 'Frühlingszauber', 0, 'blumen', [150, 230, 120], [60, 160, 110], true, [[255, 255, 255], [255, 160, 200], [255, 220, 120]]), glimmer: [255, 240, 180] },
+  { ...mu(53, 'pharao', 'Pharao', 0, 'pharao', [252, 208, 80], [200, 146, 36], true, [[32, 66, 170], [255, 244, 190]]), glimmer: [255, 220, 120] },
+  { ...mu(54, 'eiskoenig', 'Eiskönig', 0, 'funkeln', [236, 250, 255], [110, 180, 235], true, [[255, 255, 255]]), glimmer: [200, 240, 255] },
+  { ...mu(55, 'amethyst', 'Amethyst', 0, 'facetten', [184, 120, 240], [84, 40, 150], true), glimmer: [230, 190, 255] },
+  { ...mu(56, 'feenzauber', 'Feenzauber', 0, 'leuchten', [120, 230, 220], [160, 90, 230], true, [[255, 255, 255], [255, 170, 240], [170, 255, 240]]), glimmer: [255, 200, 250] },
+  { ...mu(57, 'nachtmahr', 'Nachtmahr', 0, 'schemen', [70, 36, 96], [14, 8, 24], true, [[150, 255, 170]]), glimmer: [190, 150, 255] },
 ]
 
 const ac = (nr: number, platz: Platz, id: string, name: string, preis: number, bewegt = false): Acc => ({ id, nr, name, preis, platz, bewegt })
@@ -153,6 +167,13 @@ export const ACCS: Acc[] = [
   ac(30, 'schwanz', 'skorpion', 'Skorpion', 3500),
   ac(31, 'schwanz', 'rakete', 'Raketenantrieb', 6000, true),
   ac(32, 'schwanz', 'komet', 'Kometenschweif', 9000, true),
+  // Belohnungen der Welten (Level 150)
+  ac(33, 'kopf', 'blumenkranz', 'Blumenkranz', 0),
+  ac(34, 'kopf', 'nemes', 'Pharaonenhaube', 0),
+  ac(35, 'kopf', 'pudelmuetze', 'Pudelmütze', 0),
+  ac(36, 'kopf', 'grubenhelm', 'Grubenhelm', 0, true),
+  ac(37, 'kopf', 'zauberhut', 'Zauberhut', 0, true),
+  ac(38, 'kopf', 'hexenhut', 'Hexenhut', 0),
 ]
 
 const sp = (nr: number, id: string, name: string, preis: number): SpurArt => ({ id: `spur-${id}`, nr, name, preis })
@@ -170,7 +191,41 @@ export const SPUREN: SpurArt[] = [
   sp(10, 'pixel', 'Pixel', 6000),
   sp(11, 'regenbogen', 'Regenbogen', 9000),
   sp(12, 'flammen', 'Flammenspur', 12000),
+  // Belohnungen der Welten (Level 200, zum epischen Skin)
+  sp(13, 'blueten', 'Blütenblätter', 0),
+  sp(14, 'goldsand', 'Goldsand', 0),
+  sp(15, 'eiskristalle', 'Eiskristalle', 0),
+  sp(16, 'edelsteine', 'Edelsteine', 0),
+  sp(17, 'feenstaub', 'Feenstaub', 0),
+  sp(18, 'irrlichter', 'Irrlichter', 0),
 ]
+
+/**
+ * Belohnungen je Welt: Level 100 ein passender Skin, 150 ein Accessoire, 200 ein epischer Skin mit Spur.
+ * Kann man nicht kaufen, nur in der Welt erspielen.
+ */
+export const WELT_LOHN: { welt: string; level: number; id: string }[] = [
+  ...(
+    [
+      ['wiese', 'wiesenblume', 'blumenkranz', 'fruehling', 'spur-blueten'],
+      ['wueste', 'sandviper', 'nemes', 'pharao', 'spur-goldsand'],
+      ['winter', 'norweger', 'pudelmuetze', 'eiskoenig', 'spur-eiskristalle'],
+      ['bergwerk', 'erzader', 'grubenhelm', 'amethyst', 'spur-edelsteine'],
+      ['zauberwald', 'leuchtpilz', 'zauberhut', 'feenzauber', 'spur-feenstaub'],
+      ['gruselwald', 'kuerbis', 'hexenhut', 'nachtmahr', 'spur-irrlichter'],
+    ] as const
+  ).flatMap(([welt, skin, acc, episch, spur]) => [
+    { welt, level: 100, id: skin },
+    { welt, level: 150, id: acc },
+    { welt, level: 200, id: episch },
+    { welt, level: 200, id: spur },
+  ]),
+]
+const LOHN = new Map(WELT_LOHN.map((l) => [l.id, l]))
+/** Ist das eine Belohnung einer Welt? (dann nicht kaufbar) */
+export const lohnVon = (id: string) => LOHN.get(id)
+/** Name einer Sache (Skin, Accessoire, Spur) nach Id */
+export const nameVon = (id: string) => [...MUSTER, ...ACCS, ...SPUREN].find((x) => x.id === id)?.name ?? id
 
 /** Kaufbare Modi fuer die Farben */
 export const MODI = [
@@ -188,7 +243,7 @@ export const TEILUNGEN: { id: Teilung; name: string }[] = [
 const PREISE = new Map<string, number>([...FARBEN, ...MUSTER, ...ACCS, ...SPUREN, ...MODI].map((x) => [x.id, x.preis]))
 export const preisVon = (id: string) => PREISE.get(id) ?? 0
 /** Besitzt man es? (alles mit Preis 0 hat jeder) */
-export const hatSkin = (besitz: string[], id: string) => preisVon(id) === 0 || besitz.includes(id)
+export const hatSkin = (besitz: string[], id: string) => (preisVon(id) === 0 && !LOHN.has(id)) || besitz.includes(id)
 /** Wie viele kaufbare Sachen man besitzt (fuer den Erfolg "Modebewusst") */
 export const anzahlBesitz = (besitz: string[]) => [...PREISE.keys()].filter((id) => hatSkin(besitz, id)).length
 
@@ -526,6 +581,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
     ctx.restore()
   }
   if (proben && art === 'neon') neonRand(ctx, proben, cell, now)
+  if (proben && m?.glimmer && !vg) glimmer(ctx, pv, cell, now, m.glimmer)
   if (proben && (art === 'feuer' || art === 'phoenix')) feuer(ctx, proben, cell, now, art === 'phoenix')
 
   const hx = px(pts[0].x)
@@ -640,6 +696,33 @@ function augen(ctx: CanvasRenderingContext2D, cell: number, art: string, o: Schl
 }
 
 
+/** Epische Skins: viele kleine Sterne funkeln ueber dem Koerper, mit weichem Schein */
+function glimmer(ctx: CanvasRenderingContext2D, pr: Probe[], cell: number, now: number, f: RGB) {
+  for (const p of pr) {
+    if (p.s > 40) break
+    const r = raster(p, 0.17)
+    if (r < 0) continue
+    const tw = Math.max(0, Math.sin(welle(now, 1500) + r * 2.7))
+    if (tw < 0.2) continue
+    const q = (hash(r * 1.7) - 0.5) * 1.15
+    const x = p.x + p.nx * p.w * q
+    const y = p.y + p.ny * p.w * q
+    const rr = cell * 0.17 * tw
+    ctx.fillStyle = rgb(f, 0.35 * tw)
+    ctx.beginPath()
+    ctx.arc(x, y, rr * 0.9, 0, TAU)
+    ctx.fill()
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.6 + 0.4 * tw})`
+    ctx.beginPath()
+    ctx.moveTo(x, y - rr)
+    ctx.quadraticCurveTo(x, y, x + rr, y)
+    ctx.quadraticCurveTo(x, y, x, y + rr)
+    ctx.quadraticCurveTo(x, y, x - rr, y)
+    ctx.quadraticCurveTo(x, y, x, y - rr)
+    ctx.fill()
+  }
+}
+
 /** Ende des Schwanzes (fuer den Holz-Skin: Schnittflaeche mit Jahresringen) */
 function holzEnde(pts: P[], cell: number) {
   const n = pts.length
@@ -698,6 +781,170 @@ function muster(L: CanvasRenderingContext2D, pr: Probe[], cell: number, m: Muste
   const c0 = ex[0] ? rgb(ex[0]) : 'rgba(40,22,10,0.8)'
   L.lineCap = 'butt'
   switch (m.art) {
+    case 'blumen':
+      // Kleine Blueten mit fuenf Blaettern und gelber Mitte
+      for (const p of pr) {
+        const r = raster(p, 0.42)
+        if (r <= 0) continue
+        const q = (hash(r) - 0.5) * 0.8
+        const cx = p.x + p.nx * p.w * q
+        const cy = p.y + p.ny * p.w * q
+        const rr = p.w * 0.11
+        L.fillStyle = rgb(ex.length ? ex[r % ex.length] : [255, 255, 255])
+        for (let k = 0; k < 5; k++) {
+          const a = (k / 5) * TAU + r
+          L.beginPath()
+          L.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, rr * 0.75, 0, TAU)
+          L.fill()
+        }
+        L.fillStyle = '#FFD84A'
+        L.beginPath()
+        L.arc(cx, cy, rr * 0.6, 0, TAU)
+        L.fill()
+      }
+      break
+    case 'strick':
+      // Norweger: schmale Baender, dazwischen Rauten im Zickzack und einzelne Punkte
+      L.fillStyle = rgb(ex[0] ?? [255, 255, 255])
+      L.strokeStyle = rgb(ex[0] ?? [255, 255, 255])
+      for (const p of pr) {
+        if (p.s < 0.3) continue
+        const t = p.s % 1.1
+        if (t < 0.06 || (t > 0.5 && t < 0.56)) {
+          quer(L, p, 0.6, cell * 0.06)
+          continue
+        }
+        const r = raster(p, 0.11)
+        if (r < 0) continue
+        if (t > 0.12 && t < 0.44) {
+          const q = r % 2 ? 0.26 : -0.26
+          punkt(L, p, q, 0, p.w * 0.075)
+          punkt(L, p, -q, 0, p.w * 0.04)
+        } else if (t > 0.62 && t < 1.04 && r % 3 === 0) punkt(L, p, 0, 0, p.w * 0.06)
+      }
+      break
+    case 'erz': {
+      // Fels mit feinen Rissen, darin Gold, Diamant und Rubin mit Glanzpunkt
+      L.strokeStyle = 'rgba(28, 24, 22, 0.55)'
+      L.lineWidth = Math.max(1, cell * 0.03)
+      L.lineCap = 'round'
+      for (const p of pr) {
+        const r = raster(p, 0.6)
+        if (r <= 0) continue
+        const q = (hash(r) - 0.5) * 0.6
+        L.beginPath()
+        L.moveTo(p.x + p.nx * p.w * q, p.y + p.ny * p.w * q)
+        L.lineTo(p.x + p.nx * p.w * (q + 0.32) + p.tx * cell * 0.16, p.y + p.ny * p.w * (q + 0.32) + p.ty * cell * 0.16)
+        L.stroke()
+      }
+      for (const p of pr) {
+        const r = raster(p, 0.27)
+        if (r <= 0) continue
+        const a = hash(r + 5)
+        const farbe: RGB = a < 0.55 ? [255, 200, 60] : a < 0.82 ? [150, 235, 255] : [230, 40, 80]
+        const q = (hash(r * 3) - 0.5) * 0.8
+        const x = p.x + p.nx * p.w * q
+        const y = p.y + p.ny * p.w * q
+        const rr = p.w * (0.07 + hash(r + 9) * 0.05)
+        L.fillStyle = rgb(farbe)
+        L.beginPath()
+        L.moveTo(x, y - rr)
+        L.lineTo(x + rr, y)
+        L.lineTo(x, y + rr)
+        L.lineTo(x - rr, y)
+        L.fill()
+        L.fillStyle = 'rgba(255,255,255,0.8)'
+        L.fillRect(x - rr * 0.35, y - rr * 0.45, rr * 0.3, rr * 0.3)
+      }
+      break
+    }
+    case 'leuchten':
+      // Leuchtende Punkte (Pilzsporen, Feenlicht), pulsieren nacheinander
+      for (const p of pr) {
+        const r = raster(p, 0.3)
+        if (r <= 0) continue
+        const puls = 0.5 + 0.5 * Math.sin(welle(now, 2000) + r * 1.3)
+        const farbe = ex.length ? ex[r % ex.length] : ([120, 255, 220] as RGB)
+        const q = (hash(r) - 0.5) * 0.75
+        const x = p.x + p.nx * p.w * q
+        const y = p.y + p.ny * p.w * q
+        const g = L.createRadialGradient(x, y, 0, x, y, p.w * 0.32)
+        g.addColorStop(0, rgb(farbe, 0.15 + 0.75 * puls))
+        g.addColorStop(1, rgb(farbe, 0))
+        L.fillStyle = g
+        L.fillRect(x - p.w * 0.32, y - p.w * 0.32, p.w * 0.64, p.w * 0.64)
+        L.fillStyle = rgb(farbe, 0.6 + 0.4 * puls)
+        L.beginPath()
+        L.arc(x, y, p.w * 0.07, 0, TAU)
+        L.fill()
+      }
+      break
+    case 'rillen':
+      // Kuerbis: Rillen laengs, dazwischen heller Glanz
+      L.lineCap = 'round'
+      for (const [q, f, d] of [[-0.32, 0, 0.045], [0, 0, 0.045], [0.32, 0, 0.045], [-0.16, 1, 0.05], [0.16, 1, 0.05]] as const) {
+        L.strokeStyle = f ? 'rgba(255, 222, 150, 0.28)' : rgb(ex[0] ?? [150, 66, 10], 0.55)
+        L.lineWidth = Math.max(1, cell * d)
+        L.beginPath()
+        pr.forEach((p, i) => {
+          const x = p.x + p.nx * p.w * q
+          const y = p.y + p.ny * p.w * q
+          if (i) L.lineTo(x, y)
+          else L.moveTo(x, y)
+        })
+        L.stroke()
+      }
+      break
+    case 'pharao':
+      // Gold mit Lapislazuli-Baendern, schmal gesaeumt
+      for (const p of pr) {
+        if (p.s < 0.25) continue
+        const t = p.s % 0.55
+        if (t < 0.2) {
+          L.strokeStyle = rgb(ex[0] ?? [32, 66, 170])
+          quer(L, p, 0.6, cell * 0.1)
+        } else if (t < 0.25 || t > 0.5) {
+          L.strokeStyle = rgb(ex[1] ?? [255, 244, 190])
+          quer(L, p, 0.6, cell * 0.05)
+        }
+      }
+      break
+    case 'facetten': {
+      // Kristall: schraege Facetten hell und dunkel, ein Lichtband laeuft durch
+      L.lineCap = 'round'
+      for (const p of pr) {
+        const r = raster(p, 0.3)
+        if (r <= 0) continue
+        L.strokeStyle = r % 2 ? 'rgba(255, 255, 255, 0.35)' : 'rgba(40, 0, 70, 0.35)'
+        quer(L, p, 0.6, cell * 0.05, r % 2 ? 0.6 : -0.6)
+      }
+      const lang = pr.length ? pr[pr.length - 1].s : 6
+      const pos = ((now % 2000) / 2000) * (Math.min(lang, 8) + 1.6) - 0.8
+      for (let i = 0; i < pr.length; i += 2) {
+        const p = pr[i]
+        const d = Math.abs(p.s - pos)
+        if (d > 0.6) continue
+        L.strokeStyle = `rgba(255, 240, 255, ${0.55 * (1 - d / 0.6)})`
+        quer(L, p, 0.6, cell * 0.18)
+      }
+      break
+    }
+    case 'schemen':
+      // Nachtmahr: Schwaden ziehen ueber den Koerper, dazu fahle gruene Lichter
+      for (let i = 0; i < pr.length; i += 2) {
+        const p = pr[i]
+        const v = 0.5 + 0.5 * Math.sin(p.s * 3 - welle(now, 3000))
+        L.strokeStyle = `rgba(190, 150, 255, ${0.06 + 0.3 * v * v})`
+        quer(L, p, 0.45, cell * 0.18)
+      }
+      for (const p of pr) {
+        const r = raster(p, 0.7)
+        if (r <= 0) continue
+        const puls = 0.5 + 0.5 * Math.sin(welle(now, 1500) + r * 2)
+        L.fillStyle = rgb(ex[0] ?? [150, 255, 170], 0.4 + 0.5 * puls)
+        punkt(L, p, (hash(r) - 0.5) * 0.6, 0, p.w * 0.06)
+      }
+      break
     case 'streifen':
       L.strokeStyle = ex[0] ? rgb(ex[0], 0.85) : 'rgba(40, 22, 10, 0.75)'
       L.lineCap = 'round'
@@ -1295,6 +1542,17 @@ function brille(ctx: CanvasRenderingContext2D, cell: number, r: number, fuell: s
   ctx.stroke()
 }
 
+/** Fuenfzackiger Stern (fuer Hut-Deko) */
+function sternForm(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath()
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 ? r * 0.45 : r
+    const a = (i / 10) * TAU - Math.PI / 2
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
+  }
+  ctx.fill()
+}
+
 function accKopf(ctx: CanvasRenderingContext2D, id: string, cell: number, R: number, now: number) {
   ctx.lineWidth = Math.max(1.2, cell * 0.035)
   ctx.lineCap = 'round'
@@ -1404,6 +1662,198 @@ function accKopf(ctx: CanvasRenderingContext2D, id: string, cell: number, R: num
         ctx.arc(cell * 0.12, cell * 0.2 * s, cell * 0.1, 0, TAU)
         ctx.fill()
       }
+      break
+    }
+    case 'blumenkranz': {
+      // Kranz aus kleinen Blueten mit Blaettern rund um den Kopf
+      const fs = ['#FF8FB8', '#FFFFFF', '#FFD84A', '#B79CFF']
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * TAU
+        const x = -cell * 0.05 + Math.cos(a) * R * 0.62
+        const y = Math.sin(a) * R * 0.62
+        ctx.fillStyle = '#4E9A3C'
+        ctx.beginPath()
+        ctx.ellipse(x + Math.cos(a + 1.2) * cell * 0.07, y + Math.sin(a + 1.2) * cell * 0.07, cell * 0.06, cell * 0.03, a + 1.2, 0, TAU)
+        ctx.fill()
+        ctx.fillStyle = fs[i % fs.length]
+        for (let k = 0; k < 5; k++) {
+          const b = (k / 5) * TAU + i
+          ctx.beginPath()
+          ctx.arc(x + Math.cos(b) * cell * 0.045, y + Math.sin(b) * cell * 0.045, cell * 0.04, 0, TAU)
+          ctx.fill()
+        }
+        ctx.fillStyle = '#F2A81D'
+        ctx.beginPath()
+        ctx.arc(x, y, cell * 0.025, 0, TAU)
+        ctx.fill()
+      }
+      break
+    }
+    case 'nemes': {
+      // Pharaonenhaube von oben: Tuch mit blau-goldenen Streifen, Laschen zu beiden Seiten, vorne die Kobra
+      ctx.save()
+      ctx.beginPath()
+      ctx.moveTo(R * 0.25, -R * 0.8)
+      ctx.quadraticCurveTo(-R * 0.6, -R * 1.25, -R * 1.25, -R * 0.6)
+      ctx.lineTo(-R * 1.25, R * 0.6)
+      ctx.quadraticCurveTo(-R * 0.6, R * 1.25, R * 0.25, R * 0.8)
+      ctx.quadraticCurveTo(R * 0.55, 0, R * 0.25, -R * 0.8)
+      ctx.closePath()
+      ctx.fillStyle = '#E9B83A'
+      ctx.fill()
+      ctx.clip()
+      ctx.strokeStyle = '#2446A6'
+      ctx.lineWidth = cell * 0.07
+      for (let i = 1; i < 7; i++) {
+        ctx.beginPath()
+        ctx.arc(R * 0.45, 0, R * 0.32 * i, 0, TAU)
+        ctx.stroke()
+      }
+      ctx.restore()
+      ctx.strokeStyle = '#9A6E10'
+      ctx.lineWidth = Math.max(1, cell * 0.03)
+      ctx.beginPath()
+      ctx.moveTo(R * 0.25, -R * 0.8)
+      ctx.quadraticCurveTo(R * 0.55, 0, R * 0.25, R * 0.8)
+      ctx.stroke()
+      // Kobra vorne
+      ctx.fillStyle = '#F4C64A'
+      ctx.beginPath()
+      ctx.ellipse(R * 0.42, 0, cell * 0.07, cell * 0.05, 0, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#1F3F96'
+      ctx.beginPath()
+      ctx.arc(R * 0.45, 0, cell * 0.022, 0, TAU)
+      ctx.fill()
+      break
+    }
+    case 'pudelmuetze': {
+      // Strickmuetze mit Ringen und dickem Bommel
+      ctx.fillStyle = '#3768D6'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.06, 0, R * 0.74, 0, TAU)
+      ctx.fill()
+      ctx.strokeStyle = '#F4F6FA'
+      ctx.lineWidth = cell * 0.07
+      ctx.beginPath()
+      ctx.arc(-cell * 0.06, 0, R * 0.64, 0, TAU)
+      ctx.stroke()
+      ctx.setLineDash([cell * 0.05, cell * 0.05])
+      ctx.lineWidth = cell * 0.04
+      ctx.beginPath()
+      ctx.arc(-cell * 0.06, 0, R * 0.42, 0, TAU)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.fillStyle = '#FFFFFF'
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * TAU
+        ctx.beginPath()
+        ctx.arc(-cell * 0.08 + Math.cos(a) * cell * 0.07, Math.sin(a) * cell * 0.07, cell * 0.06, 0, TAU)
+        ctx.fill()
+      }
+      ctx.beginPath()
+      ctx.arc(-cell * 0.08, 0, cell * 0.08, 0, TAU)
+      ctx.fill()
+      break
+    }
+    case 'grubenhelm': {
+      // Gelber Helm, vorne eine Lampe; ihr Lichtkegel flackert leicht nach vorn
+      const flacker = 0.75 + 0.25 * Math.sin(welle(now, 1000) * 3) * Math.sin(welle(now, 2000))
+      const kegel = ctx.createLinearGradient(R * 0.6, 0, R * 0.6 + cell * 1.3, 0)
+      kegel.addColorStop(0, `rgba(255, 240, 170, ${0.55 * flacker})`)
+      kegel.addColorStop(1, 'rgba(255, 240, 170, 0)')
+      ctx.fillStyle = kegel
+      ctx.beginPath()
+      ctx.moveTo(R * 0.6, -cell * 0.06)
+      ctx.lineTo(R * 0.6 + cell * 1.3, -cell * 0.4)
+      ctx.lineTo(R * 0.6 + cell * 1.3, cell * 0.4)
+      ctx.lineTo(R * 0.6, cell * 0.06)
+      ctx.fill()
+      ctx.fillStyle = '#E3A812'
+      ctx.beginPath()
+      ctx.ellipse(-cell * 0.04, 0, R * 0.82, R * 0.88, 0, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#F7C531'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.06, 0, R * 0.66, 0, TAU)
+      ctx.fill()
+      ctx.strokeStyle = '#C48A08'
+      ctx.lineWidth = cell * 0.05
+      ctx.beginPath()
+      ctx.moveTo(-R * 0.7, 0)
+      ctx.lineTo(R * 0.5, 0)
+      ctx.stroke()
+      ctx.fillStyle = '#8A8F98'
+      ctx.beginPath()
+      ctx.arc(R * 0.62, 0, cell * 0.09, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = `rgba(255, 248, 200, ${0.7 + 0.3 * flacker})`
+      ctx.beginPath()
+      ctx.arc(R * 0.64, 0, cell * 0.06, 0, TAU)
+      ctx.fill()
+      break
+    }
+    case 'zauberhut': {
+      // Breite Krempe, spitzer Hut nach hinten gebogen, Sterne funkeln
+      ctx.fillStyle = '#262C78'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.06, 0, R * 0.98, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#353EA6'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.12, 0, R * 0.62, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#4651C6'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.22, -cell * 0.04, R * 0.36, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#5A66DE'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.3, -cell * 0.07, R * 0.15, 0, TAU)
+      ctx.fill()
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * TAU + 0.4
+        const tw = Math.max(0, Math.sin(welle(now, 1500) + i * 1.9))
+        ctx.fillStyle = `rgba(255, 228, 120, ${0.4 + 0.6 * tw})`
+        sternForm(ctx, -cell * 0.06 + Math.cos(a) * R * 0.8, Math.sin(a) * R * 0.8, cell * (0.04 + 0.03 * tw))
+      }
+      ctx.fillStyle = '#FFE680'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.14, cell * 0.12, cell * 0.06, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#353EA6'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.12, cell * 0.1, cell * 0.05, 0, TAU)
+      ctx.fill()
+      break
+    }
+    case 'hexenhut': {
+      // Schwarze Krempe, lila Band mit goldener Schnalle, die Spitze knickt nach hinten
+      ctx.fillStyle = '#1C1222'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.06, 0, R * 1.02, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#7A3FA0'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.1, 0, R * 0.62, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#2A1A33'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.1, 0, R * 0.5, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#3A2546'
+      ctx.beginPath()
+      ctx.arc(-cell * 0.2, cell * 0.02, R * 0.3, 0, TAU)
+      ctx.fill()
+      ctx.strokeStyle = '#3A2546'
+      ctx.lineWidth = cell * 0.08
+      ctx.beginPath()
+      ctx.moveTo(-cell * 0.2, cell * 0.02)
+      ctx.quadraticCurveTo(-cell * 0.42, cell * 0.06, -cell * 0.46, cell * 0.24)
+      ctx.stroke()
+      ctx.strokeStyle = '#E8C14A'
+      ctx.lineWidth = Math.max(1, cell * 0.03)
+      ctx.strokeRect(R * 0.4, -cell * 0.06, cell * 0.1, cell * 0.12)
       break
     }
     case 'partyhut': {
@@ -1910,6 +2360,106 @@ export function spurTeil(ctx: CanvasRenderingContext2D, art: string, x: number, 
   // Bleibt lange kraeftig und blendet erst am Ende aus
   ctx.globalAlpha *= Math.max(0, 1 - z * z)
   switch (art) {
+    case 'spur-blueten':
+      ctx.rotate(z * 5 + i)
+      ctx.fillStyle = ['#FF9EC4', '#FFFFFF', '#FFC7DD', '#FFE08A'][i % 4]
+      ctx.beginPath()
+      ctx.ellipse(0, -z * s, s * 0.9, s * 0.45, 0, 0, TAU)
+      ctx.fill()
+      if (i % 5 === 0) {
+        ctx.fillStyle = '#FFFFFF'
+        ctx.beginPath()
+        ctx.arc(s * 0.5, 0, s * 0.18, 0, TAU)
+        ctx.fill()
+      }
+      break
+    case 'spur-goldsand': {
+      ctx.fillStyle = `rgb(${245}, ${180 + (i % 4) * 14}, ${40 + (i % 5) * 10})`
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath()
+        ctx.arc(Math.cos(i + k * 2.1) * s * 0.7, Math.sin(i * 1.3 + k) * s * 0.7 + z * s, s * 0.32, 0, TAU)
+        ctx.fill()
+      }
+      const tw = Math.max(0, Math.sin(now / 120 + i * 1.7))
+      ctx.fillStyle = `rgba(255, 255, 255, ${tw})`
+      ctx.beginPath()
+      ctx.moveTo(0, -s * tw)
+      ctx.lineTo(s * 0.15, 0)
+      ctx.lineTo(0, s * tw)
+      ctx.lineTo(-s * 0.15, 0)
+      ctx.fill()
+      break
+    }
+    case 'spur-eiskristalle':
+      ctx.rotate(z * 1.5 + i)
+      ctx.strokeStyle = i % 2 ? '#FFFFFF' : '#BDEBFF'
+      ctx.lineWidth = Math.max(1, s * 0.16)
+      for (let k = 0; k < 3; k++) {
+        ctx.rotate(Math.PI / 3)
+        ctx.beginPath()
+        ctx.moveTo(-s, 0)
+        ctx.lineTo(s, 0)
+        ctx.moveTo(s * 0.55, 0)
+        ctx.lineTo(s * 0.8, -s * 0.25)
+        ctx.moveTo(s * 0.55, 0)
+        ctx.lineTo(s * 0.8, s * 0.25)
+        ctx.moveTo(-s * 0.55, 0)
+        ctx.lineTo(-s * 0.8, -s * 0.25)
+        ctx.moveTo(-s * 0.55, 0)
+        ctx.lineTo(-s * 0.8, s * 0.25)
+        ctx.stroke()
+      }
+      break
+    case 'spur-edelsteine': {
+      const f = ['#E8324F', '#2F6FE0', '#2EBD6B', '#A35BE8', '#F5C33B'][i % 5]
+      ctx.rotate(i * 0.7)
+      ctx.fillStyle = f
+      ctx.beginPath()
+      ctx.moveTo(0, -s)
+      ctx.lineTo(s * 0.75, -s * 0.2)
+      ctx.lineTo(0, s)
+      ctx.lineTo(-s * 0.75, -s * 0.2)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)'
+      ctx.beginPath()
+      ctx.moveTo(0, -s)
+      ctx.lineTo(s * 0.3, -s * 0.2)
+      ctx.lineTo(-s * 0.3, -s * 0.2)
+      ctx.fill()
+      break
+    }
+    case 'spur-feenstaub': {
+      const tw = 0.5 + 0.5 * Math.sin(now / 90 + i * 2.3)
+      ctx.translate(0, -z * s * 2)
+      ctx.fillStyle = i % 2 ? `rgba(255, 120, 230, ${0.25 + 0.35 * tw})` : `rgba(90, 240, 220, ${0.25 + 0.35 * tw})`
+      ctx.beginPath()
+      ctx.arc(0, 0, s * 1.1, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + 0.3 * tw})`
+      const r = s * (0.8 + 0.6 * tw)
+      ctx.beginPath()
+      ctx.moveTo(0, -r)
+      ctx.quadraticCurveTo(0, 0, r, 0)
+      ctx.quadraticCurveTo(0, 0, 0, r)
+      ctx.quadraticCurveTo(0, 0, -r, 0)
+      ctx.quadraticCurveTo(0, 0, 0, -r)
+      ctx.fill()
+      break
+    }
+    case 'spur-irrlichter': {
+      const fl = 0.6 + 0.4 * Math.sin(now / 70 + i * 3.1)
+      ctx.translate(Math.sin(z * 6 + i) * s * 0.6, -z * s * 2.5)
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 1.7)
+      g.addColorStop(0, `rgba(230, 255, 235, ${fl})`)
+      g.addColorStop(0.35, `rgba(70, 230, 170, ${0.7 * fl})`)
+      g.addColorStop(1, 'rgba(40, 200, 160, 0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(0, 0, s * 1.7, 0, TAU)
+      ctx.fill()
+      break
+    }
     case 'spur-staub':
       ctx.fillStyle = 'rgba(150, 120, 80, 0.6)'
       ctx.beginPath()

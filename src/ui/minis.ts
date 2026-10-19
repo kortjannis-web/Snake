@@ -260,4 +260,6 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   zone: 'lava',
   zeit: 'apfel',
   ziel: 'aepfel',
+  flut: 'teich',
+  sandwurm: 'gegner',
 }
