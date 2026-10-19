@@ -13,6 +13,16 @@ export function pushMoeglich() {
   return !!VAPID && !Capacitor.isNativePlatform() && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+/** Warum Push hier nicht geht: Schluessel beim Bauen fehlt, Android-App oder Browser kann es nicht. null: geht */
+export function pushGrund(): 'schluessel' | 'app' | 'browser' | null {
+  if (Capacitor.isNativePlatform()) return 'app'
+  if (!VAPID) return 'schluessel'
+  return pushMoeglich() ? null : 'browser'
+}
+
+/** Letzter Fehler von pushEinschalten, fuer die Meldung (damit man sieht, woran es liegt) */
+export let pushFehler = ''
+
 const AUS = 'snake.push.aus.v1'
 const FRAGE = 'snake.pushfrage.v1'
 const lies = (k: string) => {
@@ -50,7 +60,11 @@ function schluessel(s: string) {
 
 /** Benachrichtigungen einschalten (nach einem Tipp, sonst fragt der Browser nicht) */
 export async function pushEinschalten(): Promise<'an' | 'verweigert' | 'fehler'> {
-  if (!pushMoeglich()) return 'fehler'
+  pushFehler = ''
+  if (!pushMoeglich()) {
+    pushFehler = pushGrund() ?? 'nicht möglich'
+    return 'fehler'
+  }
   schreib(FRAGE, true)
   try {
     const erlaubt = await Notification.requestPermission()
@@ -59,8 +73,10 @@ export async function pushEinschalten(): Promise<'an' | 'verweigert' | 'fehler'>
     const reg = await navigator.serviceWorker.ready
     const alt = await reg.pushManager.getSubscription()
     const abo = alt ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: schluessel(VAPID).slice().buffer as ArrayBuffer }))
-    return (await pushSpeichern(abo.toJSON())) ? 'an' : 'fehler'
-  } catch {
+    pushFehler = (await pushSpeichern(abo.toJSON())) ?? ''
+    return pushFehler ? 'fehler' : 'an'
+  } catch (e) {
+    pushFehler = e instanceof Error ? e.message : String(e)
     return 'fehler'
   }
 }

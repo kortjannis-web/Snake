@@ -25,12 +25,12 @@ import { installPflicht, zeigeInstallation } from './install'
 import { tagBerlin, tagesSeed } from './tages'
 import { eckenFelder, tagesLevel, wochentag } from './game/tageslevel'
 import { MEHR_BILD } from './multi/protokoll'
-import { perPushEinladen, pushAuffrischen, pushAusschalten, pushEinschalten, pushErlaubt, pushFrageMerken, pushFrageOffen, pushMoeglich } from './push'
+import { perPushEinladen, pushAuffrischen, pushAusschalten, pushEinschalten, pushErlaubt, pushFehler, pushFrageMerken, pushFrageOffen, pushGrund, pushMoeglich } from './push'
 import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, adminLoeschen, kontoLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
@@ -1873,6 +1873,7 @@ function renderStats() {
 
 function renderSettings() {
   pushOptionenZeichnen()
+  $('btn-konto-loeschen').hidden = !onlineAktiv || !profil.name
   $<HTMLInputElement>('opt-sound').checked = settings.sound
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
@@ -2377,6 +2378,17 @@ $('opt-tempo')
       audio.click()
     }),
   )
+$('btn-konto-loeschen').addEventListener('click', async () => {
+  if (!confirm(`Dein Online-Konto „${profil.name}“ wirklich löschen? Name, Online-Ergebnisse, Freunde und Nachrichten sind dann weg. Spielstand und Einstellungen auf diesem Gerät bleiben.`)) return
+  try {
+    await kontoLoeschen()
+  } catch (e) {
+    alert(e instanceof Error ? e.message : 'Das hat nicht geklappt.')
+    return
+  }
+  alert('Dein Online-Konto ist gelöscht.')
+  location.reload()
+})
 $('btn-reset').addEventListener('click', () => {
   if (!confirm('Statistik und Rekord wirklich löschen?')) return
   resetStats()
@@ -2646,6 +2658,13 @@ function pushZeichnen() {
   pushOptionenZeichnen()
 }
 
+/** Meldung, wenn Benachrichtigungen nicht eingeschaltet werden konnten (mit Grund) */
+function pushFehlerText() {
+  const g = pushGrund()
+  if (g === 'schluessel') return 'Noch nicht eingerichtet: Push-Schlüssel fehlt in dieser Fassung.'
+  return pushFehler ? `Das hat nicht geklappt (${pushFehler}).` : 'Das hat nicht geklappt.'
+}
+
 /** Optionen: Schalter fuer Benachrichtigungen (nur bei Einladungen) */
 function pushOptionenZeichnen() {
   const zeile = $('opt-push-zeile')
@@ -2656,7 +2675,13 @@ function pushOptionenZeichnen() {
   if (!pushMoeglich()) {
     sw.disabled = true
     sw.checked = false
-    info.textContent = 'In der Android-App kommen Einladungen nur, solange Snake offen ist. Als Web-App vom Home-Bildschirm auch bei geschlossener App.'
+    const g = pushGrund()
+    info.textContent =
+      g === 'schluessel'
+        ? 'Noch nicht eingerichtet: Der Push-Schlüssel (VITE_VAPID_PUBLIC_KEY) fehlt in dieser Fassung. Siehe docs/MEHRSPIELER-EINRICHTEN.md, Schritt 7.'
+        : g === 'app'
+          ? 'In der Android-App kommen Einladungen nur, solange Snake offen ist. Als Web-App vom Home-Bildschirm auch bei geschlossener App.'
+          : 'Dieser Browser kann keine Benachrichtigungen. Auf dem iPhone: Snake zum Home-Bildschirm hinzufügen und von dort öffnen.'
     return
   }
   sw.disabled = false
@@ -2668,7 +2693,7 @@ $('opt-push').addEventListener('change', async (e) => {
   audio.click()
   if (sw.checked) {
     const r = await pushEinschalten()
-    toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Einstellungen des Handys ändern.' : 'Das hat nicht geklappt.')
+    toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Einstellungen des Handys ändern.' : pushFehlerText())
   } else {
     await pushAusschalten()
     toast('gebiet', 'Benachrichtigungen', 'Ausgeschaltet.')
@@ -2686,7 +2711,7 @@ $('push-frage-ja').addEventListener('click', async () => {
   audio.click()
   show('push-frage', false)
   const r = await pushEinschalten()
-  toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Optionen ändern.' : 'Das hat nicht geklappt.')
+  toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Optionen ändern.' : pushFehlerText())
   pushZeichnen()
 })
 $('push-frage-nein').addEventListener('click', () => {
@@ -2696,7 +2721,7 @@ $('push-frage-nein').addEventListener('click', () => {
 $('push-knopf').addEventListener('click', async () => {
   audio.click()
   const r = await pushEinschalten()
-  toast('gebiet', 'Einladungen aufs Handy', r === 'an' ? 'Eingeschaltet.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es später in den Einstellungen ändern.' : 'Das hat nicht geklappt.')
+  toast('gebiet', 'Einladungen aufs Handy', r === 'an' ? 'Eingeschaltet.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es später in den Einstellungen ändern.' : pushFehlerText())
   pushZeichnen()
 })
 // Tipp auf eine Push-Einladung, waehrend die App offen ist: dem Raum beitreten

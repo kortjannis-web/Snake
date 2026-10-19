@@ -499,6 +499,22 @@ export async function ladeHall(): Promise<{ zeilen: HallZeile[]; ich: string | n
 }
 
 /** Admin: Spieler loeschen (Profil mit allem Drumherum). Das Passwort prueft die Datenbank */
+/** Eigenes Online-Konto loeschen (Profil, Ergebnisse, Freunde, Nachrichten). Auf dem Geraet bleiben Spielstand und Einstellungen */
+export async function kontoLoeschen() {
+  await nutzerId()
+  const sb = await client()
+  const { error } = await sb.rpc('konto_loeschen')
+  if (error) throw new Error(error.code === 'P0001' ? fehlerText(error) : `${fehlerText(error)} (${error.code ?? '?'}: ${error.message})`)
+  await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  profil.name = ''
+  profil.offen = profil.umbenennen = undefined
+  profil.skin = profil.silber = undefined
+  speichereProfil()
+  warteschlange.length = 0
+  schreib(QKEY, warteschlange)
+  idP = null
+}
+
 export async function adminLoeschen(code: string, ziel: string) {
   await nutzerId() // ohne Sitzung laeuft der Aufruf als anonym und die Datenbank lehnt ihn ab
   const sb = await client()
@@ -649,15 +665,16 @@ export async function meldeKoop(spieler: string[], level: number, dauer: number)
 }
 
 /** Push-Abo im eigenen Profil speichern (privat; nur Freunde koennen damit eine Einladung schicken) */
-export async function pushSpeichern(abo: PushSubscriptionJSON | null): Promise<boolean> {
-  if (!onlineAktiv || !profil.name) return false
+export async function pushSpeichern(abo: PushSubscriptionJSON | null): Promise<string | null> {
+  if (!onlineAktiv) return 'Online nicht eingerichtet'
+  if (!profil.name) return 'noch kein Name'
   try {
     await nutzerId()
     const sb = await client()
     const { error } = await sb.rpc('push_setzen', { abo })
-    return !error
-  } catch {
-    return false
+    return error ? `${error.code ?? '?'}: ${error.message}` : null
+  } catch (e) {
+    return e instanceof Error ? e.message : 'keine Verbindung'
   }
 }
 
