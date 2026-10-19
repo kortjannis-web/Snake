@@ -751,6 +751,8 @@ svg {
   align-content: start;
   /* Zeilen nie zusammendruecken (sonst ueberlappen hohe Kaesten, wenn die Seite scrollt) */
   grid-auto-rows: max-content;
+  /* Eine Spalte, nie breiter als der Bildschirm (sonst blaeht ein breites Element die ganze Seite auf) */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 8px calc(var(--safe-r) + 16px) calc(var(--safe-b) + 28px) calc(var(--safe-l) + 16px);
   overflow-y: auto;
@@ -3060,4 +3062,81 @@ html[data-install] #app {
 .home__paar--eins {
   grid-template-columns: 1fr;
 }
-
+
+/* Handy: nichts darf eine Seite breiter machen als den Bildschirm (Raster-Spalten und Kinder duerfen schrumpfen) */
+.page__body > *,
+.opt--col > *,
+.mehr-start > * {
+  min-width: 0;
+}
+
+.opt--col,
+.mehr-start {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.liste-name__row > * {
+  min-width: 0;
+}
+
+.liste-name__row .btn {
+  flex: none;
+}
+
+/* Handy: Unterseiten (Mehrspieler, Hall of Snakes, Online) dichter, damit nicht alles riesig wirkt */
+@media (max-width: 480px) {
+  .page__head {
+    gap: 10px;
+    padding: calc(var(--safe-t) + 8px) calc(var(--safe-r) + 12px) 8px calc(var(--safe-l) + 12px);
+  }
+  .page__head h2 {
+    font-size: 1.6rem;
+  }
+  .page__body {
+    gap: 10px;
+    padding: 6px calc(var(--safe-r) + 12px) calc(var(--safe-b) + 20px) calc(var(--safe-l) + 12px);
+  }
+  .page__body .btn {
+    min-height: 48px;
+    padding: 0 18px;
+    font-size: 0.98rem;
+  }
+  .opt {
+    gap: 10px;
+    min-height: 52px;
+    padding: 10px 12px;
+    border-radius: 16px;
+  }
+  .opt__t {
+    font-size: 0.95rem;
+  }
+  .opt__t small {
+    font-size: 0.74rem;
+  }
+  .mehr-start,
+  .mehr-raum,
+  .mehr-modi {
+    gap: 8px;
+  }
+  .mehr-code {
+    padding: 12px;
+    border-radius: 18px;
+  }
+  .mehr-code b {
+    font-size: 2rem;
+  }
+  .mehr-zeile {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 46px;
+    padding: 4px 8px 4px 4px;
+    border-radius: 14px;
+  }
+  .mehr-zeile canvas {
+    width: 48px;
+    height: 34px;
+  }
+  .mehr-zeile__name {
+    font-size: 0.92rem;
+  }
+}
