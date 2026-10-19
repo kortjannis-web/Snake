@@ -18,6 +18,7 @@ export const CAUSE: Record<Cause, string> = {
   erde: 'In der Erde stecken geblieben',
   spieler: 'In eine andere Spieler-Schlange gefahren',
   zone: 'Von der Zone erwischt',
+  zeit: 'Speedrun: Zeit für den Apfel abgelaufen',
 }
 
 export const OBJEKT_NAME: Record<SandboxObjekt, string> = {

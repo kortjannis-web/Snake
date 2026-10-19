@@ -11,8 +11,9 @@ export const DIRS: Dir[] = ['u', 'd', 'l', 'r']
 /** Im Uhrzeigersinn weiter */
 export const CW: Record<Dir, Dir> = { u: 'r', r: 'd', d: 'l', l: 'u' }
 
-/** Takt je Feld (ms) nach Tempo-Einstellung */
-export const TEMPO = { langsam: 185, normal: 154, schnell: 128 } as const
+/** Takt je Feld (ms). Spielbar ist nur noch normal; "schnell" ist der Speedrun (25 % schneller als normal),
+ *  "langsam" bleibt fuer die Schlange im Startmenue und alte Ranglisten-Eintraege */
+export const TEMPO = { langsam: 185, normal: 154, schnell: 123 } as const
 export type Tempo = keyof typeof TEMPO
 
 export const DEFAULTS = {

@@ -81,6 +81,10 @@ const page = () => pages[pages.length - 1] ?? null
 let istKreativ = false
 /** Laeuft gerade die Tages-Herausforderung (gleiche Welt fuer alle)? */
 let istTages = false
+/** Laeuft gerade ein Speedrun (25 % schneller, jeder Apfel mit Zeitlimit)? */
+let istSpeedrun = false
+/** Speedrun: seit wann der aktuelle Apfel liegt und wie viel Zeit es fuer ihn gibt (Spielzeit, ms) */
+let frist: { t: number; dauer: number } | null = null
 let tagesTag = ''
 let game: Game | null = null
 let demo: Game | null = null
@@ -128,6 +132,7 @@ function setMode(m: Mode) {
   $('ready').hidden = m !== 'ready'
   $('dpad').hidden = !(settings.dpad && (m === 'ready' || m === 'play' || m === 'paused'))
   $('steuer').hidden = !(m === 'ready' || m === 'play')
+  $('speedrun-zeit').hidden = !(istSpeedrun && (m === 'ready' || m === 'play' || m === 'paused'))
   if (m === 'mehr') $('dpad').hidden = !settings.dpad
   audio.music(true, m !== 'play' && m !== 'mehr')
   if (m === 'home') updateHome()
@@ -170,10 +175,12 @@ function closeAllPages() {
 
 /* ================= Spiel ================= */
 
-function newGame(alsKreativ = istKreativ, tages = istTages) {
+function newGame(alsKreativ = istKreativ, tages = istTages, speedrun = istSpeedrun) {
   clearTimeout(overTimer)
   istKreativ = alsKreativ
   istTages = !alsKreativ && tages
+  istSpeedrun = !alsKreativ && !istTages && speedrun
+  frist = null
   app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
   const { start, sandbox, ...k } = kreativ
@@ -186,7 +193,7 @@ function newGame(alsKreativ = istKreativ, tages = istTages) {
     game = new Game({
       screenW: sc.w,
       screenH: sc.h,
-      tempo: settings.tempo,
+      tempo: istSpeedrun ? 'schnell' : 'normal',
       cfg: { ...config },
       startLevel: istKreativ ? start : startLevel,
       kreativ: istKreativ ? { ...k } : null,
@@ -309,7 +316,7 @@ async function ladeListeAnzeige() {
       name.textContent = z.name
       if (z.tempo !== 'normal') {
         const t = document.createElement('small')
-        t.textContent = z.tempo
+        t.textContent = z.tempo === 'schnell' ? 'Speedrun' : z.tempo
         name.append(t)
       }
       const level = document.createElement('b')
@@ -573,7 +580,7 @@ function gameOver() {
     erfolgeMelden()
     saveStats()
     if (zaehltOnline() && g.gegessen > 0 && g.maxLevel >= 2)
-      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istTages ? 'normal' : settings.tempo, tages: istTages })
+      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istSpeedrun ? 'schnell' : 'normal', tages: istTages })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
@@ -1859,18 +1866,49 @@ $('btn-master-reset').addEventListener('click', () => {
   audio.click()
 })
 
+/* ================= Speedrun ================= */
+
+/**
+ * Zeit fuer jeden Apfel: Die Schlange braucht mindestens so viele Schritte, wie der Apfel entfernt ist (Manhattan-
+ * Abstand d). Hindernisse und Kurven kosten erfahrungsgemaess rund 40 % Umweg, dazu kommen 12 Schritte zum
+ * Erkennen und Reagieren (bei 123 ms etwa 1,5 s). Also (1,4 d + 12) Schritte im aktuellen Takt: wird die Schlange
+ * schneller, schrumpft die Zeit mit, die Zahl der Schritte bleibt gleich fair.
+ */
+function speedrunTakt(g: Game) {
+  if (!frist || frist.t !== g.apple.t) {
+    const h = g.body[0]
+    const d = Math.abs(h.x - g.apple.p.x) + Math.abs(h.y - g.apple.p.y)
+    frist = { t: g.apple.t, dauer: (1.4 * d + 12) * g.tick }
+  }
+  const rest = frist.t + frist.dauer - g.time
+  const anteil = Math.max(0, Math.min(1, rest / frist.dauer))
+  const bar = $('speedrun-zeit')
+  bar.querySelector('i')!.style.transform = `scaleX(${anteil})`
+  bar.classList.toggle('knapp', anteil < 0.3)
+  if (mode === 'play' && g.status === 'play' && rest <= 0) {
+    g.zeitAbgelaufen()
+    for (const e of g.drain()) handle(e)
+  }
+}
+
 /* ================= Verdrahtung ================= */
 
 $('btn-play').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false, false)
+  newGame(false, false, false)
 })
 $('btn-tages').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false, true)
+  newGame(false, true, false)
   toast('gebiet', 'Tages-Herausforderung', 'Heute spielen alle dieselbe Welt.')
+})
+$('btn-speedrun').addEventListener('click', () => {
+  audio.unlock()
+  audio.click()
+  newGame(false, false, true)
+  toast('apfel', 'Speedrun', '25 % schneller, und jeder Apfel hat ein Zeitlimit.')
 })
 $('btn-pause').addEventListener('click', () => {
   audio.click()
@@ -2056,6 +2094,7 @@ function frame(now: number) {
       game.update(dt)
       for (const e of game.drain()) handle(e)
     }
+    if (istSpeedrun) speedrunTakt(game)
     renderer.mehr = null
     if (!verdeckt) renderer.draw(game)
   }

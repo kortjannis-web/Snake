@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit'
 
 export type Status = 'play' | 'over'
 

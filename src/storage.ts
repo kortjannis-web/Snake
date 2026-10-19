@@ -56,6 +56,8 @@ function write(k: string, v: unknown) {
 }
 
 export const settings: Settings = read(SKEY, defaultSettings())
+// 1.21: Langsam und Schnell gibt es nicht mehr (schnell ist jetzt der Speedrun-Modus)
+settings.tempo = 'normal'
 // Frueher gab es zwei Fingermodi (Wischen / Zeichnen), jetzt nur noch einen
 delete (settings as Partial<Record<'steuerung', unknown>>).steuerung
 // 1.13: "Fest" und "Rauszoomen" entfallen, Standard ist jetzt die Bereich-Kamera (einmal fuer alle)

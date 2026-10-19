@@ -258,4 +258,5 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   erde: 'erde',
   spieler: 'schlange',
   zone: 'lava',
+  zeit: 'apfel',
 }

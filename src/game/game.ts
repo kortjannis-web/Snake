@@ -747,6 +747,11 @@ export class Game {
     f()
   }
 
+  /** Speedrun: die Zeit fuer den Apfel ist um */
+  zeitAbgelaufen() {
+    if (this.status === 'play') this.die('zeit')
+  }
+
   protected die(cause: Cause) {
     this.gnade = null
     this.status = 'over'
