@@ -50,7 +50,7 @@ export default defineConfig({
       },
       // push-sw.js: zeigt Push-Einladungen und oeffnet beim Tippen den Raum
       workbox: {
-        // Shop-Videos und Standbilder sind klein (zusammen ca. 2 MB): mit in den Offline-Speicher
+        // Shop-Videos und Standbilder sind klein (zusammen ca. 2,4 MB): mit in den Offline-Speicher
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webp,mp4,webm}'],
         importScripts: ['push-sw.js'],
       },
