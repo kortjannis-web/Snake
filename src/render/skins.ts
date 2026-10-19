@@ -16,7 +16,8 @@ export type Muster = { id: string; nr: number; name: string; preis: number; art:
 export type Platz = 'augen' | 'kopf' | 'gesicht' | 'schwanz'
 export type Acc = { id: string; nr: number; name: string; preis: number; platz: Platz; bewegt?: boolean }
 export type SpurArt = { id: string; nr: number; name: string; preis: number }
-export type Teilung = 'abschnitt' | 'ringe' | 'laengs'
+/** Abschnitte (Kopf/Mitte/Schwanz), Ringe, Verlauf weich oder Verlauf Glied fuer Glied (Stufen) */
+export type Teilung = 'abschnitt' | 'ringe' | 'verlauf' | 'stufen'
 /** Komplettes Aussehen einer Schlange */
 export type Skin = { code: string; farben: Farbe[]; teilung: Teilung; muster?: Muster; acc: Acc[]; spur?: SpurArt }
 
@@ -179,7 +180,7 @@ export const MODI = [
 export const TEILUNGEN: { id: Teilung; name: string }[] = [
   { id: 'abschnitt', name: 'Abschnitte' },
   { id: 'ringe', name: 'Ringe' },
-  { id: 'laengs', name: 'Längs' },
+  { id: 'verlauf', name: 'Verlauf' },
 ]
 
 /** Preis jeder kaufbaren Sache nach Id (Farben, Skins, Accessoires, Spuren, Modi) */
@@ -193,7 +194,7 @@ export const anzahlBesitz = (besitz: string[]) => [...PREISE.keys()].filter((id)
 /* ================= Kodierung ================= */
 
 const b36 = (n: number) => n.toString(36).padStart(2, '0')
-const TEIL_K: Record<Teilung, string> = { abschnitt: 'a', ringe: 'r', laengs: 'l' }
+const TEIL_K: Record<Teilung, string> = { abschnitt: 'a', ringe: 'r', verlauf: 'v', stufen: 's' }
 
 /** Aussehen aus seinen Teilen bauen. farben: Ids, acc: Ids (je Platz eins), muster/spur: Id */
 export function baueSkin(o: { farben?: string[]; teilung?: Teilung; muster?: string; acc?: string[]; spur?: string }): Skin {
@@ -245,7 +246,8 @@ export function skinVon(code: string): Skin {
           o.muster = MUSTER.find((x) => x.nr === n)?.id
         } else if (k === 'f') {
           const t = code[i++]
-          o.teilung = t === 'r' ? 'ringe' : t === 'l' ? 'laengs' : 'abschnitt'
+          // 'l' (frueher laengs) wird zum Verlauf
+          o.teilung = t === 'r' ? 'ringe' : t === 'v' || t === 'l' ? 'verlauf' : t === 's' ? 'stufen' : 'abschnitt'
           const anz = Number(code[i++])
           o.farben = []
           for (let j = 0; j < anz; j++) {
@@ -286,8 +288,17 @@ export const LILA_SKIN: Skin = baueSkin({ muster: 'plasma', acc: ['stierhoerner'
 export function farbeBei(s: Skin, k: number): RGB {
   if (s.muster) return mix(s.muster.kopf, s.muster.schwanz, k)
   const i = Math.min(s.farben.length - 1, Math.floor(k * s.farben.length))
+  if (s.farben.length > 1 && (s.teilung === 'verlauf' || s.teilung === 'stufen')) return verlaufFarbe(s.farben, k)
   const f = s.teilung === 'abschnitt' ? s.farben[i] : s.farben[0]
   return mix(f.kopf, f.schwanz, k)
+}
+
+/** Eigener Farbverlauf ueber die gewaehlten Farben (Kopf zur ersten, Schwanz zur letzten), zum Schwanz etwas dunkler */
+function verlaufFarbe(fs: Farbe[], k: number): RGB {
+  const ton = (f: Farbe) => mix(f.kopf, f.schwanz, 0.25)
+  const pos = Math.min(1, Math.max(0, k)) * (fs.length - 1)
+  const j = Math.min(fs.length - 2, Math.floor(pos))
+  return mix(mix(ton(fs[j]), ton(fs[j + 1]), pos - j), [0, 0, 0], k * 0.18)
 }
 
 /* ================= Zeitablauf ================= */
@@ -384,7 +395,8 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
       c = mix(fs[j].kopf, fs[j].schwanz, 0.15 + k * 0.4)
       const t = pos - j
       if (t > 0.85 && j < fs.length - 1) c = mix(c, mix(fs[j + 1].kopf, fs[j + 1].schwanz, 0.15 + k * 0.4), (t - 0.85) / 0.15)
-    } else if (fs.length > 1 && skin.teilung === 'ringe') {
+    } else if (fs.length > 1 && (skin.teilung === 'verlauf' || skin.teilung === 'stufen')) c = verlaufFarbe(fs, k)
+    else if (fs.length > 1 && skin.teilung === 'ringe') {
       const f = fs[i % fs.length]
       c = mix(f.kopf, f.schwanz, k * 0.6)
     } else c = mix(fs[0].kopf, fs[0].schwanz, k)
@@ -405,12 +417,12 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
 
   const accs = skin.acc
   const hat = (id: string) => accs.some((a) => a.id === id)
-  const proben = art || (fs.length > 1 && skin.teilung === 'laengs') || accs.some((a) => a.platz === 'schwanz') ? abtasten(pts, cell, w, 0.09) : null
+  const proben = art || accs.some((a) => a.platz === 'schwanz') ? abtasten(pts, cell, w, 0.09) : null
   if (proben && hat('komet')) komet(ctx, proben, cell, now)
   if (proben && hat('rakete')) rakete(ctx, proben, cell, now)
 
   // Koerper vom Schwanz zum Kopf, mit Muster in einer Zwischenebene (Muster bleiben auf der Schlange)
-  const mitEbene = !!proben && (!!art || (fs.length > 1 && skin.teilung === 'laengs'))
+  const mitEbene = !!proben && !!art
   let L = ctx
   let rx = 0
   let ry = 0
@@ -455,14 +467,20 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   }
   if (art === 'pixel' && proben) pixelKoerper(L, pv, cell, now, m!)
   else {
+    // Weicher Verlauf: jedes Glied in vier Teilen (fliessender Uebergang); sonst eine Farbe je Glied
+    const teile = !m && fs.length > 1 && skin.teilung === 'verlauf' ? 4 : 1
     for (let i = n - 2; i >= 0; i--) {
-      const k = n > 2 ? i / (n - 2) : 0
-      L.strokeStyle = farbe(k, i)
-      L.lineWidth = w * (1 - k * 0.18)
-      L.beginPath()
-      L.moveTo(px(pts[i].x), px(pts[i].y))
-      L.lineTo(px(pts[i + 1].x), px(pts[i + 1].y))
-      L.stroke()
+      for (let t = teile - 1; t >= 0; t--) {
+        const k = n > 2 ? (i + t / teile) / (n - 2) : 0
+        const a = pts[i]
+        const b = pts[i + 1]
+        L.strokeStyle = farbe(Math.min(1, k), i)
+        L.lineWidth = w * (1 - Math.min(1, k) * 0.18)
+        L.beginPath()
+        L.moveTo(px(a.x + (b.x - a.x) * (t / teile)), px(a.y + (b.y - a.y) * (t / teile)))
+        L.lineTo(px(a.x + (b.x - a.x) * ((t + 1) / teile)), px(a.y + (b.y - a.y) * ((t + 1) / teile)))
+        L.stroke()
+      }
     }
     L.fillStyle = farbe(0, 0)
     L.beginPath()
@@ -471,8 +489,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   }
   if (mitEbene && proben) {
     L.globalCompositeOperation = 'source-atop'
-    if (!art) laengs(L, pv, fs, w)
-    else muster(L, pv, cell, m!, now, Math.abs(ctx.getTransform().a), holzEnde(pts, cell))
+    muster(L, pv, cell, m!, now, Math.abs(ctx.getTransform().a), holzEnde(pts, cell))
     L.globalCompositeOperation = 'source-over'
   }
   // Lichtkante auf dem Ruecken
@@ -612,30 +629,6 @@ function augen(ctx: CanvasRenderingContext2D, cell: number, art: string, o: Schl
   }
 }
 
-/** Laengs geteilt: Bauchseite in Farbe 2, bei drei Farben ein Rueckenstreifen in Farbe 3 */
-function laengs(L: CanvasRenderingContext2D, pr: Probe[], fs: Farbe[], w: number) {
-  if (pr.length < 2) return
-  // Ein durchgehender Streifen je Farbe (ueberstehendes schneidet die Ebene ab); Verlauf vom Kopf zum Schwanz
-  const streifen = (f: Farbe, versatz: number, breite: number) => {
-    const a = pr[0]
-    const b = pr[pr.length - 1]
-    const g = L.createLinearGradient(a.x, a.y, b.x, b.y)
-    g.addColorStop(0, rgb(mix(f.kopf, f.schwanz, a.k)))
-    g.addColorStop(1, rgb(mix(f.kopf, f.schwanz, b.k)))
-    L.strokeStyle = g
-    L.lineWidth = w * breite
-    L.beginPath()
-    pr.forEach((p, i) => {
-      const x = p.x + p.nx * p.w * versatz
-      const y = p.y + p.ny * p.w * versatz
-      if (i) L.lineTo(x, y)
-      else L.moveTo(x, y)
-    })
-    L.stroke()
-  }
-  streifen(fs[1], 0.32, 0.5)
-  if (fs[2]) streifen(fs[2], -0.1, 0.2)
-}
 
 /** Ende des Schwanzes (fuer den Holz-Skin: Schnittflaeche mit Jahresringen) */
 function holzEnde(pts: P[], cell: number) {

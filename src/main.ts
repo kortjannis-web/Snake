@@ -1014,7 +1014,8 @@ function skinVorschau(id: string): HTMLElement {
 
 /** Gewaehltes Aussehen (alte Speicherstaende: aus dem bisherigen Skin) */
 const look: LookWahl = (() => {
-  if (wallet.look) return { ...wallet.look, acc: { ...wallet.look.acc } }
+  // Fruehere Teilung "laengs" gibt es nicht mehr: wird zum Verlauf
+  if (wallet.look) return { ...wallet.look, teilung: (wallet.look.teilung as string) === 'laengs' ? 'verlauf' : wallet.look.teilung, acc: { ...wallet.look.acc } }
   const alt = skinVon(wallet.skin)
   return { farben: alt.muster ? ['klassik'] : alt.farben.map((f) => f.id), teilung: 'abschnitt', anzahl: 1, muster: alt.muster?.id ?? null, acc: {}, spur: null }
 })()
@@ -1144,7 +1145,6 @@ function shopKarte(id: string, name: string, an: boolean, waehlen: () => void, z
 /** Teile der Schlange je Teilung (Namen der Chips) */
 function teilNamen(): string[] {
   const n = look.anzahl
-  if (look.teilung === 'laengs') return ['Rücken', 'Bauch', 'Streifen'].slice(0, n)
   if (look.teilung === 'ringe') return ['Ring 1', 'Ring 2', 'Ring 3'].slice(0, n)
   return n === 2 ? ['Kopfhälfte', 'Schwanzhälfte'] : ['Kopf', 'Mitte', 'Schwanz']
 }
@@ -1187,25 +1187,43 @@ function farbenKopf(box: HTMLElement) {
   for (const t of TEILUNGEN) {
     const b = document.createElement('button')
     b.textContent = t.name
-    b.setAttribute('aria-pressed', String(look.teilung === t.id))
+    const istVerlauf = look.teilung === 'verlauf' || look.teilung === 'stufen'
+    b.setAttribute('aria-pressed', String(look.teilung === t.id || (t.id === 'verlauf' && istVerlauf)))
     b.addEventListener('click', () => {
       audio.click()
-      look.teilung = t.id
+      if (t.id !== 'verlauf' || !istVerlauf) look.teilung = t.id
       lookAnwenden()
       renderTeil()
     })
     tSeg.append(b)
   }
   box.append(tSeg)
+  // Verlauf: weich oder Glied fuer Glied (jedes Glied eine Zwischenstufe)
+  if (look.teilung === 'verlauf' || look.teilung === 'stufen') {
+    const vSeg = document.createElement('div')
+    vSeg.className = 'segment segment--klein'
+    for (const [id, name] of [['verlauf', 'Weich'], ['stufen', 'Glied für Glied']] as const) {
+      const b = document.createElement('button')
+      b.textContent = name
+      b.setAttribute('aria-pressed', String(look.teilung === id))
+      b.addEventListener('click', () => {
+        audio.click()
+        look.teilung = id
+        lookAnwenden()
+        renderTeil()
+      })
+      vSeg.append(b)
+    }
+    box.append(vSeg)
+  }
   // Symbol: die eigene Schlange gross, Tippen waehlt den Teil
   const sym = vorschauCanvas(baueSkin({ farben: look.farben.slice(0, look.anzahl), teilung: look.teilung }))
   sym.className = 'farb-symbol'
   sym.addEventListener('click', (e) => {
     const r = sym.getBoundingClientRect()
     const fx = (e.clientX - r.left) / r.width
-    const fy = (e.clientY - r.top) / r.height
-    if (look.teilung === 'abschnitt') farbTeil = Math.min(look.anzahl - 1, Math.floor((1 - fx) * look.anzahl))
-    else if (look.teilung === 'laengs') farbTeil = look.anzahl === 3 && Math.abs(fy - 0.45) < 0.08 ? 2 : fy < 0.5 ? 0 : 1
+    // Kopf liegt rechts: links antippen = Schwanz
+    if (look.teilung !== 'ringe') farbTeil = Math.min(look.anzahl - 1, Math.floor((1 - fx) * look.anzahl))
     else farbTeil = (farbTeil + 1) % look.anzahl
     audio.click()
     renderTeil()

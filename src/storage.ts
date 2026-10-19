@@ -145,7 +145,7 @@ const WKEY = 'snake.wallet.v1'
 /** Was im Aussehen gewaehlt ist (Ids). Farbe oder Skin (muster) ist aktiv, Accessoires und Spur kommen dazu */
 export type LookWahl = {
   farben: string[]
-  teilung: 'abschnitt' | 'ringe' | 'laengs'
+  teilung: 'abschnitt' | 'ringe' | 'verlauf' | 'stufen'
   /** Zahl der Farben (1 bis 3, je nach gekauftem Modus) */
   anzahl: number
   muster: string | null
