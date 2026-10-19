@@ -3,14 +3,14 @@
  * kann groesser als der Bildschirm werden), neue Gebiete klappen Feld fuer
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
-import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
+import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, key, type Game } from '../game/game'
 import { WUESTE } from '../game/rules'
-import { drawFlut, drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
+import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
-import { drawFlaeche, flaechenAufraeumen, type WasserArt } from './flaechen'
+import { drawFlaeche, drawMeer, flaechenAufraeumen, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
 import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, waldWelt, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
@@ -149,8 +149,10 @@ export class Renderer {
   blitzApfel = false
   /** Tageslevel: der letzte Apfel leuchtet pink (bringt 10 Aepfel) */
   sonderApfel = false
-  /** Felder der Flut als Liste (neu berechnet, wenn sich die Flut aendert) */
-  private flutListe: { von: Set<number> | null; felder: P[] } = { von: null, felder: [] }
+  /** Meer um die Insel (Wueste) in Kacheln: 'n|kx,ky' normal, 'f|kx,ky' bei Flut (Land ohne die Flutfelder) */
+  private meer = new Map<string, { m: MeerKachel; benutzt: number }>()
+  private meerStand = ''
+  private meerFlut: Set<number> | null = null
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
   private spuren = new Spuren()
   private dpr = 1
@@ -434,6 +436,8 @@ export class Renderer {
     const gb = g.gebiet && now - g.gebiet.t < 2600 && !this.reduce ? g.gebiet : null
     const kacheln = !gb
     if (kacheln) this.grundKacheln(g, cell, ox, oy, ex0, ey0, ex1, ey1)
+    // Wueste: Meer rund um die Insel, mit weicher Kueste und Wellen, die an den Strand schwappen; dazu die Flut
+    if (welt.id === 'wueste') this.meerZeichnen(g, cell, now, ex0, ey0, ex1, ey1)
     for (let y = ey0; y <= ey1; y++)
       for (let x = ex0; x <= ex1; x++) {
         if (drin(x, y)) continue
@@ -616,18 +620,14 @@ export class Renderer {
     }
 
     // Wueste: Flut am Rand (Warnung: Gischt schlaegt hoeher, dann Wasser) und der Sandwurm kuendigt sich an
-    if (g.flut) {
-      if (this.flutListe.von !== g.flut.zellen) this.flutListe = { von: g.flut.zellen, felder: [...g.flut.zellen].map((k) => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })) }
-      const rand = (p: P) => !g.inside({ x: p.x + 1, y: p.y }) || !g.inside({ x: p.x - 1, y: p.y }) || !g.inside({ x: p.x, y: p.y + 1 }) || !g.inside({ x: p.x, y: p.y - 1 })
-      drawFlut(ctx, this.flutListe.felder.filter((c) => sicht(c, 1)), g.flut.phase === 'aktiv', now - g.flut.t, cell, now, rand)
-    }
     const sw = g.sandwurm
     if (sw && now < sw.los) {
       const felder: P[] = []
-      for (let v = sw.von; v <= sw.bis; v++) {
-        const c = sw.achse === 'x' ? { x: v, y: sw.linie } : { x: sw.linie, y: v }
-        if (g.inside(c) && sicht(c, 1)) felder.push(c)
-      }
+      for (let v = sw.von; v <= sw.bis; v++)
+        for (let b = 0; b < WUESTE.wurmBreite; b++) {
+          const c = sw.achse === 'x' ? { x: v, y: sw.linie + b } : { x: sw.linie + b, y: v }
+          if (g.inside(c) && sicht(c, 1)) felder.push(c)
+        }
       drawSandwurmWarnung(ctx, felder, cell, now, clamp01((now - sw.t) / WUESTE.wurmWarnung))
     }
 
@@ -774,7 +774,7 @@ export class Renderer {
       while (a1 - a0 > Math.PI) a1 -= Math.PI * 2
       while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
       const ang = lerp(a0, a1, easeOut(clamp01((now - f.drehT) / 220)))
-      drawFroschWelt(ctx, welt, px(x), px(y), cell, ang, this.reduce ? 0 : anlauf, this.reduce || flug > 1 ? -1 : k, s, fade, now)
+      drawFroschWelt(ctx, welt, px(x), px(y), cell, ang, this.reduce ? 0 : anlauf, this.reduce || flug > 1 ? -1 : k, s, fade, now, !!f.schnell)
       if (welt.frosch === 'leuchtfrosch') licht(px(x), px(y), cell * 1.5)
     }
 
@@ -813,10 +813,8 @@ export class Renderer {
     if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
     if (this.mehr?.blasen) for (const b of this.mehr.blasen) if (sicht(b.p, 2)) this.drawBlase(b)
     this.drawGrabWarnung(g, head, now)
-    if (sw && now >= sw.los) {
-      const d = sw.achse === 'x' ? { x: sw.dir, y: 0 } : { x: 0, y: sw.dir }
-      drawSandwurm(ctx, g.sandwurmFelder(), d.x, d.y, cell, now)
-    }
+    const swKopf = g.sandwurmKopf()
+    if (sw && swKopf !== null) drawSandwurm(ctx, sw.achse, sw.linie + WUESTE.wurmBreite / 2, swKopf, sw.dir, WUESTE.wurmLaenge, sw.von, sw.bis, cell, now)
 
     // Giftwolken ueber allem (mit Warnung vor dem Wachsen)
     for (const w of [...g.wolken, ...g.wolkenWeg]) {
@@ -901,6 +899,45 @@ export class Renderer {
    * Statt jedes Bild hunderte Formen zu rastern, wird jede Kachel einmal gezeichnet und danach nur kopiert.
    * Aendert sich die Karte (neuer Block, neue Feldgroesse, neues Spiel), wird neu gezeichnet.
    */
+  /** Meer um die Insel (Wueste): Kacheln wie der Boden, einmal berechnet, dann nur noch bewegte Oberflaeche und Wellen */
+  private meerZeichnen(g: Game, cell: number, now: number, ex0: number, ey0: number, ex1: number, ey1: number) {
+    if (this.meerStand !== this.grundStand) {
+      this.meer.clear()
+      this.meerStand = this.grundStand
+    }
+    const flut = g.flut
+    if (flut && flut.zellen !== this.meerFlut) {
+      for (const k of [...this.meer.keys()]) if (k.startsWith('f|')) this.meer.delete(k)
+      this.meerFlut = flut.zellen
+    }
+    const px = 12
+    const bild = this.grundBild
+    const holen = (art: 'n' | 'f', kx: number, ky: number) => {
+      const k = `${art}|${kx},${ky}`
+      let e = this.meer.get(k)
+      if (!e) {
+        const z = flut?.zellen
+        const land = art === 'f' && z ? (x: number, y: number) => g.inside({ x, y }) && !z.has(key(x, y)) : (x: number, y: number) => g.inside({ x, y })
+        e = { m: meerKachel(land, kx * GRUND, ky * GRUND, GRUND, px, g.ursprung), benutzt: bild }
+        this.meer.set(k, e)
+      }
+      e.benutzt = bild
+      return e.m
+    }
+    // Flut kommt: hoehere, schnellere Wellen, das Wasser schwappt immer wieder ueber den Rand
+    const warnung = flut?.phase === 'warnung'
+    const ueber = !flut ? 0 : flut.phase === 'aktiv' ? clamp01((now - flut.t) / 700) : 0.45 * Math.pow(Math.max(0, Math.sin(now / 480)), 2) * Math.min(1, 0.5 + (now - flut.t) / 8000)
+    for (let ky = Math.floor(ey0 / GRUND); ky <= Math.floor(ey1 / GRUND); ky++)
+      for (let kx = Math.floor(ex0 / GRUND); kx <= Math.floor(ex1 / GRUND); kx++) {
+        drawMeer(this.ctx, holen('n', kx, ky), cell, now, 1, warnung ? 1.8 : 1, this.reduce)
+        if (ueber > 0.01) drawMeer(this.ctx, holen('f', kx, ky), cell, now, ueber, warnung ? 1.8 : 1, this.reduce)
+      }
+    if (this.meer.size > 90) {
+      const alt = [...this.meer.entries()].sort((a, b) => a[1].benutzt - b[1].benutzt)
+      for (const [k] of alt.slice(0, this.meer.size - 90)) this.meer.delete(k)
+    }
+  }
+
   private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
     const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}`
     if (stand !== this.grundStand) {
