@@ -89,8 +89,8 @@ export const DEFAULTS = {
   // Eis
   eisAb: 120,
   eisAlle: 30,
-  eisMin: 4,
-  eisMax: 10,
+  eisMin: 12,
+  eisMax: 24,
   eisFelder: 300,
   // Lava: steckt von Anfang an als einzelnes Feld im Stein mancher Bloecke
   lavaChance: 30,

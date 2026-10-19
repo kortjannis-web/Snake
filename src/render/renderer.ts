@@ -6,6 +6,7 @@
 import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
 import { BAUM_FALL, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
+import { drawFlaeche, flaechenAufraeumen, type WasserArt } from './flaechen'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   C,
@@ -16,7 +17,6 @@ import {
   clamp01,
   DIR_WINKEL,
   drawAmeise,
-  drawEis,
   drawErdDeko,
   drawErdFeld,
   drawErz,
@@ -33,7 +33,6 @@ import {
   drawLicht,
   drawFalle,
   drawStein,
-  drawTeich,
   drawWolkenFeld,
   drawWolkenKern,
   easeOut,
@@ -313,6 +312,11 @@ export class Renderer {
     }
   }
 
+  /** Wasser je Teich: mal tief mit Seerosen, mal klar mit bemoostem Ufer (fest je Teich, nach Weltfeld) */
+  private wasserArt(c: P, o: P): WasserArt {
+    return feldZufall(c.x - o.x + 7, c.y - o.y + 3) < 0.55 ? 'tief' : 'gras'
+  }
+
   /** Die Karte ist um dx/dy Felder gerutscht: alles, was die Kamera sich merkt, mitnehmen */
   private kameraRutschen(dx: number, dy: number) {
     const { cell } = this
@@ -509,15 +513,44 @@ export class Renderer {
 
     // Lava und Eis. Freigelegte Lava, die noch nicht ausbrechen konnte, glimmt schon
     for (const p of g.lavaOffen) if (sicht(p)) drawErdDeko(ctx, p.x * cell, p.y * cell, cell, 'lava', feldZufall(p.x, p.y), now)
-    for (const l of g.lava) if (l.cells.some((c) => sicht(c))) drawLava(ctx, l.cells, l.t, cell, now, this.reduce)
-    for (const e of g.eis) if (e.cells.some((c) => sicht(c))) drawEis(ctx, e.cells, cell, this.reduce ? 1 : backOut(clamp01((now - e.t) / 500)), now)
+    // Lava, Eis und Teiche als zusammenhaengende Flaechen. Lava: frisch dazugekommene Felder wachsen
+    // erst einzeln auf und gehoeren danach zur Flaeche
+    flaechenAufraeumen()
+    const o = g.ursprung
+    for (const l of g.lava) {
+      if (!l.cells.some((c) => sicht(c))) continue
+      const fertig = l.cells.filter((_, i) => this.reduce || now - l.t[i] >= 420)
+      drawFlaeche(ctx, fertig, 'lava', cell, now, o, this.reduce)
+      l.cells.forEach((c, i) => {
+        if (!this.reduce && now - l.t[i] < 420) drawLava(ctx, [c], [l.t[i]], cell, now)
+      })
+    }
+    for (const e of g.eis) {
+      if (!e.cells.some((c) => sicht(c))) continue
+      ctx.globalAlpha = this.reduce ? 1 : clamp01((now - e.t) / 700)
+      drawFlaeche(ctx, e.cells, 'eis', cell, now, o, this.reduce)
+      ctx.globalAlpha = 1
+    }
 
-    // Teiche (trocknen ggf. aus)
+    // Teiche (wachsen auf, trocknen ggf. aus)
     for (const t of g.teiche) {
       if (!t.cells.some((c) => sicht(c))) continue
       let s = this.reduce ? 1 : backOut(clamp01((now - t.t) / 360))
       if (t.drying !== undefined) s *= 1 - clamp01((now - t.drying) / 1500)
-      drawTeich(ctx, t.cells, cell, s, now)
+      if (s <= 0) continue
+      const art = this.wasserArt(t.cells[0], o)
+      if (s < 1) {
+        const xs = t.cells.map((c) => c.x)
+        const ys = t.cells.map((c) => c.y)
+        const mx = ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cell
+        const my = ((Math.min(...ys) + Math.max(...ys) + 1) / 2) * cell
+        ctx.save()
+        ctx.translate(mx, my)
+        ctx.scale(s, s)
+        ctx.translate(-mx, -my)
+        drawFlaeche(ctx, t.cells, art, cell, now, o, this.reduce)
+        ctx.restore()
+      } else drawFlaeche(ctx, t.cells, art, cell, now, o, this.reduce)
     }
 
     // Alte Mauern schrumpfen weg, neue wachsen Feld fuer Feld
