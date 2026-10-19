@@ -7,6 +7,7 @@ import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, type Ga
 import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
+import { drawGrosseErde } from './erde'
 import { drawFlaeche, flaechenAufraeumen, type WasserArt } from './flaechen'
 import { drawAmeiseWelt, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, hausUeberzug, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
@@ -905,6 +906,9 @@ export class Renderer {
         const deko = erdeBei(g.cfg, wx, wy)
         if (deko === 'stein' || deko === 'kohle' || deko === 'skelett') drawErdDeko(c, x * cell, y * cell, cell, deko, z, 0)
       }
+    // Grosse Details ueber mehrere Felder (Schichten, Wurzeln, Felsen, Skelette ...), nicht ueber Erz oder Lava
+    const erz = new Set(['gold', 'dia', 'rubin', 'opal'])
+    drawGrosseErde(c, welt, { drin, belegt: (wx, wy) => g.lavaImStein(wx, wy) || erz.has(erdeBei(g.cfg, wx, wy) ?? ''), ursprung: g.ursprung }, cell, xa, ya, xb, yb)
     // Schachbrett: dunkel genau je Feld, hell etwas groesser (sonst feine Fugen), dann der Grasrand
     c.fillStyle = welt.dunkel
     for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y)) c.fillRect(x * cell, y * cell, cell, cell)
