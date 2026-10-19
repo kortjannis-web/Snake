@@ -11,6 +11,7 @@ import { DUELL, GEGNER_MODI, KLASSISCH, MehrGame, type Ergebnis, type Modus, typ
 import * as R from '../game/rules'
 import type { Dir, GameEvent, P } from '../game/types'
 import { Abgleich, anwenden, zustand, type Zustand } from '../game/zustand'
+import { Jitterpuffer } from './puffer'
 import { MEHR_BILD, PROTOKOLL, type AnServer, type Einstellungen, type Geist, type Phase, type StartInfo, type Teilnehmer, type VomServer } from './protokoll'
 
 export type RaumInfo = { code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number } & Einstellungen
@@ -34,8 +35,12 @@ type GeistStand = Geist & { prev: P[]; seit: number }
 /** So oft (ms) schickt der Rechner hoechstens seinen Stand */
 const VERSAND_MS = 50
 /** Herzschlag zum Server (ms); kommt so lange (ms) gar nichts zurueck, ist die Verbindung tot */
-const PING_MS = 2000
-const TOT_MS = 6000
+const PING_MS = 1000
+const TOT_MS = 3500
+/** Nach einem Netzwechsel oder der Rueckkehr in die App: so lange (ms) darf die Antwort auf einen Ping ausbleiben */
+const PRUEFEN_MS = 1500
+/** Staut sich beim Senden mehr als so viel (Bytes) im Browser, werden Staende uebersprungen (der naechste bringt alles nach) */
+const STAU_BYTES = 8 * 1024
 /** Spaetestens so oft (ms) meldet sich der Rechner, auch wenn sich nichts geaendert hat (z. B. im Countdown) */
 const HERZ_MS = 500
 /** Rennen: so oft (ms) hoechstens die eigene Position */
@@ -71,12 +76,28 @@ export class MehrClient {
   private zuletzt = 0
   /** Eigener Wischer, den der Rechner noch nicht umgesetzt hat (fuer die sofortige Anzeige) */
   private vorhersage: { d: Dir; bei: P; seit: number } | null = null
+  /** Gespiegelte Staende, die erst zu ihrer Abspielzeit (lokal, ms) angewendet werden (siehe puffer.ts) */
+  private warten: { an: number; d: Zustand; e?: GameEvent[] }[] = []
+  private puffer = new Jitterpuffer()
+  /** Hoechste gezeigte Spielzeit: die gespiegelte Zeit springt nie zurueck (nur Stillstand bei Verspaetung) */
+  private zeitMax = 0
+  private rttMin = Infinity
+  private nachNetz: ReturnType<typeof setTimeout> | null = null
+  /** Zaehler fuer die Lag-Anzeige */
+  stat = { rtt: 0, rttMax: 0, wechsel: 0, neuVerbunden: 0, uebersprungen: 0 }
 
   constructor(
     private readonly server: string,
     private readonly ichInfo: () => SpielerInfo,
     private readonly melden: (e: ClientEreignis) => void,
   ) {}
+
+  /** Kurzer Text fuer die Lag-Anzeige: Ping, Streuung, Puffer, Rechner-Wechsel, Neuverbindungen, uebersprungene Staende */
+  get diagnose() {
+    const st = this.stat
+    const rolle = this.start?.modus === 'rennen' ? 'Rennen' : this.istRechner ? 'Rechner' : 'Zuschauer'
+    return `${rolle} · Ping ${Math.round(st.rtt)} ms (max ${Math.round(st.rttMax)}) · Jitter ${Math.round(this.puffer.jitter)} ms · Puffer ${Math.round(this.puffer.warte)} ms · Wechsel ${st.wechsel} · Neu ${st.neuVerbunden} · Stau ${st.uebersprungen}`
+  }
 
   /** Index dieses Geraets in der Spielerliste */
   get ich() {
@@ -108,6 +129,57 @@ export class MehrClient {
     this.code = code.toUpperCase()
     this.gewollt = true
     this.versuche = 0
+    this.netzHoeren(true)
+    this.oeffnen()
+  }
+
+  /** Netz wieder da, App wieder vorn: sofort pruefen statt auf den naechsten Herzschlag zu warten */
+  private readonly netzDa = () => this.pruefen()
+  private readonly sichtbar = () => {
+    if (typeof document !== 'undefined' && !document.hidden) this.pruefen()
+  }
+  private netzHoeren(an: boolean) {
+    const g = globalThis as unknown as Window
+    if (typeof g.addEventListener !== 'function') return
+    const f = an ? g.addEventListener.bind(g) : g.removeEventListener.bind(g)
+    f('online', this.netzDa)
+    if (typeof document !== 'undefined') (an ? document.addEventListener : document.removeEventListener).call(document, 'visibilitychange', this.sichtbar)
+  }
+
+  /** Lebt die Verbindung noch? Ping schicken; kommt binnen PRUEFEN_MS nichts, neu aufbauen (Netzwechsel WLAN <-> Mobilfunk) */
+  private pruefen() {
+    if (!this.gewollt) return
+    if (!this.ws) {
+      this.versuche = 0
+      return this.oeffnen()
+    }
+    if (this.ws.readyState !== WebSocket.OPEN) return
+    const seit = performance.now()
+    this.pingAb = seit
+    this.senden({ t: 'ping' })
+    if (this.nachNetz) clearTimeout(this.nachNetz)
+    this.nachNetz = setTimeout(() => {
+      this.nachNetz = null
+      if (this.gewollt && this.ws && this.zuletzt < seit) this.neuAufbauen()
+    }, PRUEFEN_MS)
+  }
+
+  /** Alte Verbindung verwerfen (ohne Warten auf den Browser) und sofort eine neue aufbauen */
+  private neuAufbauen() {
+    const alt = this.ws
+    if (alt) {
+      this.ws = null
+      alt.onclose = alt.onmessage = alt.onopen = null
+      try {
+        alt.close(3001)
+      } catch {
+        /* egal */
+      }
+    }
+    this.verbunden = false
+    this.stat.neuVerbunden++
+    this.melden({ art: 'verbindung', ok: false })
+    this.versuche = 0
     this.oeffnen()
   }
 
@@ -123,6 +195,7 @@ export class MehrClient {
     }
     this.ws = ws
     ws.onopen = () => {
+      this.rttMin = Infinity
       this.verbunden = true
       this.versuche = 0
       this.zuletzt = performance.now()
@@ -160,26 +233,12 @@ export class MehrClient {
    *  Browser oft erst nach Minuten: kommt 6 s lang nichts, wird die Verbindung verworfen und neu aufgebaut */
   private herzschlag() {
     if (!this.ws) return
-    if (this.ws.readyState === WebSocket.OPEN && performance.now() - this.zuletzt > TOT_MS) {
-      const alt = this.ws
-      this.ws = null
-      this.verbunden = false
-      alt.onclose = alt.onmessage = alt.onopen = null
-      try {
-        alt.close(3001)
-      } catch {
-        /* egal */
-      }
-      this.melden({ art: 'verbindung', ok: false })
-      this.versuche = 0
-      this.oeffnen()
-      return
-    }
+    if (this.ws.readyState === WebSocket.OPEN && performance.now() - this.zuletzt > TOT_MS) return this.neuAufbauen()
     this.pingAb = performance.now()
     this.senden({ t: 'ping' })
   }
 
-  /** Funkloch: in 1, 2, 4 ... Sekunden noch einmal (hoechstens 10 Versuche) */
+  /** Funkloch: gleich, dann nach 0,5, 1, 2, 4 ... Sekunden noch einmal (hoechstens 10 Versuche) */
   private spaeterNeu() {
     if (!this.gewollt || this.versuche >= 10) {
       if (this.gewollt) this.melden({ art: 'fehler', text: 'Keine Verbindung zum Server.' })
@@ -187,12 +246,14 @@ export class MehrClient {
       this.aufraeumen()
       return
     }
-    const ms = Math.min(8000, 1000 * 2 ** this.versuche++)
+    const ms = this.versuche === 0 ? 150 : Math.min(8000, 500 * 2 ** (this.versuche - 1))
+    this.versuche++
     setTimeout(() => this.gewollt && !this.ws && this.oeffnen(), ms)
   }
 
   verlassen() {
     this.gewollt = false
+    this.netzHoeren(false)
     const ws = this.ws
     this.ws = null
     ws?.close(1000)
@@ -202,6 +263,11 @@ export class MehrClient {
   private aufraeumen() {
     if (this.ping) clearInterval(this.ping)
     this.ping = null
+    if (this.nachNetz) clearTimeout(this.nachNetz)
+    this.nachNetz = null
+    this.netzHoeren(false)
+    this.warten = []
+    this.puffer.zuruecksetzen()
     this.verbunden = false
     this.raum = null
     this.start = null
@@ -249,6 +315,7 @@ export class MehrClient {
           this.game = null
           this.ergebnis = null
           this.geister.clear()
+          this.warten = []
         }
         this.melden({ art: 'raum', raum: this.raum })
         return
@@ -257,14 +324,20 @@ export class MehrClient {
         this.versatz = m.jetzt - performance.now()
         return this.spielBauen(m.info)
       case 'pong':
-        if (this.pingAb) this.versatz = m.jetzt + (performance.now() - this.pingAb) / 2 - performance.now()
-        return
+        return this.uhrAbgleichen(m.jetzt)
       case 'rechner':
+        if (this.rechner !== m.wer && this.start?.modus !== 'rennen') this.stat.wechsel++
         this.rechner = m.wer
+        // Anderer Absender: alte Staende sofort zeigen, die Messung beginnt neu
+        this.alleAnwenden()
+        this.puffer.zuruecksetzen()
         return
       case 'voll':
         if (!this.game && this.start) this.spielBauen(this.start)
         if (!this.game) return
+        this.warten = []
+        this.puffer.zuruecksetzen()
+        this.zeitMax = 0
         anwenden(this.game, m.z)
         this.game.wechsel(Math.max(0, this.ich))
         this.basis = { spiel: this.game.time, lokal: performance.now() }
@@ -273,14 +346,18 @@ export class MehrClient {
           this.versenden(true)
         }
         return
-      case 'z':
+      case 'z': {
         if (!this.game || this.istRechner) return
-        anwenden(this.game, m.d)
-        this.game.wechsel(Math.max(0, this.ich))
-        this.basis = { spiel: this.game.time, lokal: performance.now() }
-        this.vorhersagen()
-        for (const e of m.e ?? []) this.melden({ art: 'spiel', e })
+        const jetzt = performance.now()
+        // Ohne Sendezeit (alter Rechner) oder ganzer Stand: gleich zeigen
+        if (typeof m.s !== 'number' || m.voll) {
+          this.alleAnwenden()
+          return this.stand(m.d, m.e)
+        }
+        this.warten.push({ an: this.puffer.plane(m.s, jetzt), d: m.d, e: m.e })
+        this.faelligeAnwenden(jetzt)
         return
+      }
       case 'dir':
         if (this.istRechner && this.game) this.game.lenkeBei(m.wer, m.d, m.bei, m.k)
         return
@@ -314,6 +391,7 @@ export class MehrClient {
         this.melden({ art: 'raus', wer: m.wer, grund: m.grund })
         return
       case 'ende':
+        this.alleAnwenden()
         this.ergebnis = m.ergebnis
         this.melden({ art: 'ende', ergebnis: m.ergebnis })
         return
@@ -323,10 +401,54 @@ export class MehrClient {
     }
   }
 
+  /** Uhr mit dem Server abgleichen: nur schnelle Antworten zaehlen (eine lange kann auf dem Hinweg oder Rueckweg stecken) und sanft nachziehen */
+  private uhrAbgleichen(serverJetzt: number) {
+    if (!this.pingAb) return
+    const jetzt = performance.now()
+    const rtt = jetzt - this.pingAb
+    this.pingAb = 0
+    this.stat.rtt = this.stat.rtt ? this.stat.rtt * 0.8 + rtt * 0.2 : rtt
+    this.stat.rttMax = Math.max(this.stat.rttMax * 0.98, rtt)
+    // Der Mindestwert steigt langsam wieder (anderes Netz nach einem Wechsel)
+    this.rttMin = Math.min(this.rttMin * 1.02, rtt)
+    const probe = serverJetzt + rtt / 2 - jetzt
+    if (!this.uhrGestellt) {
+      this.versatz = probe
+      this.uhrGestellt = true
+    } else if (rtt <= this.rttMin * 1.5 + 20) this.versatz += 0.25 * (probe - this.versatz)
+  }
+  private uhrGestellt = false
+
+  /** Einen Stand des Rechners in das gespiegelte Spiel uebernehmen */
+  private stand(d: Zustand, e?: GameEvent[]) {
+    const g = this.game
+    if (!g) return
+    anwenden(g, d)
+    g.wechsel(Math.max(0, this.ich))
+    this.basis = { spiel: g.time, lokal: performance.now() }
+    this.vorhersagen()
+    for (const ev of e ?? []) this.melden({ art: 'spiel', e: ev })
+  }
+
+  /** Alle Staende anwenden, deren Abspielzeit da ist */
+  private faelligeAnwenden(jetzt: number) {
+    let n = 0
+    while (n < this.warten.length && this.warten[n].an <= jetzt) n++
+    if (!n) return
+    for (const w of this.warten.splice(0, n)) this.stand(w.d, w.e)
+  }
+  /** Alles Wartende sofort anwenden (neuer Rechner, Ende, ganzer Stand) */
+  private alleAnwenden() {
+    for (const w of this.warten.splice(0)) this.stand(w.d, w.e)
+  }
+
   private spielBauen(info: StartInfo) {
     this.start = info
     this.ergebnis = null
     this.endeGeschickt = false
+    this.warten = []
+    this.puffer.zuruecksetzen()
+    this.zeitMax = 0
     this.geister.clear()
     this.abgleich.vergessen()
     this.rechner = info.modus === 'rennen' ? -1 : info.rechner
@@ -392,28 +514,44 @@ export class MehrClient {
         this.senden({ t: 'ende', ergebnis: g.ergebnis })
       }
       g.wechsel(this.ich)
-    } else if (this.basis && g.status === 'play') {
-      // Zwischen zwei Staenden die Zeit weiterlaufen lassen (fuer weiche Bewegung), hoechstens 0,3 s voraus
-      g.time = this.basis.spiel + Math.min(300, performance.now() - this.basis.lokal)
+    } else {
+      const jetzt = performance.now()
+      this.faelligeAnwenden(jetzt)
+      if (this.basis && g.status === 'play') {
+        // Zwischen zwei Staenden die Zeit weiterlaufen lassen (fuer weiche Bewegung), hoechstens 0,3 s voraus.
+        // Kommt ein Stand knapp "vor" der schon gezeigten Zeit an, steht die Zeit kurz still statt zurueckzuspringen
+        let t = this.basis.spiel + Math.min(300, jetzt - this.basis.lokal)
+        if (t < this.zeitMax && this.zeitMax - t < 150) t = this.zeitMax
+        this.zeitMax = t
+        g.time = t
+      }
     }
   }
 
   private versenden(voll: boolean, e: GameEvent[] = []) {
     const g = this.game
     if (!g) return
-    this.letzterVersand = performance.now()
+    const jetzt = performance.now()
+    this.letzterVersand = jetzt
     const z: Zustand = zustand(g, voll)
     if (voll) {
       this.abgleich.vergessen()
       this.abgleich.aenderungen(z)
-      this.senden({ t: 'z', d: z, e, voll: true })
+      this.senden({ t: 'z', d: z, e, voll: true, s: jetzt })
+      return
+    }
+    // Schlechtes Netz: alles, was schon wartet, kommt erst spaet an. Noch mehr dazuzulegen macht den Stau
+    // groesser und alle Zuschauer bekommen alte Staende in einem Schwung. Die Aenderungen bleiben im Abgleich
+    // liegen und kommen mit dem naechsten Stand (Ereignisse aber immer)
+    if (!e.length && (this.ws?.bufferedAmount ?? 0) > STAU_BYTES) {
+      this.stat.uebersprungen++
       return
     }
     const d = this.abgleich.aenderungen(z)
     // Auch ohne Aenderung regelmaessig melden: sonst haelt der Server den Rechner fuer ausgefallen
-    if (d || e.length || performance.now() - this.letzterHerz >= HERZ_MS) {
-      this.letzterHerz = performance.now()
-      this.senden({ t: 'z', d: d ?? {}, e: e.length ? e : undefined })
+    if (d || e.length || jetzt - this.letzterHerz >= HERZ_MS) {
+      this.letzterHerz = jetzt
+      this.senden({ t: 'z', d: d ?? {}, e: e.length ? e : undefined, s: jetzt })
     }
   }
 
