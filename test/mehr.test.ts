@@ -529,7 +529,9 @@ describe('Spielstand', () => {
     takt(g)
     const dann = a.aenderungen(zustand(g)) ?? {}
     expect(Object.keys(dann)).toContain('time')
-    expect(Object.keys(dann)).toContain('schlangen')
+    // Schlangen danach nur noch kompakt (geaenderte Felder je Schlange, siehe multi/kompakt.ts)
+    expect(Object.keys(dann)).toContain('sd')
+    expect(Object.keys(dann)).not.toContain('schlangen')
     expect(Object.keys(dann)).not.toContain('blocks')
   })
 })

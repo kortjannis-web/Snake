@@ -14,9 +14,10 @@ Ein Handy rechnet das ganze Spiel, der Server reicht nur durch. Das ist günstig
 
 ## Gemessen
 
-Datenmenge ist **nicht** das Problem: 3 bis 7 KB/s vom Rechner bei 2 bis 4 Spielern, im Schnitt 27 Byte je Stand
-(nur die Zeit ändert sich), Spitzen 1 bis 2 KB. Ein Stand zu bauen kostet ~0,1 ms. Der Lag kommt aus dem **Netz und der
-Architektur**, nicht aus der Rechenzeit.
+Erste Messung (1.29.0) lag zu niedrig, weil die Schlangen dort nicht gelenkt wurden und kaum aßen. Mit Autopilot für
+alle Schlangen (wie echtes Spielen) schickte der Rechner **5 KB/s bei 2 und 28 KB/s bei 4 Spielern**, 21 Nachrichten je
+Sekunde, 95 % davon die kompletten Schlangen. Seit 1.31.0 siehe unten: **0,9 KB/s bzw. 2,9 KB/s, 8 bzw. 12 Nachrichten
+je Sekunde.** Einen Stand zu bauen kostet ~0,1 ms.
 
 ## Ursachen (nach Wirkung sortiert)
 
@@ -54,6 +55,36 @@ Architektur**, nicht aus der Rechenzeit.
 
 Rechner und Zuschauer müssen **nicht** dieselbe Version haben, damit der Puffer wirkt: Ein alter Rechner schickt keine
 Sendezeit, dann zeigt der neue Zuschauer die Stände wie bisher sofort. Das Protokoll (`PROTOKOLL`) bleibt deshalb bei 2.
+
+## Weniger Daten und weniger Ruckeln (1.31.0)
+
+**Online (Protokoll 3, alte Apps bekommen „Bitte aktualisieren“):**
+
+| Maßnahme | Wirkung | Wo |
+|---|---|---|
+| Schlangen kompakt: nur Schlangen, die sich geändert haben, und davon nur die geänderten Felder (`sd`). Ein Körper nach einem Schritt ist „neuer Kopf vorn, Länge n“, `prev` ist dann nur `'b'` (= alter Körper). | 4 Spieler: 28 → 3,4 KB/s | `src/multi/kompakt.ts` |
+| Kommazahlen gerundet (`18453.500000000382` → `18453.5`) | weitere ~10 % | `runden` |
+| Ändert sich nur die Spielzeit, geht ein Stand nur alle 150 ms raus (Zuschauer lassen die Zeit selbst laufen) | 21 → 12 Nachrichten/s bei 4, 8/s bei 2 Spielern (auch gut fürs Gratis-Kontingent von Cloudflare) | `client.ts` |
+| Der Server merkt sich weiter den ganzen Stand (für den Rechnerwechsel) | neuer Rechner bekommt vollständige Schlangen | `server/raum.ts` |
+
+Geprüft: Nach jedem Stand hat der Empfänger genau die Schlangen des Rechners (`test/kompakt.test.ts`), auch über
+die ganze Kette Rechner → Server → Zuschauer mit Jitter-Puffer (`test/kette.test.ts`).
+
+**Zeichnen (gemessen im echten Spiel, Handygröße, CPU gedrosselt, Hauptthread-Zeit je Bild):**
+
+| Maßnahme | Wirkung | Wo |
+|---|---|---|
+| Wüste: Meer-Kacheln über Land werden übersprungen; alle Ebenen (Grund, bewegte Oberfläche, 3 Gischtbänder) werden in einem kleinen Zwischenbild zusammengelegt und einmal hochskaliert; das Wasser wird 30-mal je Sekunde neu gemischt | Wüste: Rechenzeit je Bild etwa halbiert, sieht gleich aus (Bildvergleich: im Mittel 1 von 255 Abweichung, nur durch den Zeitpunkt der Wellen) | `renderer.ts` (`meerZeichnen`) |
+| Neue Meer-Kachel ~40 % schneller (Rauschen ohne Umweg, keine neuen Listen je Pixel), Pixel für Pixel gleich | weniger Hänger beim Erkunden; Lava, Teiche und Eis profitieren mit | `flaechen.ts` |
+| Karte wächst: Bodenkacheln entstehen schon während der 2,6 s Aufklapp-Animation (eine je Bild); Meer-Kacheln bleiben und werden nach und nach erneuert | Kein Hänger mehr bei jedem neuen Gebiet (vorher entstanden alle sichtbaren Kacheln im selben Bild) | `grundVorbereiten`, `meerZeichnen` |
+| Schwaches Gerät: unter ~40 Bildern/s über 4 s wird mit 2 statt 2,5 Pixeln je Punkt gezeichnet (ein Drittel weniger Pixel) | Nur einmal, nur auf Geräten mit mehr als 2; gute Handys merken nichts | `main.ts` (`tempoPruefen`) |
+
+**Dateien:**
+
+| Maßnahme | Wirkung |
+|---|---|
+| Shop-Videos nicht mehr im Vorab-Download der Web-App (es gab jedes doppelt: MP4 und WebM). Sie kommen beim ersten Ansehen und bleiben gespeichert. | Installation/Update: 4,7 MB → 1,3 MB |
+| APK ohne WebM (Android spielt MP4) | APK ~1,8 MB kleiner |
 
 ## Wie man den Lag eingrenzt
 

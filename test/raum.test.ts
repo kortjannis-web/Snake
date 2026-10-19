@@ -153,6 +153,25 @@ describe('Raum: Spiel auf einem Feld', () => {
     expect(b.k.letzte('voll')?.z).toEqual({ level: 5, time: 999 })
   })
 
+  it('kompakte Schlangen: der Server merkt sich ganze Schlangen, der neue Rechner bekommt sie vollstaendig', () => {
+    const { r, rein } = raum()
+    const a = rein('a')
+    const b = rein('b')
+    sag(r, a.k, { t: 'start' })
+    const kopf = (x: number) => ({ x, y: 3 })
+    sag(r, a.k, { t: 'z', d: { level: 1, schlangen: [{ name: 'A', body: [kopf(3), kopf(2), kopf(1)], prev: [kopf(2), kopf(1), kopf(0)], dir: 'r' }, { name: 'B', body: [kopf(9)], prev: [kopf(9)], dir: 'l' }] }, voll: true })
+    // Ein Schritt nach rechts (Kopf vorn dran, Schwanz weg), prev = alter Koerper; B biegt ab
+    sag(r, a.k, { t: 'z', d: { sd: [[0, { body: { $k: [kopf(4)], $n: 3 }, prev: 'b' }], [1, { dir: 'u' }]] } })
+    // Kaputtes geht nicht durch, wirft aber auch nicht
+    sag(r, a.k, { t: 'z', d: { sd: [[7, { dir: 'u' }], 'x', [0, null]] } })
+    r.verlassen(a.k)
+    const z = b.k.letzte('voll')?.z as { schlangen: { body: unknown; prev: unknown; dir: string }[] }
+    expect(z.schlangen[0].body).toEqual([kopf(4), kopf(3), kopf(2)])
+    expect(z.schlangen[0].prev).toEqual([kopf(3), kopf(2), kopf(1)])
+    expect(z.schlangen[1].dir).toBe('u')
+    expect(z).not.toHaveProperty('sd')
+  })
+
   it('schickt der Rechner zu lange nichts (App im Hintergrund), uebernimmt ein anderer', () => {
     const { r, uhr, rein } = raum()
     const a = rein('a')

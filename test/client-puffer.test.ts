@@ -110,6 +110,10 @@ describe('MehrClient: Jitter-Puffer fuer den gespiegelten Stand', () => {
     expect(c.istRechner).toBe(true)
     expect(ws.gesendet.find((m) => m.t === 'z')?.voll).toBe(true)
     ws.gesendet.length = 0
+    // Nur die Zeit laeuft: das geht hoechstens alle 150 ms raus
+    vi.advanceTimersByTime(100)
+    c.frame(16)
+    expect(ws.gesendet.filter((m) => m.t === 'z')).toHaveLength(0)
     vi.advanceTimersByTime(100)
     c.frame(16)
     const z1 = ws.gesendet.filter((m) => m.t === 'z')

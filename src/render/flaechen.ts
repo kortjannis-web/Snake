@@ -22,13 +22,23 @@ const glatt = (t: number) => t * t * (3 - 2 * t)
 export function rauschen(x: number, y: number, per = 0) {
   const x0 = Math.floor(x)
   const y0 = Math.floor(y)
-  const w = (v: number) => (per ? ((v % per) + per) % per : v)
   const fx = glatt(x - x0)
   const fy = glatt(y - y0)
-  const a = hash2(w(x0), w(y0))
-  const b = hash2(w(x0 + 1), w(y0))
-  const c = hash2(w(x0), w(y0 + 1))
-  const d = hash2(w(x0 + 1), w(y0 + 1))
+  // Ohne Periode (der haeufige Fall, viele tausend Mal je Bild einer Flaeche) ohne Umweg
+  let xa = x0
+  let xb = x0 + 1
+  let ya = y0
+  let yb = y0 + 1
+  if (per) {
+    xa = ((xa % per) + per) % per
+    xb = ((xb % per) + per) % per
+    ya = ((ya % per) + per) % per
+    yb = ((yb % per) + per) % per
+  }
+  const a = hash2(xa, ya)
+  const b = hash2(xb, ya)
+  const c = hash2(xa, yb)
+  const d = hash2(xb, yb)
   return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
 }
 export function fbm(x: number, y: number, okt = 4, per = 0) {
@@ -155,6 +165,7 @@ function textur(n: number, per: number, farbe: (v: number, u: number, w: number)
 }
 
 let zwischen: HTMLCanvasElement | null = null
+const muster = new WeakMap<HTMLCanvasElement, CanvasPattern>()
 /** Bewegte Fuellung: Textur verschoben (dx/dy in Pixeln der Textur), nur innerhalb der Maske */
 export function fuellung(ctx: CanvasRenderingContext2D, maske: Bild, tex: HTMLCanvasElement, cell: number, dx: number, dy: number, alpha: number, skal = 1) {
   zwischen ??= document.createElement('canvas')
@@ -167,7 +178,12 @@ export function fuellung(ctx: CanvasRenderingContext2D, maske: Bild, tex: HTMLCa
   o.drawImage(maske.cv, 0, 0)
   o.globalCompositeOperation = 'source-in'
   const t = tex.width * skal
-  const pat = o.createPattern(tex, 'repeat')!
+  // Muster nur einmal je Textur anlegen (verschoben wird es mit setTransform)
+  let pat = muster.get(tex)
+  if (!pat) {
+    pat = o.createPattern(tex, 'repeat')!
+    muster.set(tex, pat)
+  }
   pat.setTransform(new DOMMatrix().translate(-(((dx % t) + t) % t), -(((dy % t) + t) % t)).scale(skal))
   o.fillStyle = pat
   o.fillRect(0, 0, zwischen.width, zwischen.height)
@@ -536,7 +552,7 @@ function sumpfBlasen(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, no
 /* ================= Meer um die Insel (Wueste) ================= */
 
 /** Ein Stueck Meer: Wasser mit Strand (basis), Maske fuer die bewegte Oberflaeche, Gischtbaender fuer die Wellen */
-export type MeerKachel = { basis: Bild; maske: Bild; wellen: Bild[] }
+export type MeerKachel = { basis: Bild; maske: Bild; wellen: Bild[]; /** Was wirklich etwas zeigt (Kacheln ueber Land sind leer: nicht zeichnen) */ hat: { basis: boolean; maske: boolean; wellen: boolean[] } }
 /** Wo die Gischtbaender liegen (Abstand vom Land in Feldern): aussen, mitte, am Strand */
 export const MEER_WELLEN = [0.85, 0.5, 0.2]
 
@@ -552,15 +568,23 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
   const nah: P[] = []
   for (let y = y0 - R; y < y0 + n + R; y++) for (let x = x0 - R; x < x0 + n + R; x++) if (land(x, y)) nah.push({ x, y })
   const set = new Set(nah.map((c) => c.x * 4096 + c.y))
+  // Landfelder in der Naehe je Feld nur einmal suchen (nicht fuer jedes der px*px Pixel des Felds),
+  // in derselben Reihenfolge wie vorher: das Ergebnis bleibt Pixel fuer Pixel gleich
+  const nachbarn = new Map<number, number[]>()
+  const landNah = (cx: number, cy: number) => {
+    const schl = cx * 4096 + cy
+    let l = nachbarn.get(schl)
+    if (!l) {
+      l = []
+      for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) if (set.has((cx + i) * 4096 + cy + j)) l.push(cx + i + 0.5, cy + j + 0.5)
+      nachbarn.set(schl, l)
+    }
+    return l
+  }
   const abst = (x: number, y: number) => {
-    const cx = Math.floor(x)
-    const cy = Math.floor(y)
+    const l = landNah(Math.floor(x), Math.floor(y))
     let d = R + 1
-    for (let j = -R; j <= R; j++)
-      for (let i = -R; i <= R; i++) {
-        if (!set.has((cx + i) * 4096 + cy + j)) continue
-        d = smin(d, sdBox(x - (cx + i + 0.5), y - (cy + j + 0.5), 0.5 - rund) - rund, 0.7)
-      }
+    for (let n = 0; n < l.length; n += 2) d = smin(d, sdBox(x - l[n], y - l[n + 1], 0.5 - rund) - rund, 0.7)
     return d + (rauschen((x - o.x) * 2.1, (y - o.y) * 2.1) - 0.5) * 0.16
   }
   const w = Math.ceil(n * px)
@@ -573,6 +597,7 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
   const bilder = [mk(), mk(), ...MEER_WELLEN.map(mk)]
   const datas = bilder.map((cv) => cv.getContext('2d')!.createImageData(w, w))
   const [db, dm, ...dw] = datas
+  const hat = { basis: false, maske: false, wellen: MEER_WELLEN.map(() => false) }
   const set4 = (img: ImageData, i: number, f: Farbe4) => {
     img.data[i] = f[0]
     img.data[i + 1] = f[1]
@@ -585,6 +610,19 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
   const flach: Farbe4 = [112, 204, 200, 1]
   const mitte: Farbe4 = [58, 158, 192, 1]
   const tief: Farbe4 = [28, 104, 152, 1]
+  const weiss: Farbe4 = [255, 255, 255, 1]
+  // Wiederverwendete Farben (keine neuen Listen je Pixel; gerechnet wird genau wie mit mixA)
+  const f1: number[] = [0, 0, 0, 0]
+  const f2: number[] = [0, 0, 0, 0]
+  const mische = (z: number[], a: Farbe4, b: Farbe4, t: number): Farbe4 => {
+    z[0] = lerp(a[0], b[0], t)
+    z[1] = lerp(a[1], b[1], t)
+    z[2] = lerp(a[2], b[2], t)
+    z[3] = lerp(a[3], b[3], t)
+    return z as unknown as Farbe4
+  }
+  const welle: number[] = [255, 255, 255, 0]
+  const nw = MEER_WELLEN.length
   for (let py = 0; py < w; py++)
     for (let pxx = 0; pxx < w; pxx++) {
       const x = x0 + (pxx + 0.5) / px
@@ -596,27 +634,52 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
       const wy = y - o.y
       let f: Farbe4
       if (d < 0.04) f = sand
-      else if (d < 0.18) f = mixA(sand, nass, (d - 0.04) / 0.14)
-      else if (d < 0.3) f = mixA(nass, brandung, sstep(0.18, 0.3, d))
+      else if (d < 0.18) f = mische(f1, sand, nass, (d - 0.04) / 0.14)
+      else if (d < 0.3) f = mische(f1, nass, brandung, sstep(0.18, 0.3, d))
       else {
         const t = cl((d - 0.3) / 3.4 + (fbm(wx * 0.7, wy * 0.7, 3) - 0.5) * 0.25)
-        f = t < 0.08 ? mixA(brandung, flach, t / 0.08) : t < 0.45 ? mixA(flach, mitte, (t - 0.08) / 0.37) : mixA(mitte, tief, (t - 0.45) / 0.55)
-        f = mixA(f, [255, 255, 255, 1], (fbm(wx * 1.6, wy * 1.6, 3) - 0.5) * 0.12)
+        const g = t < 0.08 ? mische(f1, brandung, flach, t / 0.08) : t < 0.45 ? mische(f1, flach, mitte, (t - 0.08) / 0.37) : mische(f1, mitte, tief, (t - 0.45) / 0.55)
+        f = mische(f2, g, weiss, (fbm(wx * 1.6, wy * 1.6, 3) - 0.5) * 0.12)
       }
       set4(db, i, f)
+      hat.basis = true
       // Bewegte Oberflaeche erst im Wasser
-      if (d > 0.26) set4(dm, i, [255, 255, 255, cl((d - 0.26) / 0.3)])
+      if (d > 0.26) {
+        welle[3] = cl((d - 0.26) / 0.3)
+        set4(dm, i, welle as unknown as Farbe4)
+        hat.maske = true
+      }
       // Gischtbaender, leicht unregelmaessig
       const nz = (fbm(wx * 1.3 + 7, wy * 1.3, 2) - 0.5) * 0.22
-      MEER_WELLEN.forEach((c, k) => {
-        const breite = k === MEER_WELLEN.length - 1 ? 0.09 : 0.07
-        const a = 1 - Math.abs(d - c - nz) / breite
-        if (a > 0) set4(dw[k], i, [255, 255, 255, a * (0.75 + 0.25 * rauschen(wx * 6, wy * 6))])
-      })
+      for (let k = 0; k < nw; k++) {
+        const breite = k === nw - 1 ? 0.09 : 0.07
+        const a = 1 - Math.abs(d - MEER_WELLEN[k] - nz) / breite
+        if (a > 0) {
+          welle[3] = a * (0.75 + 0.25 * rauschen(wx * 6, wy * 6))
+          set4(dw[k], i, welle as unknown as Farbe4)
+          hat.wellen[k] = true
+        }
+      }
     }
   bilder.forEach((cv, k) => cv.getContext('2d')!.putImageData(datas[k], 0, 0))
   const bild = (cv: HTMLCanvasElement): Bild => ({ cv, x0, y0, w: n, h: n })
-  return { basis: bild(bilder[0]), maske: bild(bilder[1]), wellen: bilder.slice(2).map(bild) }
+  return { basis: bild(bilder[0]), maske: bild(bilder[1]), wellen: bilder.slice(2).map(bild), hat }
+}
+
+/** Deckkraft der Welle k (0 aussen .. am Strand): alle `periode` ms laeuft eine Welle von aussen an den Strand und zieht sich zurueck */
+export function meerWelle(k: number, now: number, staerke = 1) {
+  const periode = staerke > 1 ? 1500 : 2600
+  const p = (now % periode) / periode
+  const s = (p - k * 0.2 + 1) % 1
+  const an = Math.max(0, Math.sin(Math.PI * Math.min(1, s / 0.55)))
+  const ruhe = k === MEER_WELLEN.length - 1 ? 0.3 : 0.08
+  return Math.min(1, (ruhe + an * 0.8) * staerke)
+}
+
+/** Bewegte Meeresoberflaeche (zwei Kaustik-Schichten) in der Maske; ox/oy = Lage der Maske in Texturpixeln (Welt) */
+export function meerOberflaeche(ctx: CanvasRenderingContext2D, maske: Bild, cell: number, now: number, ox: number, oy: number) {
+  fuellung(ctx, maske, tex('kaustik'), cell, ox + now / 60, oy + now / 90, 0.3)
+  fuellung(ctx, maske, tex('kaustik'), cell, ox / 1.3 - now / 80, oy / 1.3 + now / 70, 0.2, 1.3)
 }
 
 /**
@@ -624,7 +687,9 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
  * staerke > 1: hoehere, schnellere Wellen (Flut kommt)
  */
 export function drawMeer(ctx: CanvasRenderingContext2D, m: MeerKachel, cell: number, now: number, alpha = 1, staerke = 1, reduce = false) {
-  const { basis, maske, wellen } = m
+  const { basis, maske, wellen, hat } = m
+  // Kachel ganz ueber Land: nichts zu tun (das ist der Normalfall, gespielt wird auf der Insel)
+  if (!hat.basis) return
   const a0 = ctx.globalAlpha
   ctx.globalAlpha = a0 * alpha
   ctx.drawImage(basis.cv, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
@@ -633,16 +698,10 @@ export function drawMeer(ctx: CanvasRenderingContext2D, m: MeerKachel, cell: num
     const ppc = maske.cv.width / maske.w
     const ox = maske.x0 * ppc
     const oy = maske.y0 * ppc
-    fuellung(ctx, maske, tex('kaustik'), cell, ox + now / 60, oy + now / 90, 0.3)
-    fuellung(ctx, maske, tex('kaustik'), cell, ox / 1.3 - now / 80, oy / 1.3 + now / 70, 0.2, 1.3)
-    // Wellen: alle `periode` ms laeuft eine Welle von aussen an den Strand und zieht sich zurueck
-    const periode = staerke > 1 ? 1500 : 2600
-    const p = (now % periode) / periode
+    if (hat.maske) meerOberflaeche(ctx, maske, cell, now, ox, oy)
     wellen.forEach((b, k) => {
-      const s = (p - k * 0.2 + 1) % 1
-      const an = Math.max(0, Math.sin(Math.PI * Math.min(1, s / 0.55)))
-      const ruhe = k === wellen.length - 1 ? 0.3 : 0.08
-      ctx.globalAlpha = a0 * alpha * Math.min(1, (ruhe + an * 0.8) * staerke)
+      if (!hat.wellen[k]) return
+      ctx.globalAlpha = a0 * alpha * meerWelle(k, now, staerke)
       ctx.drawImage(b.cv, b.x0 * cell, b.y0 * cell, b.w * cell, b.h * cell)
     })
   }

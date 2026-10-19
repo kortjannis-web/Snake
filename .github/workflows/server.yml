@@ -7,7 +7,7 @@ name: Snake-Server (Cloudflare)
 
 on:
   push:
-    paths: ['server/**', 'src/game/**', 'src/multi/protokoll.ts', '.github/workflows/server.yml']
+    paths: ['server/**', 'src/game/**', 'src/multi/protokoll.ts', 'src/multi/kompakt.ts', '.github/workflows/server.yml']
   workflow_dispatch:
 
 concurrency:

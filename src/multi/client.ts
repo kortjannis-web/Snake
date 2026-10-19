@@ -11,6 +11,7 @@ import { DUELL, GEGNER_MODI, KLASSISCH, MehrGame, type Ergebnis, type Modus, typ
 import * as R from '../game/rules'
 import type { Dir, GameEvent, P } from '../game/types'
 import { Abgleich, anwenden, zustand, type Zustand } from '../game/zustand'
+import { runden, zusammenfuehren } from './kompakt'
 import { Jitterpuffer } from './puffer'
 import { MEHR_BILD, PROTOKOLL, type AnServer, type Einstellungen, type Geist, type Phase, type StartInfo, type Teilnehmer, type VomServer } from './protokoll'
 
@@ -43,6 +44,8 @@ const PRUEFEN_MS = 1500
 const STAU_BYTES = 8 * 1024
 /** Spaetestens so oft (ms) meldet sich der Rechner, auch wenn sich nichts geaendert hat (z. B. im Countdown) */
 const HERZ_MS = 500
+/** Aendert sich nur die Spielzeit, schickt der Rechner sie so oft (ms) */
+const ZEIT_MS = 150
 /** Rennen: so oft (ms) hoechstens die eigene Position */
 const POS_MS = 80
 
@@ -79,6 +82,8 @@ export class MehrClient {
   /** Gespiegelte Staende, die erst zu ihrer Abspielzeit (lokal, ms) angewendet werden (siehe puffer.ts) */
   private warten: { an: number; d: Zustand; e?: GameEvent[] }[] = []
   private puffer = new Jitterpuffer()
+  /** Stand des Rechners, wie er zuletzt ankam (zum Aufloesen der kompakten Schlangen) */
+  private spiegel: Zustand = {}
   /** Hoechste gezeigte Spielzeit: die gespiegelte Zeit springt nie zurueck (nur Stillstand bei Verspaetung) */
   private zeitMax = 0
   private rttMin = Infinity
@@ -277,7 +282,8 @@ export class MehrClient {
   }
 
   senden(m: AnServer) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m))
+    // Der Stand des Rechners mit gerundeten Kommazahlen (spart viele Zeichen, die Anzeige merkt davon nichts)
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m, m.t === 'z' ? runden : undefined))
   }
 
   modus(modus: Modus) {
@@ -338,7 +344,8 @@ export class MehrClient {
         this.warten = []
         this.puffer.zuruecksetzen()
         this.zeitMax = 0
-        anwenden(this.game, m.z)
+        this.spiegel = {}
+        anwenden(this.game, zusammenfuehren(this.spiegel, m.z))
         this.game.wechsel(Math.max(0, this.ich))
         this.basis = { spiel: this.game.time, lokal: performance.now() }
         if (this.istRechner) {
@@ -349,12 +356,15 @@ export class MehrClient {
       case 'z': {
         if (!this.game || this.istRechner) return
         const jetzt = performance.now()
-        // Ohne Sendezeit (alter Rechner) oder ganzer Stand: gleich zeigen
+        // Kompakte Schlangen gleich beim Empfang (der Reihe nach) zu ganzen machen
+        if (m.voll) this.spiegel = {}
+        const d = zusammenfuehren(this.spiegel, m.d)
+        // Ohne Sendezeit oder ganzer Stand: gleich zeigen
         if (typeof m.s !== 'number' || m.voll) {
           this.alleAnwenden()
-          return this.stand(m.d, m.e)
+          return this.stand(d, m.e)
         }
-        this.warten.push({ an: this.puffer.plane(m.s, jetzt), d: m.d, e: m.e })
+        this.warten.push({ an: this.puffer.plane(m.s, jetzt), d, e: m.e })
         this.faelligeAnwenden(jetzt)
         return
       }
@@ -449,6 +459,7 @@ export class MehrClient {
     this.warten = []
     this.puffer.zuruecksetzen()
     this.zeitMax = 0
+    this.spiegel = {}
     this.geister.clear()
     this.abgleich.vergessen()
     this.rechner = info.modus === 'rennen' ? -1 : info.rechner
@@ -548,6 +559,10 @@ export class MehrClient {
       return
     }
     const d = this.abgleich.aenderungen(z)
+    // Hat sich nur die Spielzeit bewegt, reicht das alle ZEIT_MS (die Zuschauer lassen sie selbst weiterlaufen).
+    // Halbiert etwa die Zahl der Nachrichten bei 2 Spielern (auch gut fuers Gratis-Kontingent des Servers)
+    const nurZeit = !!d && !e.length && Object.keys(d).length === 1 && 'time' in d
+    if (nurZeit && jetzt - this.letzterHerz < ZEIT_MS) return
     // Auch ohne Aenderung regelmaessig melden: sonst haelt der Server den Rechner fuer ausgefallen
     if (d || e.length || jetzt - this.letzterHerz >= HERZ_MS) {
       this.letzterHerz = jetzt

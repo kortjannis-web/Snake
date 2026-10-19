@@ -4,6 +4,7 @@
  */
 import { abstandGrenze, type Ergebnis, type Modus, type SpielerInfo } from '../src/game/mehr'
 import type { Tempo } from '../src/game/rules'
+import { zusammenfuehren } from '../src/multi/kompakt'
 import { COUNTDOWN, MAX_SPIELER, PROTOKOLL, REAKTIONEN, RECHNER_STILL, type AnServer, type Phase, type StartInfo, type VomServer } from '../src/multi/protokoll'
 
 export interface Kanal {
@@ -228,8 +229,9 @@ export class RaumLogik {
         return
       case 'z':
         if (this.phase !== 'spiel' || i !== this.rechner || !m.d || typeof m.d !== 'object') return
-        if (m.voll) this.zustand = { ...m.d }
-        else Object.assign(this.zustand, m.d)
+        // Merken (fuer einen Rechnerwechsel), kompakte Schlangen dabei zu ganzen machen
+        if (m.voll) this.zustand = {}
+        zusammenfuehren(this.zustand, m.d)
         // Nicht vor dem Ende des Countdowns zuruecksetzen (bis dahin gilt die Startfrist)
         this.letzterStand = Math.max(this.letzterStand, this.uhr())
         for (const p of this.plaetze) if (p.kanal && p.kanal !== k) this.roh(p.kanal, text)

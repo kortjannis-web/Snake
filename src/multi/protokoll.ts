@@ -13,7 +13,7 @@ import type { Dir, GameEvent, P } from '../game/types'
 import type { Zustand } from '../game/zustand'
 
 /** Erhoehen, wenn sich Nachrichten oder die Spiellogik so aendern, dass alte Apps nicht mehr mitspielen koennen */
-export const PROTOKOLL = 2
+export const PROTOKOLL = 3
 export const MAX_SPIELER = 4
 /** Feste Kartengroesse im Mehrspieler (Felder eines Bildschirms), damit alle dieselbe Welt haben */
 export const MEHR_BILD = { w: 12, h: 23 }
