@@ -88,7 +88,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 ## 8a. Gegner-Schlangen (ab Level 100, lila ab 150)
 
 - **Rote Schlangen mit bösen Augenbrauen**, beim Erscheinen **3 oder 4 Glieder** lang. Sie tauchen weit weg vom Kopf auf (mindestens ca. 6 bis 12 Felder, nie in der Laufrichtung), immer dort, wo die Schlange hinkommt, mit genug Platz drumherum. Leises Zischen.
-- **Selten:** ab Level 100 etwa alle **30 bis 45 Level** eine neue (ab Level 190 je 1 Level früher). Gleichzeitig höchstens **1** (ab Level 100), **2** (ab 200). Die Frösche kommen vorher (Level 30) und viel öfter.
+- **Selten:** ab Level 100 etwa alle **30 bis 45 Level** eine neue (ab Level 190 je 1 Level früher). Gleichzeitig höchstens **1** (ab Level 100), **2** (ab 200). Die Frösche kommen vorher (Level 30) und öfter.
 - **Lila Gegner (ab Level 150):** Jeder neue Gegner ist mit **25 %** lila (also seltener als rot). Lila startet mit **5 Gliedern**, ist **20 % schneller** als rot (ein Schritt je 1,67 statt 2 Takte), wird bis **10** lang und schaut **noch böser**: dicke, steile Brauen, gelbliche Augen mit roten Pupillen. Die KI rechnet mit ihrem Tempo, sie entkommt also öfter. Einkesseln bringt so viele Äpfel, wie sie lang ist.
 - **Halb so schnell** wie die Schlange (ein Schritt je zwei Takte der Schlange). Zeitlupe bremst nur die eigene Schlange.
 - **Weichen immer aus, so gut es geht.** Die KI bewertet bei jedem Schritt jede freie Richtung:
@@ -131,7 +131,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ## 11. Frösche (ab Level 30)
 
-- Etwa **alle 1 bis 3 Level** springt ein Frosch auf die Karte (ab Level 190 öfter), **höchstens 6 gleichzeitig**. So sind oft 4 oder mehr unterwegs. Sie kommen lange vor den Gegner-Schlangen.
+- Etwa **alle 4 bis 7 Level** springt ein Frosch auf die Karte (ab Level 190 öfter), **höchstens 3 gleichzeitig**. Sie kommen vor den Gegner-Schlangen (die ab Level 100).
 - Er schaut in eine Richtung und **hüpft alle 3 Sekunden ein Feld** weit.
 - **1 Sekunde vor dem Sprung** macht er sich bereit: Hinterbeine spreizen sich, der Körper duckt sich nach hinten (Anlauf).
 - **Sprung:** Er hebt im Bogen ab, die Hinterbeine strecken sich, der Schatten bleibt am Boden. Leises Ploppen.

@@ -336,7 +336,7 @@ describe('Baeume, Haeuser, Tuerme', () => {
     expect(neu[0]).toBeLessThanOrEqual(10)
     for (let i = 1; i < neu.length; i++) expect(neu[i] - neu[i - 1]).toBeLessThanOrEqual(10)
     expect(C.froschAb).toBeLessThan(C.gegnerAb)
-    expect(C.gegnerMin).toBeGreaterThan(C.froschMax * 5)
+    expect(C.gegnerMin).toBeGreaterThan(C.froschMax * 4)
   })
 
   it('Erst kleine Huetten (2x2), ab 130 grosse Haeuser, Licht immer 2 tief', () => {

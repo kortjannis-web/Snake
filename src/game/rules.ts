@@ -69,11 +69,11 @@ export const DEFAULTS = {
   wolkeZurueck: 10,
   // Froesche
   froschAb: 30,
-  froschMin: 1,
-  froschMax: 3,
+  froschMin: 4,
+  froschMax: 7,
   froschSprung: 3,
   froschWende: 20,
-  froschAnzahl: 6,
+  froschAnzahl: 3,
   // Haeuser: erst kleine Huetten, ab hausGrossAb richtige Haeuser
   hausAb: 80,
   hausGrossAb: 130,
