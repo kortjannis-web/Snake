@@ -200,13 +200,13 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Fallen, Wolken, Frösche, Gegner-Schlangen und Ameisen haben eigene Abstände (siehe oben), die ab Level 190 kürzer werden.
 - Zusätzlich gilt: **ab Level 170 ist immer mindestens eine** dieser Gefahren unterwegs, **ab 230 mindestens zwei, ab 290 drei**. Fehlt eine, kommt nach ca. 2,5 s eine neue, bevorzugt die Art, die gerade am seltensten ist.
 
-## 14a. Äpfel als Währung, Power-ups, Skins, Minikarte
+## 14a. Äpfel als Währung, Power-ups, Aussehen, Minikarte
 
 **Äpfel sind die Währung (keine Münzen, keine echten Käufe)**
 - Jeder gegessene Apfel kommt in den **Apfel-Vorrat**. Eingekesselte Gegner-Schlangen bringen extra Äpfel (siehe 8a).
 - **Mehr wert mit dem Level:** Bis Level 49 zählt ein Apfel einfach, ab Level 50 doppelt, ab 100 dreifach, ab 150 vierfach und so weiter (nach dem Level, auf dem der Apfel liegt). In der Leiste steht der Faktor neben dem Vorrat.
 - **Jede Stufe hat ihre Farbe:** ×1 **Rot**, ×2 **Orange**, ×3 **Gelb**, ×4 **Grün**, ×5 **Türkis**, ×6 **Blau**, ×7 **Lila**, ×8 **Rosa**, ×9 **Übergang Blau → Rosa**, ×10 **Übergang Lila → Rosa** (danach bleibt es bei Lila-Rosa, der Wert steigt weiter). Giftäpfel tarnen sich in derselben Farbe, Funken, Pfeil am Rand, das Apfel-Symbol in der Leiste und die Minikarte übernehmen sie.
-- Vorrat oben in der Leiste, im Startmenü (antippen öffnet den Shop) und im Shop. Auf dem Spielende-Bildschirm „+N Äpfel“. Münzen aus früheren Fassungen wurden 1:1 zu Äpfeln.
+- Vorrat oben in der Leiste, im Startmenü (antippen öffnet das Aussehen) und im Aussehen. Auf dem Spielende-Bildschirm „+N Äpfel“. Münzen aus früheren Fassungen wurden 1:1 zu Äpfeln.
 - Im Kreativ-Modus wird nichts gesammelt.
 
 **Power-ups (ab Level 10)**
@@ -226,18 +226,35 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Aktive Power-ups stehen oben links im Spielfeld als kleine Pillen mit Restzeit-Balken (Schilde oben rechts, siehe oben).
 - Im Kreativ-Modus lässt sich jedes Power-up in den Kreativ-Optionen sofort aktivieren.
 
-**Skins (Startmenü → Skins)**
-- **Vier Grundfarben hat jeder:** Grün, Blau, Gelb, Schwarz.
-- Alles andere kauft man mit Äpfeln, nach Stufen geordnet:
-  - **Einfarbig (250):** Minze, Himmel, Pfirsich, Flieder, Sand
-  - **Kräftig (600):** Koralle, Smaragd, Pink, Türkis, Orange
-  - **Muster (1200):** Nacht (Sterne), Tiger (Streifen), Zebra, Leopard (Flecken), Käfer
-  - **Elemente (2500):** Glut (Hitzewellen), Eis (Funkeln), Gift (Neonflecken), Tiefsee
-  - **Edelmetall (4000):** Gold, Silber, Roségold (laufender Glanz)
-  - **Kosmisch (6000):** Galaxie (Sterne), Aurora (Grün-Türkis-Violett wandert)
-  - **Legendär (9000):** Regenbogen, Diamant
-- Wer früher Koralle, Nacht, Tiger, Gold oder Regenbogen gekauft hat, behält sie.
-- Antippen kauft (wenn genug Äpfel) und wählt aus, gekaufte Skins lassen sich jederzeit wechseln. Zu wenig Äpfel: Karte wackelt.
+**Aussehen (Startmenü → Aussehen)**
+- Fünf große Knöpfe: **Farben, Skins, Accessoires, Spuren, Welten**. Jeder zeigt, was du gerade trägst und wie viel du davon hast. Die Vorschauen sind nah dran (2,4 Felder hoch), bewegte als Video, stehende als Bild.
+- **Farben:** eine lange Liste ohne Zwischenüberschriften. Die vier Startfarben (Grün, Blau, Gelb, Schwarz) hat jeder, danach immer exotischer und teurer (150 bis 2 200 Äpfel, z. B. Weiß, Rot, Minze, Marine, Bordeaux, Koralle, Kirsche, Neongrün, Mitternacht, Vulkan, Abendrot, Lagune, Säure).
+  - **Zweifarbig (3 000)** und **Dreifarbig (7 500)** als Modus kaufen. Oben ein großes Symbol der Schlange: Teil antippen (oder den Chip darunter), dann eine Farbe. Teilung: **Abschnitte** (Kopf/Mitte/Schwanz, Standard), **Ringe** oder **Längs** (Rücken/Bauch).
+- **Skins:** ersetzen die Farbe (nochmal antippen: zurück zur Farbe). Die ersten 16 stehen still (Tiger, Zebra, Leopard, Käfer, Tupfen, Biene, Zuckerstange, Kuh, Python, Korallenotter, Tarnung, Melone, Giraffe, Schachbrett, Holz mit Baumstumpf am Schwanz, Schuppen), danach bewegt und immer aufwendiger: Nacht, Glut, Eis, Tiefsee, Gift, Neon, Perlmutt, Chrom, Obsidian, Gold, Silber, Roségold, Lavastein, Matrix, 8-Bit, Opal, Hologramm (Störstreifen läuft durch), Gewitter, Galaxie, Aurora, Plasma, Feuer, Geist, Glitch, Regenbogen, Diamant, Drache, Phönix, Schwarzes Loch (800 bis 15 000).
+- **Accessoires:** je Platz eins gleichzeitig, mit jeder Farbe und jedem Skin. Augen (Sonnenbrille, Nerdbrille, Herzbrille, Monokel, Augenklappe, Skibrille, Thug Life, Laseraugen), Kopf (Partyhut, Zylinder, Cowboyhut, Weihnachtsmütze, Kochmütze, Hörner, Wikingerhelm, Propellermütze, Krone, Einhorn, Heiligenschein), Gesicht (Schnurrbart, Fliege, Blume, Clownsnase, Schnuller, Seifenpfeife), Schwanz (Schleife, Glöckchen, Bommel, Klapper, Skorpion, Raketenantrieb, Kometenschweif). Rein optisch.
+- **Spuren:** Teilchen, die am Schwanz entstehen und verblassen: Staub, Seifenblasen, Blätter, Herzen, Noten, Schnee, Konfetti, Funken, Sternschnuppe, Pixel, Regenbogen, Flammenspur.
+- **Welten:** siehe 14b.
+- Antippen kauft (wenn genug Äpfel) und wählt aus. Zu wenig Äpfel: Karte wackelt. Alles früher Gekaufte bleibt (Sand gibt es nur noch für die, die ihn haben).
+- Das Aussehen geht als kurzer Text (höchstens 32 Zeichen) an die anderen: in der Spielerliste, im Chat und im Mehrspieler sieht man Farben, Skin, Accessoires und Spur.
+- **Gegner-Schlangen:** rot mit leicht bösem Blick. **Lila:** Plasma-Blitze im Körper, kleine nach hinten gebogene Hörner, leicht glühende Augen (Plasma und Hörner gibt es auch im Shop).
+
+## 14b. Welten
+
+- Eine Welt tauscht Boden, Erde, Bäume, Wasser, Futter, Fallen, Tiere, Mauern und die Stimmung. **Die Spielregeln bleiben gleich.**
+- Freigeschaltet, wenn man ihren Level einmal erreicht hat (Hinweis im Spiel), wählbar unter Aussehen → Welten:
+  - **Wiese** (immer): Laub-, Kirsch- und Herbstbäume gemischt, Teiche mal tief mit Seerosen, mal klar mit bemoostem Ufer.
+  - **Winterwald (ab Level 50):** Schnee-Schachbrett, verschneite Tannen und Weihnachtsbäume mit Kugeln und Lichterkette, kalte Seen mit Eisschollen, **Geschenke statt Äpfel**, Pinguine, Eiskäfer, Schneelöcher als Fallen, Steine mit Schneehaube, Schneefall.
+  - **Wüstenoase (ab 80):** Sand, Palmen und Kakteen, Oasen mit Sand und Kieseln oder tiefe Seen, **Kaktusfeigen**, Wüstenspringmäuse, Feuerameisen, **Skorpione im Sand** als Fallen, Sandstein, ab und zu ein Steppenläufer.
+  - **Bergwerk (ab 120):** Felsboden im Halbdunkel mit **Fackeln** an den Wänden, Kristallsäulen statt Bäumen, dunkle Höhlenseen, **Edelsteine** statt Äpfeln, Fledermäuse, Höhlenspinnen, **TNT** als Falle, Felsen mit Kristallsplittern, Staub in der Luft.
+  - **Zauberwald (ab 160):** Nacht mit Mondlicht, Leuchtpilze, leuchtende Seen, **Zauberbeeren**, Leuchtfrösche, Glühkäfer, **fleischfressende Pflanzen** als Fallen, Moossteine, Glühwürmchen.
+  - **Gruselwald (ab 200):** Außerhalb der Karte dichter dunkler Wald, tote Bäume, Sumpf, **Kürbisse** mit leuchtendem Gesicht, Kröten, Spinnen, **Grabsteine** als Mauern, eine **Knochenhand** greift aus dem Boden, Nebel und fernes Wetterleuchten.
+- In dunklen Welten leuchten Schlangenkopf, Futter, Power-ups, Lava, Fackeln, Kristalle, Pilze und leuchtendes Wasser.
+
+**Landschaft (alle Welten)**
+- **Lava** ist ein zusammenhängender See mit weichem Rand und langsam fließenden Schlieren, **Teiche** und **Eis** ebenso (Eis mit weichem Übergang ins Gras, leisem Glanz, ab und zu einem diagonalen Lichtstreifen und ein, zwei feinen Rissen).
+- **Bäume** füllen auch die Ecken zwischen den Armen (runder). Kurz vor dem Umfallen (1,5 s) **wackeln sie und verlieren Blätter in die Richtung, in die sie fallen**.
+- **Bärenfalle:** große Zähne, Federn, Trittplatte, Kette mit Pflock; schnappt sichtbar zu.
+- **Erde:** neben Steinen, Kohle und kleinen Skeletten große Details über mehrere Felder: Gesteinsschichten, Wurzeln vom Grasrand, runde Felsbrocken, Dino-Skelette, Geoden, Ammoniten, Wurmgänge, Wasseradern, Truhen, Pilzgeflecht (je Welt passend). Nur Deko.
 
 **Minikarte**
 - Klein unten links, erscheint erst, wenn die Karte größer als ein Bildschirm ist. Sie zeigt **nur die Kartenblöcke**: **grün** der Block (Quadrant), in dem die Schlange ist, **in Apfelfarbe mit hellem Rand** der Block mit dem Apfel. Keine genauen Positionen. Liegen beide im selben Block, steckt ein Kästchen in Apfelfarbe im grünen Block.
@@ -265,7 +282,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 ## 16-1. Tagesrekord und Erfolge
 
 - **Tagesrekord:** In der Leiste neben dem Rekord steht „heute N“ (der laufende Versuch zählt schon mit), im Startmenü „Heute: N · Rekord: M“, in der Statistik eine eigene Kachel. Auf dem Spielende-Bildschirm gibt es das Abzeichen „Neuer Tagesrekord“, wenn es kein neuer Rekord aller Zeiten ist. Der Tag wechselt um Mitternacht (Gerätezeit).
-- **Erfolge** (Statistik-Seite, 23 Stück): z. B. Erster Biss, 500/5000 Äpfel, Level 50/100/200/300/500, 10/100 Spiele, erste und 25 Gegner, lila Gegner, 25 gefressen, 20 Ameisen, 10 Golderze, erster Diamant, Rubin, Opal, 10 Gebiete selbst gewählt, 100 Felder freigelegt, 50 Power-ups, 10 Skins. Jeder mit Fortschrittsbalken (z. B. 830/5000), erreichte mit goldener Medaille, ohne Meldung im Spiel. Kreativ-Runden zählen nicht.
+- **Erfolge** (Statistik-Seite, 23 Stück): z. B. Erster Biss, 500/5000 Äpfel, Level 50/100/200/300/500, 10/100 Spiele, erste und 25 Gegner, lila Gegner, 25 gefressen, 20 Ameisen, 10 Golderze, erster Diamant, Rubin, Opal, 10 Gebiete selbst gewählt, 100 Felder freigelegt, 50 Power-ups, 10 Sachen im Aussehen. Jeder mit Fortschrittsbalken (z. B. 830/5000), erreichte mit goldener Medaille, ohne Meldung im Spiel. Kreativ-Runden zählen nicht.
 - **Belohnungen** sind vorbereitet, werden aber noch nicht vergeben.
 
 ## 16a. Kreativ-Modus

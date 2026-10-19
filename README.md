@@ -67,9 +67,9 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar, nur mit 
 danach ist sie gut 2 s geschützt (blinkt). Was schon da ist, bleibt, beim zweiten Erreichen eines
 Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 
-**Äpfel als Währung und Skins:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
+**Äpfel als Währung und Aussehen:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
-Vier Grundfarben gratis, 27 weitere Skins in 7 Preisstufen (250 bis 9000 Äpfel). Außerhalb der Karte ist Erde mit Steinen, Kohle,
+Aussehen mit Farben (auch zwei- und dreifarbig), 45 Skins, 32 Accessoires und 12 Spuren, dazu fünf Welten (Winterwald, Wüstenoase, Bergwerk, Zauberwald, Gruselwald) ab Level 50 bis 200. Außerhalb der Karte ist Erde mit Steinen, Kohle,
 Skeletten, Lavafeldern, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
 die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild (ein Leben mehr,
 läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,
@@ -108,7 +108,7 @@ npm run android    # build + Capacitor-Sync, danach android/ in Android Studio �
 npm run icons      # Icons und Startbild aus scripts/icons.mjs neu erzeugen
 npm run server     # Snake-Server lokal (http://localhost:8787), dann VITE_SNAKE_SERVER=http://localhost:8787 npm run dev
 npm run vapid      # Schlüsselpaar für Push-Einladungen erzeugen (siehe docs/MEHRSPIELER-EINRICHTEN.md)
-npm run skin-videos # Shop-Vorschauen neu als Videos rendern (nur nach Skin-Änderungen; braucht ffmpeg und Playwright)
+npm run skin-videos # Shop-Vorschauen neu als Videos rendern (nur nach Änderungen am Aussehen; braucht ffmpeg und Playwright)
 ```
 
 Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung `?level=150`
@@ -119,7 +119,7 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `src/game/` Spiellogik ohne Darstellung (`game.ts`, Regeln in `rules.ts`, Autopilot für Startmenü und Tests)
 - `src/render/` Canvas: Kamera, Schachbrett, Schlange (`renderer.ts`), Zeichnungen (`sprites.ts`). Fester Boden (Erde, Schachbrett,
   Grasrand) kommt aus vorgerenderten Kacheln, Mauersteine und liegende Bäume aus Einzelbildern; nur Bewegtes wird jedes Bild gezeichnet
-- `public/skins/` Shop-Vorschauen: Standbild (WebP) für jeden Skin, bewegte Muster zusätzlich als kurzes Video (MP4 und WebM), erzeugt von `scripts/skin-videos.mjs`
+- `public/skins/` Shop-Vorschauen: Standbild (WebP) für jede Farbe, jeden Skin, jedes Accessoire und jede Spur, bewegte zusätzlich als kurzes Video (MP4 und WebM), erzeugt von `scripts/skin-videos.mjs`
 - `src/audio.ts` alle Töne und die Musik per Web Audio, keine Dateien
 - `src/main.ts` Menüs, Spielschleife, Speicher (Rekord und Statistik im Gerät)
 - `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Update-Hinweis der Android-App
