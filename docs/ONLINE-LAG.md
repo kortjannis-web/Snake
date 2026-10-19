@@ -83,7 +83,7 @@ die ganze Kette Rechner → Server → Zuschauer mit Jitter-Puffer (`test/kette.
 
 | Maßnahme | Wirkung |
 |---|---|
-| Shop-Videos nicht mehr im Vorab-Download der Web-App (es gab jedes doppelt: MP4 und WebM). Sie kommen beim ersten Ansehen und bleiben gespeichert. | Installation/Update: ~4,7 MB → ~1 MB |
+| Shop-Videos nicht mehr im Vorab-Download der Web-App (es gab jedes doppelt: MP4 und WebM). Sie kommen beim ersten Ansehen und bleiben gespeichert. | Installation/Update: 4,7 MB → 1,3 MB |
 | APK ohne WebM (Android spielt MP4) | APK ~1,8 MB kleiner |
 
 ## Wie man den Lag eingrenzt
