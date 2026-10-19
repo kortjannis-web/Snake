@@ -5,7 +5,7 @@
  * Wird in die Boden-Kacheln gezeichnet: jede Kachel zeichnet alles, was in sie hineinragt.
  */
 import type { P } from '../game/types'
-import type { Welt } from './welten'
+import { waldWelt, type Welt } from './welten'
 
 const TAU = Math.PI * 2
 const h2 = (x: number, y: number, s = 0) => {
@@ -20,7 +20,7 @@ const ARTEN: Record<string, Art[]> = {
   winter: ['fels', 'fels', 'dino', 'ammonit', 'ader', 'truhe'],
   wueste: ['fels', 'dino', 'dino', 'ammonit', 'ammonit', 'truhe'],
   bergwerk: ['geode', 'geode', 'kristallader', 'kristallader', 'fels', 'truhe'],
-  zauberwald: ['myzel', 'myzel', 'geode', 'fels', 'ader'],
+  zauberwald: [],
   gruselwald: [],
 }
 /** Bereich je Detail (Felder) */
@@ -38,9 +38,9 @@ export type ErdeInfo = {
 export function drawGrosseErde(ctx: CanvasRenderingContext2D, w: Welt, info: ErdeInfo, cell: number, x0: number, y0: number, x1: number, y1: number) {
   const { drin, belegt, ursprung: o } = info
   // Gesteinsschichten: wellige Baender in Weltkoordinaten, nur in tiefer Erde
-  if (w.id !== 'gruselwald') schichten(ctx, w, info, cell, x0, y0, x1, y1)
-  // Wurzeln vom Grasrand (nicht in Wueste, Bergwerk, Gruselwald)
-  if (w.id === 'wiese' || w.id === 'zauberwald' || w.id === 'winter')
+  if (!waldWelt(w)) schichten(ctx, w, info, cell, x0, y0, x1, y1)
+  // Wurzeln vom Grasrand (nicht in Wueste, Bergwerk und den Waeldern)
+  if (w.id === 'wiese' || w.id === 'winter')
     for (let y = y0 - 3; y <= y1 + 3; y++)
       for (let x = x0 - 3; x <= x1 + 3; x++) {
         if (drin(x, y)) continue

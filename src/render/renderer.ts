@@ -9,7 +9,7 @@ import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
 import { drawFlaeche, flaechenAufraeumen, type WasserArt } from './flaechen'
-import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, hausUeberzug, WELTEN, type Licht, type Welt } from './welten'
+import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, waldWelt, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   apfelFarbe,
@@ -460,7 +460,7 @@ export class Renderer {
         // Erze glaenzen (bewegt), Stein, Kohle und Skelett liegen schon in der Kachel
         if (deko === 'gold' || deko === 'dia' || deko === 'rubin' || deko === 'opal') {
           if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now, false)
-        } else if (!kacheln && welt.id !== 'gruselwald') drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
+        } else if (!kacheln && !waldWelt(welt)) drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
     // Lava im Stein: das einzige, was in der Erde pulsierend glueht. Der Schein reicht ein paar Felder
     // weit durch die Erde, auch von knapp ausserhalb des Bildes, damit man sieht, wo Lava steckt
@@ -957,7 +957,7 @@ export class Renderer {
         const wy = y - g.ursprung.y
         const z = feldZufall(wx, wy)
         drawErdFeldWelt(c, welt, x * cell, y * cell, cell, erdRing(drin, x, y), z)
-        if (g.lavaImStein(wx, wy) || welt.id === 'gruselwald') continue
+        if (g.lavaImStein(wx, wy) || waldWelt(welt)) continue
         const deko = erdeBei(g.cfg, wx, wy)
         if (deko === 'stein' || deko === 'kohle' || deko === 'skelett') drawErdDeko(c, x * cell, y * cell, cell, deko, z, 0)
       }
@@ -969,6 +969,9 @@ export class Renderer {
     for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y)) c.fillRect(x * cell, y * cell, cell, cell)
     c.fillStyle = welt.hell
     for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y) && !((x + y) % 2)) c.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
+    // Zauberwald: Waldboden (Moos, Farn, Leuchtpilze) auf dem Spielfeld
+    if (welt.id === 'zauberwald')
+      for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y)) drawWaldBoden(c, x * cell, y * cell, cell, feldZufall(x - g.ursprung.x + 5, y - g.ursprung.y + 9))
     c.fillStyle = welt.kante
     const kante = Math.max(2, cell * 0.1)
     for (let y = ya; y <= yb; y++)
@@ -979,10 +982,10 @@ export class Renderer {
         if (!drin(x - 1, y)) c.fillRect(x * cell, y * cell, kante, cell)
         if (!drin(x + 1, y)) c.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
       }
-    // Gruselwald: Kronen vom Waldrand ragen ein Stueck ins Feld
-    if (welt.id === 'gruselwald')
+    // Zauber- und Gruselwald: Kronen vom Waldrand ragen ein Stueck ins Feld
+    if (waldWelt(welt))
       for (let y = ya; y <= yb; y++)
-        for (let x = xa; x <= xb; x++) if (!drin(x, y)) drawWaldRand(c, x, y, cell, feldZufall(x - g.ursprung.x, y - g.ursprung.y), drin)
+        for (let x = xa; x <= xb; x++) if (!drin(x, y)) drawWaldRand(c, welt, x, y, cell, feldZufall(x - g.ursprung.x, y - g.ursprung.y), drin)
     return cv
   }
 

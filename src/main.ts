@@ -996,6 +996,9 @@ function handle(e: GameEvent) {
     case 'power':
       audio.power()
       haptic.success()
+      // Kurz sagen, was man jetzt kann
+      if (e.art === 'fuettern') toast('fuettern', 'Füttern!', 'Iss alle Gegner!')
+      else if (e.art === 'maulwurf') toast('maulwurf', 'Maulwurf!', 'Buddel dich in die Erde!')
       break
     case 'powerEnde':
       audio.powerEnde()

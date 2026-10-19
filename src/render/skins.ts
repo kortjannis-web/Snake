@@ -1907,7 +1907,8 @@ function komet(ctx: CanvasRenderingContext2D, pr: Probe[], cell: number, now: nu
 export function spurTeil(ctx: CanvasRenderingContext2D, art: string, x: number, y: number, s: number, z: number, i: number, now: number) {
   ctx.save()
   ctx.translate(x, y)
-  ctx.globalAlpha *= Math.max(0, 1 - z)
+  // Bleibt lange kraeftig und blendet erst am Ende aus
+  ctx.globalAlpha *= Math.max(0, 1 - z * z)
   switch (art) {
     case 'spur-staub':
       ctx.fillStyle = 'rgba(150, 120, 80, 0.6)'
@@ -2000,6 +2001,9 @@ export function spurTeil(ctx: CanvasRenderingContext2D, art: string, x: number, 
 }
 
 /** Spuren im Spiel: Teilchen entstehen am Schwanz (Feldkoordinaten) und bleiben liegen, waehrend sie verblassen */
+/** Groesse der Spur-Teilchen im Verhaeltnis zum Feld (vorher 0,15) */
+const SPUR_GROESSE = 0.24
+
 export class Spuren {
   private teile: { x: number; y: number; t: number; art: string; i: number; dauer: number }[] = []
   private letzt = new Map<string, { t: number; x: number; y: number }>()
@@ -2010,13 +2014,15 @@ export class Spuren {
     const l = this.letzt.get(wer)
     const art = skin.spur.id
     const band = art === 'spur-regenbogen' || art === 'spur-flammen'
-    const abstand = band ? 0.22 : 0.45
-    if (l && Math.hypot(x - l.x, y - l.y) < abstand && now - l.t < 900) return
-    if (l && now - l.t < (band ? 30 : 110)) return
+    const abstand = band ? 0.2 : 0.3
+    if (l && Math.hypot(x - l.x, y - l.y) < abstand && now - l.t < 700) return
+    if (l && now - l.t < (band ? 30 : 70)) return
     this.letzt.set(wer, { t: now, x, y })
-    const st = band ? 0 : 0.25
-    this.teile.push({ x: x + (Math.random() - 0.5) * st, y: y + (Math.random() - 0.5) * st, t: now, art, i: this.n++, dauer: band ? 900 : 1500 })
-    if (this.teile.length > 400) this.teile.splice(0, this.teile.length - 400)
+    const st = band ? 0 : 0.5
+    // Bei Teilchen zwei Stueck je Schritt, damit die Spur voll wirkt
+    for (let k = 0; k < (band ? 1 : 2); k++)
+      this.teile.push({ x: x + (Math.random() - 0.5) * st, y: y + (Math.random() - 0.5) * st, t: now, art, i: this.n++, dauer: band ? 1100 : 2000 })
+    if (this.teile.length > 800) this.teile.splice(0, this.teile.length - 800)
   }
   /** Karte verschoben (neuer Block oben/links) */
   verschieben(dx: number, dy: number) {
@@ -2035,7 +2041,7 @@ export class Spuren {
   }
   draw(ctx: CanvasRenderingContext2D, cell: number, now: number) {
     this.teile = this.teile.filter((t) => now - t.t < t.dauer && now >= t.t)
-    for (const t of this.teile) spurTeil(ctx, t.art, (t.x + 0.5) * cell, (t.y + 0.5) * cell, cell * 0.15, (now - t.t) / t.dauer, t.i, now)
+    for (const t of this.teile) spurTeil(ctx, t.art, (t.x + 0.5) * cell, (t.y + 0.5) * cell, cell * SPUR_GROESSE, (now - t.t) / t.dauer, t.i, now)
   }
 }
 
@@ -2048,13 +2054,13 @@ function spurVorschau(ctx: CanvasRenderingContext2D, pts: P[], cell: number, art
   const tx = (a.x - b.x) / l
   const ty = (a.y - b.y) / l
   const band = art === 'spur-regenbogen' || art === 'spur-flammen'
-  const N = band ? 22 : 14
+  const N = band ? 36 : 26
   for (let i = 0; i < N; i++) {
-    const z = ((now % 6000) / (band ? 1000 : 1500) + i / N) % 1
-    const q = band ? 0 : Math.sin(i * 5.1) * 0.25
-    const x = (a.x + 0.5 + tx * (0.2 + z * 1.6) - ty * q) * cell
-    const y = (a.y + 0.5 + ty * (0.2 + z * 1.6) + tx * q) * cell
-    spurTeil(ctx, art, x, y, cell * 0.15, z, i, now)
+    const z = ((now % 6000) / (band ? 1200 : 2000) + i / N) % 1
+    const q = band ? 0 : Math.sin(i * 5.1) * 0.4
+    const x = (a.x + 0.5 + tx * (0.2 + z * 3.2) - ty * q) * cell
+    const y = (a.y + 0.5 + ty * (0.2 + z * 3.2) + tx * q) * cell
+    spurTeil(ctx, art, x, y, cell * SPUR_GROESSE, z * 0.9, i, now)
   }
 }
 
@@ -2120,8 +2126,14 @@ export function zeichneVorschau(ctx: CanvasRenderingContext2D, w: number, h: num
     tx = w * 0.45 - 0.5 * cell
     ty = h * 0.5 - 1.5 * cell
   } else {
-    cell = Math.min(h / 2.4, w / 7.4)
-    tx = w / 2 - 3 * cell
+    if (skin.spur) {
+      // Spur: die Schlange rechts, links bleibt Platz fuer die Teilchen hinter dem Schwanz
+      cell = Math.min(h / 2.4, w / 9.6)
+      tx = w - 6.2 * cell
+    } else {
+      cell = Math.min(h / 2.4, w / 7.4)
+      tx = w / 2 - 3 * cell
+    }
     ty = h / 2 - cell
   }
   ctx.save()
