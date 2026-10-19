@@ -28,7 +28,7 @@ import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
@@ -287,13 +287,28 @@ function zaehltOnline() {
 
 /* ================= Online-Bestenliste ================= */
 
+/** Hinweis unter dem Namensfeld: der Name ist zugleich der Account */
+const nameInfo = () =>
+  profil.name
+    ? 'So sehen dich die anderen. Nutzt du diesen Namen auf einem anderen Gerät, bist du dort im selben Account.'
+    : 'Ohne Namen zählen deine Ergebnisse nicht. Nutzt du den Namen auf einem anderen Gerät, bist du dort im selben Account.'
+/** Meldung nach dem Speichern des Namens */
+const nameMeldung = (r: NameErgebnis, name: string) =>
+  r === 'zurueck'
+    ? `Willkommen zurück, ${name}! Du bist jetzt in deinem Account.`
+    : r === 'neu'
+      ? `Account „${name}“ angelegt. Mit diesem Namen kommst du auf jedem Gerät in diesen Account.`
+      : r === 'umbenannt'
+        ? `Gespeichert: Du heißt jetzt ${name}.`
+        : 'Name gespeichert. Er wird online eingetragen, sobald du Verbindung hast.'
+
 let listeArt: Art = 'heute'
 let listeAbmelden: (() => void) | null = null
 let listeNr = 0
 
 function oeffneListe() {
   $<HTMLInputElement>('liste-name').value = profil.name
-  $('liste-name-info').textContent = profil.name ? 'So sehen dich die anderen. Du kannst ihn jederzeit ändern.' : 'Ohne Namen zählen deine Ergebnisse nicht. Er wird einmal pro Handy gespeichert.'
+  $('liste-name-info').textContent = nameInfo()
   $('liste-speichern').textContent = profil.name ? 'Ändern' : 'Speichern'
   listeAbmelden?.()
   listeAbmelden = abonniere(() => void ladeListeAnzeige())
@@ -414,14 +429,24 @@ $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
   const knopf = $<HTMLButtonElement>('liste-speichern')
   knopf.disabled = true
   try {
-    const online = await setzeName(input.value)
+    let r: NameErgebnis
+    try {
+      r = await setzeName(input.value)
+    } catch (err) {
+      // Der Name gehoert einem anderen Account: auf Wunsch dort anmelden statt umzubenennen
+      const n = input.value.trim()
+      if (!(err instanceof NameVergeben) || !confirm(`„${n}“ gibt es schon. Mit diesem Account anmelden? Dieses Gerät gehört dann zum Account „${n}“.`)) throw err
+      r = await setzeName(input.value, true)
+    }
     audio.click()
-    info.textContent = online ? `Gespeichert: Du spielst als ${profil.name}.` : `Name gespeichert. Er wird online eingetragen, sobald du Verbindung hast.`
+    info.textContent = nameMeldung(r, profil.name)
     knopf.textContent = 'Ändern'
     input.blur()
     void ladeHallAnzeige()
+    // In einen anderen Account gewechselt: Freunde, Chat und Lobby gehoeren dazu, also frisch starten
+    if (r === 'zurueck') window.setTimeout(() => location.reload(), 1500)
   } catch (err) {
-    info.textContent = err instanceof NamenFehler ? err.message : 'Der Name braucht 2 bis 16 Zeichen.'
+    info.textContent = err instanceof NamenFehler ? err.message : 'Das hat nicht geklappt. Bist du online?'
   } finally {
     knopf.disabled = false
   }
@@ -450,7 +475,7 @@ async function ladeHallAnzeige() {
   const nr = ++hallNr
   // Name-Feld (aus der frueheren Bestenliste) aktuell halten
   $<HTMLInputElement>('liste-name').value = profil.name
-  $('liste-name-info').textContent = profil.name ? 'So sehen dich die anderen. Du kannst ihn jederzeit ändern.' : 'Ohne Namen zählen deine Ergebnisse nicht. Er wird einmal pro Handy gespeichert.'
+  $('liste-name-info').textContent = nameInfo()
   $('liste-speichern').textContent = profil.name ? 'Ändern' : 'Speichern'
   if (!hallZeilen.length) $('hall-info').textContent = 'Lade …'
   try {
@@ -2852,7 +2877,7 @@ if (!gesperrt) {
     sozialStarten()
     void pushAuffrischen()
   }
-  setzeSkin(wallet.skin)
+  setzeSkin(wallet.skin, true)
   setzeSilber(wallet.verdient ?? 0)
   requestAnimationFrame(frame)
 }

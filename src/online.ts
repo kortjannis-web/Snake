@@ -3,7 +3,8 @@
  * (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) oder ohne Netz laeuft das Spiel unveraendert.
  * Der Supabase-Client wird erst bei Bedarf nachgeladen.
  */
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { kontoSchluessel, kontoZugang } from './konto'
 import type { Tempo } from './game/rules'
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -35,8 +36,13 @@ function schreib(k: string, v: unknown) {
   }
 }
 
-/** `offen`: der Name steht noch nicht in der Datenbank (z. B. beim ersten Start ohne Netz) */
-export const profil: { name: string; offen?: boolean; skin?: string; silber?: number } = { name: '', ...lies<{ name?: string; offen?: boolean; skin?: string; silber?: number }>(PKEY, {}) }
+/**
+ * `offen`: Name, Skin oder Silber stehen noch nicht in der Datenbank (z. B. beim ersten Start ohne Netz).
+ * `umbenennen`: der Name wurde geaendert und der Account muss noch auf den neuen Namen umgestellt werden.
+ */
+type Profil = { name: string; offen?: boolean; umbenennen?: boolean; skin?: string; silber?: number }
+export const profil: Profil = { name: '', ...lies<Partial<Profil>>(PKEY, {}) }
+const speichereProfil = () => schreib(PKEY, { name: profil.name, offen: profil.offen, umbenennen: profil.umbenennen, skin: profil.skin, silber: profil.silber })
 const warteschlange: Ergebnis[] = lies<Ergebnis[]>(QKEY, [])
 
 /** Wie in der Datenbank (name_pruefen): ohne Schimpfwoerter, auch mit Ziffern statt Buchstaben */
@@ -49,8 +55,15 @@ export const nameGueltig = (n: string) => n.trim().length >= 2 && n.trim().lengt
 
 /** Fehler beim Namen, den der Spieler loesen muss (vergeben oder nicht erlaubt) */
 export class NamenFehler extends Error {}
+/** Der Name gehoert schon zu einem anderen Account (beim Umbenennen: anmelden statt umbenennen ist moeglich) */
+export class NameVergeben extends NamenFehler {}
+/** Der Name gehoert zu einem alten Gast-Account, der noch nicht auf Name umgestellt ist */
+export class NameAlterGast extends NamenFehler {}
+/** In Supabase ist die Anmeldung per E-Mail aus oder verlangt eine Bestaetigung (docs/ONLINE-EINRICHTEN.md, Schritt 2b) */
+class EinrichtungsFehler extends Error {}
+
 const namensFehler = (e: { code?: string; message?: string } | null) =>
-  !e ? null : e.code === '23505' ? new NamenFehler('Diesen Namen gibt es schon. Bitte nimm einen anderen.') : e.code === 'P0001' && /Name/.test(e.message ?? '') ? new NamenFehler('Dieser Name ist nicht erlaubt.') : null
+  !e ? null : e.code === '23505' ? new NameVergeben('Diesen Namen gibt es schon.') : e.code === 'P0001' && /Name/.test(e.message ?? '') ? new NamenFehler('Dieser Name ist nicht erlaubt.') : null
 
 let clientP: Promise<SupabaseClient> | null = null
 function client(): Promise<SupabaseClient> {
@@ -60,81 +73,254 @@ function client(): Promise<SupabaseClient> {
   return clientP
 }
 
-/** Gast-Anmeldung: beim ersten Mal wird eine Nutzer-Id angelegt, danach bleibt sie im Geraet */
-async function nutzerId(): Promise<string> {
-  const sb = await client()
-  const { data } = await sb.auth.getSession()
-  if (data.session) return data.session.user.id
-  const { data: neu, error } = await sb.auth.signInAnonymously()
-  if (error || !neu.user) throw error ?? new Error('Anmeldung fehlgeschlagen')
-  return neu.user.id
+/** Account-Schritte nie gleichzeitig (Start, Namensaenderung und Senden kommen sich sonst in die Quere) */
+let kontoKette: Promise<unknown> = Promise.resolve()
+function nacheinander<T>(f: () => Promise<T>): Promise<T> {
+  const p = kontoKette.then(f)
+  kontoKette = p.catch(() => undefined)
+  return p
 }
 
-/** Profil (Name) in die Datenbank schreiben. Wirft ohne Netz */
+type AuthFehler = { code?: string; message?: string } | null
+const falscheDaten = (e: AuthFehler) => !!e && (e.code === 'invalid_credentials' || /invalid login credentials/i.test(e.message ?? ''))
+const einrichtungFehlt = (e: AuthFehler) => !!e && ['email_provider_disabled', 'signup_disabled', 'provider_disabled', 'email_not_confirmed', 'reauthentication_needed', 'weak_password'].includes(e.code ?? '')
+const emailVergeben = (e: AuthFehler) => !!e && (e.code === 'email_exists' || e.code === 'user_already_exists' || /already (been )?registered/i.test(e.message ?? ''))
+
+/** Mit dem Account dieses Namens anmelden. null: den Account gibt es (so) nicht */
+async function anmeldenMitName(sb: SupabaseClient, name: string): Promise<User | null> {
+  const { data, error } = await sb.auth.signInWithPassword(kontoZugang(name))
+  if (!error && data.user) return data.user
+  if (falscheDaten(error)) return null
+  if (einrichtungFehlt(error)) throw new EinrichtungsFehler()
+  throw error ?? new Error('Anmeldung fehlgeschlagen')
+}
+
+/** Gast-Anmeldung: Notnagel, wenn es keinen Account gibt (Nutzer-Id bleibt im Geraet). Laeuft hoechstens einmal gleichzeitig */
+let idP: Promise<string> | null = null
+function nutzerId(): Promise<string> {
+  if (!idP) {
+    const p = (async () => {
+      const sb = await client()
+      const { data } = await sb.auth.getSession()
+      if (data.session) return data.session.user.id
+      // Sitzung weg, aber der Name ist noch da: ueber den Namen wieder in den eigenen Account
+      if (profil.name) {
+        const u = await anmeldenMitName(sb, profil.name).catch((e) => (e instanceof EinrichtungsFehler ? null : Promise.reject(e)))
+        if (u) return u.id
+      }
+      const { data: neu, error } = await sb.auth.signInAnonymously()
+      if (error || !neu.user) throw error ?? new Error('Anmeldung fehlgeschlagen')
+      return neu.user.id
+    })()
+    idP = p
+    void p.then(() => undefined, () => undefined).then(() => (idP = idP === p ? null : idP))
+  }
+  return idP
+}
+
 /** Fehler: Spalte gibt es (noch) nicht (die SQL-Datei fuer den Skin wurde noch nicht ausgefuehrt) */
 const spalteFehlt = (e: { code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204')
 
-async function syncProfil() {
-  const id = await nutzerId()
-  const sb = await client()
-  const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}), ...(profil.silber ? { silber: Math.floor(profil.silber) } : {}) }
-  let { error } = await sb.from('profile').upsert(daten)
-  // Spalte fehlt (SQL-Datei noch nicht ausgefuehrt): erst ohne Silber, dann nur mit Namen
-  if (spalteFehlt(error) && 'silber' in daten) {
-    const { silber: _s, ...ohne } = daten
-    ;({ error } = await sb.from('profile').upsert(ohne))
-  }
-  if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
-  if (error) throw namensFehler(error) ?? error
-  profil.offen = false
-  schreib(PKEY, { name: profil.name, skin: profil.skin, silber: profil.silber })
+/** Profil des Accounts aus der Datenbank uebernehmen (Name, Skin, Silber: das gilt fuer alle Geraete) */
+async function uebernehmeProfil(sb: SupabaseClient, id: string) {
+  let { data, error } = await sb.from('profile').select('name,skin,silber').eq('id', id).maybeSingle()
+  if (spalteFehlt(error)) ({ data, error } = await sb.from('profile').select('name').eq('id', id).maybeSingle())
+  if (error || !data) return
+  const d = data as { name: string; skin?: string; silber?: number }
+  profil.name = d.name
+  if (d.skin) profil.skin = d.skin
+  profil.silber = Math.max(profil.silber ?? 0, Number(d.silber ?? 0))
+  speichereProfil()
 }
 
-/** Silber-Trophaeen (alle je verdienten Aepfel) ins Profil, damit die Hall danach sortieren kann */
+/** Profil mit diesem Namen (ohne Gross-/Kleinschreibung) suchen */
+async function profilMitName(sb: SupabaseClient, name: string): Promise<string | null> {
+  const { data } = await sb.from('profile').select('id').ilike('name', name.replace(/[\\%_]/g, '\\$&')).limit(1)
+  return (data as { id: string }[] | null)?.[0]?.id ?? null
+}
+
+/** Account mit den Zugangsdaten des Namens versehen: Gast-Account umwandeln (Id und alles dran bleibt) oder neu anlegen */
+async function kontoAnlegen(sb: SupabaseClient, gast: User | null): Promise<string> {
+  const z = kontoZugang(profil.name)
+  if (gast) {
+    const { data, error } = await sb.auth.updateUser(z)
+    if (emailVergeben(error)) throw new NameVergeben('Diesen Namen gibt es schon.')
+    if (einrichtungFehlt(error)) throw new EinrichtungsFehler()
+    if (error) throw error
+    // Mit Bestaetigungs-Pflicht bleibt die Adresse "wartend": dann ist die Einrichtung nicht fertig
+    if (data.user?.email !== z.email) throw new EinrichtungsFehler()
+    return gast.id
+  }
+  const { data, error } = await sb.auth.signUp(z)
+  if (emailVergeben(error)) throw new NameVergeben('Diesen Namen gibt es schon.')
+  if (einrichtungFehlt(error)) throw new EinrichtungsFehler()
+  if (error) throw error
+  if (!data.user || !data.session) throw new EinrichtungsFehler()
+  return data.user.id
+}
+
+/** Eingeloggten Account auf den (neuen) Namen umstellen: erst Profilname (eindeutig?), dann Zugangsdaten */
+async function kontoUmbenennen(sb: SupabaseClient, nutzer: User) {
+  const { data: alt } = await sb.from('profile').select('name').eq('id', nutzer.id).maybeSingle()
+  const { error: e1 } = await sb.from('profile').update({ name: profil.name, updated_at: new Date().toISOString() }).eq('id', nutzer.id)
+  if (e1) throw namensFehler(e1) ?? e1
+  const { data, error } = await sb.auth.updateUser(kontoZugang(profil.name))
+  if (!error && data.user?.email === kontoZugang(profil.name).email) return
+  // Zugangsdaten nicht umgestellt: Profilname zurueck, damit beides zusammenpasst
+  if (alt) await sb.from('profile').update({ name: (alt as { name: string }).name }).eq('id', nutzer.id)
+  if (emailVergeben(error)) throw new NameVergeben('Diesen Namen gibt es schon.')
+  if (!error || einrichtungFehlt(error)) throw new EinrichtungsFehler()
+  throw error
+}
+
+type Konto = { id: string; status: 'neu' | 'zurueck' | 'gleich' | 'umbenannt' | 'geraet' }
+
+/**
+ * Stellt sicher, dass dieses Geraet im Account zum Namen `profil.name` angemeldet ist:
+ * - 'sichern' (Start, Senden): Account da? Dann bleibt er. Sonst mit dem Namen anmelden, den Gast-Account umwandeln oder neu anlegen
+ * - 'umbenennen': eingeloggten Account auf den neuen Namen umstellen
+ * - 'wechseln': ausdruecklich in den (anderen) Account dieses Namens wechseln
+ * Ist die E-Mail-Anmeldung in Supabase nicht eingerichtet, laeuft alles wie vorher als Gast ('geraet').
+ */
+async function kontoBereit(modus: 'sichern' | 'umbenennen' | 'wechseln'): Promise<Konto> {
+  const sb = await client()
+  const { data: s } = await sb.auth.getSession()
+  const nutzer = s.session?.user ?? null
+  const hatKonto = !!nutzer?.email
+  const ziel = kontoZugang(profil.name)
+
+  if (nutzer && hatKonto && modus !== 'wechseln') {
+    if (nutzer.email === ziel.email) return { id: nutzer.id, status: 'gleich' }
+    if (modus === 'umbenennen') {
+      try {
+        await kontoUmbenennen(sb, nutzer)
+        return { id: nutzer.id, status: 'umbenannt' }
+      } catch (e) {
+        if (e instanceof EinrichtungsFehler) return { id: nutzer.id, status: 'geraet' }
+        throw e
+      }
+    }
+    // Der Account wurde woanders umbenannt: dessen Namen uebernehmen
+    await uebernehmeProfil(sb, nutzer.id)
+    return { id: nutzer.id, status: 'gleich' }
+  }
+
+  try {
+    const u = await anmeldenMitName(sb, profil.name)
+    if (u) {
+      await uebernehmeProfil(sb, u.id)
+      return { id: u.id, status: 'zurueck' }
+    }
+    if (modus === 'wechseln') throw new NameAlterGast('Dieser Name gehört noch zu einem alten Gast-Account. Öffne Snake einmal auf dem Gerät, wo du ihn zuerst benutzt hast, dann geht er überall.')
+    const gast = nutzer && !hatKonto ? nutzer : null
+    const besitzer = await profilMitName(sb, profil.name)
+    if (besitzer && besitzer !== gast?.id) throw new NameAlterGast('Diesen Namen gibt es schon (alter Gast-Account). Öffne Snake einmal auf dem Gerät, wo du ihn zuerst benutzt hast, dann geht er überall.')
+    return { id: await kontoAnlegen(sb, gast), status: 'neu' }
+  } catch (e) {
+    if (!(e instanceof EinrichtungsFehler)) throw e
+    // Notnagel: Account per Name ist nicht eingerichtet, also wie bisher ein Gast pro Geraet
+    return { id: await nutzerId(), status: 'geraet' }
+  }
+}
+
+/** Profil (Name) in die Datenbank schreiben. Wirft ohne Netz */
+async function syncProfil(modus: 'sichern' | 'umbenennen' | 'wechseln' = 'sichern'): Promise<Konto['status']> {
+  return nacheinander(async () => {
+    const { id, status } = await kontoBereit(modus)
+    const sb = await client()
+    // Eingeloggt in einen bestehenden Account: dort stehen Skin und Silber schon, nichts ueberschreiben
+    const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}), ...(profil.silber ? { silber: Math.floor(profil.silber) } : {}) }
+    let { error } = await sb.from('profile').upsert(daten)
+    // Spalte fehlt (SQL-Datei noch nicht ausgefuehrt): erst ohne Silber, dann nur mit Namen
+    if (spalteFehlt(error) && 'silber' in daten) {
+      const { silber: _s, ...ohne } = daten
+      ;({ error } = await sb.from('profile').upsert(ohne))
+    }
+    if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
+    if (error) throw namensFehler(error) ?? error
+    profil.offen = false
+    profil.umbenennen = false
+    speichereProfil()
+    return status
+  })
+}
+
+/** Silber-Trophaeen (alle je verdienten Aepfel) ins Profil, damit die Hall danach sortieren kann. Wird nie weniger */
 export function setzeSilber(n: number) {
-  if ((profil.silber ?? 0) === n) return
+  if ((profil.silber ?? 0) >= n) return
   profil.silber = n
-  if (!onlineAktiv || !profil.name) return schreib(PKEY, { name: profil.name, skin: profil.skin, silber: n })
+  if (!onlineAktiv || !profil.name) return speichereProfil()
   profil.offen = true
-  schreib(PKEY, { name: profil.name, offen: true, skin: profil.skin, silber: n })
+  speichereProfil()
   void sende()
 }
 
-/** Skin geaendert: im Profil nachtragen, damit die anderen ihn in der Spielerliste sehen */
-export function setzeSkin(skin: string) {
-  if (profil.skin === skin) return
+/**
+ * Skin geaendert: im Profil nachtragen, damit die anderen ihn in der Spielerliste sehen.
+ * `nurNachtragen`: beim Start nur, wenn das Profil noch keinen hat (ein anderes Geraet desselben Accounts hat ihn vielleicht gesetzt)
+ */
+export function setzeSkin(skin: string, nurNachtragen = false) {
+  if (profil.skin === skin || (nurNachtragen && profil.skin)) return
   profil.skin = skin
-  if (!onlineAktiv || !profil.name) return schreib(PKEY, { name: profil.name, skin })
+  if (!onlineAktiv || !profil.name) return speichereProfil()
   profil.offen = true
-  schreib(PKEY, { name: profil.name, offen: true, skin })
+  speichereProfil()
   void sende()
 }
 
 /**
  * Name speichern. Er gilt sofort auf dem Geraet, auch ohne Netz; in die Datenbank kommt er,
- * sobald es geht. Gibt zurueck, ob das schon geklappt hat.
+ * sobald es geht.
+ * - 'neu': Account mit diesem Namen angelegt
+ * - 'zurueck': den Account mit diesem Namen gibt es schon, dieses Geraet ist jetzt darin angemeldet
+ * - 'umbenannt': der Account heisst jetzt so
+ * - 'spaeter': kein Netz, wird nachgeholt
+ * `wechseln`: ausdruecklich in den schon vorhandenen Account dieses Namens wechseln (statt umzubenennen)
  */
-export async function setzeName(name: string): Promise<boolean> {
+export type NameErgebnis = 'neu' | 'zurueck' | 'umbenannt' | 'spaeter'
+export async function setzeName(name: string, wechseln = false): Promise<NameErgebnis> {
   const n = name.trim()
   if (!nameErlaubt(n)) throw new NamenFehler('Dieser Name ist nicht erlaubt.')
   if (!nameGueltig(n)) throw new NamenFehler('Der Name braucht 2 bis 16 Zeichen.')
   const vorher = { ...profil }
+  const hatteName = !!profil.name
+  const gleich = hatteName && kontoSchluessel(vorher.name) === kontoSchluessel(n)
   profil.name = n
   profil.offen = true
-  schreib(PKEY, { name: n, offen: true, skin: profil.skin })
+  profil.umbenennen = hatteName && !gleich && !wechseln
+  speichereProfil()
+  if (!onlineAktiv) return 'spaeter'
   try {
-    await syncProfil()
+    const status = await syncProfil(wechseln ? 'wechseln' : profil.umbenennen ? 'umbenennen' : 'sichern')
     void sende()
-    return true
+    return status === 'neu' || status === 'zurueck' || status === 'umbenannt' ? status : hatteName ? 'umbenannt' : 'neu'
   } catch (e) {
     // Vergeben oder nicht erlaubt: alten Namen behalten und Bescheid geben. Ohne Netz: spaeter
     if (e instanceof NamenFehler) {
       Object.assign(profil, vorher)
-      schreib(PKEY, { name: profil.name, offen: profil.offen, skin: profil.skin })
+      speichereProfil()
       throw e
     }
-    return false
+    return 'spaeter'
   }
+}
+
+/** Beim Start: Account sichern (alten Gast-Account auf den Namen umstellen, nach verlorener Sitzung wieder anmelden, Umbenennungen von anderen Geraeten uebernehmen) */
+export function kontoSichern() {
+  if (!onlineAktiv || !profil.name) return
+  void nacheinander(async () => {
+    try {
+      const { status } = await kontoBereit(profil.umbenennen ? 'umbenennen' : 'sichern')
+      // Frisch angelegt: das Profil muss noch in die Datenbank
+      if (status === 'neu') {
+        profil.offen = true
+        speichereProfil()
+        void sende()
+      }
+    } catch {
+      /* kein Netz oder Name belegt: beim naechsten Start wieder */
+    }
+  })
 }
 
 let sendet = false
@@ -145,10 +331,11 @@ export async function sende() {
   try {
     if (profil.offen) {
       try {
-        await syncProfil()
+        await syncProfil(profil.umbenennen ? 'umbenennen' : 'sichern')
       } catch (e) {
         if (!(e instanceof NamenFehler)) throw e
         profil.name = `${profil.name.slice(0, 12)} ${Math.floor(10 + Math.random() * 90)}`
+        profil.umbenennen = false
         await syncProfil()
       }
     }
@@ -235,6 +422,7 @@ export function abonniere(bei: () => void): () => void {
 
 // Beim Start und wenn das Netz zurueckkommt: liegengebliebene Ergebnisse senden
 if (onlineAktiv) {
+  kontoSichern()
   void sende()
   window.addEventListener('online', () => void sende())
 }
