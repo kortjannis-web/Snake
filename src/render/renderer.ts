@@ -4,6 +4,8 @@
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
 import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
+import { WUESTE } from '../game/rules'
+import { drawFlut, drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
@@ -147,6 +149,8 @@ export class Renderer {
   blitzApfel = false
   /** Tageslevel: der letzte Apfel leuchtet pink (bringt 10 Aepfel) */
   sonderApfel = false
+  /** Felder der Flut als Liste (neu berechnet, wenn sich die Flut aendert) */
+  private flutListe: { von: Set<number> | null; felder: P[] } = { von: null, felder: [] }
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
   private spuren = new Spuren()
   private dpr = 1
@@ -611,6 +615,22 @@ export class Renderer {
       if (art === 'zauber' || art === 'hoehle') for (const c of t.cells) if ((c.x + c.y) % 2 === 0) licht(px(c.x), px(c.y), cell * 1.4)
     }
 
+    // Wueste: Flut am Rand (Warnung: Gischt schlaegt hoeher, dann Wasser) und der Sandwurm kuendigt sich an
+    if (g.flut) {
+      if (this.flutListe.von !== g.flut.zellen) this.flutListe = { von: g.flut.zellen, felder: [...g.flut.zellen].map((k) => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })) }
+      const rand = (p: P) => !g.inside({ x: p.x + 1, y: p.y }) || !g.inside({ x: p.x - 1, y: p.y }) || !g.inside({ x: p.x, y: p.y + 1 }) || !g.inside({ x: p.x, y: p.y - 1 })
+      drawFlut(ctx, this.flutListe.felder.filter((c) => sicht(c, 1)), g.flut.phase === 'aktiv', now - g.flut.t, cell, now, rand)
+    }
+    const sw = g.sandwurm
+    if (sw && now < sw.los) {
+      const felder: P[] = []
+      for (let v = sw.von; v <= sw.bis; v++) {
+        const c = sw.achse === 'x' ? { x: v, y: sw.linie } : { x: sw.linie, y: v }
+        if (g.inside(c) && sicht(c, 1)) felder.push(c)
+      }
+      drawSandwurmWarnung(ctx, felder, cell, now, clamp01((now - sw.t) / WUESTE.wurmWarnung))
+    }
+
     // Alte Mauern schrumpfen weg, neue wachsen Feld fuer Feld
     if (!this.reduce) for (const m of g.weg) for (const c of m.cells) if (sicht(c)) drawMauerWelt(ctx, welt, c.x * cell, c.y * cell, cell, 1 - (now - m.t) / 240)
     for (const m of g.mauern)
@@ -793,6 +813,10 @@ export class Renderer {
     if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
     if (this.mehr?.blasen) for (const b of this.mehr.blasen) if (sicht(b.p, 2)) this.drawBlase(b)
     this.drawGrabWarnung(g, head, now)
+    if (sw && now >= sw.los) {
+      const d = sw.achse === 'x' ? { x: sw.dir, y: 0 } : { x: 0, y: sw.dir }
+      drawSandwurm(ctx, g.sandwurmFelder(), d.x, d.y, cell, now)
+    }
 
     // Giftwolken ueber allem (mit Warnung vor dem Wachsen)
     for (const w of [...g.wolken, ...g.wolkenWeg]) {
@@ -831,6 +855,12 @@ export class Renderer {
     }
     if (!this.reduce) drawStimmung(ctx, welt, vw, vh, this.dpr, now, ox, oy)
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    // Sandsturm: blendet ein und aus, rund um den Kopf bleibt etwas Sicht
+    const st = g.sandsturm
+    if (st && now < st.bis + 800) {
+      const staerke = Math.min(clamp01((now - st.t) / 600), 1 - clamp01((now - st.bis) / 800))
+      drawSandsturm(ctx, vw, vh, (head.x + 0.5) * cell + ox, (head.y + 0.5) * cell + oy, cell, staerke, now)
+    }
     ctx.translate(ox, oy)
 
     // Funken beim Fressen

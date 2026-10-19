@@ -60,27 +60,6 @@ export const WELTEN: Welt[] = [
     nacht: [0, 0, 0],
   },
   {
-    id: 'winter',
-    name: 'Winterwald',
-    ab: 50,
-    text: 'Schnee, Weihnachtsbäume, zugefrorene Seen. Statt Äpfeln Geschenke, Pinguine statt Frösche, Fallen sind Schneelöcher.',
-    hell: '#EEF5F9',
-    dunkel: '#DDE8EF',
-    neu: '#F6FAFC',
-    kante: 'rgba(255, 255, 255, 0.9)',
-    erde: { nah: [86, 76, 78], mitte: [64, 56, 60], tief: [40, 34, 38], kruemelNah: 'rgba(240, 246, 250, 0.8)', kruemel: 'rgba(200, 215, 230, 0.25)', grund: '#28222A' },
-    baeume: ['weihnacht', 'tanne', 'tanne'],
-    schnee: true,
-    wasser: ['winter'],
-    futter: 'geschenk',
-    falle: 'schneeloch',
-    frosch: 'pinguin',
-    ameise: 'eiskaefer',
-    mauer: 'schneestein',
-    finster: 0,
-    nacht: [0, 0, 0],
-  },
-  {
     id: 'wueste',
     name: 'Wüstenoase',
     ab: 80,
@@ -98,6 +77,27 @@ export const WELTEN: Welt[] = [
     frosch: 'springmaus',
     ameise: 'feuerameise',
     mauer: 'sandstein',
+    finster: 0,
+    nacht: [0, 0, 0],
+  },
+  {
+    id: 'winter',
+    name: 'Winterwald',
+    ab: 50,
+    text: 'Schnee, Weihnachtsbäume, zugefrorene Seen. Statt Äpfeln Geschenke, Pinguine statt Frösche, Fallen sind Schneelöcher.',
+    hell: '#EEF5F9',
+    dunkel: '#DDE8EF',
+    neu: '#F6FAFC',
+    kante: 'rgba(255, 255, 255, 0.9)',
+    erde: { nah: [86, 76, 78], mitte: [64, 56, 60], tief: [40, 34, 38], kruemelNah: 'rgba(240, 246, 250, 0.8)', kruemel: 'rgba(200, 215, 230, 0.25)', grund: '#28222A' },
+    baeume: ['weihnacht', 'tanne', 'tanne'],
+    schnee: true,
+    wasser: ['winter'],
+    futter: 'geschenk',
+    falle: 'schneeloch',
+    frosch: 'pinguin',
+    ameise: 'eiskaefer',
+    mauer: 'schneestein',
     finster: 0,
     nacht: [0, 0, 0],
   },
@@ -169,8 +169,14 @@ export const inselWelt = (w: Welt) => w.id === 'wueste'
 /** Welten, in denen rund um die Karte keine Erde mit Steinen, Kohle und Gesteinsschichten ist */
 export const ohneErde = (w: Welt) => waldWelt(w) || inselWelt(w)
 export const weltVon = (id: string | undefined) => WELTEN.find((w) => w.id === id) ?? WELTEN[0]
-/** Freigeschaltet bei diesem besten Level? */
-export const weltFrei = (w: Welt, best: number) => best >= w.ab
+/** Wer in einer Welt Level 100 erreicht, schaltet die naechste frei (Reihenfolge wie WELTEN) */
+export const WELT_STUFE = 100
+export const naechsteWelt = (w: Welt): Welt | null => WELTEN[WELTEN.indexOf(w) + 1] ?? null
+export const vorherigeWelt = (w: Welt): Welt | null => WELTEN[WELTEN.indexOf(w) - 1] ?? null
+/** Freigeschaltet? (die Wiese immer) */
+export const weltFrei = (w: Welt, frei: readonly string[]) => w.id === 'wiese' || frei.includes(w.id)
+/** Alte Regel bis 1.27 (frei ab einem Rekord-Level): nur noch fuer die Uebernahme alter Spielstaende */
+export const weltFreiAlt = (w: Welt, best: number) => best >= w.ab
 
 const TAU = Math.PI * 2
 const hash = (n: number) => {

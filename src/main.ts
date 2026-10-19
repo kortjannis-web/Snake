@@ -16,6 +16,7 @@ import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
 import { apfelFaktor, DEFAULTS, gebietFortschritt, SCHEMA, type ConfigKey, type Tempo } from './game/rules'
 import { modusProzent, SPIELMODUS_NAME, type SpielModus } from './modus'
+import { zufallsReihenfolge } from './game/reihenfolge'
 import { ERFOLGE, erfolgePruefen, stand, zaehle } from './erfolge'
 import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
@@ -32,9 +33,9 @@ import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienenModus, wallet, type LookWahl } from './storage'
-import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
+import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
-import { drawWeltVorschau, WELTEN, weltFrei, weltVon, type Welt } from './render/welten'
+import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELT_STUFE, WELTEN, weltFrei, weltFreiAlt, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
@@ -61,6 +62,11 @@ if (wallet.verdient === undefined) {
   wallet.verdient = wallet.aepfel + wallet.skins.reduce((s, id) => s + preisVon(id), 0)
   saveWallet()
 }
+// 1.28: Welten gehen jetzt mit Level 100 in der Welt davor auf. Was nach der alten Regel (Rekord) frei war, bleibt frei
+if (!wallet.welten) {
+  wallet.welten = WELTEN.filter((w) => weltFreiAlt(w, stats.best)).map((w) => w.id)
+  saveWallet()
+}
 /** Grosse Zahlen kurz: 9.480, 12,5k, 125k, 1,3 Mio. */
 const kurzZahl = (n: number) => {
   const k = (v: number) => v.toFixed(v < 100 ? 1 : 0).replace(/\.0$/, '').replace('.', ',')
@@ -69,7 +75,7 @@ const kurzZahl = (n: number) => {
 /** Gewaehlte Welt, wenn sie (noch) freigeschaltet ist, sonst die Wiese */
 const aktiveWelt = (): Welt => {
   const w = weltVon(wallet.welt)
-  return weltFrei(w, stats.best) ? w : WELTEN[0]
+  return weltFrei(w, wallet.welten ?? []) ? w : WELTEN[0]
 }
 renderer.welt = aktiveWelt()
 
@@ -226,7 +232,9 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       screenW: sc.w,
       screenH: sc.h,
       tempo: tempoVon(laufModus),
-      cfg: { ...config },
+      // Zufaellige Reihenfolge der Gefahren (nicht im Kreativ-Modus: dort soll der Aufbau planbar sein)
+      cfg: !istKreativ && settings.zufall ? zufallsReihenfolge(config) : { ...config },
+      wueste: renderer.welt.id === 'wueste',
       startLevel: istKreativ ? start : startLevel,
       kreativ: istKreativ ? { ...k } : null,
       sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
@@ -871,9 +879,8 @@ function handle(e: GameEvent) {
         game.geschafft()
         break
       }
-      // Zum ersten Mal den Level einer Welt erreicht: freigeschaltet
-      const w = WELTEN.find((x) => x.ab === e.level && x.ab > stats.best)
-      if (w && !istKreativ && !istTages && mode === 'play') toast('baum', `${w.name} freigeschaltet`, 'Im Aussehen unter Welten wählbar.')
+      // Fortschritt in dieser Welt: naechste Welt bei Level 100, Belohnungen bei 100, 150 und 200
+      if (!istKreativ && !istTages && game) weltFortschritt(game.maxLevel)
       break
     }
     case 'milestone':
@@ -937,6 +944,38 @@ function handle(e: GameEvent) {
       break
     case 'pond':
       audio.pond()
+      break
+    case 'sandsturm':
+      audio.cloud()
+      toast('wolke', 'Sandsturm!', 'Die Sicht ist kurz schlecht.')
+      break
+    case 'flutWarnung':
+      audio.wahl()
+      haptic.medium()
+      toast('teich', 'Die Flut kommt!', 'Beim nächsten Apfel steigt das Wasser: Bleib vom Rand weg.')
+      break
+    case 'flut':
+      audio.pond()
+      haptic.heavy()
+      toast('teich', 'Flut!', 'Der Rand steht 2 Felder unter Wasser, bis zum nächsten Apfel.', { minus: true })
+      break
+    case 'flutEnde':
+      audio.powerEnde()
+      toast('teich', 'Das Wasser geht zurück', '')
+      break
+    case 'sandwurmWarnung':
+      audio.gegner()
+      haptic.medium()
+      toast('gegner', 'Sandwurm!', 'Eine Reihe brodelt: In 8 Sekunden bricht er durch. Weg da!')
+      break
+    case 'sandwurm':
+      audio.lava(true)
+      haptic.heavy()
+      break
+    case 'sandwurmBiss':
+      audio.zertreten()
+      haptic.heavy()
+      toast('gegner', 'Erwischt!', `Der Sandwurm hat ${e.weg} Glieder abgebissen.`, { minus: true })
       break
     case 'geld':
       // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt
@@ -1347,7 +1386,7 @@ function renderShop() {
   // Welten: breiter Knopf mit der aktuellen Welt
   const b = document.createElement('button')
   b.className = 'aussehen__kachel aussehen__kachel--breit'
-  const frei = WELTEN.filter((w) => weltFrei(w, stats.best)).length
+  const frei = WELTEN.filter((w) => weltFrei(w, wallet.welten ?? [])).length
   b.append(weltVorschauCanvas(renderer.welt))
   const t = document.createElement('b')
   t.textContent = 'Welten'
@@ -1377,8 +1416,15 @@ function shopKarte(id: string, name: string, an: boolean, waehlen: () => void, z
   if (an) {
     preis.innerHTML = '<span></span>Aktiv'
     setIcon(preis.querySelector('span')!, 'Check')
-  } else if (hat) preis.textContent = preisWert ? 'Wählen' : 'Gratis'
-  else {
+  } else if (hat) preis.textContent = preisWert || lohnVon(id) ? 'Wählen' : 'Gratis'
+  else if (lohnVon(id)) {
+    // Belohnung einer Welt: nicht kaufbar
+    const l = lohnVon(id)!
+    preis.innerHTML = '<span></span>'
+    setIcon(preis.querySelector('span')!, 'Lock')
+    preis.append(`Level ${l.level} · ${weltVon(l.welt).name}`)
+    preis.classList.add('zu-teuer')
+  } else {
     preis.innerHTML = `<i class="apfel-ico"></i>${preisWert}`
     if (wallet.aepfel < preisWert) preis.classList.add('zu-teuer')
   }
@@ -1545,10 +1591,10 @@ function renderTeil() {
     box.className = 'skins skins--welten'
     const p = document.createElement('p')
     p.className = 'hinweis'
-    p.textContent = 'Welten schaltest du frei, indem du ihren Level einmal erreichst. Gleiches Spiel, andere Landschaft.'
+    p.textContent = `Erreichst du in einer Welt Level ${WELT_STUFE}, geht die nächste auf. Jede Welt hat eigene Belohnungen: bei Level 100 ein Skin, bei 150 ein Accessoire, bei 200 ein epischer Skin mit Spur.`
     kopf.append(p)
     for (const w of WELTEN) {
-      const frei = weltFrei(w, stats.best)
+      const frei = weltFrei(w, wallet.welten ?? [])
       const an = renderer.welt.id === w.id
       const card = document.createElement('button')
       card.className = 'skin welt'
@@ -1561,6 +1607,16 @@ function renderTeil() {
       const text = document.createElement('span')
       text.className = 'welt__text'
       text.textContent = w.text
+      // Rekord hier und die Belohnungen der Welt (mit Haken, was schon erspielt ist)
+      const lohn = document.createElement('span')
+      lohn.className = 'welt__lohn'
+      const best = stats.weltBest?.[w.id] ?? 0
+      lohn.textContent =
+        `Rekord hier: ${best || '–'} · ` +
+        WELT_LOHN.filter((l) => l.welt === w.id)
+          .map((l) => `${l.level}: ${nameVon(l.id)}${hatSkin(wallet.skins, l.id) ? ' ✓' : ''}`)
+          .join(' · ')
+      text.append(lohn)
       const st = document.createElement('span')
       st.className = 'skin__preis'
       if (an) {
@@ -1570,7 +1626,7 @@ function renderTeil() {
       else {
         st.innerHTML = '<span></span>'
         setIcon(st.querySelector('span')!, 'Lock')
-        st.append(`ab Level ${w.ab}`)
+        st.append(`Level ${WELT_STUFE} in ${vorherigeWelt(w)?.name ?? 'der Welt davor'}`)
         st.classList.add('zu-teuer')
       }
       card.append(name, text, st)
@@ -1657,6 +1713,17 @@ function effekteListe(kopf: HTMLElement, box: HTMLElement) {
 function kaufen(id: string, waehlen: () => void, knopf?: HTMLElement) {
   audio.unlock()
   if (!hatSkin(wallet.skins, id)) {
+    const l = lohnVon(id)
+    if (l) {
+      audio.nein()
+      haptic.medium()
+      toast('gebiet', nameVon(id), `Erreiche Level ${l.level} in der Welt ${weltVon(l.welt).name}.`)
+      const card = knopf ?? $('skins').querySelector<HTMLElement>(`[data-id="${id}"]`)
+      card?.classList.remove('wackeln')
+      void card?.offsetWidth
+      card?.classList.add('wackeln')
+      return
+    }
     if (wallet.aepfel < preisVon(id)) {
       audio.nein()
       haptic.medium()
@@ -1747,6 +1814,14 @@ function newDemo() {
 function renderHelp() {
   const list = $('help-list')
   list.innerHTML = ''
+  if (settings.zufall) {
+    const p = document.createElement('p')
+    p.className = 'hinweis'
+    p.textContent = game
+      ? 'Zufällige Gefahren sind an: Die Level unten gelten für diese Runde, die nächste wird neu ausgelost.'
+      : 'Zufällige Gefahren sind an: Jede Runde wird neu ausgelost, welche Gefahr bei welchem Level kommt. Unten steht die feste Reihenfolge.'
+    list.append(p)
+  }
   for (const h of help(game?.cfg ?? config)) {
     const item = document.createElement('article')
     item.className = 'help'
@@ -1802,6 +1877,7 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
+  $<HTMLInputElement>('opt-zufall').checked = settings.zufall
   for (const [id, v] of [['opt-tempo', settings.tempo]])
     $(id)
       .querySelectorAll<HTMLButtonElement>('button')
@@ -2140,6 +2216,39 @@ $('btn-master-reset').addEventListener('click', () => {
   audio.click()
 })
 
+/* ================= Fortschritt je Welt ================= */
+
+/**
+ * Neuer bester Level in der aktuellen Welt: Bei Level 100 geht die naechste Welt auf, bei 100, 150 und 200 gibt
+ * es die Belohnungen der Welt (Skin, Accessoire, epischer Skin mit Spur). Zaehlt nicht im Kreativ- und Tagesmodus.
+ */
+function weltFortschritt(level: number) {
+  const w = renderer.welt
+  const vorher = stats.weltBest?.[w.id] ?? 0
+  if (level <= vorher) return
+  stats.weltBest = { ...(stats.weltBest ?? {}), [w.id]: level }
+  saveStats()
+  // Belohnungen, deren Level gerade ueberschritten wurde
+  let neu = false
+  for (const l of WELT_LOHN) {
+    if (l.welt !== w.id || vorher >= l.level || level < l.level || wallet.skins.includes(l.id)) continue
+    wallet.skins.push(l.id)
+    neu = true
+    const art = MUSTER.some((m) => m.id === l.id) ? 'Skin' : ACCS.some((a) => a.id === l.id) ? 'Accessoire' : 'Spur'
+    audio.record()
+    haptic.success()
+    toast('aepfel', `Neu: ${nameVon(l.id)}`, `${art} für Level ${l.level} in der Welt ${w.name}. Im Aussehen anlegen.`)
+  }
+  // Level 100: die naechste Welt geht auf
+  const nw = naechsteWelt(w)
+  if (vorher < WELT_STUFE && level >= WELT_STUFE && nw && !(wallet.welten ?? []).includes(nw.id)) {
+    wallet.welten = [...(wallet.welten ?? []), nw.id]
+    neu = true
+    toast('baum', `${nw.name} freigeschaltet`, 'Im Aussehen unter Welten wählbar.')
+  }
+  if (neu) saveWallet()
+}
+
 /* ================= Speedrun ================= */
 
 /**
@@ -2251,7 +2360,7 @@ document.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => b.addEventLis
 }))
 document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', closePage))
 
-for (const k of ['sound', 'music', 'vibration', 'dpad'] as const)
+for (const k of ['sound', 'music', 'vibration', 'dpad', 'zufall'] as const)
   $<HTMLInputElement>(`opt-${k}`).addEventListener('change', (e) => {
     settings[k] = (e.target as HTMLInputElement).checked
     applySettings()

@@ -37,6 +37,8 @@ Freunden** (Nachrichten 30 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIE
 
 Level = gegessene Äpfel + 1. Alle Werte stehen in `src/game/rules.ts`.
 
+**Zufällige Gefahren** (Standard, abschaltbar in den Optionen): Die Level unten bleiben, aber welche Gefahr dort kommt, wird jede Runde neu ausgelost; Mauern, Wasser, Frösche und Giftäpfel kommen eher früh, schwere Gefahren erst später (`src/game/reihenfolge.ts`). Die Tabelle zeigt die feste Reihenfolge.
+
 Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar, nur mit Master-Code, siehe `docs/SPIELFUNKTIONEN.md` 16b):
 
 | Ab Level | Was passiert |
@@ -69,7 +71,7 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 
 **Äpfel als Währung und Aussehen:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
-Aussehen mit Farben (auch zwei- und dreifarbig), 45 Skins, 32 Accessoires und 12 Spuren, dazu fünf Welten (Winterwald, Wüstenoase, Bergwerk, Zauberwald, Gruselwald) ab Level 50 bis 200. Außerhalb der Karte ist Erde mit Steinen, Kohle,
+Aussehen mit Farben (auch zwei- und dreifarbig), 45 Skins, 32 Accessoires und 12 Spuren, dazu fünf Welten: Level 100 in einer Welt schaltet die nächste frei (Wiese → Wüstenoase → Winterwald → Bergwerk → Zauberwald → Gruselwald), und jede Welt belohnt mit einem Skin (100), einem Accessoire (150) und einem epischen Skin mit Spur (200). Die Wüste ist eine Insel mit Sandsturm, Flut und Sandwurm. Außerhalb der Karte ist Erde mit Steinen, Kohle,
 Skeletten, Lavafeldern, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
 die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild (ein Leben mehr,
 läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,

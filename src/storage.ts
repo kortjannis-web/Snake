@@ -4,7 +4,7 @@ import type { Kreativ, Sandbox } from './game/types'
 import { gutschrift, SPIEL_MODI, type SpielModus } from './modus'
 import type { KameraArt } from './render/renderer'
 
-export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt; kameraStand?: number; modus: SpielModus }
+export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt; kameraStand?: number; modus: SpielModus; /** Gefahren in zufaelliger Reihenfolge (je Runde neu) */ zufall: boolean }
 export type Stats = {
   best: number
   games: number
@@ -23,6 +23,8 @@ export type Stats = {
   erfolge: string[]
   /** Gefahren, die schon einmal vorgestellt wurden */
   seen: string[]
+  /** Bester Level je Welt (fuer Freischaltung und Belohnungen der Welten) */
+  weltBest?: Record<string, number>
   /** Tag (JJJJ-MM-TT), an dem der pinke 10er-Apfel im Tageslevel schon geholt wurde */
   tagesBonus?: string
 }
@@ -30,7 +32,7 @@ export type Stats = {
 const SKEY = 'snake.settings.v1'
 const TKEY = 'snake.stats.v1'
 
-export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, kamera: 'bereich', modus: 'normal' })
+export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, kamera: 'bereich', modus: 'normal', zufall: true })
 export const defaultStats = (): Stats => ({ best: 0, games: 0, apples: 0, time: 0, longest: 0, maxGebiete: 0, gegner: 0, heute: { datum: '', best: 0 }, zaehler: {}, erfolge: [], seen: [] })
 
 /** Heutiges Datum (Geraetezeit) */
@@ -166,7 +168,7 @@ export type LookWahl = {
 }
 /** Aepfel (Waehrung), gekaufte Sachen (skins: Ids aller Kategorien), das Aussehen als Text (skin, so geht es auch
  *  online weiter), die Wahl im Einzelnen (look), die Welt und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg) */
-export type Wallet = { aepfel: number; /** Zwischenspeicher: noch nicht volle Aepfel in Hundertsteln (0 bis 99) */ rest?: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number; verdient?: number }
+export type Wallet = { aepfel: number; /** Freigeschaltete Welten (Ids) */ welten?: string[]; /** Zwischenspeicher: noch nicht volle Aepfel in Hundertsteln (0 bis 99) */ rest?: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number; verdient?: number }
 export const wallet: Wallet = read(WKEY, { aepfel: 0, skins: ['klassik'], skin: 'klassik', trophaeen: 0 } as Wallet)
 export const saveWallet = () => write(WKEY, wallet)
 /** Aepfel verdient: in den Vorrat und in die Summe aller je verdienten Aepfel (Silber-Trophaeen) */

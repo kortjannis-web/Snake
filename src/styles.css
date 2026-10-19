@@ -1556,6 +1556,14 @@ svg {
   font: 500 0.82rem/1.4 var(--sans);
 }
 
+/* Rekord in der Welt und ihre Belohnungen */
+.welt__lohn {
+  display: block;
+  margin-top: 6px;
+  color: var(--mint);
+  font: 600 0.74rem/1.4 var(--sans);
+}
+
 .welt .skin__preis span {
   display: inline-flex;
 }
