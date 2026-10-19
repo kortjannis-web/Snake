@@ -11,7 +11,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Wachsen:** bis Level 50 **alle 2 Äpfel** ein Glied mehr, bis Level 300 alle 4, danach alle 6 (halb so schnell wie früher; einstellbar: Master-Einstellungen → Schlange). Sonst wäre die Schlange auf Dauer länger als die Karte.
 - **Regelmäßig Neues:** Bis Level 300 kommt **alle 10 Level** etwas Neues oder etwas wird schwerer (Übersicht in der README und in der Zeitleiste der Master-Einstellungen).
 - **Tempo:** Grundtakt 154 ms pro Feld (es gibt nur noch Normal). Mit jedem Level etwas schneller, ab ca. Level 270 bleibt es bei 68 % des Grundtakts.
-- **Speedrun** (Startmenü, neben „Täglich“): 25 % schneller (123 ms), und **jeder Apfel hat ein Zeitlimit**: (1,4 × Abstand zum Apfel + 12) Schritte im aktuellen Takt. Begründung: mindestens so viele Schritte wie der Abstand, rund 40 % Umweg für Hindernisse und Kurven, 12 Schritte (ca. 1,5 s) zum Reagieren; wird die Schlange schneller, schrumpft die Zeit mit. Ein Balken unter der Leiste zeigt die Restzeit (unter 30 % rot). Abgelaufen: Spielende („Zeit für den Apfel abgelaufen“). Ab Level 50 (orange Äpfel) zählt im Speedrun **jeder Apfel doppelt** (orange ×4, gelb ×6 …), solche Äpfel blitzen. Speedrun-Rekorde stehen in der Bestenliste markiert.
+- **Speedrun** (Startmenü, neben „Täglich“): 25 % schneller (123 ms), und **jeder Apfel hat ein Zeitlimit**: (1,4 × Abstand zum Apfel + 12) Schritte im aktuellen Takt. Begründung: mindestens so viele Schritte wie der Abstand, rund 40 % Umweg für Hindernisse und Kurven, 12 Schritte (ca. 1,5 s) zum Reagieren; wird die Schlange schneller, schrumpft die Zeit mit. Ein Balken unter der Leiste zeigt die Restzeit (unter 30 % rot). Abgelaufen: Spielende („Zeit für den Apfel abgelaufen“). Ab Level 50 (orange Äpfel) zählt im Speedrun **jeder Apfel doppelt** (orange ×4, gelb ×6 …), solche Äpfel blitzen. Speedrun-Rekorde zählen wie normale Rekorde in der Hall of Snakes.
 
 ## 2. Steuerung
 
@@ -288,7 +288,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Ein **Motto** bestimmt, was drauf ist: Lava-Labyrinth, Schlangennest, Dichter Wald, Seenplatte, Giftsumpf, Wachtürme, Fallenparcours, Ameisenhügel, Eiszeit, Bauernhof oder Chaos, dazu ein, zwei Überraschungen. **Alles bleibt liegen** (auch Fallen), nichts Neues kommt dazu.
 - Die Schlange startet mit **zufälliger Länge (3 bis 14)** und muss **3 bis 20 Äpfel** holen. Oben steht „x / Ziel“. Der **letzte Apfel leuchtet pink** und bringt **10 Äpfel**, aber nur **einmal am Tag**. Alle geholt: „Tageslevel geschafft!“.
 - **Schwierigkeitsrechner:** Jede Gefahr hat ein Gewicht (Mauer 1, Teich 1, Giftapfel 1,2, Frosch 1,2, Baum 1,5, Eis 1,5, Haus 2, Falle 2, Ameise 2,5, Turm 3, Wolke 3, Gegner 4, Lava 4, lila Gegner 6). Wert = Gefahr je Block × 8 + (Länge − 3) × 0,6 + (Äpfel − 3) × 1,1. Der Generator stellt nach, bis der Wert im Band des Wochentags liegt: **Montag 22 bis 38, jeden Tag 6 mehr, Sonntag 58 bis 74**.
-- Beliebig oft spielbar. **Bestenliste des Tages:** wer alle Äpfel holt, steht nach Zeit vorn, dahinter nach geholten Äpfeln. Tageslevel zählen nicht für Rekord und Tagesrekord.
+- Beliebig oft spielbar. **Tab „Täglich“ in der Hall of Snakes:** wer alle Äpfel holt, steht nach Zeit vorn, dahinter nach geholten Äpfeln. Tageslevel zählen nicht für Rekord und Tagesrekord.
 
 ## 16-1. Tagesrekord und Erfolge
 
@@ -324,7 +324,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ## 16c. Hall of Snakes, Freundschaftsanfragen, Chat (seit 1.20.0)
 
-- **Hall of Snakes** (Startmenü, neben Bestenliste): alle Spieler mit Schlange, Name, Trophäen und Rekord, sortiert nach Rekord, dann Trophäen. Suche nach Namen, 100 Zeilen auf einmal („Mehr zeigen“).
+- **Hall of Snakes** (Startmenü, ein Knopf; ersetzt die frühere Bestenliste): oben der eigene Name, darunter drei Tabs. **Alle** (Standard): alle Spieler mit Platz, Schlange, Name und Wert. **Freunde**: nur deine Freunde und du. **Täglich**: das heutige Tageslevel nach Zeit. Bei Alle und Freunde sortierbar nach **Rekord** (Standard), **Gold** (Trophäen aus Mehrspieler-Siegen) oder **Silber** (alle je verdienten Äpfel). Suche nach Namen, 100 Zeilen auf einmal („Mehr zeigen“). Silber wird mit dem Profil hochgeladen (Spalte `profile.silber`, Migration `20261020000200_silber.sql`); ohne die Spalte zeigt die Liste 0.
 - **Freundschaftsanfrage:** In der Hall of Snakes beim Spieler auf das Personen-Plus tippen. Uhr = Anfrage gesendet (Tipp zieht sie zurück), Haken = er hat dich gefragt (Tipp nimmt an). Fragen sich beide, seid ihr sofort Freunde. Höchstens 30 Anfragen am Tag. Der Freundes-Code funktioniert weiter.
 - **Online-Seite:** eingehende Anfragen mit Annehmen, Ablehnen (X) und Sperren, eigene mit Zurückziehen. Unten aufklappbar „Gesperrte Spieler“ mit Entsperren. Der Knopf „Online“ im Startmenü zeigt offene Anfragen und ungelesene Nachrichten als Zahl.
 - **Chat nur unter Freunden:** Sprechblase bei einem Freund (Online-Seite oder Hall of Snakes). Nachrichten bis 500 Zeichen, live, mit Datum und Uhrzeit. Höchstens 30 Nachrichten pro Minute. **Nachrichten werden nach 30 Tagen gelöscht.** Neue Nachrichten erscheinen als Hinweis (nicht während einer Runde) und als Zahl am Freund.

@@ -28,7 +28,7 @@ import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
@@ -419,7 +419,7 @@ $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
     info.textContent = online ? `Gespeichert: Du spielst als ${profil.name}.` : `Name gespeichert. Er wird online eingetragen, sobald du Verbindung hast.`
     knopf.textContent = 'Ändern'
     input.blur()
-    void ladeListeAnzeige()
+    void ladeHallAnzeige()
   } catch (err) {
     info.textContent = err instanceof NamenFehler ? err.message : 'Der Name braucht 2 bis 16 Zeichen.'
   } finally {
@@ -441,14 +441,24 @@ async function anfragenLaden() {
   anfragen = await meineAnfragen()
 }
 
+/** Hall of Snakes (zugleich die Bestenliste): Alle, Freunde oder das heutige Tageslevel; sortiert nach Rekord, Gold oder Silber */
+let hallTab: 'alle' | 'freunde' | 'tages' = 'alle'
+let hallSort: 'rekord' | 'gold' | 'silber' = 'rekord'
+let tagesZeilen: Awaited<ReturnType<typeof ladeListe>>['zeilen'] = []
+
 async function ladeHallAnzeige() {
   const nr = ++hallNr
+  // Name-Feld (aus der frueheren Bestenliste) aktuell halten
+  $<HTMLInputElement>('liste-name').value = profil.name
+  $('liste-name-info').textContent = profil.name ? 'So sehen dich die anderen. Du kannst ihn jederzeit ändern.' : 'Ohne Namen zählen deine Ergebnisse nicht. Er wird einmal pro Handy gespeichert.'
+  $('liste-speichern').textContent = profil.name ? 'Ändern' : 'Speichern'
   if (!hallZeilen.length) $('hall-info').textContent = 'Lade …'
   try {
-    const [{ zeilen, ich }] = await Promise.all([ladeHall(), anfragenLaden(), freundeLaden()])
+    const [{ zeilen, ich }, , , tages] = await Promise.all([ladeHall(), anfragenLaden(), freundeLaden(), hallTab === 'tages' ? ladeListe('tages') : Promise.resolve(null)])
     if (nr !== hallNr) return
     hallZeilen = zeilen
     hallIch = ich
+    if (tages) tagesZeilen = tages.zeilen
     hallZeichnen()
   } catch {
     if (nr !== hallNr) return
@@ -458,19 +468,30 @@ async function ladeHallAnzeige() {
 }
 
 function hallZeichnen() {
+  for (const b of $('hall-tabs').querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === hallTab))
+  for (const b of $('hall-sort').querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === hallSort))
+  $('hall-sort').hidden = hallTab === 'tages'
+  $('hall-wert').textContent = hallTab === 'tages' ? 'Zeit' : hallSort === 'rekord' ? 'Rekord' : hallSort === 'gold' ? 'Gold' : 'Silber'
+  if (hallTab === 'tages') return tagesZeichnen()
   const box = $('hall-zeilen')
   const such = $<HTMLInputElement>('hall-suche').value.trim().toLowerCase()
-  const treffer = such ? hallZeilen.filter((z) => z.name.toLowerCase().includes(such)) : hallZeilen
+  const wert = (z: HallZeile) => (hallSort === 'rekord' ? z.rekord : hallSort === 'gold' ? z.trophaeen : (z.silber ?? 0))
+  const treffer = hallZeilen
+    .filter((z) => (!such || z.name.toLowerCase().includes(such)) && (hallTab === 'alle' || freundeUids.has(z.user_id) || z.user_id === hallIch))
+    .sort((a, b) => wert(b) - wert(a) || b.rekord - a.rekord || a.name.localeCompare(b.name))
   box.replaceChildren()
   if (!treffer.length) {
     const leer = document.createElement('p')
     leer.className = 'liste__leer'
-    leer.textContent = such ? 'Niemand mit diesem Namen.' : 'Noch keine Spieler.'
+    leer.textContent = such ? 'Niemand mit diesem Namen.' : hallTab === 'freunde' ? 'Noch keine Freunde. Schick jemandem unter „Alle“ eine Anfrage.' : 'Noch keine Spieler.'
     box.append(leer)
   }
-  for (const z of treffer.slice(0, hallZahl)) {
+  treffer.slice(0, hallZahl).forEach((z, i) => {
     const el = document.createElement('div')
     el.className = z.user_id === hallIch ? 'liste__zeile hall-zeile liste__zeile--ich' : 'liste__zeile hall-zeile'
+    const platz = document.createElement('span')
+    platz.className = 'liste__platz'
+    platz.textContent = String(i + 1)
     const cv = document.createElement('canvas')
     cv.className = 'liste__skin'
     cv.width = 96
@@ -478,24 +499,73 @@ function hallZeichnen() {
     const name = document.createElement('span')
     name.className = 'liste__name'
     name.textContent = z.name
-    const troph = document.createElement('span')
-    troph.className = 'hall-troph'
-    troph.textContent = String(z.trophaeen)
-    troph.setAttribute('aria-label', `${z.trophaeen} Trophäen`)
-    setIcon(troph, 'Trophy')
-    const rekord = document.createElement('b')
-    rekord.className = 'liste__level'
-    rekord.textContent = z.rekord > 0 ? String(z.rekord) : '–'
-    rekord.setAttribute('aria-label', z.rekord > 0 ? `Rekord Level ${z.rekord}` : 'Noch kein Rekord')
-    el.append(cv, name, troph, rekord, hallAktion(z))
+    const w = wert(z)
+    const zahl = document.createElement('b')
+    zahl.className = `liste__level hall-wert hall-wert--${hallSort}`
+    zahl.textContent = w > 0 ? kurzZahl(w) : '–'
+    zahl.setAttribute('aria-label', hallSort === 'rekord' ? (w > 0 ? `Rekord Level ${w}` : 'Noch kein Rekord') : `${w} ${hallSort === 'gold' ? 'Gold' : 'Silber'}-Trophäen`)
+    el.append(platz, cv, name, zahl, hallAktion(z))
     box.append(el)
     drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
-  }
+  })
   $('hall-mehr').hidden = treffer.length <= hallZahl
   $('hall-info').textContent =
-    `${hallZeilen.length} Snakes, sortiert nach Rekord, dann Trophäen. „–“ heißt: noch nicht gespielt.` +
-    (profil.name ? '' : ' Für Freundschaftsanfragen brauchst du einen Namen (unter Bestenliste).')
+    `${treffer.length} Snakes. Gold: Trophäen aus Mehrspieler-Siegen. Silber: alle je verdienten Äpfel. „–“ heißt: noch nichts.` +
+    (profil.name ? '' : ' Für Freundschaftsanfragen brauchst du oben einen Namen.')
 }
+
+/** Tab „Täglich“: wer alle Aepfel holt, steht nach Zeit vorn, dahinter nach geholten Aepfeln */
+function tagesZeichnen() {
+  const box = $('hall-zeilen')
+  box.replaceChildren()
+  const tl = heutigesLevel()
+  if (!tagesZeilen.length) {
+    const leer = document.createElement('p')
+    leer.className = 'liste__leer'
+    leer.textContent = 'Heute hat noch niemand das Tageslevel gespielt.'
+    box.append(leer)
+  }
+  tagesZeilen.forEach((z, i) => {
+    const el = document.createElement('div')
+    el.className = z.user_id === hallIch ? 'liste__zeile hall-zeile liste__zeile--ich' : 'liste__zeile hall-zeile'
+    const platz = document.createElement('span')
+    platz.className = 'liste__platz'
+    platz.textContent = String(i + 1)
+    const cv = document.createElement('canvas')
+    cv.className = 'liste__skin'
+    cv.width = 96
+    cv.height = 64
+    const name = document.createElement('span')
+    name.className = 'liste__name'
+    name.textContent = z.name
+    const zahl = document.createElement('b')
+    zahl.className = 'liste__level'
+    const s = Math.round((z.dauer_ms ?? 0) / 1000)
+    zahl.textContent = z.level >= tl.ziel && z.dauer_ms ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${z.level}/${tl.ziel}`
+    el.append(platz, cv, name, zahl, document.createElement('span'))
+    box.append(el)
+    drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
+  })
+  $('hall-mehr').hidden = true
+  $('hall-info').textContent = `Heute: ${tl.motto}, ${tl.ziel} Äpfel (Startmenü → Täglich).`
+}
+
+$('hall-tabs').querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+  b.addEventListener('click', () => {
+    audio.click()
+    hallTab = b.dataset.v as typeof hallTab
+    hallZahl = HALL_SEITE
+    if (hallTab === 'tages') void ladeHallAnzeige()
+    else hallZeichnen()
+  }),
+)
+$('hall-sort').querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+  b.addEventListener('click', () => {
+    audio.click()
+    hallSort = b.dataset.v as typeof hallSort
+    hallZeichnen()
+  }),
+)
 
 /** Knopf am Ende der Zeile: Anfrage schicken, zurueckziehen, annehmen oder (Freund) chatten */
 function hallAktion(z: HallZeile): HTMLElement {
@@ -611,6 +681,7 @@ function gameOver() {
     if (neu) stats.best = g.maxLevel
     erfolgeMelden()
     saveStats()
+    setzeSilber(wallet.verdient ?? 0)
     // Tageslevel: gemeldet werden die geholten Aepfel (alle = geschafft) und die Zeit
     if (zaehltOnline() && g.gegessen > 0 && (istTages || g.maxLevel >= 2))
       melde({ level: istTages ? Math.min(g.gegessen, tagesZiel) : g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istSpeedrun ? 'schnell' : 'normal', tages: istTages })
@@ -633,7 +704,7 @@ function gameOver() {
     geld.querySelector('b')!.textContent = `+${g.verdient} ${g.verdient === 1 ? 'Apfel' : 'Äpfel'}`
     const on = $('over-online')
     on.hidden = !(onlineAktiv && zaehltOnline() && g.gegessen > 0)
-    on.textContent = profil.name ? `In der Bestenliste als ${profil.name}` : 'Noch ohne Namen: Trag dich unter „Bestenliste“ ein, dann zählt dieses Ergebnis.'
+    on.textContent = profil.name ? `In der Hall of Snakes als ${profil.name}` : 'Noch ohne Namen: Trag dich in der Hall of Snakes ein, dann zählt dieses Ergebnis.'
     show('over', true)
     drawMini($<HTMLCanvasElement>('over-icon'), MINI_FOR_CAUSE[g.cause ?? 'rand'])
     if (neu) audio.record()
@@ -2782,6 +2853,7 @@ if (!gesperrt) {
     void pushAuffrischen()
   }
   setzeSkin(wallet.skin)
+  setzeSilber(wallet.verdient ?? 0)
   requestAnimationFrame(frame)
 }
 

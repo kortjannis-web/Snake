@@ -15,7 +15,7 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 
 ## Online-Bestenliste und Updates
 
-Mit Supabase (kostenlos) gibt es eine Bestenliste „Heute / Für immer“ mit Namen und Live-Aktualisierung.
+Mit Supabase (kostenlos) gibt es die Hall of Snakes: alle Spieler nach Rekord, Gold oder Silber sortiert, dazu Freunde und das Tageslevel.
 Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). Ohne Einrichtung läuft das
 Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge von selbst, die Android-App
 weist auf dem Startbildschirm auf eine neuere APK hin.
@@ -29,8 +29,8 @@ fügt man per Code hinzu; nur Freunde sehen sich online und können sich einlade
 Ein Handy rechnet, ein kleiner Cloudflare-Server (`server/`) verteilt und übernimmt, wenn es ausfällt. Einrichtung:
 [`docs/MEHRSPIELER-EINRICHTEN.md`](docs/MEHRSPIELER-EINRICHTEN.md). Hintergrund: [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
 
-Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dieselbe Welt, eigene Bestenliste), der **Speedrun** (25 % schneller, Zeitlimit je Apfel), **Effekte** (Auren, freigeschaltet mit Silber- und Gold-Trophäen) und die
-**Hall of Snakes** (alle Spieler mit Schlange, Trophäen und Rekord) mit Freundschaftsanfragen und einem **Chat unter
+Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dasselbe Level, eigener Tab in der Hall of Snakes), der **Speedrun** (25 % schneller, Zeitlimit je Apfel), **Effekte** (Auren, freigeschaltet mit Silber- und Gold-Trophäen) und die
+**Hall of Snakes** (alle Spieler mit Schlange, Rekord, Gold und Silber; zugleich die Bestenliste) mit Freundschaftsanfragen und einem **Chat unter
 Freunden** (Nachrichten 30 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md) 16c.
 
 ## Spielregeln

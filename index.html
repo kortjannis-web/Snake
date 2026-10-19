@@ -101,8 +101,7 @@
               <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Täglich</button>
               <button class="btn btn--ghost" id="btn-speedrun"><span data-icon="Zap"></span>Speedrun</button>
             </div>
-            <div class="home__paar" id="home-online" hidden>
-              <button class="btn btn--ghost" id="btn-liste" data-go="liste"><span data-icon="Trophy"></span>Bestenliste</button>
+            <div class="home__paar home__paar--eins" id="home-online" hidden>
               <button class="btn btn--ghost" id="btn-hall" data-go="hall"><span data-icon="Crown"></span>Hall of Snakes</button>
             </div>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
@@ -184,13 +183,6 @@
               <button data-v="koop" role="radio">Koop</button>
               <button data-v="tages" role="radio">Täglich</button>
             </div>
-            <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
-              <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
-              <div class="liste-name__row">
-                <input type="text" id="liste-name" maxlength="16" minlength="2" placeholder="2 bis 16 Zeichen" autocomplete="nickname" autocapitalize="words" spellcheck="false" />
-                <button class="btn btn--play btn--klein" type="submit" id="liste-speichern">Speichern</button>
-              </div>
-            </form>
             <div class="liste" id="liste-zeilen" aria-live="polite"></div>
             <p class="fine" id="liste-info"></p>
           </div>
@@ -514,8 +506,25 @@
             <h2>Hall of Snakes</h2>
           </header>
           <div class="page__body">
+            <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
+              <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
+              <div class="liste-name__row">
+                <input type="text" id="liste-name" maxlength="16" minlength="2" placeholder="2 bis 16 Zeichen" autocomplete="nickname" autocapitalize="words" spellcheck="false" />
+                <button class="btn btn--play btn--klein" type="submit" id="liste-speichern">Speichern</button>
+              </div>
+            </form>
+            <div class="seg seg--3" id="hall-tabs" role="radiogroup">
+              <button data-v="alle" role="radio">Alle</button>
+              <button data-v="freunde" role="radio">Freunde</button>
+              <button data-v="tages" role="radio">Täglich</button>
+            </div>
+            <div class="seg seg--3 seg--klein" id="hall-sort" role="radiogroup" aria-label="Sortieren nach">
+              <button data-v="rekord" role="radio">Rekord</button>
+              <button data-v="gold" role="radio">Gold</button>
+              <button data-v="silber" role="radio">Silber</button>
+            </div>
             <input class="name-feld hall-suche" type="search" id="hall-suche" placeholder="Spieler suchen" aria-label="Spieler suchen" autocomplete="off" spellcheck="false" />
-            <div class="hall-kopf" aria-hidden="true"><span>Spieler</span><span class="hall-troph" data-icon="Trophy"></span><span>Rekord</span></div>
+            <div class="hall-kopf" aria-hidden="true"><span>Spieler</span><span id="hall-wert">Rekord</span></div>
             <div class="liste" id="hall-zeilen" aria-live="polite"></div>
             <button class="btn btn--ghost" id="hall-mehr" hidden>Mehr zeigen</button>
             <p class="fine" id="hall-info"></p>

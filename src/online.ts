@@ -36,7 +36,7 @@ function schreib(k: string, v: unknown) {
 }
 
 /** `offen`: der Name steht noch nicht in der Datenbank (z. B. beim ersten Start ohne Netz) */
-export const profil: { name: string; offen?: boolean; skin?: string } = { name: '', ...lies<{ name?: string; offen?: boolean; skin?: string }>(PKEY, {}) }
+export const profil: { name: string; offen?: boolean; skin?: string; silber?: number } = { name: '', ...lies<{ name?: string; offen?: boolean; skin?: string; silber?: number }>(PKEY, {}) }
 const warteschlange: Ergebnis[] = lies<Ergebnis[]>(QKEY, [])
 
 /** Wie in der Datenbank (name_pruefen): ohne Schimpfwoerter, auch mit Ziffern statt Buchstaben */
@@ -77,12 +77,27 @@ const spalteFehlt = (e: { code?: string } | null) => !!e && (e.code === '42703' 
 async function syncProfil() {
   const id = await nutzerId()
   const sb = await client()
-  const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}) }
+  const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}), ...(profil.silber ? { silber: Math.floor(profil.silber) } : {}) }
   let { error } = await sb.from('profile').upsert(daten)
+  // Spalte fehlt (SQL-Datei noch nicht ausgefuehrt): erst ohne Silber, dann nur mit Namen
+  if (spalteFehlt(error) && 'silber' in daten) {
+    const { silber: _s, ...ohne } = daten
+    ;({ error } = await sb.from('profile').upsert(ohne))
+  }
   if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
   if (error) throw namensFehler(error) ?? error
   profil.offen = false
-  schreib(PKEY, { name: profil.name, skin: profil.skin })
+  schreib(PKEY, { name: profil.name, skin: profil.skin, silber: profil.silber })
+}
+
+/** Silber-Trophaeen (alle je verdienten Aepfel) ins Profil, damit die Hall danach sortieren kann */
+export function setzeSilber(n: number) {
+  if ((profil.silber ?? 0) === n) return
+  profil.silber = n
+  if (!onlineAktiv || !profil.name) return schreib(PKEY, { name: profil.name, skin: profil.skin, silber: n })
+  profil.offen = true
+  schreib(PKEY, { name: profil.name, offen: true, skin: profil.skin, silber: n })
+  void sende()
 }
 
 /** Skin geaendert: im Profil nachtragen, damit die anderen ihn in der Spielerliste sehen */
@@ -272,7 +287,7 @@ export async function meineFreunde(): Promise<Freund[]> {
 
 /* ================= Hall of Snakes, Freundschaftsanfragen, Sperren, Chat ================= */
 
-export type HallZeile = { user_id: string; name: string; skin: string; rekord: number; trophaeen: number }
+export type HallZeile = { user_id: string; name: string; skin: string; rekord: number; trophaeen: number; silber?: number }
 export type Anfrage = { richtung: 'ein' | 'aus'; user_id: string; name: string; skin: string }
 export type Gesperrt = { user_id: string; name: string }
 export type Nachricht = { id: number; von: string; an: string; text: string; gelesen: boolean; created_at: string }
@@ -287,16 +302,12 @@ function fehlerText(e: { code?: string; message?: string } | null) {
 /** Alle Spieler mit Skin, Rekord und Trophaeen (bis zu 1000), dazu die eigene Nutzer-Id */
 export async function ladeHall(): Promise<{ zeilen: HallZeile[]; ich: string | null }> {
   const sb = await client()
-  const { data, error } = await sb
-    .from('hall_of_snakes')
-    .select('user_id,name,skin,rekord,trophaeen')
-    .order('rekord', { ascending: false })
-    .order('trophaeen', { ascending: false })
-    .order('name', { ascending: true })
-    .limit(1000)
+  const abfrage = (spalten: string) => sb.from('hall_of_snakes').select(spalten).order('rekord', { ascending: false }).order('trophaeen', { ascending: false }).order('name', { ascending: true }).limit(1000)
+  let { data, error } = await abfrage('user_id,name,skin,rekord,trophaeen,silber')
+  if (spalteFehlt(error)) ({ data, error } = await abfrage('user_id,name,skin,rekord,trophaeen'))
   if (error) throw error
   const { data: s } = await sb.auth.getSession()
-  return { zeilen: (data ?? []) as HallZeile[], ich: s.session?.user.id ?? null }
+  return { zeilen: (data ?? []) as unknown as HallZeile[], ich: s.session?.user.id ?? null }
 }
 
 /** Admin: Spieler loeschen (Profil mit allem Drumherum). Das Passwort prueft die Datenbank */
