@@ -53,8 +53,8 @@ export type AnServer =
   | { t: 'dir'; d: Dir; bei?: P; k?: number }
   /** Reaktion (Index in REAKTIONEN) */
   | { t: 'emoji'; e: number }
-  /** Rechner: geaenderte Felder des Stands, Ereignisse; `voll` = ganzer Stand */
-  | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean }
+  /** Rechner: geaenderte Felder des Stands, Ereignisse; `voll` = ganzer Stand; `s` = Sendezeit des Rechners (ms, fuer den Jitter-Puffer) */
+  | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean; s?: number }
   | { t: 'ende'; ergebnis: Ergebnis }
   /** Rechner geht in den Hintergrund: bitte jemand anderes */
   | { t: 'abgabe' }
@@ -68,7 +68,7 @@ export type AnServer =
 export type VomServer =
   | ({ t: 'raum'; code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number } & Einstellungen)
   | { t: 'start'; info: StartInfo; jetzt: number }
-  | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean }
+  | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean; s?: number }
   /** Ganzer Stand fuer ein Geraet, das neu rechnet oder zurueckkommt */
   | { t: 'voll'; z: Zustand }
   | { t: 'rechner'; wer: number }

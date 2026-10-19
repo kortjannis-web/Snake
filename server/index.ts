@@ -92,7 +92,9 @@ export default {
     const m = url.pathname.match(/^\/raum\/([A-Za-z0-9]{4,8})$/)
     if (!m || !codeGueltig(m[1].toUpperCase())) return new Response('Nicht gefunden', { status: 404 })
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('Nur WebSocket', { status: 426 })
-    const stub = env.RAUM.get(env.RAUM.idFromName(m[1].toUpperCase()))
+    // Der Raum liegt dort, wo ihn der erste Spieler anfordert. Mit dem Hinweis "weur" (Westeuropa) landet er
+    // auch bei VPN, Roaming oder einem Umweg ueber ein fernes Rechenzentrum nahe bei uns. Gilt nur beim Anlegen.
+    const stub = env.RAUM.get(env.RAUM.idFromName(m[1].toUpperCase()), { locationHint: 'weur' })
     return stub.fetch(req)
   },
 }

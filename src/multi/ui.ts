@@ -9,7 +9,7 @@ import { meldeKoop, meldeSieg } from '../online'
 import { saveStats, saveWallet, stats, verdienen, wallet } from '../storage'
 import type { Cause, Dir, GameEvent } from '../game/types'
 import type { Renderer } from '../render/renderer'
-import { drawSkinVorschau, skinVon } from '../render/skins'
+import { drawSchlangeGerade, skinVon } from '../render/skins'
 import { setIcon } from '../ui/icons'
 import { WEB_URL } from '../update'
 import { MehrClient, type ClientEreignis, type RaumInfo } from './client'
@@ -170,6 +170,7 @@ export function mehrspieler(api: MehrApi) {
         $('mehr-reaktion').hidden = true
         $('mehr-countdown').hidden = true
         $('mehr-meldung').hidden = true
+        $('mehr-lag').hidden = true
         $('mehr-ende').removeAttribute('data-open')
         $('mehr-start').hidden = false
         $('mehr-raum').hidden = true
@@ -271,7 +272,7 @@ export function mehrspieler(api: MehrApi) {
       }
       el.append(cv, name, tag)
       box.append(el)
-      drawSkinVorschau(cv, skinVon(s.skin), 0)
+      drawSchlangeGerade(cv, skinVon(s.skin), 0)
     })
     for (const b of $('mehr-modus').querySelectorAll<HTMLButtonElement>('button')) {
       b.setAttribute('aria-checked', String(b.dataset.v === r.modus))
@@ -456,6 +457,19 @@ export function mehrspieler(api: MehrApi) {
   })
 
   /* ================= Im Spiel ================= */
+
+  /** Lag-Anzeige: mit ?lag=1 an (bleibt gemerkt), mit ?lag=0 aus */
+  let lagZeit = 0
+  const lagAn = (() => {
+    try {
+      const q = new URLSearchParams(location.search).get('lag')
+      if (q === '1') localStorage.setItem('snake.lag', '1')
+      else if (q === '0') localStorage.removeItem('snake.lag')
+      return localStorage.getItem('snake.lag') === '1'
+    } catch {
+      return false
+    }
+  })()
 
   function meldung(text: string, ms = 2500) {
     const el = $('mehr-meldung')
@@ -688,6 +702,12 @@ export function mehrspieler(api: MehrApi) {
       if (meine && ziel === mi) g.deathAt = meine.deathAt
       api.renderer.draw(g)
       anzeige()
+      if (lagAn && jetzt - lagZeit > 500) {
+        lagZeit = jetzt
+        const el = $('mehr-lag')
+        el.hidden = false
+        el.textContent = client.diagnose
+      }
       if (ziel !== mi && jetzt > meldungBis - 1500) meldung(`Du schaust ${client.start?.spieler[ziel]?.name ?? ''} zu · wischen wechselt`, 1600)
     },
     lenke(d: Dir) {
