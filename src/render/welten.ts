@@ -84,12 +84,13 @@ export const WELTEN: Welt[] = [
     id: 'wueste',
     name: 'Wüstenoase',
     ab: 80,
-    text: 'Sand, Palmen und Kakteen, Oasen und tiefe Seen. Kaktusfeigen statt Äpfeln, Wüstenspringmäuse, im Sand lauern Skorpione.',
+    text: 'Eine Sandinsel mitten im Meer: Palmen und Kakteen, Oasen und tiefe Seen, rundherum Wasser. Kaktusfeigen statt Äpfeln, Wüstenspringmäuse, im Sand lauern Skorpione.',
     hell: '#F0DCA8',
     dunkel: '#E6CE95',
     neu: '#F7E7BF',
-    kante: 'rgba(170, 120, 60, 0.6)',
-    erde: { nah: [176, 104, 62], mitte: [146, 82, 48], tief: [108, 58, 36], kruemelNah: 'rgba(230, 170, 110, 0.6)', kruemel: 'rgba(60, 25, 12, 0.3)', grund: '#5A3020' },
+    kante: 'rgba(190, 150, 84, 0.65)',
+    // Das "Erdreich" ist hier das Meer rund um die Insel: flach und hell am Strand, nach aussen tiefer
+    erde: { nah: [122, 208, 198], mitte: [78, 184, 204], tief: [40, 138, 178], kruemelNah: 'rgba(255, 255, 255, 0.3)', kruemel: 'rgba(255, 255, 255, 0.18)', grund: '#2A7DA6' },
     baeume: ['palme', 'palme', 'kaktus'],
     wasser: ['klar', 'klar', 'tief'],
     futter: 'kaktusfeige',
@@ -163,6 +164,10 @@ export const WELTEN: Welt[] = [
 ]
 /** Waelder mit dichten Baumkronen statt Erde (Zauberwald, Gruselwald) */
 export const waldWelt = (w: Welt) => w.id === 'gruselwald' || w.id === 'zauberwald'
+/** Die Wueste ist eine Insel: rund um die Karte ist Wasser statt Erde */
+export const inselWelt = (w: Welt) => w.id === 'wueste'
+/** Welten, in denen rund um die Karte keine Erde mit Steinen, Kohle und Gesteinsschichten ist */
+export const ohneErde = (w: Welt) => waldWelt(w) || inselWelt(w)
 export const weltVon = (id: string | undefined) => WELTEN.find((w) => w.id === id) ?? WELTEN[0]
 /** Freigeschaltet bei diesem besten Level? */
 export const weltFrei = (w: Welt, best: number) => best >= w.ab
@@ -182,6 +187,39 @@ export function drawErdFeldWelt(ctx: CanvasRenderingContext2D, w: Welt, x: numbe
   const v = (z - 0.5) * 10
   ctx.fillStyle = `rgb(${basis[0] + v},${basis[1] + v * 0.7},${basis[2] + v * 0.5})`
   ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
+  if (inselWelt(w)) {
+    // Meer: am Strand flaches, helles Wasser mit Sandbank, weiter draussen tiefer; Wellen und Glitzer
+    if (ring === 1) {
+      ctx.fillStyle = 'rgba(240, 222, 165, 0.3)'
+      ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
+    }
+    ctx.strokeStyle = `rgba(255, 255, 255, ${ring === 1 ? 0.5 : 0.28})`
+    ctx.lineWidth = Math.max(1, cell * 0.04)
+    ctx.lineCap = 'round'
+    for (let i = 0; i < (ring === 1 ? 2 : 3); i++) {
+      const a = (z * 977 + i * 331) % 1
+      const b = (z * 613 + i * 197) % 1
+      const bx = x + a * cell * 0.5
+      const by = y + (0.15 + b * 0.7) * cell
+      ctx.beginPath()
+      ctx.moveTo(bx, by)
+      ctx.quadraticCurveTo(bx + cell * 0.12, by - cell * 0.07, bx + cell * 0.25, by)
+      ctx.quadraticCurveTo(bx + cell * 0.37, by + cell * 0.07, bx + cell * 0.5, by)
+      ctx.stroke()
+    }
+    if (z > 0.86) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+      const sx = x + ((z * 53) % 1) * cell
+      const sy = y + ((z * 97) % 1) * cell
+      ctx.beginPath()
+      ctx.moveTo(sx, sy - cell * 0.05)
+      ctx.lineTo(sx + cell * 0.03, sy)
+      ctx.lineTo(sx, sy + cell * 0.05)
+      ctx.lineTo(sx - cell * 0.03, sy)
+      ctx.fill()
+    }
+    return
+  }
   if (waldWelt(w)) {
     // Dichter Wald: Baumkronen, die ueber die Feldgrenzen ragen, mit Licht von oben links
     const art = w.id === 'zauberwald' ? 'zauber' : 'grusel'
@@ -315,13 +353,13 @@ export function drawWaldRand(ctx: CanvasRenderingContext2D, w: Welt, x: number, 
   for (const [dx, dy, k] of [[0, 1, 0], [0, -1, 1], [1, 0, 2], [-1, 0, 3]] as const) {
     if (!drin(x + dx, y + dy)) continue
     const h = (z * 7.13 + k * 0.37) % 1
-    if (h > 0.78) continue
-    // Mitte auf der Kante, ein gutes Stueck ins Feld geschoben
+    if (h > 0.62) continue
+    // Mitte auf der Kante, nur ein kleines Stueck ins Feld geschoben
     const t = 0.2 + ((z * 3.7 + k) % 1) * 0.6
-    const ein = 0.12 + h * 0.42
+    const ein = 0.09 + h * 0.3
     const cx = (x + 0.5 + dx * (0.5 + ein) + (dy ? t - 0.5 : 0)) * cell
     const cy = (y + 0.5 + dy * (0.5 + ein) + (dx ? t - 0.5 : 0)) * cell
-    waldKrone(ctx, cx, cy, cell * (0.38 + h * 0.3), (z * 40 + k * 5) % 22, art)
+    waldKrone(ctx, cx, cy, cell * (0.35 + h * 0.26), (z * 40 + k * 5) % 22, art)
   }
 }
 

@@ -9,7 +9,7 @@ import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
 import { drawFlaeche, flaechenAufraeumen, type WasserArt } from './flaechen'
-import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, waldWelt, WELTEN, type Licht, type Welt } from './welten'
+import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, waldWelt, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   apfelFarbe,
@@ -438,7 +438,7 @@ export class Renderer {
         const z = feldZufall(wx, wy)
         if (tunnel.has(x * 100_003 + y)) {
           // Gegrabener Gang (Maulwurf)
-          ctx.fillStyle = '#7A5434'
+          ctx.fillStyle = welt.id === 'wueste' ? '#C9AA6C' : '#7A5434'
           ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
           ctx.fillStyle = 'rgba(40, 24, 14, 0.4)'
           ctx.fillRect(x * cell + cell * z * 0.6, y * cell + cell * 0.3, cell * 0.12, cell * 0.08)
@@ -460,7 +460,7 @@ export class Renderer {
         // Erze glaenzen (bewegt), Stein, Kohle und Skelett liegen schon in der Kachel
         if (deko === 'gold' || deko === 'dia' || deko === 'rubin' || deko === 'opal') {
           if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now, false)
-        } else if (!kacheln && !waldWelt(welt)) drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
+        } else if (!kacheln && !ohneErde(welt)) drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
     // Lava im Stein: das einzige, was in der Erde pulsierend glueht. Der Schein reicht ein paar Felder
     // weit durch die Erde, auch von knapp ausserhalb des Bildes, damit man sieht, wo Lava steckt
@@ -957,7 +957,7 @@ export class Renderer {
         const wy = y - g.ursprung.y
         const z = feldZufall(wx, wy)
         drawErdFeldWelt(c, welt, x * cell, y * cell, cell, erdRing(drin, x, y), z)
-        if (g.lavaImStein(wx, wy) || waldWelt(welt)) continue
+        if (g.lavaImStein(wx, wy) || ohneErde(welt)) continue
         const deko = erdeBei(g.cfg, wx, wy)
         if (deko === 'stein' || deko === 'kohle' || deko === 'skelett') drawErdDeko(c, x * cell, y * cell, cell, deko, z, 0)
       }
