@@ -181,20 +181,11 @@ export function drawErdFeldWelt(ctx: CanvasRenderingContext2D, w: Welt, x: numbe
   ctx.fillStyle = `rgb(${basis[0] + v},${basis[1] + v * 0.7},${basis[2] + v * 0.5})`
   ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
   if (w.id === 'gruselwald') {
-    // Dichter Wald: dunkle Baumkronen ragen ueber die Feldgrenzen
-    for (let i = 0; i < 3; i++) {
+    // Dichter Wald: dunkle Baumkronen, die ueber die Feldgrenzen ragen, mit Licht von oben links
+    for (let i = 0; i < 4; i++) {
       const a = (z * 977 + i * 331) % 1
       const b = (z * 613 + i * 197) % 1
-      const r = cell * (0.38 + ((a + b) % 0.3))
-      const g = Math.round(28 + ((z * 50 + i * 13) % 22))
-      ctx.fillStyle = `rgb(${g - 12}, ${g + 8}, ${g - 4})`
-      ctx.beginPath()
-      ctx.arc(x + a * cell, y + b * cell, r, 0, TAU)
-      ctx.fill()
-      ctx.fillStyle = 'rgba(80, 110, 80, 0.18)'
-      ctx.beginPath()
-      ctx.arc(x + a * cell - r * 0.3, y + b * cell - r * 0.3, r * 0.45, 0, TAU)
-      ctx.fill()
+      waldKrone(ctx, x + a * cell, y + b * cell, cell * (0.36 + ((a + b) % 0.28)), (z * 50 + i * 13) % 22)
     }
     return
   }
@@ -218,6 +209,46 @@ export function drawErdFeldWelt(ctx: CanvasRenderingContext2D, w: Welt, x: numbe
     ctx.moveTo(x, y + cell * (0.72 - z * 0.08))
     ctx.lineTo(x + cell, y + cell * (0.7 - z * 0.08))
     ctx.stroke()
+  }
+}
+
+/** Eine dunkle Baumkrone von oben (Gruselwald): Grundkreis, drei Blattbueschel, Glanzlicht oben links */
+function waldKrone(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, v: number) {
+  const g = Math.round(26 + v)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
+  ctx.beginPath()
+  ctx.arc(x + r * 0.12, y + r * 0.18, r, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = `rgb(${g - 14}, ${g + 6}, ${g - 6})`
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = `rgb(${g - 6}, ${g + 18}, ${g + 2})`
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU + v
+    ctx.beginPath()
+    ctx.arc(x + Math.cos(a) * r * 0.38 - r * 0.12, y + Math.sin(a) * r * 0.38 - r * 0.12, r * 0.42, 0, TAU)
+    ctx.fill()
+  }
+  ctx.fillStyle = 'rgba(140, 170, 140, 0.16)'
+  ctx.beginPath()
+  ctx.arc(x - r * 0.35, y - r * 0.35, r * 0.3, 0, TAU)
+  ctx.fill()
+}
+
+/** Gruselwald: Baumkronen vom Waldrand ragen hier und da ein Stueck ins Spielfeld (nur Optik).
+ *  x, y = Erdfeld am Rand, drin = Kartenfelder */
+export function drawWaldRand(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, z: number, drin: (x: number, y: number) => boolean) {
+  for (const [dx, dy, k] of [[0, 1, 0], [0, -1, 1], [1, 0, 2], [-1, 0, 3]] as const) {
+    if (!drin(x + dx, y + dy)) continue
+    const h = (z * 7.13 + k * 0.37) % 1
+    if (h > 0.55) continue
+    // Mitte auf der Kante, leicht ins Feld geschoben
+    const t = 0.2 + ((z * 3.7 + k) % 1) * 0.6
+    const ein = 0.08 + h * 0.3
+    const cx = (x + 0.5 + dx * (0.5 + ein) + (dy ? t - 0.5 : 0)) * cell
+    const cy = (y + 0.5 + dy * (0.5 + ein) + (dx ? t - 0.5 : 0)) * cell
+    waldKrone(ctx, cx, cy, cell * (0.34 + h * 0.25), (z * 40 + k * 5) % 22)
   }
 }
 

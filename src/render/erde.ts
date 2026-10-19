@@ -46,7 +46,7 @@ export function drawGrosseErde(ctx: CanvasRenderingContext2D, w: Welt, info: Erd
         if (drin(x, y)) continue
         const wx = x - o.x
         const wy = y - o.y
-        if (h2(wx, wy, 1) > 0.11) continue
+        if (h2(wx, wy, 1) > 0.035) continue
         for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
           if (!drin(x - dx, y - dy)) continue
           if (!drin(x - dx, y - dy) || drin(x + dx, y + dy)) continue
@@ -148,7 +148,7 @@ function wurzel(ctx: CanvasRenderingContext2D, w: Welt, x: number, y: number, dx
     ast(ex, ey, a - 0.45 - h2(z, tiefe) * 0.3, l * 0.62, d * 0.62, tiefe + 1)
     ast(ex, ey, a + 0.4 + h2(tiefe, z) * 0.3, l * 0.55, d * 0.58, tiefe + 1)
   }
-  ast(sx, sy, Math.atan2(dy, dx) + (z - 0.5) * 0.5, 1.0 + z * 0.9, 0.085, 0)
+  ast(sx, sy, Math.atan2(dy, dx) + (z - 0.5) * 0.5, 0.7 + z * 0.6, 0.075, 0)
   ctx.restore()
 }
 

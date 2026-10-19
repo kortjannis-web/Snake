@@ -9,7 +9,7 @@ import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
 import { drawFlaeche, flaechenAufraeumen, type WasserArt } from './flaechen'
-import { drawAmeiseWelt, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, hausUeberzug, WELTEN, type Licht, type Welt } from './welten'
+import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, hausUeberzug, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   apfelFarbe,
@@ -924,6 +924,10 @@ export class Renderer {
         if (!drin(x - 1, y)) c.fillRect(x * cell, y * cell, kante, cell)
         if (!drin(x + 1, y)) c.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
       }
+    // Gruselwald: Kronen vom Waldrand ragen ein Stueck ins Feld
+    if (welt.id === 'gruselwald')
+      for (let y = ya; y <= yb; y++)
+        for (let x = xa; x <= xb; x++) if (!drin(x, y)) drawWaldRand(c, x, y, cell, feldZufall(x - g.ursprung.x, y - g.ursprung.y), drin)
     return cv
   }
 
