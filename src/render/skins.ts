@@ -405,7 +405,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
 
   const accs = skin.acc
   const hat = (id: string) => accs.some((a) => a.id === id)
-  const proben = art || (fs.length > 1 && skin.teilung === 'laengs') || accs.some((a) => a.platz === 'schwanz') ? abtasten(pts, cell, w, cell * 0.09) : null
+  const proben = art || (fs.length > 1 && skin.teilung === 'laengs') || accs.some((a) => a.platz === 'schwanz') ? abtasten(pts, cell, w, 0.09) : null
   if (proben && hat('komet')) komet(ctx, proben, cell, now)
   if (proben && hat('rakete')) rakete(ctx, proben, cell, now)
 
@@ -416,6 +416,8 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   let ry = 0
   let rw = 0
   let rh = 0
+  /** Nur Abtastpunkte im Bild (lange Schlangen ragen weit hinaus) */
+  let pv = proben ?? []
   if (mitEbene) {
     const mt = ctx.getTransform()
     let x0 = Infinity
@@ -445,8 +447,13 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
     L.setTransform(mt.a, 0, 0, mt.d, mt.e - rx, mt.f - ry)
     L.lineCap = 'round'
     L.lineJoin = 'round'
+    const ux0 = (rx - mt.e) / mt.a - cell
+    const ux1 = (rx + rw - mt.e) / mt.a + cell
+    const uy0 = (ry - mt.f) / mt.d - cell
+    const uy1 = (ry + rh - mt.f) / mt.d + cell
+    pv = pv.filter((p) => p.x >= ux0 && p.x <= ux1 && p.y >= uy0 && p.y <= uy1)
   }
-  if (art === 'pixel' && proben) pixelKoerper(L, proben, cell, now, m!)
+  if (art === 'pixel' && proben) pixelKoerper(L, pv, cell, now, m!)
   else {
     for (let i = n - 2; i >= 0; i--) {
       const k = n > 2 ? i / (n - 2) : 0
@@ -464,8 +471,8 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   }
   if (mitEbene && proben) {
     L.globalCompositeOperation = 'source-atop'
-    if (!art) laengs(L, proben, fs)
-    else muster(L, proben, cell, m!, now, Math.abs(ctx.getTransform().a), holzEnde(pts, cell))
+    if (!art) laengs(L, pv, fs, w)
+    else muster(L, pv, cell, m!, now, Math.abs(ctx.getTransform().a), holzEnde(pts, cell))
     L.globalCompositeOperation = 'source-over'
   }
   // Lichtkante auf dem Ruecken
@@ -606,28 +613,28 @@ function augen(ctx: CanvasRenderingContext2D, cell: number, art: string, o: Schl
 }
 
 /** Laengs geteilt: Bauchseite in Farbe 2, bei drei Farben ein Rueckenstreifen in Farbe 3 */
-function laengs(L: CanvasRenderingContext2D, pr: Probe[], fs: Farbe[]) {
-  for (let i = pr.length - 2; i >= 0; i--) {
-    const p = pr[i]
-    const q = pr[i + 1]
-    L.strokeStyle = rgb(mix(fs[1].kopf, fs[1].schwanz, p.k))
-    L.lineWidth = p.w * 0.5
+function laengs(L: CanvasRenderingContext2D, pr: Probe[], fs: Farbe[], w: number) {
+  if (pr.length < 2) return
+  // Ein durchgehender Streifen je Farbe (ueberstehendes schneidet die Ebene ab); Verlauf vom Kopf zum Schwanz
+  const streifen = (f: Farbe, versatz: number, breite: number) => {
+    const a = pr[0]
+    const b = pr[pr.length - 1]
+    const g = L.createLinearGradient(a.x, a.y, b.x, b.y)
+    g.addColorStop(0, rgb(mix(f.kopf, f.schwanz, a.k)))
+    g.addColorStop(1, rgb(mix(f.kopf, f.schwanz, b.k)))
+    L.strokeStyle = g
+    L.lineWidth = w * breite
     L.beginPath()
-    L.moveTo(p.x + p.nx * p.w * 0.3, p.y + p.ny * p.w * 0.3)
-    L.lineTo(q.x + q.nx * q.w * 0.3, q.y + q.ny * q.w * 0.3)
+    pr.forEach((p, i) => {
+      const x = p.x + p.nx * p.w * versatz
+      const y = p.y + p.ny * p.w * versatz
+      if (i) L.lineTo(x, y)
+      else L.moveTo(x, y)
+    })
     L.stroke()
   }
-  if (!fs[2]) return
-  for (let i = pr.length - 2; i >= 0; i--) {
-    const p = pr[i]
-    const q = pr[i + 1]
-    L.strokeStyle = rgb(mix(fs[2].kopf, fs[2].schwanz, p.k))
-    L.lineWidth = p.w * 0.2
-    L.beginPath()
-    L.moveTo(p.x - p.nx * p.w * 0.1, p.y - p.ny * p.w * 0.1)
-    L.lineTo(q.x - q.nx * q.w * 0.1, q.y - q.ny * q.w * 0.1)
-    L.stroke()
-  }
+  streifen(fs[1], 0.32, 0.5)
+  if (fs[2]) streifen(fs[2], -0.1, 0.2)
 }
 
 /** Ende des Schwanzes (fuer den Holz-Skin: Schnittflaeche mit Jahresringen) */
