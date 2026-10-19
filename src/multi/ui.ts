@@ -6,7 +6,7 @@ import { Capacitor } from '@capacitor/core'
 import { erfolgePruefen, zaehle } from '../erfolge'
 import { abstandGrenze, JAGD_MS, type Modus, type SpielerInfo } from '../game/mehr'
 import { meldeKoop, meldeSieg } from '../online'
-import { saveStats, saveWallet, stats, wallet } from '../storage'
+import { saveStats, saveWallet, stats, verdienen, wallet } from '../storage'
 import type { Cause, Dir, GameEvent } from '../game/types'
 import type { Renderer } from '../render/renderer'
 import { drawSkinVorschau, skinVon } from '../render/skins'
@@ -551,7 +551,7 @@ export function mehrspieler(api: MehrApi) {
       const level = client.game?.level ?? 1
       plus = belohnung(start.modus, sieg, start.spieler.length, level)
       tro = trophaeen(sieg, start.spieler.length)
-      wallet.aepfel += plus
+      verdienen(plus)
       wallet.trophaeen = (wallet.trophaeen ?? 0) + tro
       saveWallet()
       api.geldGeaendert()

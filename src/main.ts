@@ -29,7 +29,7 @@ import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet, type LookWahl } from './storage'
+import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
 import { drawWeltVorschau, WELTEN, weltFrei, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
@@ -53,6 +53,16 @@ const canvas = $<HTMLCanvasElement>('board')
 const renderer = new Renderer(canvas)
 renderer.reduce = reduce
 renderer.skin = skinVon(wallet.skin)
+// Silber-Trophaeen = alle je verdienten Aepfel. Aeltere Spielstaende: Vorrat plus alles, was schon gekauft wurde
+if (wallet.verdient === undefined) {
+  wallet.verdient = wallet.aepfel + wallet.skins.reduce((s, id) => s + preisVon(id), 0)
+  saveWallet()
+}
+/** Grosse Zahlen kurz: 9.480, 12,5k, 125k, 1,3 Mio. */
+const kurzZahl = (n: number) => {
+  const k = (v: number) => v.toFixed(v < 100 ? 1 : 0).replace(/\.0$/, '').replace('.', ',')
+  return n < 10_000 ? n.toLocaleString('de-DE') : n < 1_000_000 ? `${k(n / 1000)}k` : `${k(n / 1_000_000)} Mio.`
+}
 /** Gewaehlte Welt, wenn sie (noch) freigeschaltet ist, sonst die Wiese */
 const aktiveWelt = (): Welt => {
   const w = weltVon(wallet.welt)
@@ -710,7 +720,7 @@ function handle(e: GameEvent) {
     case 'geld':
       // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt
       if (!istKreativ) {
-        wallet.aepfel += e.wert
+        verdienen(e.wert)
         saveWallet()
       }
       updateGeld(true)
@@ -856,6 +866,7 @@ function updateGeld(pop = false) {
   }
   $('home-geld').textContent = String(wallet.aepfel)
   $('home-trophaeen').textContent = String(wallet.trophaeen ?? 0)
+  $('home-silber').textContent = kurzZahl(wallet.verdient ?? 0)
   $('shop-geld').textContent = String(wallet.aepfel)
   $('shopteil-geld').textContent = String(wallet.aepfel)
 }
@@ -1464,6 +1475,7 @@ function renderStats() {
     ['Heute', heuteBest() ? String(heuteBest()) : '–'],
     ['Spiele', String(stats.games)],
     ['Äpfel gesamt', String(stats.apples)],
+    ['Silber-Trophäen', (wallet.verdient ?? 0).toLocaleString('de-DE')],
     ['Längste Schlange', stats.longest ? String(stats.longest) : '–'],
     ['Größte Karte', stats.maxGebiete ? `+${stats.maxGebiete} Gebiete` : '–'],
     ['Gegner eingekesselt', String(stats.gegner)],

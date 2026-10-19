@@ -2910,3 +2910,33 @@ html[data-install] #app {
   font: 700 0.66rem/18px var(--sans);
   font-style: normal;
 }
+
+/* Silber-Trophaeen (alle bisher verdienten Aepfel) in derselben Pille wie die goldenen */
+.geld-pille--trophaee .silber {
+  margin-left: 6px;
+  color: #cfd8e2;
+}
+
+/* Schmale Handys: drei Pillen (Aepfel, Gold, Silber) plus zwei Knoepfe muessen in eine Zeile passen */
+@media (max-width: 420px) {
+  .home__pillen {
+    gap: 4px;
+  }
+  .home__pillen .geld-pille {
+    gap: 5px;
+    padding: 0 8px 0 7px;
+    font-size: 0.88rem;
+  }
+  .home__top {
+    gap: 4px;
+  }
+  .home__top > .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .home__pillen .geld-pille [data-icon] svg,
+  .home__pillen .geld-pille .apfel-ico {
+    width: 16px;
+    height: 16px;
+  }
+}

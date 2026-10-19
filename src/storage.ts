@@ -154,9 +154,14 @@ export type LookWahl = {
 }
 /** Aepfel (Waehrung), gekaufte Sachen (skins: Ids aller Kategorien), das Aussehen als Text (skin, so geht es auch
  *  online weiter), die Wahl im Einzelnen (look), die Welt und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg) */
-export type Wallet = { aepfel: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number }
+export type Wallet = { aepfel: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number; verdient?: number }
 export const wallet: Wallet = read(WKEY, { aepfel: 0, skins: ['klassik'], skin: 'klassik', trophaeen: 0 } as Wallet)
 export const saveWallet = () => write(WKEY, wallet)
+/** Aepfel verdient: in den Vorrat und in die Summe aller je verdienten Aepfel (Silber-Trophaeen) */
+export function verdienen(n: number) {
+  wallet.aepfel += n
+  wallet.verdient = (wallet.verdient ?? wallet.aepfel - n) + n
+}
 // Muenzen aus aelteren Fassungen werden zu Aepfeln
 {
   const alt = wallet as Wallet & { muenzen?: number }
