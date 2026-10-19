@@ -243,7 +243,7 @@ export class MehrClient {
     switch (m.t) {
       case 'raum': {
         const vorher = this.raum?.phase
-        this.raum = { code: m.code, gastgeber: m.gastgeber, phase: m.phase, modus: m.modus, spieler: m.spieler, ich: m.ich, tempo: m.tempo, klassisch: m.klassisch }
+        this.raum = { code: m.code, gastgeber: m.gastgeber, phase: m.phase, modus: m.modus, spieler: m.spieler, ich: m.ich, tempo: m.tempo, klassisch: m.klassisch, leben: m.leben ?? 1 }
         if (m.phase === 'lobby' && vorher && vorher !== 'lobby') {
           this.start = null
           this.game = null
@@ -332,7 +332,7 @@ export class MehrClient {
     this.rechner = info.modus === 'rennen' ? -1 : info.rechner
     const ich = Math.max(0, this.ich)
     const spieler: SpielerInfo[] = info.modus === 'rennen' ? [info.spieler[ich]] : info.spieler
-    this.game = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: info.seed, modus: info.modus, spieler, tempo: info.tempo ?? 'normal', cfg: { ...(GEGNER_MODI.includes(info.modus) ? DUELL : {}), ...(info.klassisch ? KLASSISCH : {}) } })
+    this.game = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: info.seed, modus: info.modus, spieler, tempo: info.tempo ?? 'normal', leben: info.leben ?? 1, cfg: { ...(GEGNER_MODI.includes(info.modus) ? DUELL : {}), ...(info.klassisch ? KLASSISCH : {}) } })
     this.game.wechsel(info.modus === 'rennen' ? 0 : ich)
     this.basis = { spiel: 0, lokal: performance.now() }
     this.waehler = -1
@@ -498,7 +498,7 @@ export class MehrClient {
           return { wer, name: p.name, skin: p.skin, aepfel: s.aepfel, leben: s.leben, raus: s.raus, tot: s.tot }
         }
         const gs = this.geister.get(wer)
-        return { wer, name: p.name, skin: p.skin, aepfel: gs?.a ?? 0, leben: gs?.l ?? 3, raus: !!gs?.raus, tot: !!gs?.tot }
+        return { wer, name: p.name, skin: p.skin, aepfel: gs?.a ?? 0, leben: gs?.l ?? this.start?.leben ?? 1, raus: !!gs?.raus, tot: !!gs?.tot }
       })
     }
     g.sichern()

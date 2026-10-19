@@ -25,7 +25,8 @@ export const RECHNER_STILL = 2500
 export type Phase = 'lobby' | 'spiel' | 'ende'
 /** `revanche`: will nach dem Spiel noch eine Runde (Abstimmung im Ergebnis) */
 export type Teilnehmer = SpielerInfo & { online: boolean; bereit: boolean; revanche?: boolean }
-export type Einstellungen = { tempo: Tempo; klassisch: boolean }
+/** leben: 1 (Standard) oder 3 Leben je Spieler (im Koop gemeinsam); fehlt es (alter Server), gilt 1 */
+export type Einstellungen = { tempo: Tempo; klassisch: boolean; leben?: 1 | 3 }
 
 export type StartInfo = {
   modus: Modus

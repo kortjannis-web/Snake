@@ -79,7 +79,8 @@ export type Schlange = SpielerInfo & {
   zurueckBei: number
 }
 
-export type MehrOpts = GameOpts & { modus: Modus; spieler: SpielerInfo[] }
+/** leben: Leben je Spieler (im Koop gemeinsam), Standard LEBEN */
+export type MehrOpts = GameOpts & { modus: Modus; spieler: SpielerInfo[]; leben?: number }
 
 /** "Klassisch": nur Waende und Aepfel (alle anderen Hindernisse, Tiere und Power-ups kommen nie) */
 export const KLASSISCH: Partial<R.Config> = {
@@ -122,6 +123,8 @@ export class MehrGame extends Game {
   schlangen: Schlange[]
   /** Welche Schlange gerade in den Feldern von Game steckt */
   aktiv = 0
+  /** Leben je Spieler zu Beginn (Einstellung im Raum: 1 oder 3) */
+  lebenStart = LEBEN
   /** Gemeinsame Leben im Koop */
   pool = LEBEN
   /** Gegessene Aepfel aller Spieler (fuer den Gebiets-Takt) */
@@ -146,6 +149,8 @@ export class MehrGame extends Game {
     super({ ...o, startLevel: 1, kreativ: null, sandbox: null })
     this.modus = o.modus
     this.anzahl = o.spieler.length
+    this.lebenStart = Math.max(1, Math.round(o.leben ?? LEBEN))
+    this.pool = this.lebenStart
     this.startKarte()
     this.schlangen = o.spieler.map((s, i) => this.neueSchlange(s, i, o.spieler.length))
     // Base hat schon eine Schlange in der Mitte gesetzt: durch die erste ersetzen
@@ -244,7 +249,7 @@ export class MehrGame extends Game {
       schutzBis: 0,
       last: 0,
       aepfel: 0,
-      leben: LEBEN,
+      leben: this.lebenStart,
       tot: false,
       raus: false,
       grund: null,

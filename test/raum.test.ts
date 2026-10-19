@@ -185,6 +185,20 @@ describe('Raum: Spiel auf einem Feld', () => {
     expect(b.k.letzte('raum')?.phase).toBe('lobby')
   })
 
+  it('Leben: Standard 1, der Gastgeber kann 3 einstellen, sie kommen im Start mit', () => {
+    const { r, rein } = raum()
+    const a = rein('a')
+    const b = rein('b')
+    expect(b.k.letzte('raum')?.leben).toBe(1)
+    sag(r, b.k, { t: 'einstellung', leben: 3 })
+    expect(r.leben).toBe(1)
+    sag(r, a.k, { t: 'einstellung', leben: 3 })
+    expect(b.k.letzte('raum')?.leben).toBe(3)
+    sag(r, b.k, { t: 'bereit', bereit: true })
+    sag(r, a.k, { t: 'start' })
+    expect(b.k.letzte('start')?.info.leben).toBe(3)
+  })
+
   it('Revanche: erst wenn alle wollen, dann Lobby mit allen bereit', () => {
     const { r, rein } = raum()
     const a = rein('a')
