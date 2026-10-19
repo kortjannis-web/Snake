@@ -97,9 +97,14 @@
           </div>
           <div class="home__actions">
             <button class="btn btn--play" id="btn-play"><span data-icon="Play"></span>Spielen</button>
-            <div class="home__paar">
+            <div class="seg seg--3 home-modus" id="home-modus" role="radiogroup" aria-label="Spielmodus">
+              <button data-v="abenteuer" role="radio">Abenteuer</button>
+              <button data-v="normal" role="radio">Normal</button>
+              <button data-v="speedrun" role="radio">Speedrun</button>
+            </div>
+            <p class="home-modus-text" id="home-modus-text"></p>
+            <div class="home__paar home__paar--eins">
               <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Täglich</button>
-              <button class="btn btn--ghost" id="btn-speedrun"><span data-icon="Zap"></span>Speedrun</button>
             </div>
             <div class="home__paar home__paar--eins" id="home-online" hidden>
               <button class="btn btn--ghost" id="btn-hall" data-go="hall"><span data-icon="Crown"></span>Hall of Snakes</button>

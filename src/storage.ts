@@ -1,9 +1,10 @@
 /** Einstellungen und Statistik, nur auf dem Geraet (localStorage) */
 import { DEFAULTS, type Config, type Tempo } from './game/rules'
 import type { Kreativ, Sandbox } from './game/types'
+import { gutschrift, SPIEL_MODI, type SpielModus } from './modus'
 import type { KameraArt } from './render/renderer'
 
-export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt; kameraStand?: number }
+export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt; kameraStand?: number; modus: SpielModus }
 export type Stats = {
   best: number
   games: number
@@ -29,7 +30,7 @@ export type Stats = {
 const SKEY = 'snake.settings.v1'
 const TKEY = 'snake.stats.v1'
 
-export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, kamera: 'bereich' })
+export const defaultSettings = (): Settings => ({ sound: true, music: true, vibration: true, tempo: 'normal', dpad: false, kamera: 'bereich', modus: 'normal' })
 export const defaultStats = (): Stats => ({ best: 0, games: 0, apples: 0, time: 0, longest: 0, maxGebiete: 0, gegner: 0, heute: { datum: '', best: 0 }, zaehler: {}, erfolge: [], seen: [] })
 
 /** Heutiges Datum (Geraetezeit) */
@@ -60,6 +61,7 @@ function write(k: string, v: unknown) {
 export const settings: Settings = read(SKEY, defaultSettings())
 // 1.21: Langsam und Schnell gibt es nicht mehr (schnell ist jetzt der Speedrun-Modus)
 settings.tempo = 'normal'
+if (!SPIEL_MODI.includes(settings.modus)) settings.modus = 'normal'
 // Frueher gab es zwei Fingermodi (Wischen / Zeichnen), jetzt nur noch einen
 delete (settings as Partial<Record<'steuerung', unknown>>).steuerung
 // 1.13: "Fest" und "Rauszoomen" entfallen, Standard ist jetzt die Bereich-Kamera (einmal fuer alle)
@@ -163,13 +165,21 @@ export type LookWahl = {
 }
 /** Aepfel (Waehrung), gekaufte Sachen (skins: Ids aller Kategorien), das Aussehen als Text (skin, so geht es auch
  *  online weiter), die Wahl im Einzelnen (look), die Welt und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg) */
-export type Wallet = { aepfel: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number; verdient?: number }
+export type Wallet = { aepfel: number; /** Zwischenspeicher: noch nicht volle Aepfel in Hundertsteln (0 bis 99) */ rest?: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number; verdient?: number }
 export const wallet: Wallet = read(WKEY, { aepfel: 0, skins: ['klassik'], skin: 'klassik', trophaeen: 0 } as Wallet)
 export const saveWallet = () => write(WKEY, wallet)
 /** Aepfel verdient: in den Vorrat und in die Summe aller je verdienten Aepfel (Silber-Trophaeen) */
 export function verdienen(n: number) {
   wallet.aepfel += n
   wallet.verdient = (wallet.verdient ?? wallet.aepfel - n) + n
+}
+/** Aepfel mit Prozentsatz des Modus gutschreiben: nur volle Aepfel zaehlen, der Rest wird zwischengespeichert.
+ *  Gibt die gutgeschriebenen vollen Aepfel zurueck. */
+export function verdienenModus(wert: number, prozent: number): number {
+  const g = gutschrift(wert, prozent, wallet.rest ?? 0)
+  wallet.rest = g.rest
+  if (g.ganz > 0) verdienen(g.ganz)
+  return g.ganz
 }
 // Muenzen aus aelteren Fassungen werden zu Aepfeln
 {
