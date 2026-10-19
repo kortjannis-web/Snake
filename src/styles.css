@@ -1539,6 +1539,25 @@ svg {
   font-size: 1.05rem;
 }
 
+/* Welten: grosse Karten untereinander */
+.skins--welten {
+  grid-template-columns: 1fr;
+}
+
+.welt canvas {
+  height: 120px;
+}
+
+.welt__text {
+  padding: 0 4px;
+  color: var(--creme-leise);
+  font: 500 0.82rem/1.4 var(--sans);
+}
+
+.welt .skin__preis span {
+  display: inline-flex;
+}
+
 /* Umschalter (Modus, Teilung) */
 .segment {
   display: flex;

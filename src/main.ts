@@ -31,6 +31,7 @@ import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSe
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
+import { drawWeltVorschau, WELTEN, weltFrei, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
@@ -52,6 +53,12 @@ const canvas = $<HTMLCanvasElement>('board')
 const renderer = new Renderer(canvas)
 renderer.reduce = reduce
 renderer.skin = skinVon(wallet.skin)
+/** Gewaehlte Welt, wenn sie (noch) freigeschaltet ist, sonst die Wiese */
+const aktiveWelt = (): Welt => {
+  const w = weltVon(wallet.welt)
+  return weltFrei(w, stats.best) ? w : WELTEN[0]
+}
+renderer.welt = aktiveWelt()
 
 let mode: Mode = 'home'
 /** Online-Status ("spielt gerade") neu melden; wird gesetzt, sobald der Online-Teil steht */
@@ -634,11 +641,15 @@ function handle(e: GameEvent) {
   renderer.event(e, game!)
   zaehlen(e)
   switch (e.type) {
-    case 'eat':
+    case 'eat': {
       audio.eat(e.level)
       haptic.light()
       updateHud(true)
+      // Zum ersten Mal den Level einer Welt erreicht: freigeschaltet
+      const w = WELTEN.find((x) => x.ab === e.level && x.ab > stats.best)
+      if (w && !istKreativ && mode === 'play') toast('baum', `${w.name} freigeschaltet`, 'Im Aussehen unter Welten wählbar.')
       break
+    }
     case 'milestone':
       audio.milestone()
       break
@@ -1017,11 +1028,33 @@ function lookAnwenden() {
   renderer.skin = s
 }
 
-type Teil = 'farben' | 'skins' | 'acc' | 'spuren'
+type Teil = 'farben' | 'skins' | 'acc' | 'spuren' | 'welten'
 let shopTeil: Teil = 'farben'
 /** Welcher Teil der Schlange gerade eine Farbe bekommt (zwei- und dreifarbig) */
 let farbTeil = 0
-const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren' }
+const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren', welten: 'Welten' }
+/** Welt-Vorschauen (gezeichnet, im Shop bewegt) */
+const weltCanvas: { cv: HTMLCanvasElement; welt: Welt }[] = []
+function weltVorschauCanvas(welt: Welt) {
+  const cv = document.createElement('canvas')
+  weltCanvas.push({ cv, welt })
+  return cv
+}
+function weltVorschauenZeichnen(now: number) {
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1)
+  for (const { cv, welt } of weltCanvas) {
+    const w = cv.clientWidth
+    const h = cv.clientHeight
+    if (!w || !h) continue
+    if (cv.width !== Math.round(w * dpr)) {
+      cv.width = Math.round(w * dpr)
+      cv.height = Math.round(h * dpr)
+    }
+    const ctx = cv.getContext('2d')!
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    drawWeltVorschau(ctx, welt, w, h, now, renderer.skin)
+  }
+}
 const PLATZ_NAME: Record<Platz, string> = { augen: 'Augen', kopf: 'Kopf', gesicht: 'Gesicht', schwanz: 'Schwanz' }
 
 function vorschauenLeeren() {
@@ -1031,6 +1064,7 @@ function vorschauenLeeren() {
   }
   skinVideos.length = 0
   skinCanvas.length = 0
+  weltCanvas.length = 0
 }
 
 /** Startseite des Aussehens: grosse Knoepfe */
@@ -1065,6 +1099,21 @@ function renderShop() {
     })
     box.append(b)
   }
+  // Welten: breiter Knopf mit der aktuellen Welt
+  const b = document.createElement('button')
+  b.className = 'aussehen__kachel aussehen__kachel--breit'
+  const frei = WELTEN.filter((w) => weltFrei(w, stats.best)).length
+  b.append(weltVorschauCanvas(renderer.welt))
+  const t = document.createElement('b')
+  t.textContent = 'Welten'
+  const s = document.createElement('span')
+  s.textContent = `${frei} von ${WELTEN.length} frei · ${renderer.welt.name}`
+  b.append(t, s)
+  b.addEventListener('click', () => {
+    shopTeil = 'welten'
+    openPage('shopteil')
+  })
+  box.append(b)
 }
 
 /** Karte fuer eine kaufbare Sache. an = gerade getragen */
@@ -1226,8 +1275,58 @@ function renderTeil() {
           }),
         )
     }
-  } else {
+  } else if (shopTeil === 'spuren') {
     for (const s of SPUREN) box.append(shopKarte(s.id, s.name, look.spur === s.id, () => (look.spur = look.spur === s.id ? null : s.id)))
+  } else {
+    box.className = 'skins skins--welten'
+    const p = document.createElement('p')
+    p.className = 'hinweis'
+    p.textContent = 'Welten schaltest du frei, indem du ihren Level einmal erreichst. Gleiches Spiel, andere Landschaft.'
+    kopf.append(p)
+    for (const w of WELTEN) {
+      const frei = weltFrei(w, stats.best)
+      const an = renderer.welt.id === w.id
+      const card = document.createElement('button')
+      card.className = 'skin welt'
+      if (an) card.dataset.an = ''
+      if (!frei) card.dataset.zu = ''
+      card.append(weltVorschauCanvas(w))
+      const name = document.createElement('span')
+      name.className = 'skin__name'
+      name.textContent = w.name
+      const text = document.createElement('span')
+      text.className = 'welt__text'
+      text.textContent = w.text
+      const st = document.createElement('span')
+      st.className = 'skin__preis'
+      if (an) {
+        st.innerHTML = '<span></span>Aktiv'
+        setIcon(st.querySelector('span')!, 'Check')
+      } else if (frei) st.textContent = 'Wählen'
+      else {
+        st.innerHTML = '<span></span>'
+        setIcon(st.querySelector('span')!, 'Lock')
+        st.append(`ab Level ${w.ab}`)
+        st.classList.add('zu-teuer')
+      }
+      card.append(name, text, st)
+      card.addEventListener('click', () => {
+        audio.unlock()
+        if (!frei) {
+          audio.nein()
+          card.classList.remove('wackeln')
+          void card.offsetWidth
+          card.classList.add('wackeln')
+          return
+        }
+        audio.click()
+        wallet.welt = w.id
+        saveWallet()
+        renderer.welt = w
+        renderTeil()
+      })
+      box.append(card)
+    }
   }
 }
 
@@ -1868,8 +1967,10 @@ function frame(now: number) {
     if (!verdeckt) renderer.draw(game)
   }
   updateEffekte()
-  if (istShop()) for (const s of skinCanvas) drawSkinVorschau(s.cv, s.skin, now, s.fokus)
-  else if (skinVideos.length && !skinVideos.every((v) => v.paused)) for (const v of skinVideos) v.pause()
+  if (istShop()) {
+    for (const s of skinCanvas) drawSkinVorschau(s.cv, s.skin, now, s.fokus)
+    weltVorschauenZeichnen(now)
+  } else if (skinVideos.length && !skinVideos.every((v) => v.paused)) for (const v of skinVideos) v.pause()
   requestAnimationFrame(frame)
 }
 

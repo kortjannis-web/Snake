@@ -1,7 +1,8 @@
 /** Kleine Bilder fuer Anleitung, Hinweise und Spielende (gleiche Zeichnungen wie im Spiel) */
 import type { Cause, Side } from '../game/types'
 import { drawSchlange, GEGNER_SKIN, LILA_SKIN } from '../render/skins'
-import { C, drawAmeise, drawApfel, drawBaum, drawEis, drawErz, drawFalle, drawLava, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
+import { drawBaumLiegend } from '../render/baeume'
+import { C, drawAmeise, drawApfel, drawEis, drawErz, drawFalle, drawLava, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
 
 export type Mini =
   | 'apfel'
@@ -207,7 +208,7 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
       const k = css / 4.4
       ctx.save()
       ctx.translate((css - 4 * k) / 2, (css - 3 * k) / 2 + k - k * 0.1)
-      drawBaum(ctx, { x: 0, y: 0 }, 'r', k, 1)
+      drawBaumLiegend(ctx, 'laub', { x: 0, y: 0 }, 'r', k, 1, t)
       ctx.restore()
       break
     }
