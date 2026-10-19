@@ -183,7 +183,7 @@ function fuellung(ctx: CanvasRenderingContext2D, maske: Bild, tex: HTMLCanvasEle
 /** Wasser je Welt: tief (Seerosen), klar (Sand und Kiesel), gras (klar, Ufer bemoost), winter (kalt, Eisschollen),
  *  hoehle (dunkel, Kristalle am Ufer), zauber (leuchtende Punkte), sumpf (truebe, Blasen) */
 export type WasserArt = 'tief' | 'klar' | 'gras' | 'winter' | 'hoehle' | 'zauber' | 'sumpf'
-export type FlaechenArt = 'lava' | 'eis' | WasserArt
+export type FlaechenArt = 'lava' | 'eis' | 'eisNacht' | WasserArt
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const cl = (t: number) => Math.min(1, Math.max(0, t))
@@ -254,7 +254,12 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
     const maske = raster(cells, px, 0.5, d, T, (dd) => (dd > -0.12 ? null : [255, 255, 255, cl((-0.12 - dd) / 0.08)]))
     return { basis, maske, cells, art, T, benutzt: 0 }
   }
-  if (art === 'eis') {
+  if (art === 'eis' || art === 'eisNacht') {
+    // Nachts (dunkler Boden): bläulich und durchsichtiger, sonst wirkt es wie Nebel
+    const nacht = art === 'eisNacht'
+    const innen: Farbe4 = nacht ? [120, 175, 215, 0.42] : [218, 240, 250, 0.6]
+    const tiefInnen: Farbe4 = nacht ? [90, 150, 205, 0.6] : [190, 226, 245, 0.85]
+    const reif = nacht ? 0.16 : 0.38
     const d = abstand(cells, 0.45, 1.0, 0.35, o)
     const T = tiefe(cells, 1.6)
     const basis = raster(cells, px, 0.6, d, T, (dd, tt, x, y) => {
@@ -264,15 +269,15 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
       const n = fbm(w.x * 2.2, w.y * 2.2, 4)
       if (dd > 0) {
         const t = 1 - dd / 0.5
-        return [236, 248, 252, 0.38 * t * t * (0.5 + n)]
+        return nacht ? [160, 205, 235, reif * t * t * (0.5 + n)] : [236, 248, 252, reif * t * t * (0.5 + n)]
       }
       const t = cl(tt / 1.3)
-      let c = mixA([218, 240, 250, 0.6], [190, 226, 245, 0.85], t)
-      c = mixA(c, [250, 254, 255, c[3]], (n - 0.45) * 0.7)
+      let c = mixA(innen, tiefInnen, t)
+      c = mixA(c, nacht ? [190, 225, 250, c[3]] : [250, 254, 255, c[3]], (n - 0.45) * 0.7)
       // ein, zwei feine Risse (sehr leise)
       const r = Math.abs(rauschen(w.x * 0.9 + 40, w.y * 0.9) - 0.5)
       if (r < 0.006 && t > 0.35) c = mixA(c, [150, 198, 224, c[3]], 0.5)
-      return [c[0], c[1], c[2], c[3] + (0.38 * (0.5 + n) - c[3]) * (1 - sstep(0, 0.3, -dd))]
+      return [c[0], c[1], c[2], c[3] + (reif * (0.5 + n) - c[3]) * (1 - sstep(0, 0.3, -dd))]
     })
     const maske = raster(cells, px, 0.6, d, T, (dd) => (dd > -0.1 ? null : [255, 255, 255, cl((-0.1 - dd) / 0.4)]))
     return { basis, maske, cells, art, T, benutzt: 0 }
@@ -365,7 +370,8 @@ export function drawFlaeche(ctx: CanvasRenderingContext2D, cells: P[], art: Flae
         }
       })
       break
-    case 'eis': {
+    case 'eis':
+    case 'eisNacht': {
       fuellung(ctx, maske, tex('eis'), cell, t0 / 70, t0 / 110, 0.5, 1.2)
       // Ab und zu blitzt ein diagonaler Lichtstreifen ueber das Eis (wie Sonne, die sich spiegelt)
       const z = (now % 5200) / 5200

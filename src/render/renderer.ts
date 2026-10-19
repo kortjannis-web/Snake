@@ -4,35 +4,29 @@
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
 import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, type Game } from '../game/game'
-import { BAUM_FALL, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
+import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
+import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawFlaeche, flaechenAufraeumen, type WasserArt } from './flaechen'
+import { drawAmeiseWelt, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, hausUeberzug, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
-  C,
   apfelFarbe,
   apfelFarben,
   apfelPartikel,
   backOut,
   clamp01,
   DIR_WINKEL,
-  drawAmeise,
   drawErdDeko,
-  drawErdFeld,
   drawErz,
-  drawFrosch,
   drawLava,
   drawLavaSchein,
   drawPower,
   drawKegel,
   drawTurm,
   drawApfel,
-  drawBaum,
-  drawBaumStehend,
   drawHaus,
   drawLicht,
-  drawFalle,
-  drawStein,
   drawWolkenFeld,
   drawWolkenKern,
   easeOut,
@@ -114,6 +108,8 @@ export class Renderer {
   readonly ctx: CanvasRenderingContext2D
   reduce = false
   skin: Skin = STANDARD
+  /** Gewaehlte Welt (Boden, Baeume, Tiere, Stimmung) */
+  welt: Welt = WELTEN[0]
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
   private spuren = new Spuren()
   private dpr = 1
@@ -314,7 +310,14 @@ export class Renderer {
 
   /** Wasser je Teich: mal tief mit Seerosen, mal klar mit bemoostem Ufer (fest je Teich, nach Weltfeld) */
   private wasserArt(c: P, o: P): WasserArt {
-    return feldZufall(c.x - o.x + 7, c.y - o.y + 3) < 0.55 ? 'tief' : 'gras'
+    const w = this.welt.wasser
+    return w[Math.floor(feldZufall(c.x - o.x + 7, c.y - o.y + 3) * w.length) % w.length]
+  }
+
+  /** Baumart je Baum (fest nach Weltfeld des Stamms) */
+  private baumArt(root: P, o: P): BaumArt {
+    const b = this.welt.baeume
+    return b[Math.floor(feldZufall(root.x - o.x + 5, root.y - o.y + 9) * b.length) % b.length]
   }
 
   /** Die Karte ist um dx/dy Felder gerutscht: alles, was die Kamera sich merkt, mitnehmen */
@@ -366,9 +369,12 @@ export class Renderer {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
     // Erde rund um die Karte: dunkelbraun, am Spielfeld eine hellere Erdkante.
     // Darin Steine, Kohle, Schlangenskelette, Lavataschen und Erze (fest je Weltfeld)
-    ctx.fillStyle = '#2C1E14'
+    const welt = this.welt
+    ctx.fillStyle = welt.erde.grund
     ctx.fillRect(0, 0, vw, vh)
     ctx.translate(ox, oy)
+    const lichter: Licht[] = []
+    const licht = (x: number, y: number, r: number) => welt.finster > 0 && lichter.push({ x: x + ox, y: y + oy, r })
 
     // Sichtbarer Bereich in Feldern (ex/ey auch ausserhalb der Karte)
     const ex0 = Math.floor(-ox / cell) - 1
@@ -401,7 +407,13 @@ export class Renderer {
           ctx.fillRect(x * cell + cell * z * 0.6, y * cell + cell * 0.3, cell * 0.12, cell * 0.08)
           continue
         }
-        if (!kacheln) drawErdFeld(ctx, x * cell, y * cell, cell, erdRing(drin, x, y), z)
+        const ring = erdRing(drin, x, y)
+        if (!kacheln) drawErdFeldWelt(ctx, welt, x * cell, y * cell, cell, ring, z)
+        // Bergwerk: Fackeln an der Wand
+        if (welt.id === 'bergwerk' && ring === 1 && feldZufall(wx * 3 + 11, wy * 5 + 7) < 0.09) {
+          drawFackel(ctx, px(x), px(y), cell, now)
+          licht(px(x), px(y), cell * 3.2)
+        }
         if (g.lavaImStein(wx, wy)) {
           lavaStein.push({ x, y })
           continue
@@ -411,7 +423,7 @@ export class Renderer {
         // Erze glaenzen (bewegt), Stein, Kohle und Skelett liegen schon in der Kachel
         if (deko === 'gold' || deko === 'dia' || deko === 'rubin' || deko === 'opal') {
           if (g.erzDa(wx, wy)) drawErz(ctx, px(x), px(y), cell * 0.8, deko, 1, this.reduce ? 0 : Math.max(0, Math.sin(now / 400 + z * 20)) * 0.9, now, false)
-        } else if (!kacheln) drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
+        } else if (!kacheln && welt.id !== 'gruselwald') drawErdDeko(ctx, x * cell, y * cell, cell, deko, z, now)
       }
     // Lava im Stein: das einzige, was in der Erde pulsierend glueht. Der Schein reicht ein paar Felder
     // weit durch die Erde, auch von knapp ausserhalb des Bildes, damit man sieht, wo Lava steckt
@@ -422,12 +434,15 @@ export class Renderer {
         const puls = this.reduce ? 0.6 : 0.5 + 0.5 * Math.sin(now / 520 + x * 1.7 + y)
         drawLavaSchein(ctx, px(x), px(y), cell * (LAVA_SCHEIN + 0.6 + 0.4 * puls), 0.35 + 0.3 * puls)
       }
-    for (const p of lavaStein) drawLava(ctx, [p], [-1e9], cell, now, this.reduce)
+    for (const p of lavaStein) {
+      drawLava(ctx, [p], [-1e9], cell, now, this.reduce)
+      licht(px(p.x), px(p.y), cell * 1.6)
+    }
 
     // Schachbrett nur auf der Karte; der neue Block klappt als Welle auf. Erst die
     // dunkle Flaeche je Block, dann die hellen Felder etwas groesser (sonst feine Fugen)
     if (!kacheln) {
-    ctx.fillStyle = C.dunkel
+    ctx.fillStyle = welt.dunkel
     for (const b of g.blocks) {
       if (gb && b.x * g.bw === gb.x && b.y * g.bh === gb.y) continue
       ctx.fillRect(b.x * g.bw * cell, b.y * g.bh * cell, g.bw * cell, g.bh * cell)
@@ -442,16 +457,16 @@ export class Renderer {
           const p = clamp01((now - gb.t - 150 - dist * 45) / 380)
           if (p <= 0) continue
           const sz = cell * Math.min(1.08, backOut(p))
-          ctx.fillStyle = p < 1 ? ((x + y) % 2 ? '#BFE8CB' : C.neuHell) : (x + y) % 2 ? C.dunkel : C.hell
+          ctx.fillStyle = p < 1 ? welt.neu : (x + y) % 2 ? welt.dunkel : welt.hell
           ctx.fillRect(x * cell + (cell - sz) / 2, y * cell + (cell - sz) / 2, sz, sz)
           continue
         }
         if ((x + y) % 2) continue
-        ctx.fillStyle = C.hell
+        ctx.fillStyle = welt.hell
         ctx.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
       }
     // Grasrand am Uebergang zur Erde
-    ctx.fillStyle = 'rgba(46, 96, 58, 0.7)'
+    ctx.fillStyle = welt.kante
     const kante = Math.max(2, cell * 0.1)
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++) {
@@ -521,6 +536,11 @@ export class Renderer {
       if (!l.cells.some((c) => sicht(c))) continue
       const fertig = l.cells.filter((_, i) => this.reduce || now - l.t[i] >= 420)
       drawFlaeche(ctx, fertig, 'lava', cell, now, o, this.reduce)
+      if (fertig.length) {
+        const xs = fertig.map((c) => c.x)
+        const ys = fertig.map((c) => c.y)
+        licht(((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cell, ((Math.min(...ys) + Math.max(...ys) + 1) / 2) * cell, cell * (1.5 + Math.sqrt(fertig.length) * 0.8))
+      }
       l.cells.forEach((c, i) => {
         if (!this.reduce && now - l.t[i] < 420) drawLava(ctx, [c], [l.t[i]], cell, now)
       })
@@ -528,7 +548,7 @@ export class Renderer {
     for (const e of g.eis) {
       if (!e.cells.some((c) => sicht(c))) continue
       ctx.globalAlpha = this.reduce ? 1 : clamp01((now - e.t) / 700)
-      drawFlaeche(ctx, e.cells, 'eis', cell, now, o, this.reduce)
+      drawFlaeche(ctx, e.cells, welt.finster > 0 ? 'eisNacht' : 'eis', cell, now, o, this.reduce)
       ctx.globalAlpha = 1
     }
 
@@ -551,17 +571,18 @@ export class Renderer {
         drawFlaeche(ctx, t.cells, art, cell, now, o, this.reduce)
         ctx.restore()
       } else drawFlaeche(ctx, t.cells, art, cell, now, o, this.reduce)
+      if (art === 'zauber' || art === 'hoehle') for (const c of t.cells) if ((c.x + c.y) % 2 === 0) licht(px(c.x), px(c.y), cell * 1.4)
     }
 
     // Alte Mauern schrumpfen weg, neue wachsen Feld fuer Feld
-    if (!this.reduce) for (const m of g.weg) for (const c of m.cells) if (sicht(c)) drawStein(ctx, c.x * cell, c.y * cell, cell, 1 - (now - m.t) / 240)
+    if (!this.reduce) for (const m of g.weg) for (const c of m.cells) if (sicht(c)) drawMauerWelt(ctx, welt, c.x * cell, c.y * cell, cell, 1 - (now - m.t) / 240)
     for (const m of g.mauern)
       for (let i = 0; i < m.grown; i++) {
         if (!sicht(m.cells[i])) continue
         const s = this.reduce ? 1 : backOut(clamp01((now - m.t[i]) / 320))
         // Fertig gewachsene Steine kommen als Bild (viele Mauern = viele Steine)
-        if (s >= 1 && now - m.t[i] > 320) this.bild('stein', m.cells[i], cell, 0.2, (c, o) => drawStein(c, o, o, cell, 1))
-        else drawStein(ctx, m.cells[i].x * cell, m.cells[i].y * cell, cell, s)
+        if (s >= 1 && now - m.t[i] > 320) this.bild(`stein-${welt.id}-${welt.mauer === 'stein' ? 0 : (m.cells[i].x * 13 + m.cells[i].y * 7) % 5}`, m.cells[i], cell, 0.2, (c, o) => drawMauerWelt(c, welt, o, o, cell, 1))
+        else drawMauerWelt(ctx, welt, m.cells[i].x * cell, m.cells[i].y * cell, cell, s)
       }
 
     // Baeume und Haeuser (bleiben), dazu das Licht aus den Fenstern.
@@ -569,15 +590,30 @@ export class Renderer {
     for (const b of g.baeume) {
       if (!b.cells.some((c) => sicht(c, 3))) continue
       const s = this.reduce ? 1 : backOut(clamp01((now - b.t) / 520))
+      const art = this.baumArt(b.root, g.ursprung)
+      const stehend = (off?: P, a = 1) => {
+        ctx.globalAlpha = a
+        if (welt.schnee) drawBaumStehendSchnee(ctx, art === 'weihnacht', b.root, cell, off ? 1 : s, now, off)
+        else drawBaumStehend(ctx, art, b.root, cell, off ? 1 : s, now, off)
+        ctx.globalAlpha = 1
+      }
+      if (art === 'kristall' || art === 'pilz') licht(px(b.root.x), px(b.root.y), cell * 2.4)
       if (b.kippBei !== null) {
-        drawBaumStehend(ctx, b.root, cell, s)
+        // Kurz vor dem Kippen: wackelt und verliert Blaetter in die angekuendigte Richtung
+        const rest = b.kippBei - now
+        if (b.ankDir && rest < BAUM_WARNUNG && !this.reduce) {
+          const k = clamp01(1 - rest / BAUM_WARNUNG)
+          stehend(wackeln(b.ankDir, k, now))
+          drawFallBlaetter(ctx, blattFarbe(art, welt.schnee), b.root, b.ankDir, cell, BAUM_WARNUNG - rest)
+        } else stehend()
         continue
       }
       const p = this.reduce ? 1 : clamp01((now - b.fallT) / BAUM_FALL)
       if (p >= 1) {
         // Liegender Baum (mit Schatten, teuer zu rastern): als Bild
-        if (s >= 1) this.bild(`baum-${b.dir}`, b.root, cell, 4, (_c, _o, mitte) => drawBaum(_c, mitte, b.dir, cell, 1))
-        else drawBaum(ctx, b.root, b.dir, cell, s)
+        const bewegt = art === 'kristall' || art === 'pilz' || art === 'palme'
+        if (s >= 1 && !bewegt) this.bild(`baum-${welt.id}-${art}-${b.dir}-${(b.root.x * 3 + b.root.y) % 4}`, b.root, cell, 4, (_c, _o, mitte) => drawBaumLiegend(_c, art, mitte, b.dir, cell, 1, 0, 1, welt.schnee))
+        else drawBaumLiegend(ctx, art, b.root, b.dir, cell, s, now, 1, welt.schnee)
         continue
       }
       // Faellt: immer schneller (wie mit Schwerkraft). Von oben gesehen wird der liegende Baum
@@ -586,11 +622,9 @@ export class Renderer {
       const k = Math.sin((Math.PI / 2) * p * p)
       ctx.fillStyle = `rgba(12, 40, 32, ${0.2 * clamp01(p * 6) * (1 - k * 0.6)})`
       for (const c of b.cells) ctx.fillRect(c.x * cell, c.y * cell, cell, cell)
-      drawBaum(ctx, b.root, b.dir, cell, 1, k)
+      drawBaumLiegend(ctx, art, b.root, b.dir, cell, 1, now, k, welt.schnee)
       const d = STEP[b.dir]
-      ctx.globalAlpha = 1 - k
-      drawBaumStehend(ctx, b.root, cell, 1, { x: d.x * k * 2, y: d.y * k * 2 })
-      ctx.globalAlpha = 1
+      stehend({ x: d.x * k * 2, y: d.y * k * 2 }, 1 - k)
     }
     for (const h of g.haeuser) {
       if (!h.cells.some((c) => sicht(c, 3))) continue
@@ -598,6 +632,8 @@ export class Renderer {
       const an = this.reduce ? 1 : clamp01((now - h.lichtT) / 450)
       if (f) drawLicht(ctx, f.p, f.d, h.strahl.length, cell, an * clamp01((now - h.t) / 600), now)
       drawHaus(ctx, h.cells, h.fenster, h.licht, h.kamin, cell, this.reduce ? 1 : backOut(clamp01((now - h.t) / 520)), now)
+      hausUeberzug(ctx, welt, h.cells, cell)
+      if (f) licht(px(f.p.x), px(f.p.y), cell * 2)
     }
 
     // Jaegertuerme: Kegel dreht sich mit, blendet nach jedem Wechsel ein
@@ -620,18 +656,19 @@ export class Renderer {
       const s = this.reduce ? 1 : backOut(clamp01((now - f.t) / 380))
       const rest = f.until - now
       const warn = (now - f.t < 1600 ? 1 - (now - f.t) / 1600 : 0) + (rest < 3000 ? 0.5 + 0.5 * Math.sin(now / 90) : 0)
-      drawFalle(ctx, px(f.p.x), px(f.p.y), cell, s, 0, Math.min(1, warn))
+      drawFalleWelt(ctx, welt, px(f.p.x), px(f.p.y), cell, s, 0, Math.min(1, warn), now)
     }
     for (const f of g.fallenWeg) {
       if (!sicht(f.p)) continue
       const k = clamp01((now - f.t) / 1000)
-      drawFalle(ctx, px(f.p.x), px(f.p.y), cell, 1 - easeOut(clamp01((k - 0.5) * 2)), easeOut(clamp01(k * 4)))
+      drawFalleWelt(ctx, welt, px(f.p.x), px(f.p.y), cell, 1 - easeOut(clamp01((k - 0.5) * 2)), easeOut(clamp01(k * 4)), 0, now)
     }
 
     // Apfel (Farbe nach Wert) und Giftaepfel (tarnen sich in derselben Farbe)
     const stufe = g.apfelStufe()
     const wipp = this.reduce ? 0 : Math.max(0, Math.sin(now / 260)) * cell * 0.05
-    drawApfel(ctx, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, stufe)
+    drawFutter(ctx, welt, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, stufe, now)
+    licht(px(g.apple.p.x), px(g.apple.p.y), cell * 1.6)
     for (const pw of g.powers) {
       if (!sicht(pw.p)) continue
       drawPower(ctx, px(pw.p.x), px(pw.p.y), cell, pw.art, this.reduce ? 1 : backOut(clamp01((now - pw.t) / 380)), now, pw.until - now < 3000)
@@ -643,7 +680,7 @@ export class Renderer {
     }
     for (const gf of g.gift) {
       if (!sicht(gf.p)) continue
-      drawApfel(ctx, px(gf.p.x), px(gf.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - gf.t) / 340)), wipp * 0.6, gf.ecke, stufe)
+      drawFutter(ctx, welt, px(gf.p.x), px(gf.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - gf.t) / 340)), wipp * 0.6, gf.ecke, stufe, now)
     }
 
     // Froesche: Anlauf 1 s vor dem Sprung, Sprung im Bogen, Drehen nach der Landung
@@ -661,7 +698,8 @@ export class Renderer {
       while (a1 - a0 > Math.PI) a1 -= Math.PI * 2
       while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
       const ang = lerp(a0, a1, easeOut(clamp01((now - f.drehT) / 220)))
-      drawFrosch(ctx, px(x), px(y), cell, ang, this.reduce ? 0 : anlauf, this.reduce || flug > 1 ? -1 : k, s, fade)
+      drawFroschWelt(ctx, welt, px(x), px(y), cell, ang, this.reduce ? 0 : anlauf, this.reduce || flug > 1 ? -1 : k, s, fade, now)
+      if (welt.frosch === 'leuchtfrosch') licht(px(x), px(y), cell * 1.5)
     }
 
     // Ameisen: krabbeln Feld fuer Feld, Ausrufezeichen wenn sie die Schlange bemerkt haben
@@ -672,12 +710,13 @@ export class Renderer {
       const y = lerp(am.from.y, am.p.y, k)
       const lauf = k < 1 ? (now / 160) % 1 : -1
       const alarm = am.alarm >= 0 ? 0.6 + 0.4 * Math.sin(now / 90) : 0
-      drawAmeise(ctx, px(x), px(y), cell, DIR_WINKEL[am.dir], lauf, this.reduce ? 1 : backOut(clamp01((now - am.t) / 380)), alarm)
+      drawAmeiseWelt(ctx, welt, px(x), px(y), cell, DIR_WINKEL[am.dir], lauf, this.reduce ? 1 : backOut(clamp01((now - am.t) / 380)), alarm, 1, now)
+      if (welt.ameise === 'gluehkaefer') licht(px(x), px(y), cell * 1.2)
     }
     for (const am of g.ameisenWeg) {
       if (!sicht(am.p)) continue
       const k = clamp01((now - am.t) / AMEISE_WEG)
-      drawAmeise(ctx, px(am.p.x), px(am.p.y), cell * (1 + k * 0.4), DIR_WINKEL[am.dir], -1, 1, 0, 1 - k)
+      drawAmeiseWelt(ctx, welt, px(am.p.x), px(am.p.y), cell * (1 + k * 0.4), DIR_WINKEL[am.dir], -1, 1, 0, 1 - k, now)
     }
 
     // Spuren (Teilchen hinter den Schlangen)
@@ -726,6 +765,18 @@ export class Renderer {
       drawWolkenKern(ctx, px(w.c.x), px(w.c.y), cell, auf, now)
     }
 
+    // Dunkelheit (Bergwerk, Zauberwald, Gruselwald) mit Lichtern, dann Wetter und Teilchen
+    if (welt.finster > 0) {
+      licht((head.x + 0.5) * cell, (head.y + 0.5) * cell, cell * 4.2)
+      for (const pw of g.powers) licht(px(pw.p.x), px(pw.p.y), cell * 1.2)
+      for (const f of g.funde) licht(px(f.p.x), px(f.p.y), cell * 1.3)
+      if (this.mehr) for (const f of this.mehr.andere) if (f.body.length) licht(px(f.body[0].x), px(f.body[0].y), cell * 3)
+      drawDunkel(ctx, welt, vw, vh, this.dpr, lichter)
+    }
+    if (!this.reduce) drawStimmung(ctx, welt, vw, vh, this.dpr, now, ox, oy)
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    ctx.translate(ox, oy)
+
     // Funken beim Fressen
     this.funken = this.funken.filter((f) => now - f.born < 560)
     for (const f of this.funken) {
@@ -765,7 +816,7 @@ export class Renderer {
    * Aendert sich die Karte (neuer Block, neue Feldgroesse, neues Spiel), wird neu gezeichnet.
    */
   private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
-    const stand = `${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}`
+    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}`
     if (stand !== this.grundStand) {
       this.grund.clear()
       this.grundStand = stand
@@ -834,7 +885,8 @@ export class Renderer {
     cv.height = Math.round((ky + 1) * GRUND * cell * dpr) - y0d
     const c = cv.getContext('2d', { alpha: false })!
     c.setTransform(dpr, 0, 0, dpr, -x0d, -y0d)
-    c.fillStyle = '#2C1E14'
+    const welt = this.welt
+    c.fillStyle = welt.erde.grund
     c.fillRect(kx * GRUND * cell, ky * GRUND * cell, GRUND * cell + 1, GRUND * cell + 1)
     const drin = (x: number, y: number) => g.inside({ x, y })
     const xa = kx * GRUND - 1
@@ -848,17 +900,17 @@ export class Renderer {
         const wx = x - g.ursprung.x
         const wy = y - g.ursprung.y
         const z = feldZufall(wx, wy)
-        drawErdFeld(c, x * cell, y * cell, cell, erdRing(drin, x, y), z)
-        if (g.lavaImStein(wx, wy)) continue
+        drawErdFeldWelt(c, welt, x * cell, y * cell, cell, erdRing(drin, x, y), z)
+        if (g.lavaImStein(wx, wy) || welt.id === 'gruselwald') continue
         const deko = erdeBei(g.cfg, wx, wy)
         if (deko === 'stein' || deko === 'kohle' || deko === 'skelett') drawErdDeko(c, x * cell, y * cell, cell, deko, z, 0)
       }
     // Schachbrett: dunkel genau je Feld, hell etwas groesser (sonst feine Fugen), dann der Grasrand
-    c.fillStyle = C.dunkel
+    c.fillStyle = welt.dunkel
     for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y)) c.fillRect(x * cell, y * cell, cell, cell)
-    c.fillStyle = C.hell
+    c.fillStyle = welt.hell
     for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y) && !((x + y) % 2)) c.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
-    c.fillStyle = 'rgba(46, 96, 58, 0.7)'
+    c.fillStyle = welt.kante
     const kante = Math.max(2, cell * 0.1)
     for (let y = ya; y <= yb; y++)
       for (let x = xa; x <= xb; x++) {
