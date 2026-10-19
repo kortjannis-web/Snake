@@ -10,7 +10,8 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Feldgröße:** Ein Bildschirm hat immer ca. 300 Felder, egal welches Gerät (Handy hochkant z. B. 12 × 23). So spielt es sich überall gleich.
 - **Wachsen:** bis Level 50 **alle 2 Äpfel** ein Glied mehr, bis Level 300 alle 4, danach alle 6 (halb so schnell wie früher; einstellbar: Master-Einstellungen → Schlange). Sonst wäre die Schlange auf Dauer länger als die Karte.
 - **Regelmäßig Neues:** Bis Level 300 kommt **alle 10 Level** etwas Neues oder etwas wird schwerer (Übersicht in der README und in der Zeitleiste der Master-Einstellungen).
-- **Tempo:** Grundtakt je nach Einstellung 185 / 154 / 128 ms pro Feld (Langsam / Normal / Schnell). Mit jedem Level etwas schneller, ab ca. Level 270 bleibt es bei 68 % des Grundtakts.
+- **Tempo:** Grundtakt 154 ms pro Feld (es gibt nur noch Normal). Mit jedem Level etwas schneller, ab ca. Level 270 bleibt es bei 68 % des Grundtakts.
+- **Speedrun** (Startmenü, neben „Täglich“): 25 % schneller (123 ms), und **jeder Apfel hat ein Zeitlimit**: (1,4 × Abstand zum Apfel + 12) Schritte im aktuellen Takt. Begründung: mindestens so viele Schritte wie der Abstand, rund 40 % Umweg für Hindernisse und Kurven, 12 Schritte (ca. 1,5 s) zum Reagieren; wird die Schlange schneller, schrumpft die Zeit mit. Ein Balken unter der Leiste zeigt die Restzeit (unter 30 % rot). Abgelaufen: Spielende („Zeit für den Apfel abgelaufen“). Speedrun-Rekorde stehen in der Bestenliste markiert.
 
 ## 2. Steuerung
 
@@ -234,6 +235,8 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Accessoires:** je Platz eins gleichzeitig, mit jeder Farbe und jedem Skin. Augen (Sonnenbrille, Nerdbrille, Herzbrille, Monokel, Augenklappe, Skibrille, Thug Life, Laseraugen), Kopf (Partyhut, Zylinder, Cowboyhut, Weihnachtsmütze, Kochmütze, Hörner, Wikingerhelm, Propellermütze, Krone, Einhorn, Heiligenschein), Gesicht (Schnurrbart, Fliege, Blume, Clownsnase, Schnuller, Seifenpfeife), Schwanz (Schleife, Glöckchen, Bommel, Klapper, Skorpion, Raketenantrieb, Kometenschweif). Rein optisch.
 - **Spuren:** Teilchen, die am Schwanz entstehen und verblassen: Staub, Seifenblasen, Blätter, Herzen, Noten, Schnee, Konfetti, Funken, Sternschnuppe, Pixel, Regenbogen, Flammenspur.
 - **Welten:** siehe 14b.
+- **Effekte (Auren):** 30 Effekte um die Schlange, nicht kaufbar, sondern freigeschaltet. **20 mit Silber-Trophäen** (alle je verdienten Äpfel, auch ausgegebene): Glimmer 1.000, Staubwolke 2.500, Glühen 5.000, Blätterwirbel 8.000, Schneegestöber 12.000, Funkenring 18.000, Herzschlag 25.000, Notenwirbel 35.000, Blubberblasen 50.000, Rauchschwaden 70.000, Sternenkranz 100.000, Glühwürmchen 140.000, Regenwolke 200.000, Wirbelwind 280.000, Frostaura 400.000, Flammenaura 550.000, Elektroaura 750.000, Gewitterwolke 1 Mio., Polarlicht 1,4 Mio., Regenbogenaura 2 Mio. **10 mit Gold-Trophäen** (aus Mehrspieler-Siegen): Goldstaub 3, Schattenaura 8, Feuerkreis 15, Kugelblitze 25, Geisterschwarm 40, Runenkreis 60, Phönixflügel 90, Sonnenkorona 130, Ereignishorizont 180, Göttliches Licht 250. Ein Effekt gleichzeitig, auch online sichtbar.
+- **Silber-Trophäen** stehen im Startmenü neben den goldenen (eine Pille, ab 10.000 kurz als „12,5k“), die genaue Zahl in der Statistik.
 - Antippen kauft (wenn genug Äpfel) und wählt aus. Zu wenig Äpfel: Karte wackelt. Alles früher Gekaufte bleibt (Sand gibt es nur noch für die, die ihn haben).
 - Das Aussehen geht als kurzer Text (höchstens 32 Zeichen) an die anderen: in der Spielerliste, im Chat und im Mehrspieler sieht man Farben, Skin, Accessoires und Spur.
 - **Gegner-Schlangen:** rot mit leicht bösem Blick. **Lila:** Plasma-Blitze im Körper, kleine nach hinten gebogene Hörner, leicht glühende Augen (Plasma und Hörner gibt es auch im Shop).
@@ -276,7 +279,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Spielende:** wackelndes Bild der Todesursache, Text (z. B. „Gegen einen Baum gelaufen“), erreichter Level, ggf. „Höchster Level“, Abzeichen „Neuer Rekord“ mit Fanfare, Äpfel, Länge, Zeit. Knöpfe „Nochmal“ und „Hauptmenü“.
 - **Anleitung:** alle Elemente mit Bild, „ab Level …“ und Erklärung.
 - **Statistik:** bester Level, Spiele, Äpfel gesamt, längste Schlange, größte Karte, eingekesselte Gegner, Spielzeit.
-- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Tempo (Langsam/Normal/Schnell), Kamera (Bereich/Dynamisch), Statistik zurücksetzen, Versionsnummer.
+- **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Kamera (Bereich/Dynamisch), Statistik zurücksetzen, Versionsnummer.
 - **Android-Zurücktaste:** Spiel → Pause, Pause → weiter, Unterseite → zurück, Startmenü → App schließen.
 
 ## 16-1. Tagesrekord und Erfolge
