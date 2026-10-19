@@ -43,6 +43,8 @@ export type Frosch = {
   neuDir?: Dir
   /** Blickrichtung vor der letzten Wende (fuer die Drehanimation) */
   altDir: Dir
+  /** Wuestenfrosch (nur in der Wueste): springt doppelt so oft */
+  schnell?: boolean
   drehT: number
   gone?: number
 }

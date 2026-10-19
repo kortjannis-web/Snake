@@ -9,53 +9,6 @@ const hash = (n: number) => {
   return s - Math.floor(s)
 }
 
-/**
- * Flut. warnung: die Wellen schlagen am Rand hoeher (Gischt laeuft ins Feld und zieht sich zurueck).
- * aktiv: die Felder stehen unter Wasser. rand(p) = Feld liegt direkt am Kartenrand
- */
-export function drawFlut(ctx: CanvasRenderingContext2D, zellen: P[], aktiv: boolean, seit: number, cell: number, now: number, rand: (p: P) => boolean) {
-  if (aktiv) {
-    // Wasser steigt in 0,6 s an
-    const an = Math.min(1, seit / 600)
-    for (const c of zellen) {
-      const x = c.x * cell
-      const y = c.y * cell
-      const z = hash(c.x * 7.3 + c.y * 3.1)
-      ctx.fillStyle = rand(c) ? `rgba(46, 132, 178, ${0.92 * an})` : `rgba(70, 168, 200, ${0.85 * an})`
-      ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
-      // Wellen ziehen ueber das Wasser
-      const ph = now / 500 + z * 6
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.35 * an})`
-      ctx.lineWidth = Math.max(1, cell * 0.045)
-      ctx.beginPath()
-      const by = y + cell * (0.35 + 0.3 * ((z * 3) % 1))
-      const bx = x + cell * 0.1 + Math.sin(ph) * cell * 0.08
-      ctx.moveTo(bx, by)
-      ctx.quadraticCurveTo(bx + cell * 0.2, by - cell * 0.08, bx + cell * 0.4, by)
-      ctx.quadraticCurveTo(bx + cell * 0.6, by + cell * 0.08, bx + cell * 0.8, by)
-      ctx.stroke()
-    }
-    return
-  }
-  // Warnung: Gischt am aeussersten Ring, pulsiert und wird mit der Zeit kraeftiger
-  const st = Math.min(1, 0.4 + seit / 6000)
-  for (const c of zellen) {
-    if (!rand(c)) continue
-    const x = c.x * cell
-    const y = c.y * cell
-    const z = hash(c.x * 5.7 + c.y * 9.1)
-    const welle = Math.max(0, Math.sin(now / 420 + z * 4))
-    ctx.fillStyle = `rgba(90, 185, 215, ${0.45 * welle * st})`
-    ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
-    ctx.fillStyle = `rgba(255, 255, 255, ${0.75 * welle * st})`
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath()
-      ctx.arc(x + cell * (0.2 + 0.3 * i), y + cell * (0.3 + 0.4 * hash(z * 10 + i)), cell * 0.08 * welle, 0, TAU)
-      ctx.fill()
-    }
-  }
-}
-
 /** Sandwurm kuendigt sich an: die Reihe brodelt (Sandblasen platzen, Staub steigt), immer heftiger */
 export function drawSandwurmWarnung(ctx: CanvasRenderingContext2D, felder: P[], cell: number, now: number, fortschritt: number) {
   const st = 0.35 + 0.65 * fortschritt
@@ -82,64 +35,122 @@ export function drawSandwurmWarnung(ctx: CanvasRenderingContext2D, felder: P[], 
   }
 }
 
-/** Der Sandwurm: dicke Ringe, vorne ein runder Schlund mit Zaehnen, Sand spritzt. felder = Kopf zuerst */
-export function drawSandwurm(ctx: CanvasRenderingContext2D, felder: P[], dx: number, dy: number, cell: number, now: number) {
-  if (!felder.length) return
-  const n = felder.length
-  // Schatten und Koerper vom Ende zum Kopf
-  for (let i = n - 1; i >= 0; i--) {
-    const c = felder[i]
-    const x = (c.x + 0.5) * cell
-    const y = (c.y + 0.5) * cell
-    const r = cell * (0.62 - 0.03 * i)
-    ctx.fillStyle = 'rgba(60, 35, 10, 0.3)'
-    ctx.beginPath()
-    ctx.arc(x + cell * 0.08, y + cell * 0.14, r, 0, TAU)
-    ctx.fill()
-    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r)
-    g.addColorStop(0, '#E2B878')
-    g.addColorStop(0.7, '#B9834A')
-    g.addColorStop(1, '#7C4F25')
-    ctx.fillStyle = g
-    ctx.beginPath()
-    ctx.arc(x, y, r, 0, TAU)
-    ctx.fill()
-    // Ringe quer zur Laufrichtung
-    ctx.strokeStyle = 'rgba(90, 55, 20, 0.55)'
-    ctx.lineWidth = Math.max(1, cell * 0.06)
-    ctx.beginPath()
-    ctx.moveTo(x - dy * r * 0.9 - dx * r * 0.3, y - dx * r * 0.9 - dy * r * 0.3)
-    ctx.lineTo(x + dy * r * 0.9 - dx * r * 0.3, y + dx * r * 0.9 - dy * r * 0.3)
-    ctx.stroke()
+/** Wo der Sandwurm aus dem Sand ragt: Boegen fest im Boden (alle BOGEN Felder einer), der Koerper gleitet hindurch */
+const BOGEN = 5
+const BOGEN_HALB = 1.7
+
+/**
+ * Der Sandwurm, zwei Felder breit und sehr lang: Er taucht in Boegen auf und wieder ab (die Boegen stehen fest,
+ * der Koerper gleitet hindurch), dazwischen wuehlt er unter dem Sand. Vorne immer der Kopf mit rundem Schlund.
+ * mitte = Mitte quer (in Feldern, zwischen den beiden Reihen), kopf = laengs (Felder), dir = Laufrichtung
+ */
+export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mitte: number, kopf: number, dir: 1 | -1, laenge: number, von: number, bis: number, cell: number, now: number) {
+  const pt = (v: number, q = 0) => (achse === 'x' ? { x: (v + 0.5) * cell, y: (mitte + q) * cell } : { x: (mitte + q) * cell, y: (v + 0.5) * cell })
+  const r0 = cell * 0.95
+  // Hoehe ueber dem Sand (0 = darunter, 1 = ganz oben), vorne ist der Kopf immer draussen
+  const hoehe = (v: number) => {
+    const n = Math.round((v - 2) / BOGEN) * BOGEN + 2
+    const d = Math.abs(v - n) / BOGEN_HALB
+    const bogen = Math.max(0, 1 - d * d)
+    const vorn = Math.max(0, 1 - Math.abs(kopf - v) / 1.6)
+    return Math.max(bogen, vorn)
   }
-  // Schlund mit Zaehnen
-  const k = felder[0]
-  const hx = (k.x + 0.5) * cell + dx * cell * 0.2
-  const hy = (k.y + 0.5) * cell + dy * cell * 0.2
-  const auf = 0.75 + 0.25 * Math.sin(now / 60)
+  const ende = kopf - dir * laenge
+  const lo = Math.max(Math.min(kopf, ende), von - 1.5)
+  const hi = Math.min(Math.max(kopf, ende), bis + 1.5)
+  if (lo > hi) return
+  // Unter dem Sand: aufgeworfener Wall mit Rissen, wo der Koerper gerade wuehlt
+  for (let v = lo; v <= hi; v += 0.25) {
+    if (hoehe(v) > 0.15) continue
+    const p = pt(v)
+    const w = Math.sin(v * 7.3) * cell * 0.08
+    ctx.fillStyle = 'rgba(160, 112, 58, 0.45)'
+    ctx.beginPath()
+    ctx.ellipse(p.x + (achse === 'y' ? w : 0), p.y + (achse === 'x' ? w : 0), cell * 0.55, cell * 0.55, 0, 0, TAU)
+    ctx.fill()
+  }
+  // Krater, wo der Wurm ein- und auftaucht (an den Enden der Boegen)
+  for (let n = Math.floor((lo - 2) / BOGEN) * BOGEN + 2; n <= hi + BOGEN; n += BOGEN)
+    for (const e of [n - BOGEN_HALB * 0.85, n + BOGEN_HALB * 0.85]) {
+      if (e < lo || e > hi) continue
+      const p = pt(e)
+      ctx.fillStyle = 'rgba(120, 78, 34, 0.55)'
+      ctx.beginPath()
+      ctx.ellipse(p.x, p.y, cell * (achse === 'x' ? 0.75 : 1.15), cell * (achse === 'x' ? 1.15 : 0.75), 0, 0, TAU)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(235, 205, 150, 0.6)'
+      ctx.lineWidth = Math.max(1, cell * 0.06)
+      ctx.stroke()
+    }
+  // Koerper vom Schwanz zum Kopf: dicke Scheiben, oben heller, Ringe gleiten mit dem Koerper
+  const schritt = 0.14
+  const start = dir === 1 ? lo : hi
+  const stop = dir === 1 ? hi : lo
+  for (let i = 0; ; i++) {
+    const v = start + dir * i * schritt
+    if (dir === 1 ? v > stop : v < stop) break
+    const h = hoehe(v)
+    if (h <= 0.15) {
+      // Ein- und Austauchen: Sand spritzt
+      if (h > 0.02 && Math.floor(v / schritt) % 3 === 0) {
+        const p = pt(v)
+        const t = ((now / 260 + v) % 1 + 1) % 1
+        ctx.fillStyle = `rgba(220, 186, 126, ${0.7 * (1 - t)})`
+        ctx.beginPath()
+        ctx.arc(p.x + (hash(v) - 0.5) * cell * 1.4, p.y + (hash(v + 3) - 0.5) * cell * 1.4 - t * cell * 0.4, cell * 0.08, 0, TAU)
+        ctx.fill()
+      }
+      continue
+    }
+    const p = pt(v)
+    // Zum Schwanzende hin schmaler
+    const spitz = Math.min(1, 0.35 + (laenge - Math.abs(kopf - v)) / 3)
+    const r = r0 * (0.55 + 0.45 * h) * spitz
+    ctx.fillStyle = `rgba(70, 40, 12, ${0.25 * h})`
+    ctx.beginPath()
+    ctx.arc(p.x + cell * 0.12 * h, p.y + cell * 0.22 * h, r, 0, TAU)
+    ctx.fill()
+    const u = Math.abs(kopf - v)
+    const ring = u % 0.6 < 0.13
+    const hell = 0.55 + 0.45 * h
+    ctx.fillStyle = ring ? `rgb(${120 * hell}, ${78 * hell}, ${36 * hell})` : `rgb(${200 * hell}, ${148 * hell}, ${86 * hell})`
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r, 0, TAU)
+    ctx.fill()
+    if (!ring) {
+      ctx.fillStyle = `rgba(245, 214, 160, ${0.35 * h})`
+      ctx.beginPath()
+      ctx.arc(p.x - r * 0.25, p.y - r * 0.3, r * 0.45, 0, TAU)
+      ctx.fill()
+    }
+  }
+  // Kopf: runder Schlund mit Zaehnen nach vorn, Sand spritzt auf
+  const k = pt(kopf + dir * 0.35)
+  const dx = achse === 'x' ? dir : 0
+  const dy = achse === 'y' ? dir : 0
+  const auf = 0.8 + 0.2 * Math.sin(now / 70)
   ctx.fillStyle = '#3A1A0C'
   ctx.beginPath()
-  ctx.arc(hx, hy, cell * 0.42 * auf, 0, TAU)
+  ctx.arc(k.x, k.y, cell * 0.72 * auf, 0, TAU)
   ctx.fill()
   ctx.fillStyle = '#F4EAD2'
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * TAU + now / 400
-    const r0 = cell * 0.42 * auf
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * TAU + now / 500
+    const r1 = cell * 0.72 * auf
     ctx.beginPath()
-    ctx.moveTo(hx + Math.cos(a - 0.15) * r0, hy + Math.sin(a - 0.15) * r0)
-    ctx.lineTo(hx + Math.cos(a) * r0 * 0.55, hy + Math.sin(a) * r0 * 0.55)
-    ctx.lineTo(hx + Math.cos(a + 0.15) * r0, hy + Math.sin(a + 0.15) * r0)
+    ctx.moveTo(k.x + Math.cos(a - 0.12) * r1, k.y + Math.sin(a - 0.12) * r1)
+    ctx.lineTo(k.x + Math.cos(a) * r1 * 0.5, k.y + Math.sin(a) * r1 * 0.5)
+    ctx.lineTo(k.x + Math.cos(a + 0.12) * r1, k.y + Math.sin(a + 0.12) * r1)
     ctx.fill()
   }
-  // Sand spritzt vor dem Kopf auf
-  for (let i = 0; i < 10; i++) {
-    const t = ((now / 300 + i / 10) % 1 + 1) % 1
-    const a = (hash(i) - 0.5) * 2.2
+  for (let i = 0; i < 16; i++) {
+    const t = ((now / 300 + i / 16) % 1 + 1) % 1
+    const a = (hash(i) - 0.5) * 2.4
     const vx = dx * Math.cos(a) - dy * Math.sin(a)
     const vy = dy * Math.cos(a) + dx * Math.sin(a)
-    ctx.fillStyle = `rgba(214, 178, 118, ${0.8 * (1 - t)})`
+    ctx.fillStyle = `rgba(214, 178, 118, ${0.85 * (1 - t)})`
     ctx.beginPath()
-    ctx.arc(hx + vx * t * cell * 1.1, hy + vy * t * cell * 1.1, cell * 0.07 * (1 - t * 0.5), 0, TAU)
+    ctx.arc(k.x + vx * t * cell * 1.6, k.y + vy * t * cell * 1.6, cell * 0.1 * (1 - t * 0.5), 0, TAU)
     ctx.fill()
   }
 }

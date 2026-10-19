@@ -22,7 +22,7 @@ weist auf dem Startbildschirm auf eine neuere APK hin.
 
 ## Mehrspieler
 
-Bis zu 4 Spieler, fünf Modi: **Gegeneinander** (ein Feld, 3 Leben, wer zu weit zurückliegt, ist raus), **Wettrennen**
+Bis zu 4 Spieler, wahlweise mit **1 Leben (Standard) oder 3 Leben** (dann doppelt so viele Trophäen für den Sieg), fünf Modi: **Gegeneinander** (ein Feld, wer zu weit zurückliegt, ist raus), **Wettrennen**
 (eigene Welt, die anderen als Geist), **Koop** (zusammen, 3 gemeinsame Leben), **Apfeljagd** (3 Minuten, die meisten Äpfel
 gewinnen) und **Zone** (die Karte schrumpft). Der Gastgeber wählt „Klassisch“, alle tippen „Bereit“. Freunde
 fügt man per Code hinzu; alle Online-Spieler sehen sich und können sich einladen, auch per Benachrichtigung aufs Handy.

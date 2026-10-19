@@ -149,6 +149,20 @@ describe('Einstellungen', () => {
   })
 })
 
+describe('Leben: 1 oder 3', () => {
+  it('mit einem Leben ist man nach dem ersten Tod raus, die andere gewinnt', () => {
+    const g = new MehrGame({ ...opts('vs'), leben: 1 })
+    expect(g.schlangen.every((s) => s.leben === 1)).toBe(true)
+    g.wechsel(0)
+    ;(g as unknown as { die: (c: string) => void }).die('mauer')
+    expect(g.schlangen[0].raus).toBe(true)
+  })
+  it('im Koop teilen sich alle die eingestellten Leben', () => {
+    expect(new MehrGame({ ...opts('koop'), leben: 1 }).pool).toBe(1)
+    expect(new MehrGame({ ...opts('koop'), leben: 3 }).pool).toBe(3)
+  })
+})
+
 describe('Gegeneinander', () => {
   it('in eine andere Schlange fahren kostet ein Leben, nach 5 s kommt man als Geist zurueck', () => {
     const g = new MehrGame(opts('vs'))

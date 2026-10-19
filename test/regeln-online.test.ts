@@ -25,6 +25,9 @@ describe('Belohnung im Mehrspieler', () => {
     // Trophaeen: eine je besiegtem Gegner, nur fuer den Sieger
     expect([2, 3, 4].map((n) => trophaeen(true, n))).toEqual([1, 2, 3])
     expect(trophaeen(false, 4)).toBe(0)
+    // Mit 3 Leben doppelt so viele
+    expect([2, 3, 4].map((n) => trophaeen(true, n, 3))).toEqual([2, 4, 6])
+    expect(trophaeen(false, 4, 3)).toBe(0)
     expect(belohnung('koop', false, 2, 3)).toBe(5)
   })
 })
