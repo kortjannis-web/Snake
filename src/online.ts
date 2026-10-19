@@ -12,7 +12,7 @@ const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 export const onlineAktiv = !!(URL && KEY)
 
 export type Art = 'heute' | 'immer' | 'alle' | 'siege' | 'koop' | 'tages'
-export type Zeile = { user_id: string; name: string; level: number; tempo: Tempo; skin?: string }
+export type Zeile = { user_id: string; name: string; level: number; tempo: Tempo; skin?: string; dauer_ms?: number }
 export type Ergebnis = { level: number; dauer: number; tempo: Tempo; tages?: boolean }
 
 const PKEY = 'snake.profil.v1'
@@ -175,14 +175,16 @@ export async function ladeListe(art: Art): Promise<{ zeilen: Zeile[]; ich: strin
     return { zeilen: (data ?? []).map((k) => ({ user_id: `koop-${k.id}`, name: (k.spieler as string[]).join(' & '), level: k.level as number, tempo: 'normal' as Tempo })), ich: null }
   }
   const quelle = art === 'heute' ? 'bestenliste_heute' : art === 'immer' ? 'bestenliste_immer' : art === 'siege' ? 'sieger_liste' : art === 'tages' ? 'bestenliste_tages' : 'spieler_alle'
+  // Tageslevel: gleich viele Aepfel, dann die schnellere Zeit zuerst
   const abfrage = (spalten: string) =>
     sb
       .from(quelle)
       .select(spalten)
       .order('level', { ascending: false })
-      .order(art === 'alle' || art === 'siege' ? 'name' : 'created_at', { ascending: true })
+      .order(art === 'alle' || art === 'siege' ? 'name' : art === 'tages' && spalten.includes('dauer_ms') ? 'dauer_ms' : 'created_at', { ascending: true })
       .limit(art === 'alle' ? 500 : 50)
-  let { data, error } = await abfrage(art === 'siege' ? 'user_id,name,level,skin' : 'user_id,name,level,tempo,skin')
+  let { data, error } = await abfrage(art === 'siege' ? 'user_id,name,level,skin' : art === 'tages' ? 'user_id,name,level,tempo,skin,dauer_ms' : 'user_id,name,level,tempo,skin')
+  if (art === 'tages' && spalteFehlt(error)) ({ data, error } = await abfrage('user_id,name,level,tempo,skin'))
   if (spalteFehlt(error)) ({ data, error } = await abfrage('user_id,name,level,tempo'))
   if (error) throw error
   const { data: s } = await sb.auth.getSession()

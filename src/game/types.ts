@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel'
 
 export type Status = 'play' | 'over'
 
@@ -65,7 +65,9 @@ export type SandboxObjekt = 'mauer' | 'teich' | 'gift' | 'baum' | 'haus' | 'turm
 export const SANDBOX_OBJEKTE: SandboxObjekt[] = ['mauer', 'teich', 'gift', 'baum', 'haus', 'turm', 'falle', 'wolke', 'frosch', 'gegner', 'lila', 'ameise', 'lava', 'eis']
 /** Sandbox: eigene Kartengroesse (in Bloecken), Schlangenlaenge und Objekte.
  *  weiter = danach normal Level fuer Level, sonst bleibt die Welt so (nur der Apfel wandert) */
-export type Sandbox = { breite: number; hoehe: number; laenge: number; objekte: Partial<Record<SandboxObjekt, number>>; weiter: boolean }
+/** Tageslevel nutzen die Sandbox mit eigener Form: bloecke (Blockkoordinaten), aus = abgeschnittene Felder,
+ *  dazu = Felder ausserhalb der Bloecke (Ausbuchtungen) */
+export type Sandbox = { breite: number; hoehe: number; laenge: number; objekte: Partial<Record<SandboxObjekt, number>>; weiter: boolean; bloecke?: P[]; aus?: P[]; dazu?: P[] }
 
 /** Kreativ-Modus: alles waehrend des Spiels umschaltbar */
 export type Kreativ = {

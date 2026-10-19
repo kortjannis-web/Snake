@@ -22,6 +22,8 @@ export type Stats = {
   erfolge: string[]
   /** Gefahren, die schon einmal vorgestellt wurden */
   seen: string[]
+  /** Tag (JJJJ-MM-TT), an dem der pinke 10er-Apfel im Tageslevel schon geholt wurde */
+  tagesBonus?: string
 }
 
 const SKEY = 'snake.settings.v1'

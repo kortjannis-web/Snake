@@ -145,6 +145,8 @@ export class Renderer {
   welt: Welt = WELTEN[0]
   /** Speedrun: Aepfel ab Orange (doppelt wert) blitzen */
   blitzApfel = false
+  /** Tageslevel: der letzte Apfel leuchtet pink (bringt 10 Aepfel) */
+  sonderApfel = false
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
   private spuren = new Spuren()
   private dpr = 1
@@ -702,7 +704,25 @@ export class Renderer {
     // Apfel (Farbe nach Wert) und Giftaepfel (tarnen sich in derselben Farbe)
     const stufe = g.apfelStufe()
     const wipp = this.reduce ? 0 : Math.max(0, Math.sin(now / 260)) * cell * 0.05
-    drawFutter(ctx, welt, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, stufe, now)
+    if (this.sonderApfel) {
+      // Pinker Schlussapfel: pulsierender Schein und kleine Funkel
+      const x = px(g.apple.p.x)
+      const y = px(g.apple.p.y)
+      const p = 0.5 + 0.5 * Math.sin(now / 220)
+      const gl = ctx.createRadialGradient(x, y, 0, x, y, cell * (1.3 + 0.3 * p))
+      gl.addColorStop(0, `rgba(255, 110, 200, ${0.55 + 0.25 * p})`)
+      gl.addColorStop(1, 'rgba(255, 110, 200, 0)')
+      ctx.fillStyle = gl
+      ctx.fillRect(x - cell * 1.7, y - cell * 1.7, cell * 3.4, cell * 3.4)
+      for (let i = 0; i < 5; i++) {
+        const a = now / 700 + (i / 5) * Math.PI * 2
+        ctx.fillStyle = `rgba(255, 220, 245, ${0.5 + 0.5 * Math.sin(now / 150 + i)})`
+        ctx.beginPath()
+        ctx.arc(x + Math.cos(a) * cell * 0.75, y + Math.sin(a) * cell * 0.75, cell * 0.05, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+    drawFutter(ctx, welt, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, this.sonderApfel ? 8 : stufe, now)
     licht(px(g.apple.p.x), px(g.apple.p.y), cell * 1.6)
     if (this.blitzApfel && stufe >= 2 && !this.reduce) apfelBlitze(ctx, px(g.apple.p.x), px(g.apple.p.y), cell, now)
     for (const pw of g.powers) {

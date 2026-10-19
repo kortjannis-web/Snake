@@ -259,4 +259,5 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   spieler: 'schlange',
   zone: 'lava',
   zeit: 'apfel',
+  ziel: 'aepfel',
 }

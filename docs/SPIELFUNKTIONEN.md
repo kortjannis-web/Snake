@@ -282,6 +282,14 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Optionen:** Töne, Musik, Vibration, Steuerkreuz, Kamera (Bereich/Dynamisch), Statistik zurücksetzen, Versionsnummer.
 - **Android-Zurücktaste:** Spiel → Pause, Pause → weiter, Unterseite → zurück, Startmenü → App schließen.
 
+## 16-0. Tageslevel (Startmenü → Täglich)
+
+- Jeden Tag ein **eigenes Level für alle** (aus dem Datum erzeugt, deutsche Zeit). Karte aus **3 bis 10 Blöcken**, zufällig zusammengesetzt, an manchen Außenecken **abgeschnitten** oder mit **Ausbuchtungen** nach außen.
+- Ein **Motto** bestimmt, was drauf ist: Lava-Labyrinth, Schlangennest, Dichter Wald, Seenplatte, Giftsumpf, Wachtürme, Fallenparcours, Ameisenhügel, Eiszeit, Bauernhof oder Chaos, dazu ein, zwei Überraschungen. **Alles bleibt liegen** (auch Fallen), nichts Neues kommt dazu.
+- Die Schlange startet mit **zufälliger Länge (3 bis 14)** und muss **3 bis 20 Äpfel** holen. Oben steht „x / Ziel“. Der **letzte Apfel leuchtet pink** und bringt **10 Äpfel**, aber nur **einmal am Tag**. Alle geholt: „Tageslevel geschafft!“.
+- **Schwierigkeitsrechner:** Jede Gefahr hat ein Gewicht (Mauer 1, Teich 1, Giftapfel 1,2, Frosch 1,2, Baum 1,5, Eis 1,5, Haus 2, Falle 2, Ameise 2,5, Turm 3, Wolke 3, Gegner 4, Lava 4, lila Gegner 6). Wert = Gefahr je Block × 8 + (Länge − 3) × 0,6 + (Äpfel − 3) × 1,1. Der Generator stellt nach, bis der Wert im Band des Wochentags liegt: **Montag 22 bis 38, jeden Tag 6 mehr, Sonntag 58 bis 74**.
+- Beliebig oft spielbar. **Bestenliste des Tages:** wer alle Äpfel holt, steht nach Zeit vorn, dahinter nach geholten Äpfeln. Tageslevel zählen nicht für Rekord und Tagesrekord.
+
 ## 16-1. Tagesrekord und Erfolge
 
 - **Tagesrekord:** In der Leiste neben dem Rekord steht „heute N“ (der laufende Versuch zählt schon mit), im Startmenü „Heute: N · Rekord: M“, in der Statistik eine eigene Kachel. Auf dem Spielende-Bildschirm gibt es das Abzeichen „Neuer Tagesrekord“, wenn es kein neuer Rekord aller Zeiten ist. Der Tag wechselt um Mitternacht (Gerätezeit).

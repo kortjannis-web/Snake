@@ -2993,3 +2993,22 @@ html[data-install] #app {
 .speedrun-zeit.knapp i {
   background: #e5463b;
 }
+
+/* Tageslevel: geholte Aepfel / Ziel, unter der Leiste in der Mitte */
+.tages-ziel {
+  position: absolute;
+  left: 50%;
+  bottom: -30px;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(23, 21, 19, 0.82);
+  color: #ff9ad5;
+  font: 700 0.85rem/1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.tages-ziel[hidden] {
+  display: none;
+}

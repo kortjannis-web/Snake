@@ -81,6 +81,8 @@ export class Game {
   mask = new Uint8Array(0)
   /** Freigelegte Felder ausserhalb der Bloecke (Maulwurf), in Kartenkoordinaten */
   extra: P[] = []
+  /** Felder innerhalb der Bloecke, die nicht zur Karte gehoeren (abgeschnittene Ecken der Tageslevel) */
+  aus: P[] = []
   /** Gesamte Verschiebung seit dem Start: Weltkoordinate = Karte - ursprung (fuer Erde, Erze, Deko) */
   ursprung = { x: 0, y: 0 }
   /** Abgebaute Erze (Weltkoordinaten) */
@@ -207,16 +209,24 @@ export class Game {
     if (sb) {
       // Sandbox: rechteckige Karte aus breite x hoehe Bloecken
       this.blocks = []
-      for (let y = 0; y < Math.max(1, Math.min(8, Math.round(sb.hoehe))); y++)
-        for (let x = 0; x < Math.max(1, Math.min(8, Math.round(sb.breite))); x++) this.blocks.push({ x, y })
+      if (sb.bloecke?.length) {
+        // Tageslevel: eigene Form mit abgeschnittenen Ecken und Ausbuchtungen
+        this.blocks = sb.bloecke.map((b) => ({ ...b }))
+        this.extra = (sb.dazu ?? []).map((c) => ({ ...c }))
+        this.aus = (sb.aus ?? []).map((c) => ({ ...c }))
+      } else
+        for (let y = 0; y < Math.max(1, Math.min(8, Math.round(sb.hoehe))); y++)
+          for (let x = 0; x < Math.max(1, Math.min(8, Math.round(sb.breite))); x++) this.blocks.push({ x, y })
       this.baueMaske()
     }
     for (const b of this.blocks) this.startBloecke.add(weltKey(b.x, b.y))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
     this.tick = R.takt(this.cfg, this.tempo, 1)
 
-    const y = Math.floor(this.h / 2)
-    const x = Math.max(3, Math.floor(this.w / 2) - 3)
+    // Start in der Mitte der Karte, im Tageslevel in der Mitte des ersten Blocks
+    const sb0 = sb?.bloecke?.[0]
+    const y = sb0 ? sb0.y * this.bh + Math.floor(this.bh / 2) : Math.floor(this.h / 2)
+    const x = sb0 ? sb0.x * this.bw + Math.floor(this.bw / 2) : Math.max(3, Math.floor(this.w / 2) - 3)
     this.body = [
       { x, y },
       { x: x - 1, y },
@@ -747,6 +757,11 @@ export class Game {
     f()
   }
 
+  /** Tageslevel: alle Aepfel geholt (Spielende als Sieg) */
+  geschafft() {
+    if (this.status === 'play') this.die('ziel')
+  }
+
   /** Speedrun: die Zeit fuer den Apfel ist um */
   zeitAbgelaufen() {
     if (this.status === 'play') this.die('zeit')
@@ -948,6 +963,7 @@ export class Game {
     for (const b of this.blocks)
       for (let y = 0; y < this.bh; y++) this.mask.fill(1, (b.y * this.bh + y) * this.w + b.x * this.bw, (b.y * this.bh + y) * this.w + (b.x + 1) * this.bw)
     for (const c of this.extra) this.mask[c.y * this.w + c.x] = 1
+    for (const c of this.aus) if (c.x >= 0 && c.y >= 0 && c.x < this.w && c.y < this.h) this.mask[c.y * this.w + c.x] = 0
   }
 
   /** Weltkoordinaten eines Kartenfelds (bleiben gleich, auch wenn die Karte verschoben wird) */

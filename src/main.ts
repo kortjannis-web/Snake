@@ -21,6 +21,7 @@ import { dauerhaft, zeitleiste } from './game/zeitleiste'
 import { haptic } from './haptics'
 import { installPflicht, zeigeInstallation } from './install'
 import { tagBerlin, tagesSeed } from './tages'
+import { eckenFelder, tagesLevel, wochentag } from './game/tageslevel'
 import { MEHR_BILD } from './multi/protokoll'
 import { perPushEinladen, pushAuffrischen, pushEinschalten, pushErlaubt, pushMoeglich } from './push'
 import { geraetId, mehrspieler, SERVER } from './multi/ui'
@@ -83,6 +84,13 @@ let istKreativ = false
 let istTages = false
 /** Laeuft gerade ein Speedrun (25 % schneller, jeder Apfel mit Zeitlimit)? */
 let istSpeedrun = false
+/** Tageslevel: so viele Aepfel muessen geholt werden */
+let tagesZiel = 0
+/** Das heutige Tageslevel (fuer alle gleich) */
+const heutigesLevel = () => {
+  const tag = tagBerlin()
+  return tagesLevel(tagesSeed(tag), wochentag(tag))
+}
 /** Speedrun: seit wann der aktuelle Apfel liegt und wie viel Zeit es fuer ihn gibt (Spielzeit, ms) */
 let frist: { t: number; dauer: number } | null = null
 let tagesTag = ''
@@ -188,8 +196,23 @@ function newGame(alsKreativ = istKreativ, tages = istTages, speedrun = istSpeedr
   const { an, ...sb } = sandbox
   if (istTages) {
     // Tages-Herausforderung: feste Kartengroesse, Standardregeln, Startwert vom Tag (gleich fuer alle)
+    // Tageslevel: eigene Karte (Bloecke, Ecken), Motto, Laenge und Apfelziel aus dem Datum; alles bleibt liegen
     tagesTag = tagBerlin()
-    game = new Game({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, tempo: 'normal', cfg: { ...DEFAULTS }, seed: tagesSeed(tagesTag), startLevel: 1 })
+    const seed = tagesSeed(tagesTag)
+    const tl = tagesLevel(seed, wochentag(tagesTag))
+    tagesZiel = tl.ziel
+    // Blockgroesse wie im Spiel (haengt nur an der festen Bildgroesse)
+    const probe = new Game({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h })
+    const felder = (art: 'ab' | 'dazu') => tl.ecken.filter((e) => e.art === art).flatMap((e) => eckenFelder(e, probe.bw, probe.bh))
+    game = new Game({
+      screenW: MEHR_BILD.w,
+      screenH: MEHR_BILD.h,
+      tempo: 'normal',
+      cfg: { ...DEFAULTS, falleDauer: 1_000_000 },
+      seed,
+      startLevel: 1,
+      sandbox: { breite: 0, hoehe: 0, laenge: tl.laenge, objekte: tl.objekte, weiter: false, bloecke: tl.bloecke, aus: felder('ab'), dazu: felder('dazu') },
+    })
   } else
     game = new Game({
       screenW: sc.w,
@@ -201,6 +224,8 @@ function newGame(alsKreativ = istKreativ, tages = istTages, speedrun = istSpeedr
       sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
     })
   renderer.reset()
+  renderer.sonderApfel = false
+  $('tages-ziel').hidden = !istTages
   readyText()
   setMode('ready')
   // Steuerkreuz veraendert die Hoehe: danach neu messen
@@ -322,7 +347,12 @@ async function ladeListeAnzeige() {
       }
       const level = document.createElement('b')
       level.className = 'liste__level'
-      level.textContent = z.level > 0 ? String(z.level) : '–'
+      if (listeArt === 'tages') {
+        // Geschafft: Zeit, sonst geholte Aepfel
+        const ziel = heutigesLevel().ziel
+        const s = Math.round((z.dauer_ms ?? 0) / 1000)
+        level.textContent = z.level >= ziel && z.dauer_ms ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${z.level}/${ziel}`
+      } else level.textContent = z.level > 0 ? String(z.level) : '–'
       // Aussehen der Schlange, online und Einladen (nur Freunde)
       const cv = document.createElement('canvas')
       cv.className = 'liste__skin'
@@ -357,7 +387,7 @@ async function ladeListeAnzeige() {
           : listeArt === 'koop'
             ? 'Die besten Koop-Teams nach erreichtem Level.'
             : listeArt === 'tages'
-              ? 'Heute spielen alle dieselbe Welt (Startmenü → Tages-Herausforderung).'
+              ? `Heutiges Tageslevel: ${heutigesLevel().motto}, ${heutigesLevel().ziel} Äpfel. Wer alle holt, steht nach Zeit vorn, dahinter nach geholten Äpfeln.`
               : 'Zählt: Standardregeln, normale Runden. Level = höchster erreichter Level.'
   } catch {
     if (nr !== listeNr) return
@@ -567,10 +597,11 @@ function gameOver() {
   if (!game) return
   const g = game
   // Kreativ-Runden zaehlen nicht
-  const neu = !istKreativ && g.maxLevel > stats.best && g.gegessen > 0
+  // Kreativ-Runden und Tageslevel (eigene Wertung) zaehlen nicht fuer den Rekord
+  const neu = !istKreativ && !istTages && g.maxLevel > stats.best && g.gegessen > 0
   // Tagesrekord (nur, wenn es nicht gleich der Rekord aller Zeiten ist)
-  const neuHeute = !istKreativ && !neu && g.maxLevel > heuteBest() && g.gegessen > 0
-  if (!istKreativ && g.gegessen > 0 && g.maxLevel > heuteBest()) stats.heute = { datum: heuteDatum(), best: g.maxLevel }
+  const neuHeute = !istKreativ && !istTages && !neu && g.maxLevel > heuteBest() && g.gegessen > 0
+  if (!istKreativ && !istTages && g.gegessen > 0 && g.maxLevel > heuteBest()) stats.heute = { datum: heuteDatum(), best: g.maxLevel }
   if (!istKreativ) {
     stats.apples += g.gegessen
     stats.time += performance.now() - startedAt
@@ -580,13 +611,14 @@ function gameOver() {
     if (neu) stats.best = g.maxLevel
     erfolgeMelden()
     saveStats()
-    if (zaehltOnline() && g.gegessen > 0 && g.maxLevel >= 2)
-      melde({ level: g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istSpeedrun ? 'schnell' : 'normal', tages: istTages })
+    // Tageslevel: gemeldet werden die geholten Aepfel (alle = geschafft) und die Zeit
+    if (zaehltOnline() && g.gegessen > 0 && (istTages || g.maxLevel >= 2))
+      melde({ level: istTages ? Math.min(g.gegessen, tagesZiel) : g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: istSpeedrun ? 'schnell' : 'normal', tages: istTages })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
     $('over-cause').textContent = g.cause ? CAUSE[g.cause] : ''
-    $('over-level').textContent = String(g.level)
+    $('over-level').textContent = istTages ? `${Math.min(g.gegessen, tagesZiel)}/${tagesZiel}` : String(g.level)
     $('over-record').hidden = !neu
     $('over-heute').hidden = !neuHeute
     $('over-tages').hidden = !istTages
@@ -664,9 +696,14 @@ function handle(e: GameEvent) {
       audio.eat(e.level)
       haptic.light()
       updateHud(true)
+      // Tageslevel: alle Aepfel geholt = geschafft
+      if (istTages && game && game.gegessen >= tagesZiel) {
+        game.geschafft()
+        break
+      }
       // Zum ersten Mal den Level einer Welt erreicht: freigeschaltet
       const w = WELTEN.find((x) => x.ab === e.level && x.ab > stats.best)
-      if (w && !istKreativ && mode === 'play') toast('baum', `${w.name} freigeschaltet`, 'Im Aussehen unter Welten wählbar.')
+      if (w && !istKreativ && !istTages && mode === 'play') toast('baum', `${w.name} freigeschaltet`, 'Im Aussehen unter Welten wählbar.')
       break
     }
     case 'milestone':
@@ -690,8 +727,13 @@ function handle(e: GameEvent) {
       haptic.medium()
       break
     case 'die':
-      audio.die(e.cause)
-      haptic.heavy()
+      if (e.cause === 'ziel') {
+        audio.record()
+        haptic.success()
+      } else {
+        audio.die(e.cause)
+        haptic.heavy()
+      }
       mode = 'over'
       app.dataset.mode = 'over'
       audio.music(true, true)
@@ -731,7 +773,13 @@ function handle(e: GameEvent) {
       if (!istKreativ) {
         // Speedrun: ab den orangen Aepfeln (Level 50) zaehlt jeder Apfel doppelt
         const speedBonus = istSpeedrun && e.quelle === 'apfel' && !!game && apfelFaktor(game.cfg, game.level) >= 2
-        verdienen(speedBonus ? e.wert * 2 : e.wert)
+        // Tageslevel: der letzte (pinke) Apfel bringt 10 Aepfel, aber nur einmal am Tag
+        const tagesBonus = istTages && e.quelle === 'apfel' && !!game && game.gegessen >= tagesZiel && stats.tagesBonus !== tagesTag
+        if (tagesBonus) {
+          stats.tagesBonus = tagesTag
+          saveStats()
+        }
+        verdienen(tagesBonus ? 10 : speedBonus ? e.wert * 2 : e.wert)
         saveWallet()
       }
       updateGeld(true)
@@ -1905,7 +1953,9 @@ $('btn-tages').addEventListener('click', () => {
   audio.unlock()
   audio.click()
   newGame(false, true, false)
-  toast('gebiet', 'Tages-Herausforderung', 'Heute spielen alle dieselbe Welt.')
+  const tl = heutigesLevel()
+  const bonus = stats.tagesBonus === tagBerlin() ? 'Den 10er-Bonus hast du heute schon.' : 'Der letzte leuchtet pink und bringt 10 Äpfel.'
+  toast('gebiet', `Tageslevel: ${tl.motto}`, `Hol ${tl.ziel} Äpfel. ${bonus} Schwierigkeit ${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][wochentag(tagBerlin())]}: ${tl.schwierigkeit}.`)
 })
 $('btn-speedrun').addEventListener('click', () => {
   audio.unlock()
@@ -2098,6 +2148,10 @@ function frame(now: number) {
       for (const e of game.drain()) handle(e)
     }
     if (istSpeedrun) speedrunTakt(game)
+    if (istTages) {
+      $('tages-ziel').textContent = `${Math.min(game.gegessen, tagesZiel)} / ${tagesZiel}`
+      renderer.sonderApfel = game.gegessen === tagesZiel - 1
+    }
     renderer.mehr = null
     if (!verdeckt) renderer.draw(game)
   }
