@@ -259,82 +259,111 @@ export function drawTeich(ctx: CanvasRenderingContext2D, cells: P[], cell: numbe
   })
 }
 
-/** Baerenfalle von oben: Grundplatte, zwei Buegel mit Zaehnen.
- *  zu = 0 offen bis 1 zugeschnappt, s = Ploppen */
+/** Baerenfalle von oben: zwei halbrunde Stahlbuegel mit grossen Zaehnen, seitlich die Federn, in der
+ *  Mitte die Trittplatte, eine Kette mit Pflock. zu = 0 offen bis 1 zugeschnappt (die Buegel klappen
+ *  hoch und die Zaehne greifen in der Mitte ineinander), s = Ploppen, warn = Warnschein */
 export function drawFalle(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, s: number, zu = 0, warn = 0) {
   if (s <= 0) return
   const R = cell * 0.42 * s
   ctx.save()
   ctx.translate(x, y)
-  // Warnschein (pulsiert)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
   if (warn > 0) {
-    ctx.fillStyle = `rgba(242, 119, 76, ${0.28 * warn})`
+    ctx.fillStyle = `rgba(242, 119, 76, ${0.3 * warn})`
     ctx.beginPath()
-    ctx.arc(0, 0, R * 1.25, 0, Math.PI * 2)
+    ctx.arc(0, 0, R * 1.3, 0, Math.PI * 2)
     ctx.fill()
   }
-  ctx.fillStyle = 'rgba(12, 40, 32, 0.32)'
+  // Schatten
+  ctx.fillStyle = 'rgba(12, 40, 32, 0.3)'
   ctx.beginPath()
-  ctx.ellipse(0, R * 0.18, R * 1.08, R * 0.95, 0, 0, Math.PI * 2)
+  ctx.ellipse(0, R * 0.16, R * 1.15, R * 0.9, 0, 0, Math.PI * 2)
   ctx.fill()
-  // Grundplatte mit Warnring
-  ctx.fillStyle = '#5B4A3A'
+  // Kette mit Pflock (unten rechts)
+  ctx.strokeStyle = '#6B7076'
+  ctx.lineWidth = Math.max(1, R * 0.07)
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath()
+    ctx.ellipse(R * (0.55 + i * 0.16), R * (0.62 + i * 0.12), R * 0.09, R * 0.055, 0.6 + (i % 2) * 1.2, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.fillStyle = '#8A5A33'
   ctx.beginPath()
-  ctx.arc(0, 0, R * 1.0, 0, Math.PI * 2)
+  ctx.arc(R * 1.18, R * 1.08, R * 0.12, 0, Math.PI * 2)
   ctx.fill()
-  ctx.strokeStyle = '#E8873E'
-  ctx.lineWidth = R * 0.1
-  ctx.setLineDash([R * 0.22, R * 0.16])
+  // Federn links und rechts (Buegel mit Windungen)
+  for (const sx of [-1, 1]) {
+    ctx.fillStyle = '#4A4F55'
+    rund(ctx, sx > 0 ? R * 0.55 : -R * 1.25, -R * 0.13, R * 0.7, R * 0.26, R * 0.12)
+    ctx.fill()
+    ctx.strokeStyle = '#9AA1A8'
+    ctx.lineWidth = Math.max(1, R * 0.05)
+    for (let i = 0; i < 4; i++) {
+      const fx = sx * R * (0.68 + i * 0.13)
+      ctx.beginPath()
+      ctx.moveTo(fx, -R * 0.12)
+      ctx.lineTo(fx + sx * R * 0.06, R * 0.12)
+      ctx.stroke()
+    }
+  }
+  // Grundring
+  ctx.strokeStyle = '#3A3F44'
+  ctx.lineWidth = R * 0.12
   ctx.beginPath()
-  ctx.arc(0, 0, R * 0.95, 0, Math.PI * 2)
+  ctx.arc(0, 0, R * 0.62, 0, Math.PI * 2)
   ctx.stroke()
-  ctx.setLineDash([])
-  // Feder quer
-  ctx.strokeStyle = '#2A2D31'
-  ctx.lineWidth = R * 0.16
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(-R * 1.0, 0)
-  ctx.lineTo(R * 1.0, 0)
-  ctx.stroke()
-  // Buegel: links und rechts, schnappen zur Mitte
-  const sx = 1 - zu * 0.82
-  for (const side of [-1, 1]) {
+  // Zwei Buegel (oben, unten): beim Zuschnappen klappen sie hoch, von oben werden sie flacher
+  const h = 1 - zu * 0.9
+  for (const sy of [-1, 1]) {
     ctx.save()
-    ctx.scale(sx, 1)
-    ctx.strokeStyle = '#3E444A'
+    ctx.scale(1, h)
+    // Buegel
+    const g = ctx.createLinearGradient(0, sy * R * 0.4, 0, sy * R * 1.0)
+    g.addColorStop(0, '#C9CFD5')
+    g.addColorStop(1, '#5F666D')
+    ctx.strokeStyle = g
     ctx.lineWidth = R * 0.2
     ctx.beginPath()
-    ctx.arc(0, 0, R * 0.82, side < 0 ? Math.PI * 0.5 : -Math.PI * 0.5, side < 0 ? Math.PI * 1.5 : Math.PI * 0.5)
+    ctx.arc(0, 0, R * 0.86, sy < 0 ? Math.PI : 0, sy < 0 ? Math.PI * 2 : Math.PI)
     ctx.stroke()
-    // Zaehne nach innen
-    ctx.fillStyle = '#EEF1F3'
-    for (let i = 1; i < 6; i++) {
-      const a = (side < 0 ? Math.PI * 0.5 : -Math.PI * 0.5) + (Math.PI * i) / 6
-      const ox = Math.cos(a) * R * 0.74
-      const oy = Math.sin(a) * R * 0.74
-      const ix = Math.cos(a) * R * 0.5
-      const iy = Math.sin(a) * R * 0.5
-      const px = -Math.sin(a) * R * 0.1
-      const py = Math.cos(a) * R * 0.1
+    // Grosse Zaehne nach innen, hell mit dunklem Rand
+    ctx.fillStyle = '#F2F4F6'
+    ctx.strokeStyle = '#2A2D31'
+    ctx.lineWidth = Math.max(1, R * 0.05)
+    for (let i = 0; i < 7; i++) {
+      const a = (sy < 0 ? Math.PI : 0) + (Math.PI * (i + 0.5)) / 7
+      const ox = Math.cos(a) * R * 0.78
+      const oy = Math.sin(a) * R * 0.78
+      const ix = Math.cos(a) * R * (0.42 - zu * 0.4)
+      const iy = Math.sin(a) * R * (0.42 - zu * 0.4)
+      const px = -Math.sin(a) * R * 0.13
+      const py = Math.cos(a) * R * 0.13
       ctx.beginPath()
       ctx.moveTo(ox + px, oy + py)
       ctx.lineTo(ix, iy)
       ctx.lineTo(ox - px, oy - py)
       ctx.closePath()
       ctx.fill()
+      ctx.stroke()
     }
     ctx.restore()
   }
-  // Trittplatte
-  ctx.fillStyle = '#8A9096'
-  ctx.beginPath()
-  ctx.arc(0, 0, R * 0.26 * (1 - zu * 0.5), 0, Math.PI * 2)
-  ctx.fill()
-  ctx.fillStyle = 'rgba(255,255,255,0.35)'
-  ctx.beginPath()
-  ctx.arc(-R * 0.08, -R * 0.08, R * 0.09, 0, Math.PI * 2)
-  ctx.fill()
+  // Trittplatte (Koeder-Platte) in der Mitte
+  if (zu < 0.6) {
+    ctx.globalAlpha *= 1 - zu / 0.6
+    ctx.fillStyle = '#C9A253'
+    ctx.strokeStyle = '#7A5A22'
+    ctx.lineWidth = Math.max(1, R * 0.05)
+    ctx.beginPath()
+    ctx.arc(0, 0, R * 0.26, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'
+    ctx.beginPath()
+    ctx.arc(-R * 0.08, -R * 0.08, R * 0.08, 0, Math.PI * 2)
+    ctx.fill()
+  }
   ctx.restore()
 }
 
@@ -1048,7 +1077,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, cells: P[], born: number
 
 /** Ameise von oben: Kopf, Brust, Hinterleib, sechs Beine (bewegen sich beim Laufen), Fuehler.
  *  ang = Blickrichtung, lauf = 0..1 Schrittphase (-1 steht), alarm = 0..1 (Ausrufezeichen) */
-export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, lauf: number, s: number, alarm = 0, a = 1) {
+export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, lauf: number, s: number, alarm = 0, a = 1, farben: readonly [string, string, string] = ['#3B2218', '#4A2A1D', '#2A1A14']) {
   if (s <= 0 || a <= 0) return
   const u = cell * 0.5 * s
   ctx.save()
@@ -1061,7 +1090,7 @@ export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.rotate(ang)
   const wackel = lauf >= 0 ? Math.sin(lauf * Math.PI * 2) * 0.35 : 0
   // Beine
-  ctx.strokeStyle = '#2A1A14'
+  ctx.strokeStyle = farben[2]
   ctx.lineWidth = Math.max(1, u * 0.09)
   ctx.lineCap = 'round'
   for (const [bx, w0] of [[u * 0.12, -0.5], [-u * 0.05, 0], [-u * 0.22, 0.5]] as const)
@@ -1080,9 +1109,9 @@ export function drawAmeise(ctx: CanvasRenderingContext2D, x: number, y: number, 
     ctx.ellipse(cx, 0, rx, ry, 0, 0, Math.PI * 2)
     ctx.fill()
   }
-  koerper(-u * 0.48, u * 0.32, u * 0.24, '#3B2218')
-  koerper(-u * 0.05, u * 0.17, u * 0.12, '#4A2A1D')
-  koerper(u * 0.3, u * 0.17, u * 0.16, '#3B2218')
+  koerper(-u * 0.48, u * 0.32, u * 0.24, farben[0])
+  koerper(-u * 0.05, u * 0.17, u * 0.12, farben[1])
+  koerper(u * 0.3, u * 0.17, u * 0.16, farben[0])
   ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
   ctx.beginPath()
   ctx.ellipse(-u * 0.55, -u * 0.08, u * 0.1, u * 0.06, 0, 0, Math.PI * 2)
