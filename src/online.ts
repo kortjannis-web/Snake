@@ -621,13 +621,15 @@ export function abonniereSozial(bei: { nachricht: (n: Nachricht) => void; anfrag
   }
 }
 
-/** Eigenen Sieg eintragen (fuer die Sieges-Bestenliste) */
-export async function meldeSieg(modus: string, gegner: number) {
+/** Eigenen Sieg eintragen. trophaeen: so viele Gold-Trophaeen (je besiegtem Gegner, bei 3 Leben doppelt, hoechstens 6) */
+export async function meldeSieg(modus: string, trophaeen: number) {
   if (!onlineAktiv || !profil.name) return
   try {
     const sb = await client()
     const id = await nutzerId()
-    await sb.from('sieg').insert({ user_id: id, modus, gegner: Math.max(1, Math.min(3, gegner)) })
+    const { error } = await sb.from('sieg').insert({ user_id: id, modus, gegner: Math.max(1, Math.min(6, trophaeen)) })
+    // Datenbank noch ohne die Migration fuer 3 Leben (hoechstens 3): dann so viel wie erlaubt
+    if (error?.code === '23514' && trophaeen > 3) await sb.from('sieg').insert({ user_id: id, modus, gegner: 3 })
   } catch {
     /* kein Netz: egal */
   }

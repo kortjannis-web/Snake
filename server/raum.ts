@@ -25,6 +25,8 @@ export class RaumLogik {
   modus: Modus = 'vs'
   tempo: Tempo = 'normal'
   klassisch = false
+  /** Leben je Spieler: 1 (Standard) oder 3 */
+  leben: 1 | 3 = 1
   /** Wer in der Lobby "Bereit" getippt hat (Kennungen) */
   bereit = new Set<string>()
   /** Wer im Ergebnis "Revanche" getippt hat (Kennungen). Wollen alle, geht es zurueck in die Lobby, alle bereit */
@@ -81,6 +83,7 @@ export class RaumLogik {
         modus: this.modus,
         tempo: this.tempo,
         klassisch: this.klassisch,
+        leben: this.leben,
         spieler: this.plaetze.map((q) => ({ ...q.info, online: !!q.kanal, bereit: q.info.id === this.gastgeber || this.bereit.has(q.info.id), revanche: this.revanche.has(q.info.id) })),
         ich: i,
       }),
@@ -194,6 +197,7 @@ export class RaumLogik {
         if (!gast || this.phase !== 'lobby') return
         if (m.tempo && TEMPI.includes(m.tempo)) this.tempo = m.tempo
         if (typeof m.klassisch === 'boolean') this.klassisch = m.klassisch
+        if (m.leben === 1 || m.leben === 3) this.leben = m.leben
         this.bereit.clear()
         this.raumAnAlle()
         return
@@ -282,6 +286,7 @@ export class RaumLogik {
       los: jetzt + COUNTDOWN,
       tempo: this.tempo,
       klassisch: this.klassisch,
+      leben: this.leben,
     }
     this.phase = 'spiel'
     this.zustand = {}

@@ -33,12 +33,17 @@ export function anzeigeSkins(spieler: { skin: string }[]): string[] {
   })
 }
 
-const MODUS_TEXT: Record<Modus, string> = {
-  vs: 'Alle auf einem Feld, jeder hat 3 Leben. Wer zu weit hinter dem Führenden liegt, ist raus.',
-  rennen: 'Jeder in seiner eigenen Welt, die anderen als Geist. 3 Leben, 5 Äpfel Abstand.',
-  koop: 'Zusammen auf einem Feld, 3 gemeinsame Leben, Äpfel zählen für alle.',
-  jagd: '3 Minuten, wer die meisten Äpfel hat, gewinnt. Unendlich Leben, aber jeder Tod kostet 3 Äpfel.',
-  royale: 'Größere Karte, 3 Leben. Nach 20 s rückt alle 12 s die Zone vom Rand zu. Der Letzte gewinnt.',
+/** Beschreibung des Modus im Raum (mit der eingestellten Zahl der Leben) */
+function modusText(m: Modus, leben: number) {
+  const l = leben === 1 ? '1 Leben' : `${leben} Leben`
+  const texte: Record<Modus, string> = {
+    vs: `Alle auf einem Feld, jeder hat ${l}. Wer zu weit hinter dem Führenden liegt, ist raus.`,
+    rennen: `Jeder in seiner eigenen Welt, die anderen als Geist. ${l}, 5 Äpfel Abstand.`,
+    koop: `Zusammen auf einem Feld, ${leben === 1 ? '1 gemeinsames Leben' : `${leben} gemeinsame Leben`}, Äpfel zählen für alle.`,
+    jagd: '3 Minuten, wer die meisten Äpfel hat, gewinnt. Unendlich Leben, aber jeder Tod kostet 3 Äpfel.',
+    royale: `Größere Karte, ${l}. Nach 20 s rückt alle 12 s die Zone vom Rand zu. Der Letzte gewinnt.`,
+  }
+  return texte[m]
 }
 
 export type MehrApi = {
@@ -69,8 +74,8 @@ export type MehrApi = {
   raumGeaendert?: () => void
 }
 
-/** Trophaeen fuer einen Sieg: eine je besiegtem Gegner */
-export const trophaeen = (sieg: boolean, spieler: number) => (sieg ? Math.max(1, spieler - 1) : 0)
+/** Trophaeen fuer einen Sieg: eine je besiegtem Gegner, mit 3 Leben doppelt so viele */
+export const trophaeen = (sieg: boolean, spieler: number, leben = 1) => (sieg ? Math.max(1, spieler - 1) * (leben >= 3 ? 2 : 1) : 0)
 
 /** Belohnung in Aepfeln: Sieg 30 je Gegner, Mitspielen 5, Koop die Haelfte des Levels */
 export function belohnung(modus: Modus, sieg: boolean, spieler: number, level: number) {
@@ -272,7 +277,13 @@ export function mehrspieler(api: MehrApi) {
       b.setAttribute('aria-checked', String(b.dataset.v === r.modus))
       b.disabled = !client.gastgeber
     }
-    $('mehr-modus-text').textContent = MODUS_TEXT[r.modus]
+    $('mehr-modus-text').textContent = modusText(r.modus, r.leben ?? 1)
+    // Leben: 1 oder 3 (nicht bei der Apfeljagd, dort sind sie unendlich)
+    $('mehr-leben-wahl').hidden = r.modus === 'jagd'
+    for (const b of $('mehr-leben-seg').querySelectorAll<HTMLButtonElement>('button')) {
+      b.setAttribute('aria-checked', String(Number(b.dataset.v) === (r.leben ?? 1)))
+      b.disabled = !client.gastgeber
+    }
     for (const b of $('mehr-tempo').querySelectorAll<HTMLButtonElement>('button')) {
       b.setAttribute('aria-checked', String(b.dataset.v === r.tempo))
       b.disabled = !client.gastgeber
@@ -366,6 +377,14 @@ export function mehrspieler(api: MehrApi) {
       b.addEventListener('click', () => {
         api.audio.click()
         client.einstellen({ tempo: b.dataset.v as 'langsam' | 'normal' | 'schnell' })
+      }),
+    )
+  $('mehr-leben-seg')
+    .querySelectorAll<HTMLButtonElement>('button')
+    .forEach((b) =>
+      b.addEventListener('click', () => {
+        api.audio.click()
+        client.einstellen({ leben: Number(b.dataset.v) === 3 ? 3 : 1 })
       }),
     )
   $<HTMLInputElement>('mehr-klassisch').addEventListener('change', (e) => {
@@ -483,7 +502,7 @@ export function mehrspieler(api: MehrApi) {
       uhr.textContent = `${Math.floor(rest / 60)}:${String(rest % 60).padStart(2, '0')}`
       lb.append(uhr)
     } else
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < (g.lebenStart ?? 1); i++) {
         const h = document.createElement('span')
         if (i >= leben) h.className = 'leer'
         setIcon(h, 'Heart')
@@ -572,7 +591,7 @@ export function mehrspieler(api: MehrApi) {
       const sieg = start.modus !== 'koop' && erg.sieger === ich
       const level = client.game?.level ?? 1
       plus = belohnung(start.modus, sieg, start.spieler.length, level)
-      tro = trophaeen(sieg, start.spieler.length)
+      tro = trophaeen(sieg, start.spieler.length, start.leben ?? 1)
       verdienen(plus)
       wallet.trophaeen = (wallet.trophaeen ?? 0) + tro
       saveWallet()
@@ -582,7 +601,7 @@ export function mehrspieler(api: MehrApi) {
         zaehle('siege')
         if (start.modus === 'jagd') zaehle('jagdSiege')
         if (start.modus === 'royale') zaehle('zoneSiege')
-        void meldeSieg(start.modus, start.spieler.length - 1)
+        void meldeSieg(start.modus, tro)
       }
       if (start.modus === 'koop') {
         stats.zaehler.koopLevel = Math.max(stats.zaehler.koopLevel ?? 0, level)
