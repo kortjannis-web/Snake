@@ -2468,9 +2468,35 @@ function demoBild(dt: number) {
   renderer.draw(d)
 }
 
+/**
+ * Fluessig vor scharf: Laeuft das Spiel auf diesem Geraet 4 s lang mit weniger als ~40 Bildern je Sekunde,
+ * wird mit etwas weniger Aufloesung gezeichnet (2 statt 2,5 Pixel je Punkt, ein Drittel weniger Arbeit beim
+ * Fuellen). Nur einmal und nur auf Geraeten, die mehr als 2 koennen; gute Handys merken davon nichts
+ */
+const tempoMessung: number[] = []
+let tempoAb = 0
+function tempoPruefen(now: number, dt: number) {
+  const spielt = (mode === 'play' || mode === 'mehr') && !document.hidden && page() === null
+  if (!spielt || renderer.maxDpr <= 2 || (window.devicePixelRatio || 1) <= 2) {
+    tempoMessung.length = 0
+    tempoAb = now
+    return
+  }
+  tempoMessung.push(dt)
+  if (now - tempoAb < 4000) return
+  const sortiert = [...tempoMessung].sort((a, b) => a - b)
+  tempoMessung.length = 0
+  tempoAb = now
+  if (sortiert.length > 20 && sortiert[sortiert.length >> 1] > 24) {
+    renderer.maxDpr = 2
+    resize()
+  }
+}
+
 function frame(now: number) {
   const dt = Math.min(100, now - last)
   last = now
+  tempoPruefen(now, dt)
   // Eine Unterseite (Skins, Anleitung, Online ...) deckt das Spielfeld ganz ab: dann nicht zeichnen
   const verdeckt = page() !== null
   if (mode === 'home') {

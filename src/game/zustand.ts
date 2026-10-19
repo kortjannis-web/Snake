@@ -6,6 +6,7 @@
  * umgewandelt; Zwischenspeicher und Felder, die sich neu berechnen lassen, bleiben weg.
  */
 import type { Game } from './game'
+import { SchlangenAbgleich } from '../multi/kompakt'
 import { MehrGame, TAUSCH_FELDER } from './mehr'
 
 export type Zustand = Record<string, unknown>
@@ -60,14 +61,24 @@ export function anwenden(g: Game, z: Zustand) {
   if (g instanceof MehrGame && 'schlangen' in z) (g as unknown as { laden: (i: number) => void }).laden(Math.min(g.aktiv, g.schlangen.length - 1))
 }
 
-/** Merkt sich, was zuletzt verschickt wurde, und liefert nur die Felder, die sich geaendert haben */
+/** Merkt sich, was zuletzt verschickt wurde, und liefert nur die Felder, die sich geaendert haben
+ *  (die Schlangen kompakt, siehe multi/kompakt.ts) */
 export class Abgleich {
   private zuletzt = new Map<string, string>()
+  private schlangen = new SchlangenAbgleich()
 
   aenderungen(z: Zustand): Zustand | null {
     const out: Zustand = {}
     let n = 0
     for (const [k, v] of Object.entries(z)) {
+      if (k === 'schlangen' && Array.isArray(v)) {
+        const d = this.schlangen.aenderungen(v)
+        if (d) {
+          Object.assign(out, d)
+          n++
+        }
+        continue
+      }
       const j = JSON.stringify(v)
       if (this.zuletzt.get(k) === j) continue
       this.zuletzt.set(k, j)
@@ -79,5 +90,6 @@ export class Abgleich {
 
   vergessen() {
     this.zuletzt.clear()
+    this.schlangen.vergessen()
   }
 }

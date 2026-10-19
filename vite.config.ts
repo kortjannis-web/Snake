@@ -50,8 +50,17 @@ export default defineConfig({
       },
       // push-sw.js: zeigt Push-Einladungen und oeffnet beim Tippen den Raum
       workbox: {
-        // Shop-Videos und Standbilder sind klein (zusammen ca. 2,4 MB): mit in den Offline-Speicher
-        globPatterns: ['**/*.{js,css,html,woff2,png,svg,webp,mp4,webm}'],
+        // Vorab (Installation, Update) nur, was jeder braucht. Die Shop-Videos gibt es doppelt (MP4 und WebM,
+        // zusammen ~3,7 MB), jedes Geraet nutzt aber nur eins: sie kommen erst beim ersten Ansehen und bleiben
+        // dann im Speicher (offline ohne Video zeichnet der Shop die Vorschau selbst)
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg,webp}'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => /\/skins\/[^/]+\.(mp4|webm)$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'skin-videos', expiration: { maxEntries: 160 }, cacheableResponse: { statuses: [200] } },
+          },
+        ],
         importScripts: ['push-sw.js'],
       },
     }),

@@ -1,7 +1,7 @@
 {
   "name": "snake-endlos",
   "private": true,
-  "version": "1.30.0",
+  "version": "1.31.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -9,7 +9,7 @@
     "preview": "vite preview --host",
     "test": "vitest run",
     "icons": "node scripts/icons.mjs",
-    "android": "npm run build && npx cap sync android",
+    "android": "npm run build && node scripts/apk-schlank.mjs && npx cap sync android",
     "server": "wrangler dev --config server/wrangler.toml",
     "server:deploy": "wrangler deploy --config server/wrangler.toml",
     "vapid": "node scripts/vapid.mjs",

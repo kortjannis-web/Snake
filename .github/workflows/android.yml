@@ -33,6 +33,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_SNAKE_SERVER: ${{ vars.VITE_SNAKE_SERVER }}
           VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
+      - run: node scripts/apk-schlank.mjs
       - run: npx cap sync android
 
       - uses: actions/setup-java@v4

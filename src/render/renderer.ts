@@ -10,7 +10,7 @@ import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLU
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
-import { drawFlaeche, drawMeer, flaechenAufraeumen, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
+import { drawFlaeche, drawMeer, flaechenAufraeumen, MEER_WELLEN, meerKachel, meerOberflaeche, meerWelle, type MeerKachel, type WasserArt } from './flaechen'
 import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, waldWelt, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
@@ -64,6 +64,9 @@ const RAND_SICHER = 5.5
 /** Kantenlaenge einer Boden-Kachel in Feldern, und wie viele Kacheln hoechstens im Speicher bleiben */
 const GRUND = 8
 const GRUND_MAX = 48
+/** So oft (ms) wird das bewegte Meer neu zusammengesetzt (30 je Sekunde) */
+const MEER_TAKT = 33
+const leinwand = () => document.createElement('canvas')
 /** Jedes Spiel bekommt eine Nummer (der Boden haengt an Welt und Einstellungen) */
 const spielNr = new WeakMap<Game, number>()
 let naechsteSpielNr = 1
@@ -150,9 +153,17 @@ export class Renderer {
   /** Tageslevel: der letzte Apfel leuchtet pink (bringt 10 Aepfel) */
   sonderApfel = false
   /** Meer um die Insel (Wueste) in Kacheln: 'n|kx,ky' normal, 'f|kx,ky' bei Flut (Land ohne die Flutfelder) */
-  private meer = new Map<string, { m: MeerKachel; benutzt: number }>()
-  private meerStand = ''
+  private meer = new Map<string, { m: MeerKachel; benutzt: number; stand: string; nr: number }>()
+  /** Spiel und Welt, fuer die die Meer-Kacheln gelten; Zaehler, der bei jeder neuen Kachel steigt */
+  private meerHart = ''
+  private meerVersion = 0
   private meerFlut: Set<number> | null = null
+  private meerPuffer: HTMLCanvasElement | null = null
+  private meerSig = ''
+  private meerZeit = -1e9
+  private meerEtwas = false
+  /** Meer: feste Ebenen fuer den aktuellen Ausschnitt (aus den Kacheln zusammengesetzt) */
+  private meerFest: { basis: HTMLCanvasElement; maske: HTMLCanvasElement; wellen: HTMLCanvasElement[]; hatMaske: boolean; hatWellen: boolean[] } | null = null
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
   private spuren = new Spuren()
   private dpr = 1
@@ -211,8 +222,12 @@ export class Renderer {
     this.ctx = canvas.getContext('2d', { alpha: false })!
   }
 
+  /** Hoechstens so viele Geraetepixel je CSS-Pixel. Schafft ein Handy das Bild nicht fluessig, setzt main.ts
+   *  das herunter (2 statt 2,5: ein Drittel weniger Pixel, auf dem Handy kaum zu sehen) */
+  maxDpr = 2.5
+
   resize(vw: number, vh: number) {
-    this.dpr = Math.min(2.5, window.devicePixelRatio || 1)
+    this.dpr = Math.min(this.maxDpr, window.devicePixelRatio || 1)
     this.vw = vw
     this.vh = vh
     this.canvas.width = Math.round(vw * this.dpr)
@@ -436,6 +451,7 @@ export class Renderer {
     const gb = g.gebiet && now - g.gebiet.t < 2600 && !this.reduce ? g.gebiet : null
     const kacheln = !gb
     if (kacheln) this.grundKacheln(g, cell, ox, oy, ex0, ey0, ex1, ey1)
+    else this.grundVorbereiten(g, cell, ex0, ey0, ex1, ey1)
     // Wueste: Meer rund um die Insel, mit weicher Kueste und Wellen, die an den Strand schwappen; dazu die Flut
     if (welt.id === 'wueste') this.meerZeichnen(g, cell, now, ex0, ey0, ex1, ey1)
     for (let y = ey0; y <= ey1; y++)
@@ -901,9 +917,13 @@ export class Renderer {
    */
   /** Meer um die Insel (Wueste): Kacheln wie der Boden, einmal berechnet, dann nur noch bewegte Oberflaeche und Wellen */
   private meerZeichnen(g: Game, cell: number, now: number, ex0: number, ey0: number, ex1: number, ey1: number) {
-    if (this.meerStand !== this.grundStand) {
+    // Neues Spiel oder andere Welt: alles neu. Waechst nur die Karte, bleiben die Kacheln und werden nach und nach
+    // erneuert (eine je Bild, die alte zeigt solange die bisherige Kueste). Sonst entsteht jede sichtbare
+    // Meer-Kachel (je ~13 ms) im selben Bild und das Spiel haengt bei jedem neuen Gebiet
+    const hart = `${nummer(g)}|${this.welt.id}`
+    if (hart !== this.meerHart) {
       this.meer.clear()
-      this.meerStand = this.grundStand
+      this.meerHart = hart
     }
     const flut = g.flut
     if (flut && flut.zellen !== this.meerFlut) {
@@ -912,26 +932,113 @@ export class Renderer {
     }
     const px = 12
     const bild = this.grundBild
-    const holen = (art: 'n' | 'f', kx: number, ky: number) => {
-      const k = `${art}|${kx},${ky}`
+    const o = g.ursprung
+    let erneuert = false
+    // Kacheln liegen fest in der Welt (nicht in der Karte): waechst die Karte nach links oder oben, passen sie weiter
+    const holen = (art: 'n' | 'f', wkx: number, wky: number) => {
+      const k = `${art}|${wkx},${wky}`
       let e = this.meer.get(k)
-      if (!e) {
+      const alt = !!e && art === 'n' && e.stand !== this.grundStand
+      if (!e || (alt && !erneuert)) {
+        if (alt) erneuert = true
         const z = flut?.zellen
         const land = art === 'f' && z ? (x: number, y: number) => g.inside({ x, y }) && !z.has(key(x, y)) : (x: number, y: number) => g.inside({ x, y })
-        e = { m: meerKachel(land, kx * GRUND, ky * GRUND, GRUND, px, g.ursprung), benutzt: bild }
+        e = { m: meerKachel(land, wkx * GRUND + o.x, wky * GRUND + o.y, GRUND, px, o), benutzt: bild, stand: this.grundStand, nr: ++this.meerVersion }
         this.meer.set(k, e)
       }
       e.benutzt = bild
-      return e.m
+      return e
     }
     // Flut kommt: hoehere, schnellere Wellen, das Wasser schwappt immer wieder ueber den Rand
     const warnung = flut?.phase === 'warnung'
     const ueber = !flut ? 0 : flut.phase === 'aktiv' ? clamp01((now - flut.t) / 700) : 0.45 * Math.pow(Math.max(0, Math.sin(now / 480)), 2) * Math.min(1, 0.5 + (now - flut.t) / 8000)
-    for (let ky = Math.floor(ey0 / GRUND); ky <= Math.floor(ey1 / GRUND); ky++)
-      for (let kx = Math.floor(ex0 / GRUND); kx <= Math.floor(ex1 / GRUND); kx++) {
-        drawMeer(this.ctx, holen('n', kx, ky), cell, now, 1, warnung ? 1.8 : 1, this.reduce)
-        if (ueber > 0.01) drawMeer(this.ctx, holen('f', kx, ky), cell, now, ueber, warnung ? 1.8 : 1, this.reduce)
+    // Alle Ebenen (Grund, bewegte Oberflaeche, Wellen) haben nur `px` Pixel je Feld: erst in einem kleinen
+    // Zwischenbild zusammenlegen, dann einmal hochskaliert ins Bild. Sieht gleich aus, statt 6 Ebenen in voller
+    // Aufloesung je Kachel nur noch eine (und keine Fugen zwischen den Kacheln)
+    const kx0 = Math.floor((ex0 - o.x) / GRUND)
+    const ky0 = Math.floor((ey0 - o.y) / GRUND)
+    const kx1 = Math.floor((ex1 - o.x) / GRUND)
+    const ky1 = Math.floor((ey1 - o.y) / GRUND)
+    // Linke obere Ecke des Zwischenbilds in Kartenfeldern
+    const mx = kx0 * GRUND + o.x
+    const my = ky0 * GRUND + o.y
+    const bw = (kx1 - kx0 + 1) * GRUND * px
+    const bh = (ky1 - ky0 + 1) * GRUND * px
+    this.meerPuffer ??= document.createElement('canvas')
+    const pb = this.meerPuffer
+    if (pb.width !== bw || pb.height !== bh) {
+      pb.width = bw
+      pb.height = bh
+    }
+    // Kacheln holen (fehlende entstehen, eine veraltete wird erneuert)
+    const kacheln: { m: MeerKachel; nr: number; x: number; y: number; wkx: number; wky: number }[] = []
+    for (let ky = ky0; ky <= ky1; ky++)
+      for (let kx = kx0; kx <= kx1; kx++) {
+        const e = holen('n', kx, ky)
+        kacheln.push({ m: e.m, nr: e.nr, x: (kx - kx0) * GRUND * px, y: (ky - ky0) * GRUND * px, wkx: kx, wky: ky })
       }
+    // Das Wasser bewegt sich langsam: 30 neue Bilder je Sekunde reichen (sieht man nicht), die Kamera dagegen
+    // faehrt mit jedem Bild (das Zwischenbild liegt fest in der Welt und wird nur verschoben)
+    const sig = `${kx0},${ky0},${kx1},${ky1}|${o.x},${o.y}|${kacheln.map((k) => k.nr).join(',')}|${flut ? `${flut.phase}${ueber > 0.01}` : ''}|${this.reduce}`
+    const neu = sig !== this.meerSig
+    if (neu || now - this.meerZeit >= MEER_TAKT || now < this.meerZeit) {
+      this.meerSig = sig
+      this.meerZeit = now
+      // Was sich nicht bewegt (Grund, Maske der Oberflaeche, die drei Gischtbaender), nur beim Wechsel des
+      // Ausschnitts aus den Kacheln zusammensetzen; danach je Bild nur noch 6 Schritte, egal wie viele Kacheln
+      const st = (this.meerFest ??= { basis: leinwand(), maske: leinwand(), wellen: MEER_WELLEN.map(leinwand), hatMaske: false, hatWellen: MEER_WELLEN.map(() => false) })
+      if (neu) {
+        this.meerEtwas = false
+        st.hatMaske = false
+        st.hatWellen = MEER_WELLEN.map(() => false)
+        const ebenen = [st.basis, st.maske, ...st.wellen].map((cv) => {
+          if (cv.width !== bw || cv.height !== bh) {
+            cv.width = bw
+            cv.height = bh
+          }
+          const c = cv.getContext('2d')!
+          c.setTransform(1, 0, 0, 1, 0, 0)
+          c.clearRect(0, 0, bw, bh)
+          return c
+        })
+        for (const { m, x, y } of kacheln) {
+          if (!m.hat.basis) continue
+          this.meerEtwas = true
+          ebenen[0].drawImage(m.basis.cv, x, y)
+          if (m.hat.maske) {
+            ebenen[1].drawImage(m.maske.cv, x, y)
+            st.hatMaske = true
+          }
+          m.wellen.forEach((w, k) => {
+            if (!m.hat.wellen[k]) return
+            ebenen[2 + k].drawImage(w.cv, x, y)
+            st.hatWellen[k] = true
+          })
+        }
+      }
+      const pc = pb.getContext('2d')!
+      pc.setTransform(1, 0, 0, 1, 0, 0)
+      pc.clearRect(0, 0, bw, bh)
+      if (this.meerEtwas) {
+        const staerke = warnung ? 1.8 : 1
+        pc.drawImage(st.basis, 0, 0)
+        if (!this.reduce) {
+          if (st.hatMaske) meerOberflaeche(pc, { cv: st.maske, x0: 0, y0: 0, w: bw / px, h: bh / px }, px, now, mx * px, my * px)
+          st.wellen.forEach((cv, k) => {
+            if (!st.hatWellen[k]) return
+            pc.globalAlpha = meerWelle(k, now, staerke)
+            pc.drawImage(cv, 0, 0)
+          })
+          pc.globalAlpha = 1
+        }
+        // Flut (selten): wie bisher je Kachel obendrauf
+        if (ueber > 0.01) {
+          pc.setTransform(1, 0, 0, 1, -mx * px, -my * px)
+          for (const { m, wkx, wky } of kacheln) if (m.hat.basis) drawMeer(pc, holen('f', wkx, wky).m, px, now, ueber, staerke, this.reduce)
+        }
+      }
+    }
+    if (this.meerEtwas) this.ctx.drawImage(pb, mx * cell, my * cell, (bw / px) * cell, (bh / px) * cell)
     if (this.meer.size > 90) {
       const alt = [...this.meer.entries()].sort((a, b) => a[1].benutzt - b[1].benutzt)
       for (const [k] of alt.slice(0, this.meer.size - 90)) this.meer.delete(k)
@@ -939,11 +1046,7 @@ export class Renderer {
   }
 
   private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
-    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}`
-    if (stand !== this.grundStand) {
-      this.grund.clear()
-      this.grundStand = stand
-    }
+    this.grundStandPruefen(g, cell)
     const bild = ++this.grundBild
     const { ctx, dpr } = this
     const kx0 = Math.floor(ex0 / GRUND)
@@ -972,6 +1075,31 @@ export class Renderer {
       const alt = [...this.grund.entries()].sort((a, b) => a[1].benutzt - b[1].benutzt)
       for (const [k] of alt.slice(0, this.grund.size - GRUND_MAX)) this.grund.delete(k)
     }
+  }
+
+  /** Passt der Boden-Vorrat noch zur Karte? Sonst verwerfen (neues Spiel, neuer Block, neue Feldgroesse) */
+  private grundStandPruefen(g: Game, cell: number) {
+    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}`
+    if (stand !== this.grundStand) {
+      this.grund.clear()
+      this.grundStand = stand
+    }
+  }
+
+  /**
+   * Waehrend ein neuer Block aufklappt, wird der Boden direkt gezeichnet. Die Zeit nutzen: die Kacheln fuer die
+   * gewachsene Karte schon vorbereiten, eine je Bild. Sonst entstehen alle auf einmal, wenn die Animation endet,
+   * und das Bild haengt kurz (bei jedem neuen Gebiet)
+   */
+  private grundVorbereiten(g: Game, cell: number, ex0: number, ey0: number, ex1: number, ey1: number) {
+    this.grundStandPruefen(g, cell)
+    for (let ky = Math.floor(ey0 / GRUND); ky <= Math.floor(ey1 / GRUND); ky++)
+      for (let kx = Math.floor(ex0 / GRUND); kx <= Math.floor(ex1 / GRUND); kx++) {
+        const k = `${kx},${ky}`
+        if (this.grund.has(k)) continue
+        this.grund.set(k, { cv: this.grundKachel(g, cell, kx, ky), benutzt: this.grundBild })
+        return
+      }
   }
 
   /**
