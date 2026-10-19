@@ -9,6 +9,7 @@
  */
 import { STEP } from '../game/rules'
 import type { Dir, P } from '../game/types'
+import { drawEffekt, EFFEKTE, type Effekt } from './effekte'
 
 export type RGB = readonly [number, number, number]
 export type Farbe = { id: string; nr: number; name: string; preis: number; kopf: RGB; schwanz: RGB; versteckt?: boolean }
@@ -19,7 +20,7 @@ export type SpurArt = { id: string; nr: number; name: string; preis: number }
 /** Abschnitte (Kopf/Mitte/Schwanz), Ringe, Verlauf weich oder Verlauf Glied fuer Glied (Stufen) */
 export type Teilung = 'abschnitt' | 'ringe' | 'verlauf' | 'stufen'
 /** Komplettes Aussehen einer Schlange */
-export type Skin = { code: string; farben: Farbe[]; teilung: Teilung; muster?: Muster; acc: Acc[]; spur?: SpurArt }
+export type Skin = { code: string; farben: Farbe[]; teilung: Teilung; muster?: Muster; acc: Acc[]; spur?: SpurArt; effekt?: Effekt }
 
 const fb = (nr: number, id: string, name: string, preis: number, kopf: RGB, schwanz: RGB, versteckt = false): Farbe => ({ id, nr, name, preis, kopf, schwanz, versteckt })
 
@@ -197,7 +198,7 @@ const b36 = (n: number) => n.toString(36).padStart(2, '0')
 const TEIL_K: Record<Teilung, string> = { abschnitt: 'a', ringe: 'r', verlauf: 'v', stufen: 's' }
 
 /** Aussehen aus seinen Teilen bauen. farben: Ids, acc: Ids (je Platz eins), muster/spur: Id */
-export function baueSkin(o: { farben?: string[]; teilung?: Teilung; muster?: string; acc?: string[]; spur?: string }): Skin {
+export function baueSkin(o: { farben?: string[]; teilung?: Teilung; muster?: string; acc?: string[]; spur?: string; effekt?: string }): Skin {
   const farben = (o.farben ?? ['klassik']).map((id) => FARBEN.find((f) => f.id === id) ?? FARBEN[0]).slice(0, 3)
   const muster = o.muster ? MUSTER.find((m) => m.id === o.muster) : undefined
   const acc: Acc[] = []
@@ -206,14 +207,15 @@ export function baueSkin(o: { farben?: string[]; teilung?: Teilung; muster?: str
     if (a && !acc.some((x) => x.platz === a.platz)) acc.push(a)
   }
   const spur = o.spur ? SPUREN.find((s) => s.id === o.spur) : undefined
-  const skin: Skin = { code: '', farben: farben.length ? farben : [FARBEN[0]], teilung: o.teilung ?? 'abschnitt', muster, acc, spur }
+  const effekt = o.effekt ? EFFEKTE.find((e) => e.id === o.effekt) : undefined
+  const skin: Skin = { code: '', farben: farben.length ? farben : [FARBEN[0]], teilung: o.teilung ?? 'abschnitt', muster, acc, spur, effekt }
   skin.code = kodiere(skin)
   return skin
 }
 
 /** Kurzer Text fuer ein Aussehen (hoechstens 32 Zeichen) */
 export function kodiere(s: Skin): string {
-  if (!s.acc.length && !s.spur) {
+  if (!s.acc.length && !s.spur && !s.effekt) {
     if (s.muster) return s.muster.id
     if (s.farben.length === 1) return s.farben[0].id
   }
@@ -222,6 +224,7 @@ export function kodiere(s: Skin): string {
   else t += `f${TEIL_K[s.teilung]}${s.farben.length}${s.farben.map((f) => b36(f.nr)).join('')}`
   if (s.acc.length) t += `x${s.acc.length}${s.acc.map((a) => b36(a.nr)).join('')}`
   if (s.spur) t += `s${b36(s.spur.nr)}`
+  if (s.effekt) t += `e${b36(s.effekt.nr)}`
   return t
 }
 
@@ -265,6 +268,9 @@ export function skinVon(code: string): Skin {
         } else if (k === 's') {
           const n = nr()
           o.spur = SPUREN.find((x) => x.nr === n)?.id
+        } else if (k === 'e') {
+          const n = nr()
+          o.effekt = EFFEKTE.find((x) => x.nr === n)?.id
         } else break
       }
     } catch {
@@ -308,7 +314,7 @@ export const TAKT = { blinzeln: 3000 }
 const SCHLEIFE = 6000
 /** Bewegt sich etwas (ausser dem Blinzeln)? Wenn nicht, reicht im Shop ein Bild */
 export function skinBewegt(s: Skin) {
-  return !!s.muster?.bewegt || s.acc.some((a) => a.bewegt) || !!s.spur
+  return !!s.muster?.bewegt || s.acc.some((a) => a.bewegt) || !!s.spur || !!s.effekt
 }
 /** Wie lang ein Shop-Video sein muss, damit alles darin nahtlos wiederholt */
 export const schleifeMs = (_s: Skin) => SCHLEIFE
@@ -405,6 +411,9 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   }
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
+
+  // Effekt (Aura) hinter der Schlange
+  if (skin.effekt && !o.tot) drawEffekt(ctx, skin.effekt, pts, cell, WINKEL[dir], now, 'hinten')
 
   // Schatten
   if (!geist) {
@@ -569,6 +578,7 @@ export function drawSchlange(ctx: CanvasRenderingContext2D, pts: P[], cell: numb
   ctx.restore()
   if (art === 'drache') rauch(ctx, hx, hy, WINKEL[dir], cell, now)
   if (proben) for (const a of accs) if (a.platz === 'schwanz') accSchwanz(ctx, a.id, proben, cell, now)
+  if (skin.effekt && !o.tot) drawEffekt(ctx, skin.effekt, pts, cell, WINKEL[dir], now, 'vorn')
 }
 
 /** Augen im Kopf-Rahmen (vorne = +x) */
@@ -1029,23 +1039,41 @@ function muster(L: CanvasRenderingContext2D, pr: Probe[], cell: number, m: Muste
           punkt(L, p, q + dq, dl * cell + zieh, p.w * rr)
         }
       }
-      // Blitz: zuckt alle 1,5 s kurz durch den Koerper, die Wolken leuchten mit auf
+      // Grosser Blitz zweimal je 1,5 s durch den ganzen Koerper (die Wolken leuchten mit auf),
+      // dazwischen zucken immer wieder kleine Blitze quer ueber einzelne Glieder
       const z = (now % 1500) / 1500
-      if (z < 0.18 && Math.floor(now / 60) % 2 === 0) {
-        L.fillStyle = 'rgba(255, 250, 210, 0.25)'
+      const takt = Math.floor(now / 750)
+      if ((z < 0.16 || (z > 0.5 && z < 0.6)) && Math.floor(now / 50) % 2 === 0) {
+        L.fillStyle = 'rgba(255, 250, 210, 0.28)'
         L.fillRect(-1e5, -1e5, 2e5, 2e5)
         L.strokeStyle = '#FFF8C0'
         L.shadowColor = '#FFF59A'
         L.shadowBlur = cell * 0.3 * dpr
-        L.lineWidth = cell * 0.05
-        L.beginPath()
-        pr.forEach((p, i) => {
-          if (i % 3) return
-          const zz = (hash(i + Math.floor(now / 1500) * 13) - 0.5) * 0.7
-          L.lineTo(p.x + p.nx * p.w * zz, p.y + p.ny * p.w * zz)
-        })
-        L.stroke()
+        L.lineWidth = cell * 0.055
+        for (const ver of [0, 0.35]) {
+          L.beginPath()
+          pr.forEach((p, i) => {
+            if (i % 3) return
+            const zz = (hash(i + takt * 13 + ver * 7) - 0.5) * 0.75
+            L.lineTo(p.x + p.nx * p.w * zz, p.y + p.ny * p.w * zz)
+          })
+          L.stroke()
+          L.lineWidth = cell * 0.03
+        }
         L.shadowBlur = 0
+      }
+      const klein = Math.floor(now / 110)
+      L.strokeStyle = 'rgba(255, 250, 200, 0.9)'
+      L.lineWidth = Math.max(1, cell * 0.03)
+      for (let k = 0; k < 3; k++) {
+        if (hash(klein * 5 + k) < 0.45 || !pr.length) continue
+        const p = pr[Math.floor(hash(klein * 3 + k * 11) * pr.length)]
+        L.beginPath()
+        L.moveTo(p.x - p.nx * p.w * 0.45, p.y - p.ny * p.w * 0.45)
+        L.lineTo(p.x + p.tx * cell * 0.08 - p.nx * p.w * 0.1, p.y + p.ty * cell * 0.08 - p.ny * p.w * 0.1)
+        L.lineTo(p.x - p.tx * cell * 0.06 + p.nx * p.w * 0.12, p.y - p.ty * cell * 0.06 + p.ny * p.w * 0.12)
+        L.lineTo(p.x + p.nx * p.w * 0.45, p.y + p.ny * p.w * 0.45)
+        L.stroke()
       }
       break
     }
@@ -2032,7 +2060,7 @@ function spurVorschau(ctx: CanvasRenderingContext2D, pts: P[], cell: number, art
 
 /* ================= Vorschau ================= */
 
-export type Fokus = 'ganz' | 'kopf' | 'schwanz'
+export type Fokus = 'ganz' | 'kopf' | 'schwanz' | 'aura'
 
 /** Wie eine kaufbare Sache im Shop gezeigt wird (dasselbe nutzt das Skript fuer Bilder und Videos) */
 export function vorschauFuer(id: string): { skin: Skin; fokus: Fokus; bewegt: boolean } {
@@ -2078,7 +2106,12 @@ export function zeichneVorschau(ctx: CanvasRenderingContext2D, w: number, h: num
   let cell: number
   let tx: number
   let ty: number
-  if (fokus === 'kopf') {
+  if (fokus === 'aura') {
+    // Effekte: Platz rund um den Kopf
+    cell = Math.min(h / 3.4, w / 5)
+    tx = w * 0.62 - 5.5 * cell
+    ty = h * 0.58 - 0.5 * cell
+  } else if (fokus === 'kopf') {
     cell = h / 1.5
     tx = w * 0.6 - 5.5 * cell
     ty = h * 0.5 - 0.5 * cell

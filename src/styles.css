@@ -2940,3 +2940,26 @@ html[data-install] #app {
     height: 16px;
   }
 }
+
+/* Effekte: Auren brauchen Platz um die Schlange */
+.fx-karte canvas {
+  height: 104px;
+}
+
+.effekt-stufe {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.effekt-stufe [data-icon] svg {
+  width: 20px;
+  height: 20px;
+}
+
+.effekt-stufe--silber {
+  color: #cfd8e2;
+}
+
+.effekt-stufe--gold {
+  color: #f2c14c;
+}

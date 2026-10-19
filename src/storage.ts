@@ -151,6 +151,8 @@ export type LookWahl = {
   muster: string | null
   acc: Partial<Record<'augen' | 'kopf' | 'gesicht' | 'schwanz', string>>
   spur: string | null
+  /** Effekt (Aura), freigeschaltet mit Silber- oder Gold-Trophaeen */
+  effekt?: string | null
 }
 /** Aepfel (Waehrung), gekaufte Sachen (skins: Ids aller Kategorien), das Aussehen als Text (skin, so geht es auch
  *  online weiter), die Wahl im Einzelnen (look), die Welt und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg) */

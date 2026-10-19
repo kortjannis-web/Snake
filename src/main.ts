@@ -31,6 +31,7 @@ import { abonniere, abonniereSozial, anfrageAnnehmen, anfrageLoeschen, anfrageSe
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, MUSTER, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, type Fokus, type Platz, type Skin } from './render/skins'
+import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, WELTEN, weltFrei, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
@@ -1032,7 +1033,7 @@ const look: LookWahl = (() => {
 })()
 /** Aktuelles Aussehen bauen, speichern, online melden und im Spiel zeigen */
 function lookAnwenden() {
-  const s = baueSkin({ farben: look.farben.slice(0, look.anzahl), teilung: look.teilung, muster: look.muster ?? undefined, acc: Object.values(look.acc), spur: look.spur ?? undefined })
+  const s = baueSkin({ farben: look.farben.slice(0, look.anzahl), teilung: look.teilung, muster: look.muster ?? undefined, acc: Object.values(look.acc), spur: look.spur ?? undefined, effekt: look.effekt ?? undefined })
   wallet.look = { ...look, acc: { ...look.acc } }
   wallet.skin = s.code
   setzeSkin(s.code)
@@ -1040,11 +1041,11 @@ function lookAnwenden() {
   renderer.skin = s
 }
 
-type Teil = 'farben' | 'skins' | 'acc' | 'spuren' | 'welten'
+type Teil = 'farben' | 'skins' | 'acc' | 'spuren' | 'effekte' | 'welten'
 let shopTeil: Teil = 'farben'
 /** Welcher Teil der Schlange gerade eine Farbe bekommt (zwei- und dreifarbig) */
 let farbTeil = 0
-const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren', welten: 'Welten' }
+const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren', effekte: 'Effekte', welten: 'Welten' }
 /** Welt-Vorschauen (gezeichnet, im Shop bewegt) */
 const weltCanvas: { cv: HTMLCanvasElement; welt: Welt }[] = []
 function weltVorschauCanvas(welt: Welt) {
@@ -1094,10 +1095,11 @@ function renderShop() {
     ['skins', `${zahl(skinIds)}${look.muster ? ` · ${MUSTER.find((m) => m.id === look.muster)?.name ?? ''}` : ''}`, baueSkin({ muster: look.muster ?? 'tiger' })],
     ['acc', zahl(ACCS.map((a) => a.id)), baueSkin({ ...basis, acc: Object.values(look.acc).length ? Object.values(look.acc) : ['krone', 'sonnenbrille'] })],
     ['spuren', zahl(SPUREN.map((s) => s.id)), baueSkin({ ...basis, spur: look.spur ?? 'spur-herzen' })],
+    ['effekte', `${EFFEKTE.filter((e) => effektFrei(e, wallet.verdient ?? 0, wallet.trophaeen ?? 0)).length} von ${EFFEKTE.length} frei`, baueSkin({ ...basis, effekt: look.effekt ?? 'fx-sternenkranz' })],
   ]
   for (const [teil, sub, skin] of kacheln) {
     const b = document.createElement('button')
-    b.className = 'aussehen__kachel'
+    b.className = teil === 'effekte' ? 'aussehen__kachel aussehen__kachel--breit' : 'aussehen__kachel'
     b.append(vorschauCanvas(skin))
     const t = document.createElement('b')
     t.textContent = TEIL_TITEL[teil]
@@ -1304,6 +1306,8 @@ function renderTeil() {
           }),
         )
     }
+  } else if (shopTeil === 'effekte') {
+    effekteListe(kopf, box)
   } else if (shopTeil === 'spuren') {
     for (const s of SPUREN) box.append(shopKarte(s.id, s.name, look.spur === s.id, () => (look.spur = look.spur === s.id ? null : s.id)))
   } else {
@@ -1352,6 +1356,65 @@ function renderTeil() {
         wallet.welt = w.id
         saveWallet()
         renderer.welt = w
+        renderTeil()
+      })
+      box.append(card)
+    }
+  }
+}
+
+/** Effekte: nicht kaufbar, sondern freigeschaltet. Silber = alle je verdienten Aepfel, Gold = Gold-Trophaeen */
+function effekteListe(kopf: HTMLElement, box: HTMLElement) {
+  const silber = wallet.verdient ?? 0
+  const gold = wallet.trophaeen ?? 0
+  const p = document.createElement('p')
+  p.className = 'hinweis'
+  p.innerHTML = `Effekte kauft man nicht, man schaltet sie frei: <b>Silber-Trophäen</b> sind alle Äpfel, die du je verdient hast (${silber.toLocaleString('de-DE')}), <b>Gold-Trophäen</b> gibt es für Siege im Mehrspieler (${gold.toLocaleString('de-DE')}). Ein Effekt gleichzeitig, nochmal antippen nimmt ihn ab.`
+  kopf.append(p)
+  for (const art of ['silber', 'gold'] as const) {
+    const h = document.createElement('h3')
+    h.className = `skin-stufe effekt-stufe effekt-stufe--${art}`
+    h.innerHTML = `<span data-icon="Trophy"></span>${art === 'silber' ? 'Silber' : 'Gold'}`
+    mountIcons(h)
+    box.append(h)
+    for (const e of EFFEKTE.filter((x) => x.art === art)) {
+      const frei = effektFrei(e, silber, gold)
+      const an = look.effekt === e.id
+      const card = document.createElement('button')
+      card.className = 'skin fx-karte'
+      card.dataset.id = e.id
+      if (an) card.dataset.an = ''
+      if (!frei) card.dataset.zu = ''
+      card.append(vorschauCanvas(baueSkin({ farben: look.farben.slice(0, look.anzahl), teilung: look.teilung, effekt: e.id }), 'aura'))
+      const name = document.createElement('span')
+      name.className = 'skin__name'
+      name.textContent = e.name
+      const st = document.createElement('span')
+      st.className = 'skin__preis'
+      if (an) {
+        st.innerHTML = '<span></span>Aktiv'
+        setIcon(st.querySelector('span')!, 'Check')
+      } else if (frei) st.textContent = 'Wählen'
+      else {
+        const hat = art === 'silber' ? silber : gold
+        st.innerHTML = '<span></span>'
+        setIcon(st.querySelector('span')!, 'Lock')
+        st.append(`${kurzZahl(e.ab)} (noch ${kurzZahl(e.ab - hat)})`)
+        st.classList.add('zu-teuer')
+      }
+      card.append(name, st)
+      card.addEventListener('click', () => {
+        audio.unlock()
+        if (!frei) {
+          audio.nein()
+          card.classList.remove('wackeln')
+          void card.offsetWidth
+          card.classList.add('wackeln')
+          return
+        }
+        audio.click()
+        look.effekt = look.effekt === e.id ? null : e.id
+        lookAnwenden()
         renderTeil()
       })
       box.append(card)
