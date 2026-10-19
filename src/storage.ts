@@ -70,7 +70,8 @@ if (!settings.kameraStand) {
   settings.kamera = 'bereich'
   settings.kameraStand = 2
 }
-if (settings.kamera !== 'bereich' && settings.kamera !== 'dynamisch') settings.kamera = 'bereich'
+// 1.27: Es gibt nur noch die Bereich-Kamera (die dynamische ist aus, auch wenn sie gespeichert war)
+settings.kamera = 'bereich'
 export const stats: Stats = read(TKEY, defaultStats())
 export const saveSettings = () => write(SKEY, settings)
 export const saveStats = () => write(TKEY, stats)

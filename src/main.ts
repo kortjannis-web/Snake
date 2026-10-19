@@ -1802,7 +1802,7 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
-  for (const [id, v] of [['opt-tempo', settings.tempo], ['opt-kamera', settings.kamera]])
+  for (const [id, v] of [['opt-tempo', settings.tempo]])
     $(id)
       .querySelectorAll<HTMLButtonElement>('button')
       .forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === v)))
@@ -2263,16 +2263,6 @@ $('opt-tempo')
   .forEach((b) =>
     b.addEventListener('click', () => {
       settings.tempo = b.dataset.v as typeof settings.tempo
-      applySettings()
-      renderSettings()
-      audio.click()
-    }),
-  )
-$('opt-kamera')
-  .querySelectorAll<HTMLButtonElement>('button')
-  .forEach((b) =>
-    b.addEventListener('click', () => {
-      settings.kamera = b.dataset.v as typeof settings.kamera
       applySettings()
       renderSettings()
       audio.click()
