@@ -180,6 +180,7 @@ function newGame(alsKreativ = istKreativ, tages = istTages, speedrun = istSpeedr
   istKreativ = alsKreativ
   istTages = !alsKreativ && tages
   istSpeedrun = !alsKreativ && !istTages && speedrun
+  renderer.blitzApfel = istSpeedrun
   frist = null
   app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
@@ -728,7 +729,9 @@ function handle(e: GameEvent) {
     case 'geld':
       // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt
       if (!istKreativ) {
-        verdienen(e.wert)
+        // Speedrun: ab den orangen Aepfeln (Level 50) zaehlt jeder Apfel doppelt
+        const speedBonus = istSpeedrun && e.quelle === 'apfel' && !!game && apfelFaktor(game.cfg, game.level) >= 2
+        verdienen(speedBonus ? e.wert * 2 : e.wert)
         saveWallet()
       }
       updateGeld(true)
@@ -1908,7 +1911,7 @@ $('btn-speedrun').addEventListener('click', () => {
   audio.unlock()
   audio.click()
   newGame(false, false, true)
-  toast('apfel', 'Speedrun', '25 % schneller, und jeder Apfel hat ein Zeitlimit.')
+  toast('apfel', 'Speedrun', `25 % schneller, jeder Apfel hat ein Zeitlimit. Ab Level ${game?.cfg.apfelWertAlle ?? 50} werden die Äpfel orange, blitzen und zählen doppelt.`)
 })
 $('btn-pause').addEventListener('click', () => {
   audio.click()

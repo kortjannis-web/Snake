@@ -102,6 +102,38 @@ export type MehrAnzeige = {
   blasen?: { p: P; text: string; k: number }[]
 }
 
+/** Speedrun: kleine Blitze zucken um den doppelt wertvollen Apfel */
+function apfelBlitze(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, now: number) {
+  const takt = Math.floor(now / 90)
+  const h = (n: number) => {
+    const v = Math.sin(n * 127.1 + 311.7) * 43758.5453
+    return v - Math.floor(v)
+  }
+  const g = ctx.createRadialGradient(x, y, 0, x, y, cell * 0.9)
+  g.addColorStop(0, `rgba(255, 240, 150, ${0.25 + 0.15 * Math.sin(now / 120)})`)
+  g.addColorStop(1, 'rgba(255, 240, 150, 0)')
+  ctx.fillStyle = g
+  ctx.fillRect(x - cell, y - cell, cell * 2, cell * 2)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  for (let k = 0; k < 2; k++) {
+    if (h(takt * 3 + k) < 0.4) continue
+    const a = h(takt + k * 7) * Math.PI * 2
+    ctx.beginPath()
+    for (let i = 0; i <= 4; i++) {
+      const r = cell * (0.35 + i * 0.12)
+      const q = (h(takt * 5 + i + k) - 0.5) * 0.6
+      ctx.lineTo(x + Math.cos(a + q) * r, y + Math.sin(a + q) * r)
+    }
+    ctx.strokeStyle = 'rgba(255, 245, 170, 0.45)'
+    ctx.lineWidth = Math.max(2, cell * 0.08)
+    ctx.stroke()
+    ctx.strokeStyle = '#FFFDE8'
+    ctx.lineWidth = Math.max(1, cell * 0.03)
+    ctx.stroke()
+  }
+}
+
 export class Renderer {
   /** Mehrspieler: andere Schlangen und was nur dieses Geraet sieht (null = Einzelspiel) */
   mehr: MehrAnzeige | null = null
@@ -111,6 +143,8 @@ export class Renderer {
   skin: Skin = STANDARD
   /** Gewaehlte Welt (Boden, Baeume, Tiere, Stimmung) */
   welt: Welt = WELTEN[0]
+  /** Speedrun: Aepfel ab Orange (doppelt wert) blitzen */
+  blitzApfel = false
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
   private spuren = new Spuren()
   private dpr = 1
@@ -670,6 +704,7 @@ export class Renderer {
     const wipp = this.reduce ? 0 : Math.max(0, Math.sin(now / 260)) * cell * 0.05
     drawFutter(ctx, welt, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, stufe, now)
     licht(px(g.apple.p.x), px(g.apple.p.y), cell * 1.6)
+    if (this.blitzApfel && stufe >= 2 && !this.reduce) apfelBlitze(ctx, px(g.apple.p.x), px(g.apple.p.y), cell, now)
     for (const pw of g.powers) {
       if (!sicht(pw.p)) continue
       drawPower(ctx, px(pw.p.x), px(pw.p.y), cell, pw.art, this.reduce ? 1 : backOut(clamp01((now - pw.t) / 380)), now, pw.until - now < 3000)
