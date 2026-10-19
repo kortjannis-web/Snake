@@ -9,7 +9,7 @@ import { meldeKoop, meldeSieg } from '../online'
 import { saveStats, saveWallet, stats, verdienen, wallet } from '../storage'
 import type { Cause, Dir, GameEvent } from '../game/types'
 import type { Renderer } from '../render/renderer'
-import { drawSkinVorschau, skinVon } from '../render/skins'
+import { drawSchlangeGerade, skinVon } from '../render/skins'
 import { setIcon } from '../ui/icons'
 import { WEB_URL } from '../update'
 import { MehrClient, type ClientEreignis, type RaumInfo } from './client'
@@ -267,7 +267,7 @@ export function mehrspieler(api: MehrApi) {
       }
       el.append(cv, name, tag)
       box.append(el)
-      drawSkinVorschau(cv, skinVon(s.skin), 0)
+      drawSchlangeGerade(cv, skinVon(s.skin), 0)
     })
     for (const b of $('mehr-modus').querySelectorAll<HTMLButtonElement>('button')) {
       b.setAttribute('aria-checked', String(b.dataset.v === r.modus))

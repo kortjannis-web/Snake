@@ -2647,6 +2647,33 @@ export function drawSkinVorschau(cv: HTMLCanvasElement, skin: Skin, now: number,
   zeichneVorschau(ctx, w, h, skin, now, fokus)
 }
 
+/**
+ * Schlange eines anderen Spielers fuer Listen und Spielerkarten: gerade, ohne Ecken, ohne Rahmen und Schachbrett
+ * (sie liegt direkt auf der Karte) und so gross, wie der Platz erlaubt. Skins mit Spur bekommen links Platz dafuer.
+ */
+export function drawSchlangeGerade(cv: HTMLCanvasElement, skin: Skin, now = 0) {
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1)
+  const w = cv.clientWidth || Number(cv.getAttribute('width')) || 120
+  const h = cv.clientHeight || Number(cv.getAttribute('height')) || 40
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr)
+    cv.height = Math.round(h * dpr)
+  }
+  const ctx = cv.getContext('2d')!
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, h)
+  // Breite Flaechen (Karten): lange Schlange; schmale (Hall-Zeilen): kuerzer, dafuer dicker
+  const n = w / h >= 3.5 ? 7 : 5
+  const pts: P[] = Array.from({ length: n }, (_, i) => ({ x: n - 1 - i, y: 0 }))
+  const cell = Math.min(h / 1.7, w / ((skin.spur ? n + 3 : n) + 0.4))
+  const tx = skin.spur ? w - (n + 0.2) * cell : (w - n * cell) / 2
+  ctx.save()
+  ctx.translate(tx, (h - cell) / 2)
+  if (skin.spur) spurVorschau(ctx, pts, cell, skin.spur.id, now)
+  drawSchlange(ctx, pts, cell, 'r', skin, now, { blinzeln: now % TAKT.blinzeln < 120 })
+  ctx.restore()
+}
+
 /** Die Vorschau in einen beliebigen Rahmen (w x h CSS-Pixel) zeichnen */
 export function zeichneVorschau(ctx: CanvasRenderingContext2D, w: number, h: number, skin: Skin, now: number, fokus: Fokus = 'ganz') {
   // Die Schlange liegt in den Feldern x 0..5, y 0..1

@@ -2223,9 +2223,22 @@ html[data-install] #app {
   box-shadow: inset 0 0 0 1px rgba(143, 214, 189, 0.45);
 }
 
-.mehr-zeile canvas {
-  width: 56px;
-  height: 40px;
+/* Mit Schlange (Freunde, Online, Anfragen, Lobby): die Schlange liegt gross und gerade oben auf der Karte, darunter Name und Knoepfe */
+.mehr-zeile:has(> canvas) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 12px 10px;
+}
+
+.mehr-zeile > canvas {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 58px;
+}
+
+.mehr-zeile:has(> canvas) .mehr-zeile__name {
+  flex: 1 1 0;
 }
 
 .mehr-zeile__name {
@@ -2522,17 +2535,19 @@ html[data-install] #app {
 }
 
 /* Alle Spieler: Aussehen der Schlange und Einladen */
+/* Breite der geraden Schlange in den Listen (Hall of Snakes): so gross, wie die Zeile erlaubt */
 .liste__zeile--skin {
-  grid-template-columns: 26px 48px 1fr auto;
+  --schlange-b: clamp(84px, 25vw, 132px);
+  grid-template-columns: 26px var(--schlange-b) 1fr auto;
 }
 
 .liste__zeile--skin:has(.liste__einladen) {
-  grid-template-columns: 26px 48px 1fr auto 40px;
+  grid-template-columns: 26px var(--schlange-b) 1fr auto 40px;
 }
 
 .liste__skin {
-  width: 48px;
-  height: 32px;
+  width: var(--schlange-b, 84px);
+  height: calc(var(--schlange-b, 84px) * 0.42);
 }
 
 .liste__einladen {
@@ -2660,7 +2675,8 @@ html[data-install] #app {
 .hall-kopf,
 .hall-zeile {
   /* Feste Wert- und Knopfspalte, damit Kopf und Zeilen genau uebereinander stehen */
-  grid-template-columns: 22px 44px minmax(0, 1fr) 58px 44px;
+  --schlange-b: clamp(80px, 22vw, 120px);
+  grid-template-columns: 22px var(--schlange-b) minmax(0, 1fr) 58px 44px;
   gap: 8px;
 }
 
@@ -2789,8 +2805,8 @@ html[data-install] #app {
 
 .chat__skin {
   flex: none;
-  width: 48px;
-  height: 32px;
+  width: 84px;
+  height: 34px;
 }
 
 .page__head .chat__name {
@@ -3066,11 +3082,6 @@ html[data-install] #app {
   font-size: 0.8rem;
 }
 
-.hall-zeile .liste__skin {
-  width: 44px;
-  height: 30px;
-}
-
 .hall-wert {
   min-width: 34px;
   text-align: right;
@@ -3157,9 +3168,12 @@ html[data-install] #app {
     padding: 4px 8px 4px 4px;
     border-radius: 14px;
   }
-  .mehr-zeile canvas {
-    width: 48px;
-    height: 34px;
+  .mehr-zeile:has(> canvas) {
+    gap: 2px 8px;
+    padding: 4px 8px 8px;
+  }
+  .mehr-zeile > canvas {
+    height: 50px;
   }
   .mehr-zeile__name {
     font-size: 0.92rem;
@@ -3175,8 +3189,8 @@ html[data-install] #app {
 
 .karte-skin {
   justify-self: center;
-  width: 160px;
-  height: 110px;
+  width: min(100%, 300px);
+  height: 96px;
 }
 
 .karte-name {

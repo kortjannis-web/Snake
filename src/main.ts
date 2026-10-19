@@ -33,7 +33,7 @@ import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, abonniereSozial, adminLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienenModus, wallet, type LookWahl } from './storage'
-import { ACCS, baueSkin, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
+import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELT_STUFE, WELTEN, weltFrei, weltFreiAlt, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
@@ -411,7 +411,7 @@ async function ladeListeAnzeige() {
         el.append(k)
       }
       box.append(el)
-      drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
+      drawSchlangeGerade(cv, skinVon(z.skin ?? 'klassik'), 0)
     })
     info.textContent =
       listeArt === 'alle'
@@ -558,7 +558,7 @@ function hallZeichnen() {
     el.append(platz, cv, name, zahl, hallAktion(z))
     spielerAntippbar(el, z)
     box.append(el)
-    drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
+    drawSchlangeGerade(cv, skinVon(z.skin ?? 'klassik'), 0)
   })
   $('hall-mehr').hidden = treffer.length <= hallZahl
   $('hall-info').textContent =
@@ -596,7 +596,7 @@ function karteOeffnen(z: HallZeile) {
   setIcon($('karte-freund'), freundeUids.has(z.user_id) ? 'MessageCircle' : 'UserPlus')
   // Offline: Einladung als Nachricht aufs Handy (wenn der andere sie eingeschaltet hat)
   $('karte-einladen').lastChild!.textContent = da ? 'Zum Gefecht einladen' : 'Einladung aufs Handy schicken'
-  drawSkinVorschau($<HTMLCanvasElement>('karte-skin'), skinVon(z.skin ?? 'klassik'), 0)
+  drawSchlangeGerade($<HTMLCanvasElement>('karte-skin'), skinVon(z.skin ?? 'klassik'), 0)
   show('spieler-karte', true)
 }
 $('karte-zu').addEventListener('click', () => {
@@ -651,7 +651,7 @@ function tagesZeichnen() {
     el.append(platz, cv, name, zahl, document.createElement('span'))
     spielerAntippbar(el, { user_id: z.user_id, name: z.name, skin: z.skin ?? 'klassik', rekord: z.level, trophaeen: 0 })
     box.append(el)
-    drawSkinVorschau(cv, skinVon(z.skin ?? 'klassik'), 0)
+    drawSchlangeGerade(cv, skinVon(z.skin ?? 'klassik'), 0)
   })
   $('hall-mehr').hidden = true
   $('hall-info').textContent = `Heute: ${tl.motto}, ${tl.ziel} Äpfel (Startmenü → Täglich).`
@@ -2621,7 +2621,7 @@ function onlineZeichnen() {
     k.addEventListener('click', () => void einladen(o))
     el.append(cv, name, k)
     box.append(el)
-    drawSkinVorschau(cv, skinVon(o.skin), 0)
+    drawSchlangeGerade(cv, skinVon(o.skin), 0)
   }
 }
 
@@ -2804,7 +2804,7 @@ function anfragenZeichnen() {
       el.append(nein, bann)
     } else el.append(knopf('Zurückziehen', 'btn--ghost', () => anfrageLoeschen(a.user_id)))
     box.append(el)
-    drawSkinVorschau(cv, skinVon(a.skin ?? 'klassik'), 0)
+    drawSchlangeGerade(cv, skinVon(a.skin ?? 'klassik'), 0)
   }
 }
 
@@ -2897,7 +2897,7 @@ function oeffneChat(p: ChatPartner) {
   chatVerlauf = []
   $('chat-name').textContent = p.name
   $('chat-sperren').setAttribute('aria-label', `${p.name} sperren`)
-  drawSkinVorschau($<HTMLCanvasElement>('chat-skin'), skinVon(p.skin ?? 'klassik'), 0)
+  drawSchlangeGerade($<HTMLCanvasElement>('chat-skin'), skinVon(p.skin ?? 'klassik'), 0)
   $('chat-verlauf').replaceChildren(chatHinweis('Lade …'))
   if (pages.includes('chat')) audio.click()
   else openPage('chat')
@@ -3047,7 +3047,7 @@ function freundeZeichnen() {
     })
     el.append(cv, name, chatK, einladenK, weg)
     box.append(el)
-    drawSkinVorschau(cv, skinVon(f.skin), 0)
+    drawSchlangeGerade(cv, skinVon(f.skin), 0)
   }
 }
 
