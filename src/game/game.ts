@@ -65,7 +65,7 @@ type Sicht = {
 /** Jeder Kartenblock ist in jede Richtung so viele Felder groesser als ein halber Bildschirm */
 export const BLOCK_PLUS = 1
 /** Endlos: so viel jedes Blocks ist an den Aussenkanten ungefaehr verschuettet (Ecken und Einkerbungen) */
-export const RAND_ANTEIL = 0.1
+export const RAND_ANTEIL = 0.06
 /** So tief (Felder) reichen Verschuettungen hoechstens in einen Block hinein */
 export const RAND_TIEFE = 4
 /** Zufallswelt: so viele Bloecke weit kann der Ausschnitt der Welt in jede Richtung verschoben sein */
@@ -1394,29 +1394,31 @@ export class Game {
     let weg = 0
     for (let versuch = 0; versuch < 40 && weg < ziel; versuch++) {
       const form: P[] = []
-      if (ecken.length && z.next() < 0.4) {
-        // Verschuettete Ecke: schraeg abgerundet, 2 bis 4 Felder
+      if (ecken.length && z.next() < 0.6) {
+        // Verschuettete Ecke: schraeg, meist 2 Felder tief, manchmal 3
         const e = ecken.splice(z.int(0, ecken.length - 1), 1)[0]
-        const r = z.int(2, T)
+        const r = z.next() < 0.65 ? 3 : T
         for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) if (i + j < r - (i + j === r - 1 && z.next() < 0.4 ? 1 : 0)) form.push({ x: e.x + e.sx * i, y: e.y + e.sy * j })
       } else {
-        // Einkerbung an einer offenen Seite, weg von den Ecken: 3 bis 7 lang, in der Mitte 1 bis 3 tief
+        // Flache Einkerbung an einer offenen Seite, weg von den Ecken: 2 bis 6 breit, meist 1 tief,
+        // selten in der Mitte 2 tief (die Enden bleiben 1)
         const d = z.pick(seiten)
         const quer = d === 'u' || d === 'd'
         const lang = quer ? this.bw : this.bh
-        const L = z.int(3, 7)
+        const L = z.int(2, 6)
         if (lang - 2 * T < L) continue
         const a = z.int(T, lang - T - L)
-        const tief = z.int(1, T - 1)
+        const tief = L >= 4 && z.next() < 0.2 ? 2 : 1
         for (let k = 0; k < L; k++) {
-          const t = Math.max(1, Math.min(T - 1, Math.round(tief * Math.sin((Math.PI * (k + 0.5)) / L) + (z.next() - 0.5) * 0.8)))
+          const t = k === 0 || k === L - 1 ? 1 : tief
           for (let i = 0; i < t; i++) {
             const along = a + k
             form.push(d === 'u' ? { x: x0 + along, y: y0 + i } : d === 'd' ? { x: x0 + along, y: y1 - i } : d === 'l' ? { x: x0 + i, y: y0 + along } : { x: x1 - i, y: y0 + along })
           }
         }
       }
-      if (!form.length || !form.every(frei)) continue
+      // Nicht deutlich ueber das Ziel hinaus (sonst wird es auf kleinen Karten zu viel)
+      if (!form.length || weg + form.length > ziel + 3 || !form.every(frei)) continue
       for (const c of form) this.mask[c.y * this.w + c.x] = 0
       if (!this.zusammenhaengend()) {
         for (const c of form) this.mask[c.y * this.w + c.x] = 1

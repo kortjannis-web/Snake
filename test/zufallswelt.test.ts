@@ -27,14 +27,14 @@ function zusammen(g: Game) {
 }
 
 describe('Zufallswelt (Endlos)', () => {
-  it('verschuettet etwa 10 % an den Aussenkanten, die Karte haengt zusammen, Schlange und Apfel liegen frei', () => {
+  it('verschuettet etwa 6 % an den Aussenkanten, die Karte haengt zusammen, Schlange und Apfel liegen frei', () => {
     let summe = 0
     for (let s = 1; s <= 30; s++) {
       const g = new Game({ screenW: SW, screenH: SH, seed: s, zufallsWelt: true })
       const a = anteil(g)
       summe += a
-      expect(a).toBeGreaterThan(0.03)
-      expect(a).toBeLessThan(0.16)
+      expect(a).toBeGreaterThan(0.01)
+      expect(a).toBeLessThan(0.1)
       expect(zusammen(g)).toBe(true)
       for (const p of g.body) expect(g.inside(p)).toBe(true)
       expect(g.inside(g.apple.p)).toBe(true)
@@ -45,8 +45,8 @@ describe('Zufallswelt (Endlos)', () => {
         expect(Math.min(ix, iy, g.bw - 1 - ix, g.bh - 1 - iy)).toBeLessThan(RAND_TIEFE)
       }
     }
-    expect(summe / 30).toBeGreaterThan(0.06)
-    expect(summe / 30).toBeLessThan(0.13)
+    expect(summe / 30).toBeGreaterThan(0.035)
+    expect(summe / 30).toBeLessThan(0.08)
   })
 
   it('jede Runde liegt die Welt woanders (Erde, Erze, Lava), mit Seed immer gleich', () => {
@@ -86,7 +86,7 @@ describe('Zufallswelt (Endlos)', () => {
     for (let s = 1; s <= 3; s++) {
       const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 250, zufallsWelt: true })
       expect(zusammen(g)).toBe(true)
-      expect(anteil(g)).toBeLessThan(0.16)
+      expect(anteil(g)).toBeLessThan(0.1)
       for (const c of g.aus) expect(g.inside(c)).toBe(false)
       // Ein Stueck spielen: die Karte waechst weiter und bleibt zusammen
       for (let t = 0; t < 1500 && g.status === 'play'; t++) {
