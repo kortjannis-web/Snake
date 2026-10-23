@@ -65,7 +65,7 @@ type Sicht = {
 /** Jeder Kartenblock ist in jede Richtung so viele Felder groesser als ein halber Bildschirm */
 export const BLOCK_PLUS = 1
 /** Endlos: so viel jedes Blocks ist an den Aussenkanten ungefaehr verschuettet (Ecken und Einkerbungen) */
-export const RAND_ANTEIL = 0.06
+export const RAND_ANTEIL = 0.027
 /** So tief (Felder) reichen Verschuettungen hoechstens in einen Block hinein */
 export const RAND_TIEFE = 4
 /** Zufallswelt: so viele Bloecke weit kann der Ausschnitt der Welt in jede Richtung verschoben sein */
@@ -1384,7 +1384,9 @@ export class Game {
     const tabu = this.hindernisse()
     for (const c of [this.apple.p, ...this.tunnel, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.gift.map((g) => g.p)]) tabu.add(key(c.x, c.y))
     const frei = (c: P) => this.inside(c) && !tabu.has(key(c.x, c.y)) && !this.aufSchlange(c) && (!kopf || cheb(c, kopf) > 2)
-    const ziel = Math.round(this.bw * this.bh * RAND_ANTEIL * (0.8 + 0.4 * z.next()))
+    // Jeder Block anders: etwa jeder vierte bleibt ganz gerade, die anderen bekommen mal weniger, mal mehr (im Schnitt RAND_ANTEIL)
+    if (z.next() < 0.25) return
+    const ziel = Math.round(this.bw * this.bh * RAND_ANTEIL * (0.6 + 1.4 * z.next()))
     // Ecken, an denen beide Seiten offen sind (sx/sy zeigen nach innen)
     const ecken: { x: number; y: number; sx: 1 | -1; sy: 1 | -1 }[] = []
     if (offen.u && offen.l) ecken.push({ x: x0, y: y0, sx: 1, sy: 1 })
@@ -1394,28 +1396,21 @@ export class Game {
     let weg = 0
     for (let versuch = 0; versuch < 40 && weg < ziel; versuch++) {
       const form: P[] = []
-      if (ecken.length && z.next() < 0.6) {
-        // Verschuettete Ecke: schraeg, meist 2 Felder tief, manchmal 3
+      if (ecken.length && z.next() < 0.85) {
+        // Verschuettete Ecke: schraeg, meist 2 Felder tief, mal nur 1, selten 3
         const e = ecken.splice(z.int(0, ecken.length - 1), 1)[0]
-        const r = z.next() < 0.65 ? 3 : T
+        const w = z.next()
+        const r = w < 0.25 ? 2 : w < 0.85 ? 3 : T
         for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) if (i + j < r - (i + j === r - 1 && z.next() < 0.4 ? 1 : 0)) form.push({ x: e.x + e.sx * i, y: e.y + e.sy * j })
       } else {
-        // Flache Einkerbung an einer offenen Seite, weg von den Ecken: 2 bis 6 breit, meist 1 tief,
-        // selten in der Mitte 2 tief (die Enden bleiben 1)
+        // Minimale Einkerbung an einer offenen Seite, weg von den Ecken: 2 bis 4 breit, 1 tief
         const d = z.pick(seiten)
         const quer = d === 'u' || d === 'd'
         const lang = quer ? this.bw : this.bh
-        const L = z.int(2, 6)
+        const L = z.int(2, 4)
         if (lang - 2 * T < L) continue
         const a = z.int(T, lang - T - L)
-        const tief = L >= 4 && z.next() < 0.2 ? 2 : 1
-        for (let k = 0; k < L; k++) {
-          const t = k === 0 || k === L - 1 ? 1 : tief
-          for (let i = 0; i < t; i++) {
-            const along = a + k
-            form.push(d === 'u' ? { x: x0 + along, y: y0 + i } : d === 'd' ? { x: x0 + along, y: y1 - i } : d === 'l' ? { x: x0 + i, y: y0 + along } : { x: x1 - i, y: y0 + along })
-          }
-        }
+        for (let k = a; k < a + L; k++) form.push(d === 'u' ? { x: x0 + k, y: y0 } : d === 'd' ? { x: x0 + k, y: y1 } : d === 'l' ? { x: x0, y: y0 + k } : { x: x1, y: y0 + k })
       }
       // Nicht deutlich ueber das Ziel hinaus (sonst wird es auf kleinen Karten zu viel)
       if (!form.length || weg + form.length > ziel + 3 || !form.every(frei)) continue
