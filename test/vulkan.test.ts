@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { autopilot } from '../src/game/autopilot'
-import { BLOCK_PLUS, Game, VULKAN_PLUS } from '../src/game/game'
+import { BLOCK_PLUS, Game } from '../src/game/game'
+import { DEFAULTS } from '../src/game/rules'
+
+const VULKAN_PLUS = DEFAULTS.vulkanBlockPlus
 
 const SW = 12
 const SH = 23

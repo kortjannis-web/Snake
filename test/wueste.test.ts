@@ -87,6 +87,7 @@ describe('Wüste: Flut', () => {
         leer(g)
         g.flut = null
         g.sandwurm = null
+        g.sandsturm = null
         essen(g)
         for (const t of drain(g)) {
           if (t === 'eat') aepfel++
@@ -94,12 +95,41 @@ describe('Wüste: Flut', () => {
         }
       }
     }
-    expect(zahl.sandsturm / aepfel).toBeGreaterThan(0.06)
-    expect(zahl.sandsturm / aepfel).toBeLessThan(0.14)
+    // Standard: Sturm 8 %, Flut 5 %, Wurm 4 % (faellt Selteneres mit, wird der Sturm uebersprungen)
+    expect(zahl.sandsturm / aepfel).toBeGreaterThan(0.045)
+    expect(zahl.sandsturm / aepfel).toBeLessThan(0.11)
     expect(zahl.flutWarnung / aepfel).toBeGreaterThan(0.025)
     expect(zahl.flutWarnung / aepfel).toBeLessThan(0.08)
-    expect(zahl.sandwurmWarnung / aepfel).toBeGreaterThan(0.005)
-    expect(zahl.sandwurmWarnung / aepfel).toBeLessThan(0.04)
+    expect(zahl.sandwurmWarnung / aepfel).toBeGreaterThan(0.02)
+    expect(zahl.sandwurmWarnung / aepfel).toBeLessThan(0.065)
+  })
+
+  it('fallen zwei zusammen, kommt das seltenere; ein laufendes haeufigeres hoert dann auf', () => {
+    // Alles wuerfelt (fast) immer: nur der Wurm (seltenstes) kommt
+    const g = new Game({ screenW: SW, screenH: SH, seed: 2, wueste: true, cfg: { sturmChance: 100, flutChance: 99.99, wurmChance: 99.98 } })
+    leer(g)
+    essen(g)
+    const t = drain(g)
+    expect(t).toContain('sandwurmWarnung')
+    expect(t).not.toContain('sandsturm')
+    expect(t).not.toContain('flutWarnung')
+    // Laeuft ein Sturm und der Wurm kommt, hoert der Sturm auf
+    const h = new Game({ screenW: SW, screenH: SH, seed: 3, wueste: true, cfg: { sturmChance: 0, flutChance: 0, wurmChance: 100 } })
+    leer(h)
+    h.sandsturmStarten()
+    essen(h)
+    expect(h.sandwurm).not.toBeNull()
+    expect(h.sandsturm!.bis).toBeLessThanOrEqual(h.time)
+    // Laeuft der Wurm, wird ein haeufigerer Sturm uebersprungen; ausgeschaltet kommt nichts
+    const k = new Game({ screenW: SW, screenH: SH, seed: 4, wueste: true, cfg: { sturmChance: 100, flutChance: 0, wurmChance: 0.001 } })
+    leer(k)
+    k.sandwurmStarten()
+    essen(k)
+    expect(drain(k)).not.toContain('sandsturm')
+    const aus = new Game({ screenW: SW, screenH: SH, seed: 5, wueste: true, cfg: { sturmAn: 0, sturmChance: 100, flutChance: 0, wurmChance: 0 } })
+    leer(aus)
+    essen(aus)
+    expect(drain(aus)).not.toContain('sandsturm')
   })
 })
 

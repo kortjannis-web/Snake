@@ -1106,6 +1106,20 @@ svg {
   color: var(--creme-leise);
 }
 
+/* Schalter (Welt-Ereignisse an/aus) in einer Zahlenzeile */
+.master__row input.switch {
+  width: 52px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(245, 239, 230, 0.16);
+  justify-self: start;
+}
+
+.master__row input.switch:checked {
+  background: var(--tanne-karte);
+}
+
 /* Sandbox */
 .sb-grid {
   display: grid;

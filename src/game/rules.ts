@@ -153,12 +153,25 @@ export const DEFAULTS = {
   ereignis2Ab: 230,
   ereignis3Ab: 290,
   haeufigerAb: 190,
+  // Welt-Ereignisse (je Apfel, Prozent; ...An = 1 an, 0 aus). Fallen zwei zusammen, kommt das seltenere
+  // Wueste
+  flutAn: 1,
+  flutChance: 5,
+  sturmAn: 1,
+  sturmChance: 8,
+  wurmAn: 1,
+  wurmChance: 4,
+  // Vulkan: Bloecke je Richtung so viele Felder groesser, Krater (Prozent jedes Blocks, Mindestgroesse in Feldern)
+  vulkanBlockPlus: 3,
+  kraterProzent: 10,
+  kraterMin: 6,
 }
 export type Config = typeof DEFAULTS
 export type ConfigKey = keyof Config
 
 /** Beschreibung jeder Zahl fuer die Master-Einstellungen */
-export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; min: number; max: number; step?: number; einheit?: string }[] }[] = [
+/** schalter: an/aus (1/0) statt Zahl */
+export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; min: number; max: number; step?: number; einheit?: string; schalter?: boolean }[] }[] = [
   {
     gruppe: 'Karte',
     felder: [
@@ -367,6 +380,25 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'haeufigerAb', label: 'Alle Abstände 1 Level kürzer ab Level', min: 1, max: 10000 },
     ],
   },
+  {
+    gruppe: 'Welt: Wüstenoase (je Apfel; fallen zwei zusammen, kommt das seltenere)',
+    felder: [
+      { key: 'wurmAn', label: 'Sandwurm', min: 0, max: 1, schalter: true },
+      { key: 'wurmChance', label: 'Sandwurm', min: 0, max: 100, step: 0.1, einheit: '%' },
+      { key: 'flutAn', label: 'Flut', min: 0, max: 1, schalter: true },
+      { key: 'flutChance', label: 'Flut', min: 0, max: 100, step: 0.1, einheit: '%' },
+      { key: 'sturmAn', label: 'Sandsturm', min: 0, max: 1, schalter: true },
+      { key: 'sturmChance', label: 'Sandsturm', min: 0, max: 100, step: 0.1, einheit: '%' },
+    ],
+  },
+  {
+    gruppe: 'Welt: Vulkan',
+    felder: [
+      { key: 'vulkanBlockPlus', label: 'Blöcke größer um', min: 0, max: 12, einheit: 'Felder' },
+      { key: 'kraterProzent', label: 'Krater je Block', min: 0, max: 30, einheit: '%' },
+      { key: 'kraterMin', label: 'Krater mindestens', min: 1, max: 30, einheit: 'Felder' },
+    ],
+  },
 ]
 
 /* ---------------- Ableitungen ---------------- */
@@ -528,14 +560,14 @@ export const SPITZHACKE_GEWICHT: Record<ErzArt, number> = { gold: 72, dia: 19, r
 export const erzWert = (c: Config, art: ErzArt) => (art === 'gold' ? c.goldWert : art === 'dia' ? c.diaWert : art === 'rubin' ? c.rubinWert : c.opalWert)
 /**
  * Wueste (Insel im Meer): Froesche sind mit wuestenfroschChance % Wuestenfroesche (springen doppelt so oft).
- * Nach jedem Apfel kann etwas passieren.
- * Sandsturm (sturmChance %): die Sicht ist sturmDauer ms lang schlecht.
- * Flut (flutChance %): erst schlagen die Wellen hoeher (Warnung), mit dem naechsten Apfel steht der Rand
+ * Nach jedem Apfel kann etwas passieren (Chancen in der Config: sturmChance, flutChance, wurmChance).
+ * Sandsturm: die Sicht ist sturmDauer ms lang schlecht.
+ * Flut: erst schlagen die Wellen hoeher (Warnung), mit dem naechsten Apfel steht der Rand
  * flutRand Felder unter Wasser (toedlich), mit dem Apfel danach geht das Wasser zurueck.
- * Sandwurm (wurmChance %): zwei Reihen in der Naehe brodeln wurmWarnung ms lang, dann schiesst ein Sandwurm
+ * Sandwurm: zwei Reihen in der Naehe brodeln wurmWarnung ms lang, dann schiesst ein Sandwurm
  * (wurmBreite Felder breit, wurmLaenge lang, taucht immer wieder auf und ab) mit wurmTakt ms je Feld hindurch. Trifft er den Kopf, ist es vorbei, den Koerper beisst er ab.
  */
-export const WUESTE = { wuestenfroschChance: 50, sturmChance: 10, sturmDauer: 7000, flutChance: 5, flutRand: 2, wurmChance: 2, wurmWarnung: 8000, wurmTakt: 45, wurmLaenge: 18, wurmBreite: 2 }
+export const WUESTE = { wuestenfroschChance: 50, sturmDauer: 7000, flutRand: 2, wurmWarnung: 8000, wurmTakt: 45, wurmLaenge: 18, wurmBreite: 2 }
 
 /** Zeitlupe: Takt so viel laenger (30 % langsamer = Takt / 0,7) */
 export const zeitlupe = (c: Config) => 1 / Math.max(0.2, 1 - c.zeitlupeProzent / 100)
