@@ -1255,15 +1255,153 @@ export function hausUeberzug(ctx: CanvasRenderingContext2D, w: Welt, cells: P[],
 /* ================= Stimmung ================= */
 
 export type Licht = { x: number; y: number; r: number }
-let dunkelCv: HTMLCanvasElement | null = null
 
-/** Dunkelheit mit Lichtern (Bildschirm-Koordinaten in CSS-Pixeln). dpr = Pixeldichte */
+/**
+ * Weiche runde Stempel (Lichtkegel, Gluehwuermchen, Nebel, Fackelschein): einmal als kleines Bild gezeichnet und danach
+ * nur noch skaliert kopiert. Ein Verlauf je Licht und Bild kostet am Handy viel mehr als ein drawImage.
+ */
+const stempel = new Map<string, HTMLCanvasElement>()
+function stempelVon(name: string, stops: [number, string][]) {
+  let cv = stempel.get(name)
+  if (!cv) {
+    cv = document.createElement('canvas')
+    cv.width = cv.height = 64
+    const c = cv.getContext('2d')!
+    const g = c.createRadialGradient(32, 32, 0, 32, 32, 32)
+    for (const [o, f] of stops) g.addColorStop(o, f)
+    c.fillStyle = g
+    c.fillRect(0, 0, 64, 64)
+    stempel.set(name, cv)
+  }
+  return cv
+}
+
+/** Dunkelheit: so viele CSS-Pixel je Pixel der weichen Zwischen-Ebene, und so viele Geraetepixel je Kachel beim Aufbringen */
+const DUNKEL_SK = 3
+const DUNKEL_KACHEL = 48
+
+/** Dunkelheit mit Loch fuer ein Licht (Radius in Geraetepixeln), fertig zum 1:1-Kopieren */
+const loecher = new Map<string, HTMLCanvasElement>()
+/** Speicher begrenzen: zusammen hoechstens so viele Pixel (ca. 16 MB), sonst wird neu angefangen */
+const LOCH_PIXEL = 4_000_000
+let lochPixel = 0
+function lochVon(r: number, farbe: string) {
+  const k = `${r}|${farbe}`
+  let cv = loecher.get(k)
+  if (!cv) {
+    if (lochPixel + 4 * r * r > LOCH_PIXEL) {
+      loecher.clear()
+      lochPixel = 0
+    }
+    lochPixel += 4 * r * r
+    cv = document.createElement('canvas')
+    cv.width = cv.height = r * 2
+    const c = cv.getContext('2d')!
+    c.fillStyle = farbe
+    c.fillRect(0, 0, r * 2, r * 2)
+    c.globalCompositeOperation = 'destination-out'
+    c.drawImage(lichtStempel(), 0, 0, r * 2, r * 2)
+    loecher.set(k, cv)
+  }
+  return cv
+}
+const lichtStempel = () => stempelVon('licht', [[0, 'rgba(0,0,0,1)'], [0.5, 'rgba(0,0,0,0.7)'], [1, 'rgba(0,0,0,0)']])
+
+/**
+ * Dunkelheit mit Lichtern (Bildschirm-Koordinaten in CSS-Pixeln). dpr = Pixeldichte.
+ * Teuer am Handy ist das weiche Hochskalieren eines Bildes ueber den ganzen Schirm. Darum in Kacheln:
+ * - ohne Licht ist die Dunkelheit ueberall gleich: einfache Flaeche
+ * - mit genau einem Licht: fertiges Loch-Bild dieses Lichts, 1:1 auf ganze Pixel kopiert
+ * - wo sich Lichter ueberlappen: aus einer klein gerechneten Ebene (alle Lichter ausgestanzt) hochskaliert
+ */
 export function drawDunkel(ctx: CanvasRenderingContext2D, w: Welt, vw: number, vh: number, dpr: number, lichter: Licht[]) {
   if (w.finster <= 0) return
+  const farbe = `rgba(${w.nacht[0]}, ${w.nacht[1]}, ${w.nacht[2]}, ${w.finster})`
+  const BW = ctx.canvas.width
+  const BH = ctx.canvas.height
+  const K = DUNKEL_KACHEL
+  const kw = Math.ceil(BW / K)
+  const kh = Math.ceil(BH / K)
+  // Lichter in Geraetepixeln (ganzzahlig), und je Kachel: wie viele Lichter, und welches
+  const L: { x: number; y: number; r: number }[] = []
+  const anzahl = new Uint8Array(kw * kh)
+  const wer = new Int32Array(kw * kh)
+  for (const l of lichter) {
+    const r = Math.max(1, Math.round(l.r * dpr))
+    const x = Math.round(l.x * dpr)
+    const y = Math.round(l.y * dpr)
+    if (x + r <= 0 || y + r <= 0 || x - r >= BW || y - r >= BH) continue
+    const i = L.push({ x, y, r }) - 1
+    const ka = Math.max(0, Math.floor((x - r) / K))
+    const kb = Math.min(kw - 1, Math.floor((x + r - 1) / K))
+    const la = Math.max(0, Math.floor((y - r) / K))
+    const lb = Math.min(kh - 1, Math.floor((y + r - 1) / K))
+    for (let ky = la; ky <= lb; ky++)
+      for (let kx = ka; kx <= kb; kx++) {
+        const j = ky * kw + kx
+        if (anzahl[j] < 2) anzahl[j]++
+        wer[j] = i
+      }
+  }
+  ctx.save()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.imageSmoothingEnabled = true
+  ctx.fillStyle = farbe
+  const flaeche = (x0: number, y0: number, x1: number, y1: number) => x1 > x0 && y1 > y0 && ctx.fillRect(x0, y0, x1 - x0, y1 - y0)
+  let ebene: HTMLCanvasElement | null = null
+  let leerAb = -1
+  for (let ky = 0; ky <= kh; ky++) {
+    const zeile = ky < kh ? anzahl.subarray(ky * kw, ky * kw + kw) : null
+    // Ganz dunkle Reihen untereinander zu einer Flaeche zusammenfassen
+    if (zeile && zeile.indexOf(1) < 0 && zeile.indexOf(2) < 0) {
+      if (leerAb < 0) leerAb = ky
+      continue
+    }
+    if (leerAb >= 0) {
+      flaeche(0, leerAb * K, BW, Math.min(BH, ky * K))
+      leerAb = -1
+    }
+    if (!zeile) break
+    const y0 = ky * K
+    const y1 = Math.min(BH, y0 + K)
+    // Gleichartige Kacheln einer Reihe am Stueck: -1 dunkel, -2 Ueberlappung, sonst das eine Licht
+    const art = (kx: number) => (zeile[kx] === 0 ? -1 : zeile[kx] === 2 ? -2 : wer[ky * kw + kx])
+    for (let kx = 0; kx < kw; ) {
+      const a = art(kx)
+      let ende = kx + 1
+      while (ende < kw && art(ende) === a) ende++
+      const x0 = kx * K
+      const x1 = Math.min(BW, ende * K)
+      kx = ende
+      if (a === -1) flaeche(x0, y0, x1, y1)
+      else if (a === -2) {
+        ebene ??= dunkelEbene(farbe, vw, vh, dpr, L)
+        const f = DUNKEL_SK * dpr
+        ctx.drawImage(ebene, x0 / f, y0 / f, (x1 - x0) / f, (y1 - y0) / f, x0, y0, x1 - x0, y1 - y0)
+      } else {
+        // Loch-Bild, soweit es in diesem Stueck liegt; der Rest des Stuecks ist einfach dunkel
+        const l = L[a]
+        const ix0 = Math.max(x0, l.x - l.r)
+        const ix1 = Math.min(x1, l.x + l.r)
+        const iy0 = Math.max(y0, l.y - l.r)
+        const iy1 = Math.min(y1, l.y + l.r)
+        ctx.drawImage(lochVon(l.r, farbe), ix0 - l.x + l.r, iy0 - l.y + l.r, ix1 - ix0, iy1 - iy0, ix0, iy0, ix1 - ix0, iy1 - iy0)
+        flaeche(x0, y0, x1, iy0)
+        flaeche(x0, iy1, x1, y1)
+        flaeche(x0, iy0, ix0, iy1)
+        flaeche(ix1, iy0, x1, iy1)
+      }
+    }
+  }
+  ctx.restore()
+}
+
+/** Klein gerechnete Dunkelheit mit allen Lichtern ausgestanzt (Lichter in Geraetepixeln), fuer Stellen mit Ueberlappung */
+let dunkelCv: HTMLCanvasElement | null = null
+function dunkelEbene(farbe: string, vw: number, vh: number, dpr: number, L: { x: number; y: number; r: number }[]) {
   dunkelCv ??= document.createElement('canvas')
-  const sk = Math.min(1, dpr) * 0.5
-  const W = Math.max(1, Math.round(vw * sk))
-  const H = Math.max(1, Math.round(vh * sk))
+  const W = Math.max(1, Math.ceil(vw / DUNKEL_SK) + 1)
+  const H = Math.max(1, Math.ceil(vh / DUNKEL_SK) + 1)
   if (dunkelCv.width !== W || dunkelCv.height !== H) {
     dunkelCv.width = W
     dunkelCv.height = H
@@ -1271,24 +1409,27 @@ export function drawDunkel(ctx: CanvasRenderingContext2D, w: Welt, vw: number, v
   const d = dunkelCv.getContext('2d')!
   d.setTransform(1, 0, 0, 1, 0, 0)
   d.globalCompositeOperation = 'copy'
-  d.fillStyle = `rgba(${w.nacht[0]}, ${w.nacht[1]}, ${w.nacht[2]}, ${w.finster})`
+  d.fillStyle = farbe
   d.fillRect(0, 0, W, H)
   d.globalCompositeOperation = 'destination-out'
-  d.setTransform(sk, 0, 0, sk, 0, 0)
-  for (const l of lichter) {
-    if (l.x < -l.r || l.y < -l.r || l.x > vw + l.r || l.y > vh + l.r) continue
-    const g = d.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r)
-    g.addColorStop(0, 'rgba(0,0,0,1)')
-    g.addColorStop(0.5, 'rgba(0,0,0,0.7)')
-    g.addColorStop(1, 'rgba(0,0,0,0)')
-    d.fillStyle = g
-    d.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2)
+  const f = 1 / (DUNKEL_SK * dpr)
+  d.setTransform(f, 0, 0, f, 0, 0)
+  for (const l of L) d.drawImage(lichtStempel(), l.x - l.r, l.y - l.r, l.r * 2, l.r * 2)
+  return dunkelCv
+}
+
+/** Gruselwald: Nebelschwade in Geraetepixeln, einmal je Pixeldichte gezeichnet und dann 1:1 kopiert */
+let nebelCv: HTMLCanvasElement | null = null
+function nebelBild(dpr: number) {
+  const bw = Math.round(320 * dpr)
+  const bh = Math.round(120 * dpr)
+  if (!nebelCv || nebelCv.width !== bw || nebelCv.height !== bh) {
+    nebelCv = document.createElement('canvas')
+    nebelCv.width = bw
+    nebelCv.height = bh
+    nebelCv.getContext('2d')!.drawImage(stempelVon('nebel', [[0, 'rgba(190, 195, 210, 0.16)'], [0.7, 'rgba(190, 195, 210, 0.09)'], [1, 'rgba(190, 195, 210, 0)']]), 0, 0, bw, bh)
   }
-  ctx.save()
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.imageSmoothingEnabled = true
-  ctx.drawImage(dunkelCv, 0, 0, vw, vh)
-  ctx.restore()
+  return nebelCv
 }
 
 /** Wetter und Teilchen im Bildschirm (Schnee, Glühwuermchen, Nebel, Staub, Steppenlaeufer) */
@@ -1338,29 +1479,25 @@ export function drawStimmung(ctx: CanvasRenderingContext2D, w: Welt, vw: number,
       ctx.fillRect(x, y, 1.5, 1.5)
     }
   } else if (w.id === 'zauberwald') {
+    const glueh = stempelVon('glueh', [[0, 'rgba(230, 255, 120, 1)'], [1, 'rgba(230, 255, 120, 0)']])
     for (let i = 0; i < 26; i++) {
       const x = px(hash(i) * vw + Math.sin(now / 1300 + i * 2) * 30, ox, vw)
       const y = px(hash(i + 9) * vh + Math.cos(now / 1700 + i) * 22, oy, vh)
       const b = 0.5 + 0.5 * Math.sin(now / 300 + i * 3)
-      const g = ctx.createRadialGradient(x, y, 0, x, y, 9)
-      g.addColorStop(0, `rgba(230, 255, 120, ${0.9 * b})`)
-      g.addColorStop(1, 'rgba(230, 255, 120, 0)')
-      ctx.fillStyle = g
-      ctx.fillRect(x - 9, y - 9, 18, 18)
+      ctx.globalAlpha = 0.9 * b
+      ctx.drawImage(glueh, x - 9, y - 9, 18, 18)
     }
+    ctx.globalAlpha = 1
   } else if (w.id === 'gruselwald') {
-    // Nebelschwaden ziehen langsam, selten ein fernes Wetterleuchten
+    // Nebelschwaden ziehen langsam (fertiges Bild, auf ganze Geraetepixel kopiert), selten ein fernes Wetterleuchten
+    const nebel = nebelBild(dpr)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     for (let i = 0; i < 6; i++) {
       const x = px(now / (40 + i * 9) + hash(i) * vw * 1.5, ox * 0.5, vw + 300) - 150
       const y = (hash(i + 3) * 0.9 + 0.05) * vh
-      const g = ctx.createRadialGradient(x, y, 0, x, y, 160)
-      g.addColorStop(0, 'rgba(190, 195, 210, 0.16)')
-      g.addColorStop(1, 'rgba(190, 195, 210, 0)')
-      ctx.fillStyle = g
-      ctx.beginPath()
-      ctx.ellipse(x, y, 160, 60, 0, 0, TAU)
-      ctx.fill()
+      ctx.drawImage(nebel, Math.round((x - 160) * dpr), Math.round((y - 60) * dpr))
     }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const z = now % 13000
     if (z < 160 && Math.floor(z / 50) % 2 === 0) {
       ctx.fillStyle = 'rgba(220, 210, 255, 0.12)'
@@ -1377,11 +1514,9 @@ export function drawFackel(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.fillStyle = '#3A3A3A'
   ctx.fillRect(x - cell * 0.08, y - cell * 0.08, cell * 0.16, cell * 0.08)
   const f = 0.85 + 0.15 * Math.sin(now / 60 + x) + 0.1 * Math.sin(now / 37 + y)
-  const g = ctx.createRadialGradient(x, y - cell * 0.15, 0, x, y - cell * 0.15, cell * 0.9)
-  g.addColorStop(0, `rgba(255, 190, 90, ${0.45 * f})`)
-  g.addColorStop(1, 'rgba(255, 140, 40, 0)')
-  ctx.fillStyle = g
-  ctx.fillRect(x - cell, y - cell * 1.1, cell * 2, cell * 2)
+  ctx.globalAlpha = Math.min(1, f)
+  ctx.drawImage(stempelVon('fackel', [[0, 'rgba(255, 190, 90, 0.45)'], [1, 'rgba(255, 140, 40, 0)']]), x - cell * 0.9, y - cell * 1.05, cell * 1.8, cell * 1.8)
+  ctx.globalAlpha = 1
   ctx.fillStyle = '#FF8A2A'
   ctx.beginPath()
   ctx.moveTo(x, y - cell * 0.38 * f)
