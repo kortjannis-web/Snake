@@ -3,10 +3,11 @@ import { ACCS, hatSkin, lohnVon, MUSTER, skinVon, SPUREN, WELT_LOHN, baueSkin } 
 import { naechsteWelt, WELTEN, weltFrei, weltFreiAlt, weltVon } from '../src/render/welten'
 
 describe('Welten: Reihenfolge und Freischaltung', () => {
-  it('Wiese, dann Wüste, Winter, Bergwerk, Zauberwald, Gruselwald', () => {
-    expect(WELTEN.map((w) => w.id)).toEqual(['wiese', 'wueste', 'winter', 'bergwerk', 'zauberwald', 'gruselwald'])
+  it('Wiese, dann Wüste, Winter, Bergwerk, Zauberwald, Gruselwald, Vulkan', () => {
+    expect(WELTEN.map((w) => w.id)).toEqual(['wiese', 'wueste', 'winter', 'bergwerk', 'zauberwald', 'gruselwald', 'vulkan'])
     expect(naechsteWelt(weltVon('wiese'))?.id).toBe('wueste')
-    expect(naechsteWelt(weltVon('gruselwald'))).toBeNull()
+    expect(naechsteWelt(weltVon('gruselwald'))?.id).toBe('vulkan')
+    expect(naechsteWelt(weltVon('vulkan'))).toBeNull()
   })
   it('die Wiese ist immer frei, alles andere nur, wenn freigeschaltet', () => {
     expect(weltFrei(weltVon('wiese'), [])).toBe(true)
@@ -19,8 +20,9 @@ describe('Welten: Reihenfolge und Freischaltung', () => {
 })
 
 describe('Welten: Belohnungen', () => {
-  it('jede Welt: Skin bei 100, Accessoire bei 150, epischer Skin und Spur bei 200', () => {
-    for (const w of WELTEN) {
+  it('jede Welt: Skin bei 100, Accessoire bei 150, epischer Skin und Spur bei 200 (der Vulkan hat noch keine)', () => {
+    expect(WELT_LOHN.some((x) => x.welt === 'vulkan')).toBe(false)
+    for (const w of WELTEN.filter((w) => w.id !== 'vulkan')) {
       const l = WELT_LOHN.filter((x) => x.welt === w.id)
       expect(l.map((x) => x.level)).toEqual([100, 150, 200, 200])
       expect(MUSTER.some((m) => m.id === l[0].id)).toBe(true)

@@ -22,6 +22,7 @@ const ARTEN: Record<string, Art[]> = {
   bergwerk: ['geode', 'geode', 'kristallader', 'kristallader', 'fels', 'truhe'],
   zauberwald: [],
   gruselwald: [],
+  vulkan: [],
 }
 /** Bereich je Detail (Felder) */
 const BEREICH = 6

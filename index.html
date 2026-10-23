@@ -87,7 +87,7 @@
               <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
               <span class="geld-pille geld-pille--trophaee" title="Gold-Trophäen aus Mehrspieler-Siegen, Silber-Trophäen: alle bisher verdienten Äpfel"><span data-icon="Trophy" aria-hidden="true"></span><b id="home-trophaeen" aria-label="Gold-Trophäen">0</b><span class="silber" data-icon="Trophy" aria-hidden="true"></span><b id="home-silber" aria-label="Silber-Trophäen">0</b></span>
             </div>
-            <button class="icon-btn" data-go="kreativ" aria-label="Kreativ-Modus" title="Kreativ-Modus" data-icon="Pencil"></button>
+            <button class="icon-btn" id="btn-kreativ-home" data-go="kreativ" aria-label="Kreativ-Modus" title="Kreativ-Modus (Admin)" data-icon="Pencil" hidden></button>
             <button class="icon-btn" data-go="help" aria-label="Anleitung" title="Anleitung" data-icon="CircleHelp"></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
@@ -399,6 +399,10 @@
             <h2>Kreativ</h2>
           </header>
           <div class="page__body">
+            <div class="opt opt--col">
+              <div class="opt__row"><span data-icon="Globe"></span><span class="opt__t">Welt<small>Als Admin spielst du jede Welt, auch ohne Freischaltung. Gilt auch im normalen Spiel.</small></span></div>
+              <div class="seg seg--welten" id="k-welt" role="radiogroup" aria-label="Welt"></div>
+            </div>
             <div class="opt opt--col" id="k-start-box">
               <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Startlevel<small id="k-start-info">Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.</small></span></div>
               <div class="zahl">
@@ -511,6 +515,8 @@
             <h2>Admin</h2>
           </header>
           <div class="page__body">
+            <button class="btn btn--kreativ" id="btn-admin-kreativ" data-go="kreativ"><span data-icon="Wand"></span>Kreativ-Modus</button>
+            <p class="hinweis">Kreativ-Modus und alle Welten gibt es nur hier im Admin-Zugang.</p>
             <details class="master zeitleiste" id="admin-spieler">
               <summary><span data-icon="Users"></span>Spieler verwalten</summary>
               <p class="hinweis">Spieler löschen (Profil, Ergebnisse, Freunde, Nachrichten). Gilt mit dem Admin-Passwort von jedem Konto aus.</p>

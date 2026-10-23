@@ -6,12 +6,13 @@
 import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, key, type Game } from '../game/game'
 import { WUESTE } from '../game/rules'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
+import { abgrundKachel, drawAbgrund, drawSprudeln, drawVulkanBoden, type AbgrundKachel } from './vulkan'
 import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
 import { drawFlaeche, drawMeer, flaechenAufraeumen, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
-import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, waldWelt, WELTEN, type Licht, type Welt } from './welten'
+import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, vulkanWelt, waldWelt, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   apfelFarbe,
@@ -176,6 +177,12 @@ export class Renderer {
   private meerAlt = new Map<string, MeerKachel | null>()
   private meerStand = ''
   private meerFlut: Set<number> | null = null
+  /** Vulkan: Abgrund in Kacheln wie das Meer (alte Stuecke bleiben stehen, bis die neuen fertig sind) */
+  private abgrund = new Map<string, { m: AbgrundKachel | null; benutzt: number }>()
+  private abgrundAlt = new Map<string, AbgrundKachel | null>()
+  private abgrundStand = ''
+  /** Hat die zuletzt gezeichnete Boden-Kachel den festen Teil des Abgrunds schon drin? */
+  private gebackenerAbgrund = false
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
   private spuren = new Spuren()
   private dpr = 1
@@ -222,7 +229,8 @@ export class Renderer {
   private shake = { until: 0, amp: 0 }
   private lastReal = 0
   /** Vorgerenderter Boden (Erde, Schachbrett, Grasrand) in Kacheln von GRUND x GRUND Feldern, in Geraetepixeln */
-  private grund = new Map<string, { cv: HTMLCanvasElement; benutzt: number }>()
+  /** Boden-Kacheln; abgrund = der feste Teil des Abgrunds (Vulkan) ist schon hineingezeichnet */
+  private grund = new Map<string, { cv: HTMLCanvasElement; benutzt: number; abgrund?: boolean }>()
   private grundStand = ''
   private grundBild = 0
   /** Feste Einzelbilder (Stein einer Mauer, liegender Baum), einmal je Feldgroesse vorgerendert */
@@ -493,6 +501,13 @@ export class Renderer {
     if (kacheln) this.grundKacheln(g, cell, ox, oy, ex0, ey0, ex1, ey1)
     // Wueste: Meer rund um die Insel, mit weicher Kueste und Wellen, die an den Strand schwappen; dazu die Flut
     if (welt.id === 'wueste') this.meerZeichnen(g, cell, now, ex0, ey0, ex1, ey1)
+    // Vulkan: Abgrund rund um die Plattform und in den Kratern, tief unten Lava, die hochsprudelt (keine Erde)
+    const vulkan = vulkanWelt(welt)
+    if (vulkan) {
+      this.abgrundZeichnen(g, cell, now, ex0, ey0, ex1, ey1)
+      if (!this.reduce) drawSprudeln(ctx, drin, g.ursprung, cell, now, ex0, ey0, ex1, ey1)
+    }
+    if (!vulkan)
     for (let y = ey0; y <= ey1; y++)
       for (let x = ex0; x <= ex1; x++) {
         if (drin(x, y)) continue
@@ -528,6 +543,7 @@ export class Renderer {
     // Lava im Stein: das einzige, was in der Erde pulsierend glueht. Der Schein reicht ein paar Felder
     // weit durch die Erde, auch von knapp ausserhalb des Bildes, damit man sieht, wo Lava steckt
     const ls = Math.ceil(LAVA_SCHEIN)
+    if (!vulkan)
     for (let y = ey0 - ls; y <= ey1 + ls; y++)
       for (let x = ex0 - ls; x <= ex1 + ls; x++) {
         if (drin(x, y) || !g.lavaImStein(x - g.ursprung.x, y - g.ursprung.y)) continue
@@ -954,6 +970,47 @@ export class Renderer {
    * Statt jedes Bild hunderte Formen zu rastern, wird jede Kachel einmal gezeichnet und danach nur kopiert.
    * Aendert sich die Karte (neuer Block, neue Feldgroesse, neues Spiel), wird neu gezeichnet.
    */
+  /** Abgrund um die Plattform (Vulkan): Kacheln wie das Meer, einmal berechnet, dann nur noch die fliessende Lava */
+  private abgrundZeichnen(g: Game, cell: number, now: number, ex0: number, ey0: number, ex1: number, ey1: number) {
+    if (this.abgrundStand !== this.grundStand) {
+      this.abgrundAlt.clear()
+      for (const [k, e] of this.abgrund) this.abgrundAlt.set(k, e.m)
+      this.abgrund.clear()
+      this.abgrundStand = this.grundStand
+    }
+    const bild = this.grundBild
+    // Neue Stuecke: je Bild nur so viele, wie in gut 6 ms passen (mindestens eins), der Rest in den naechsten Bildern
+    const t0 = performance.now()
+    let neu = 0
+    for (let ky = Math.floor(ey0 / GRUND); ky <= Math.floor(ey1 / GRUND); ky++)
+      for (let kx = Math.floor(ex0 / GRUND); kx <= Math.floor(ex1 / GRUND); kx++) {
+        const k = `${kx},${ky}`
+        let e = this.abgrund.get(k)
+        let m: AbgrundKachel | null
+        if (e) {
+          e.benutzt = bild
+          m = e.m
+        } else if (neu > 0 && performance.now() - t0 > 6) m = this.abgrundAlt.get(k) ?? null
+        else {
+          neu++
+          e = { m: abgrundKachel((x, y) => g.inside({ x, y }), kx * GRUND, ky * GRUND, GRUND, 12, g.ursprung), benutzt: bild }
+          this.abgrund.set(k, e)
+          this.abgrundAlt.delete(k)
+          m = e.m
+        }
+        if (!m) continue
+        // Der feste Teil steckt in der Boden-Kachel, sobald die beim neuen Stueck einmal neu gezeichnet wurde
+        const gk = this.grund.get(k)
+        const gebacken = !!gk?.abgrund && e?.m === m
+        if (gk && !gk.abgrund && e?.m === m) this.grund.delete(k)
+        drawAbgrund(this.ctx, m, cell, now, this.reduce, gebacken)
+      }
+    if (this.abgrund.size > 90) {
+      const alt = [...this.abgrund.entries()].sort((a, b) => a[1].benutzt - b[1].benutzt)
+      for (const [k] of alt.slice(0, this.abgrund.size - 90)) this.abgrund.delete(k)
+    }
+  }
+
   /** Meer um die Insel (Wueste): Kacheln wie der Boden, einmal berechnet, dann nur noch bewegte Oberflaeche und Wellen */
   private meerZeichnen(g: Game, cell: number, now: number, ex0: number, ey0: number, ex1: number, ey1: number) {
     // Karte geaendert (neuer Block, neue Feldgroesse ...): die alten Stuecke bleiben stehen, bis die neuen fertig sind
@@ -1011,7 +1068,7 @@ export class Renderer {
   }
 
   private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
-    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}|${g.aus.length}`
+    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}|${g.aus.length}|${g.krater.length}`
     if (stand !== this.grundStand) {
       this.grund.clear()
       this.grundStand = stand
@@ -1032,7 +1089,8 @@ export class Renderer {
         const k = `${kx},${ky}`
         let e = this.grund.get(k)
         if (!e) {
-          e = { cv: this.grundKachel(g, cell, kx, ky), benutzt: bild }
+          const cv = this.grundKachel(g, cell, kx, ky)
+          e = { cv, benutzt: bild, abgrund: this.gebackenerAbgrund }
           this.grund.set(k, e)
         }
         e.benutzt = bild
@@ -1111,6 +1169,9 @@ export class Renderer {
     // Zauberwald: Waldboden (Moos, Farn, Leuchtpilze) auf dem Spielfeld
     if (welt.id === 'zauberwald')
       for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y)) drawWaldBoden(c, x * cell, y * cell, cell, feldZufall(x - g.ursprung.x + 5, y - g.ursprung.y + 9))
+    // Vulkan: Asche, Lavasteinchen und glimmende Spalten auf dem Boden
+    if (vulkanWelt(welt))
+      for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (drin(x, y)) drawVulkanBoden(c, x * cell, y * cell, cell, feldZufall(x - g.ursprung.x + 5, y - g.ursprung.y + 9))
     c.fillStyle = welt.kante
     const kante = Math.max(2, cell * 0.1)
     for (let y = ya; y <= yb; y++)
@@ -1125,6 +1186,15 @@ export class Renderer {
     if (waldWelt(welt))
       for (let y = ya; y <= yb; y++)
         for (let x = xa; x <= xb; x++) if (!drin(x, y)) drawWaldRand(c, welt, x, y, cell, feldZufall(x - g.ursprung.x, y - g.ursprung.y), drin)
+    // Vulkan: den festen Teil des Abgrunds (Felswand, Lava) gleich mit hineinzeichnen, wenn das Stueck schon berechnet ist
+    this.gebackenerAbgrund = false
+    if (vulkanWelt(welt) && this.abgrundStand === this.grundStand) {
+      const a = this.abgrund.get(`${kx},${ky}`)
+      if (a) {
+        if (a.m) c.drawImage(a.m.basis.cv, kx * GRUND * cell, ky * GRUND * cell, GRUND * cell, GRUND * cell)
+        this.gebackenerAbgrund = true
+      }
+    }
     return cv
   }
 

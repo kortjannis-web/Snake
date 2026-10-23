@@ -22,6 +22,7 @@ export const CAUSE: Record<Cause, string> = {
   ziel: 'Tageslevel geschafft!',
   flut: 'Von der Flut erwischt',
   sandwurm: 'Vom Sandwurm gefressen',
+  abgrund: 'In den Lava-Abgrund gestürzt',
 }
 
 export const OBJEKT_NAME: Record<SandboxObjekt, string> = {

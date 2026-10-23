@@ -181,8 +181,9 @@ export function fuellung(ctx: CanvasRenderingContext2D, maske: Bild, tex: HTMLCa
 /* ================= Arten ================= */
 
 /** Wasser je Welt: tief (Seerosen), klar (Sand und Kiesel), gras (klar, Ufer bemoost), winter (kalt, Eisschollen),
- *  hoehle (dunkel, Kristalle am Ufer), zauber (leuchtende Punkte), sumpf (truebe, Blasen) */
-export type WasserArt = 'tief' | 'klar' | 'gras' | 'winter' | 'hoehle' | 'zauber' | 'sumpf'
+ *  hoehle (dunkel, Kristalle am Ufer), zauber (leuchtende Punkte), sumpf (truebe, Blasen), schwefel (Vulkan: heisse
+ *  gelbgruene Schwefelquelle mit Krustenrand, blubbert) */
+export type WasserArt = 'tief' | 'klar' | 'gras' | 'winter' | 'hoehle' | 'zauber' | 'sumpf' | 'schwefel'
 export type FlaechenArt = 'lava' | 'eis' | 'eisNacht' | WasserArt
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -237,7 +238,7 @@ const LEBEND_TAKT = 70
 const LEBEND_JE_BILD = 4
 let lebendBild = -1
 let lebendNeu = 0
-function auffrischenFaellig(now: number, zeit: number | undefined, fehlt: boolean) {
+export function auffrischenFaellig(now: number, zeit: number | undefined, fehlt: boolean) {
   if (now !== lebendBild) {
     lebendBild = now
     lebendNeu = 0
@@ -332,6 +333,7 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
     hoehle: { rand: [90, 210, 230, 0.9], flach: [40, 100, 130, 1], mitte: [18, 52, 82, 1], tief: [6, 20, 40, 1], nass: [60, 180, 220, 0.2] },
     zauber: { rand: [210, 140, 255, 0.85], flach: [60, 170, 170, 1], mitte: [24, 100, 120, 1], tief: [10, 46, 70, 1], nass: [150, 90, 220, 0.22] },
     sumpf: { rand: [90, 100, 50, 1], flach: [95, 110, 55, 1], mitte: [60, 80, 40, 1], tief: [34, 48, 26, 1], nass: [40, 50, 20, 0.35] },
+    schwefel: { rand: [236, 214, 92, 1], flach: [214, 222, 96, 1], mitte: [150, 190, 70, 1], tief: [74, 120, 52, 1], nass: [200, 170, 60, 0.32], rb: 0.11 },
   }
   const p = P[art as WasserArt]
   const rb = p.rb ?? 0.08
@@ -433,6 +435,9 @@ export function drawFlaeche(ctx: CanvasRenderingContext2D, cells: P[], art: Flae
     case 'sumpf':
       sumpfBlasen(ctx, k, cell, now)
       break
+    case 'schwefel':
+      sumpfBlasen(ctx, k, cell, now, [250, 250, 200])
+      break
   }
 }
 
@@ -482,6 +487,9 @@ function oberflaeche(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, no
       break
     case 'sumpf':
       fuellung(ctx, maske, tex('sumpf'), cell, t0 / 200, t0 / 260, 0.9)
+      break
+    case 'schwefel':
+      fuellung(ctx, maske, tex('kaustik'), cell, t0 / 50, t0 / 80, 0.35)
       break
   }
 }
@@ -585,13 +593,13 @@ function leuchtpunkte(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, n
   })
 }
 
-function sumpfBlasen(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, now: number) {
+function sumpfBlasen(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, now: number, f: readonly [number, number, number] = [180, 200, 120]) {
   k.cells.forEach((c) => {
     const z = (now / 1900 + hash(c.x * 7 + c.y * 3)) % 1
     if (z > 0.8) return
     const x = (c.x + 0.25 + hash(c.x + c.y * 5) * 0.5) * cell
     const y = (c.y + 0.25 + hash(c.y + c.x * 5) * 0.5) * cell
-    ctx.strokeStyle = `rgba(180, 200, 120, ${0.8 * (1 - z / 0.8)})`
+    ctx.strokeStyle = `rgba(${f[0]}, ${f[1]}, ${f[2]}, ${0.8 * (1 - z / 0.8)})`
     ctx.lineWidth = Math.max(1, cell * 0.03)
     ctx.beginPath()
     ctx.arc(x, y, cell * 0.1 * (z / 0.8), 0, TAU)
