@@ -196,4 +196,5 @@ Ohne diese Secrets überspringt der Workflow still. Bereits von Hand ausgeführt
 | Liste aktualisiert sich nicht live | Beim Anlegen der Datenbank gab es einen Fehler: SQL aus Schritt 3 erneut ausführen. Notfalls schließt und öffnet die Seite die Liste neu. |
 | Am Handy erscheint die Anleitung, obwohl Snake schon installiert ist | Snake muss **vom Home-/Startbildschirm** geöffnet werden, nicht aus Safari oder Chrome. |
 | Update erscheint nicht auf dem iPhone | App vom Home-Bildschirm komplett schließen und neu öffnen (die neue Version wird beim Start geholt). |
+| Spieler löschen geht nicht („Löschfunktion fehlt“) | Die Datenbank-Änderungen sind nicht angekommen (Schritt 8 fehlt): einmal `supabase/NACHHOLEN.sql` ausführen, Anleitung [SPIELER-LOESCHEN.md](SPIELER-LOESCHEN.md). |
 | Pages-Lauf rot | Settings → Pages → Source auf **GitHub Actions** stellen, dann **Re-run all jobs**. |

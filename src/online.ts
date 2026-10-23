@@ -519,7 +519,11 @@ export async function adminLoeschen(code: string, ziel: string) {
   await nutzerId() // ohne Sitzung laeuft der Aufruf als anonym und die Datenbank lehnt ihn ab
   const sb = await client()
   const { error } = await sb.rpc('admin_spieler_loeschen', { code, ziel })
-  if (error) throw new Error(error.code === 'P0001' ? fehlerText(error) : `${fehlerText(error)} (${error.code ?? '?'}: ${error.message})`)
+  if (!error) return
+  // Funktion fehlt (SQL nie in Supabase ausgefuehrt): sagen, was zu tun ist, statt "Bist du online?"
+  if (error.code === 'PGRST202' || error.code === '42883')
+    throw new Error('Die Löschfunktion fehlt in der Datenbank. Einmal die Datei supabase/NACHHOLEN.sql im Supabase SQL Editor ausführen (Anleitung: docs/SPIELER-LOESCHEN.md).')
+  throw new Error(error.code === 'P0001' ? fehlerText(error) : `${fehlerText(error)} (${error.code ?? '?'}: ${error.message})`)
 }
 
 export async function meineAnfragen(): Promise<Anfrage[]> {
