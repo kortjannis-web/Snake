@@ -23,6 +23,26 @@ export const CAUSE: Record<Cause, string> = {
   flut: 'Von der Flut erwischt',
   sandwurm: 'Vom Sandwurm gefressen',
   abgrund: 'In den Lava-Abgrund gestürzt',
+  eiszapfen: 'Vom Eiszapfen getroffen',
+  eisbruch: 'Im Eis eingebrochen',
+  yeti: 'Dem Yeti in die Arme gelaufen',
+  eisbaer: 'Gegen den Eisbären gelaufen',
+  robbe: 'Mit der Robbe zusammengestoßen',
+  schneemann: 'In den Schneemann gefahren',
+}
+
+/** Welt-Ereignisse und Tiere (Kreativ: sofort ausloesen) */
+export const WELT_EREIGNIS_NAME: Record<string, string> = {
+  sandsturm: 'Sandsturm',
+  flut: 'Flut',
+  sandwurm: 'Sandwurm',
+  eiszapfen: 'Eiszapfen',
+  schneesturm: 'Schneesturm',
+  yeti: 'Yeti',
+  polarnacht: 'Polarnacht',
+  robbe: 'Robbe',
+  schneemann: 'Schneemann',
+  eisbaer: 'Eisbär',
 }
 
 export const OBJEKT_NAME: Record<SandboxObjekt, string> = {

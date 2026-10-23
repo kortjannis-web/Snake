@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann'
 
 export type Status = 'play' | 'over'
 
@@ -116,7 +116,34 @@ export type Gegner = {
 export type Funke = { x: number; y: number; vx: number; vy: number; born: number; c: string }
 
 /** Eisfeld: bleibt liegen, darauf laesst sich nicht lenken */
-export type Eis = { cells: P[]; t: number }
+/** Eisfeld. Winterwald: tritte = so oft ist der Kopf hineingefahren (1: Risse, 2: mehr Risse, beim dritten Mal bricht es ein) */
+export type Eis = { cells: P[]; t: number; tritte?: number }
+
+/** Welt-Gefahr mit Warnung, die auf Felder einschlaegt: bis `bis` waechst der Schatten, dann schlaegt sie ein.
+ *  bleibt = danach liegt sie als Hindernis bis zum naechsten Apfel */
+export type EinschlagArt = 'eiszapfen'
+export type Einschlag = { art: EinschlagArt; cells: P[]; t: number; bis: number; gefallen: boolean; bleibt: boolean }
+/** Sichtsperre (Schneesturm): kuendigt sich bis `ab` an, dann ist die Sicht bis `bis` fast weg */
+export type Sichtsperre = { art: 'schneesturm'; t: number; ab: number; bis: number }
+/** Tiere und Gestalten je Welt */
+export type WesenArt = 'eisbaer' | 'robbe' | 'schneemann' | 'yeti'
+export type Wesen = {
+  art: WesenArt
+  p: P
+  from: P
+  dir: Dir
+  /** Erscheinen, letzter Schritt (Animation), naechster Schritt */
+  t: number
+  schrittT: number
+  next: number
+  heim: P
+  /** Bis dahin satt (geht heim, greift nicht an) */
+  sattBis: number
+  /** Naechster Wurf (Schneeball) */
+  wurfNext: number
+}
+/** Geschoss (Schneeball): fliegt geradeaus, ein Feld je Takt */
+export type Geschoss = { art: 'schneeball'; p: P; from: P; dir: Dir; schrittT: number; next: number }
 /** Freigelegtes Erz auf der Karte (Gold oder Diamant), einsammeln wie einen Apfel */
 export type Fund = { p: P; art: 'gold' | 'dia' | 'rubin' | 'opal'; t: number }
 
@@ -157,7 +184,7 @@ export type GameEvent =
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }
-  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise'; wer?: number }
+  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer'; wer?: number }
   | { type: 'tree'; p: P }
   | { type: 'house' }
   | { type: 'light' }
@@ -166,7 +193,7 @@ export type GameEvent =
   | { type: 'fund'; art: 'gold' | 'dia' | 'rubin' | 'opal'; p: P; wert: number }
   | { type: 'erzGesetzt'; art: 'gold' | 'dia' | 'rubin' | 'opal'; p: P }
   | { type: 'wahlVorbei' }
-  | { type: 'gefressen'; was: 'frosch' | 'ameise' | 'gegner'; p: P; wert: number; art?: 'rot' | 'lila' }
+  | { type: 'gefressen'; was: 'frosch' | 'ameise' | 'gegner' | 'wesen'; p: P; wert: number; art?: 'rot' | 'lila' }
   | { type: 'wahl'; offen: number; wer?: number }
   | { type: 'freigelegt'; dx: number; dy: number; anzahl: number }
   | { type: 'eis' }
@@ -196,6 +223,15 @@ export type GameEvent =
   | { type: 'sandwurm' }
   | { type: 'sandwurmBiss'; weg: number }
   | { type: 'sandwurmWeg' }
+  | { type: 'einschlagWarnung'; art: EinschlagArt }
+  | { type: 'einschlag'; art: EinschlagArt; p: P }
+  | { type: 'abgetrennt'; weg: number }
+  | { type: 'schneesturm' }
+  | { type: 'polarnacht' }
+  | { type: 'eisRiss'; stufe: number }
+  | { type: 'wesen'; art: WesenArt }
+  | { type: 'wurf'; p: P }
+  | { type: 'platsch'; p: P }
   /** Duell-Power-up: von trifft an */
   | { type: 'duell'; art: 'schere' | 'zeitlupe'; von: number; an: number; weg: number }
 
