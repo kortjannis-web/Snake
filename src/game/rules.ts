@@ -16,7 +16,12 @@ export const CW: Record<Dir, Dir> = { u: 'r', r: 'd', d: 'l', l: 'u' }
 export const TEMPO = { langsam: 154 / 0.75, normal: 154, schnell: 123 } as const
 export type Tempo = keyof typeof TEMPO
 
-export const DEFAULTS = {
+const BASIS = {
+  // Stufen fuer alles ausser den Gefahren (siehe WELT_STUFEN): ab Level, neu alle so viele Level
+  stufenAb: 5,
+  haeufigAlle: 3,
+  mittelAlle: 8,
+  seltenAlle: 20,
   // Karte
   gebietAlle: 20,
   gebietBis: 300,
@@ -82,7 +87,7 @@ export const DEFAULTS = {
   lichtWeite: 2,
   lichtZurueck: 5,
   // Jaegertuerme
-  turmAb: 160,
+  turmAb: 50,
   turmAlle: 40,
   turmFelder: 300,
   kegelLaenge: 6,
@@ -113,7 +118,7 @@ export const DEFAULTS = {
   gegnerAnzahl: 2,
   gegnerWachsen: 20,
   gegnerMaxLaenge: 8,
-  lilaAb: 150,
+  lilaAb: 75,
   lilaChance: 25,
   lilaLaenge: 5,
   lilaTempo: 20,
@@ -156,7 +161,7 @@ export const DEFAULTS = {
   // Welt-Ereignisse (je Apfel, Prozent; ...An = 1 an, 0 aus). Fallen zwei zusammen, kommt das seltenere
   // Wueste
   flutAn: 1,
-  flutChance: 5,
+  flutChance: 6,
   sturmAn: 1,
   sturmChance: 8,
   wurmAn: 1,
@@ -176,7 +181,6 @@ export const DEFAULTS = {
   polarnachtDauer: 14,
   // Winterwald: Eis bricht beim dritten Hineinfahren ein; Eis kommt so oft wie sonst Giftaepfel (und umgekehrt)
   eisRisseAn: 1,
-  eisTauschAn: 1,
   // Winterwald: Tiere (ab Level, Chance je Apfel, hoechstens gleichzeitig), Rueckschlaege in Leveln
   robbeAn: 1,
   robbeAb: 10,
@@ -276,7 +280,7 @@ export const DEFAULTS = {
   grabChance: 6,
   skelettZurueck: 4,
   kraehenschwarmAn: 1,
-  kraehenschwarmChance: 6,
+  kraehenschwarmChance: 4,
   werwolfAn: 1,
   werwolfAlle: 25,
   werwolfDauer: 15,
@@ -354,24 +358,190 @@ export const DEFAULTS = {
   huegelDauer: 4,
   // Wueste: Tiere
   karawaneAn: 1,
-  karawaneAb: 15,
+  karawaneAb: 5,
   karawaneChance: 5,
   geierAn: 1,
-  geierAb: 25,
-  geierChance: 6,
+  geierAb: 5,
+  geierChance: 7,
   geierWarnung: 2.5,
   klapperAn: 1,
   klapperAb: 35,
   klapperChance: 5,
   klapperMax: 2,
   klapperZurueck: 5,
+  // Wueste: Riesenskorpion, Sandkrabbe, Erdmaennchen, Mumie, Fata Morgana
+  skorpionAn: 1,
+  skorpionAb: 5,
+  skorpionChance: 12,
+  skorpionMax: 1,
+  skorpionZurueck: 4,
+  krabbeAn: 1,
+  krabbeAb: 5,
+  krabbeChance: 12,
+  krabbeMax: 2,
+  erdmaennchenAn: 1,
+  erdmaennchenAb: 5,
+  erdmaennchenChance: 12,
+  mumieAn: 1,
+  mumieAb: 5,
+  mumieChance: 12,
+  mumieZurueck: 5,
+  fataAn: 1,
+  fataAb: 5,
+  fataChance: 12,
 }
+
+/* ---------------- Stufen ----------------
+ * Alles ausser den Gefahren kommt in Stufen: haeufig (3), mittel (2), selten (1) oder aus (0). Mauern sind immer haeufig
+ * (sie kommen nach jedem Apfel neu), der Apfel ist immer da. Alles startet ab stufenAb, gestaffelt, damit nicht alles
+ * auf einmal kommt. Feste Zeiten: Jaegertuerme ab turmAb (50), der lila Gegner ab lilaAb (75, immer nur einer).
+ * Je Welt ist eingestellt, was haeufig ist (Wiese: Wasser und Froesche; Wueste: Palmen, Springmaeuse, Feuerameisen). */
+export const GRUND_ARTEN = ['teich', 'frosch', 'gift', 'baum', 'falle', 'haus', 'eis', 'wolke', 'ameise', 'gegner', 'turm'] as const
+export type GrundArt = (typeof GRUND_ARTEN)[number]
+const grund = (haeufig: GrundArt[] = []) => Object.fromEntries(GRUND_ARTEN.map((a) => [a, haeufig.includes(a) ? 3 : 2])) as Record<GrundArt, number>
+/** Je Welt: Stufe je Ding (Grund-Dinge und die Tiere/Dinge der Welt; deren Name = Anfang ihrer Config-Schluessel) */
+export const WELT_STUFEN = {
+  wiese: { ...grund(['teich', 'frosch']), igel: 2, huegel: 2, bienenstock: 2 },
+  wueste: { ...grund(['baum', 'frosch', 'ameise']), klapper: 2, skorpion: 2, krabbe: 2, erdmaennchen: 2, mumie: 2, fata: 2 },
+  winter: { ...grund(), robbe: 2, schneemann: 2, eisbaer: 2 },
+  bergwerk: { ...grund(), zwerg: 2, golem: 2, netz: 2 },
+  zauberwald: { ...grund(), einhorn: 2, fee: 2, ent: 2, pilzring: 2 },
+  gruselwald: { ...grund(), gespenst: 2, spinne: 2, kraehe: 2 },
+  vulkan: { ...grund(), lavafisch: 2, glutgolem: 2, bruecke: 2, obsidian: 2 },
+}
+export type WeltId = keyof typeof WELT_STUFEN
+export const WELT_IDS = Object.keys(WELT_STUFEN) as WeltId[]
+type StufeKey = { [W in WeltId]: `stufe_${W}_${keyof (typeof WELT_STUFEN)[W] & string}` }[WeltId]
+export const stufeKey = (welt: WeltId, art: string) => `stufe_${welt}_${art}` as StufeKey
+const STUFEN_DEFAULTS = Object.fromEntries(WELT_IDS.flatMap((w) => Object.entries(WELT_STUFEN[w]).map(([a, v]) => [stufeKey(w, a), v]))) as Record<StufeKey, number>
+export const DEFAULTS = { ...BASIS, ...STUFEN_DEFAULTS }
 export type Config = typeof DEFAULTS
 export type ConfigKey = keyof Config
+export const STUFE_NAME = ['aus', 'selten', 'mittel', 'häufig'] as const
+/** Nie (Stufe aus) */
+const NIE = 1_000_000_000
+
+/** Gefahren je Welt, von haeufig nach selten (Schluessel-Anfang: xAn, xChance). Fallen zwei zusammen, kommt die seltenere */
+export const WELT_GEFAHREN: Record<WeltId, string[]> = {
+  wiese: [],
+  wueste: ['sturm', 'geier', 'flut', 'karawane', 'wurm'],
+  winter: ['eiszapfen', 'schneesturm', 'yeti', 'polarnacht'],
+  bergwerk: ['steinschlag', 'lore', 'fledermaus', 'tnt', 'erdbeben'],
+  zauberwald: ['ranken', 'sporen', 'wanderbaum', 'irrlicht', 'spiegel'],
+  gruselwald: ['zombiehand', 'grab', 'kraehenschwarm'],
+  vulkan: ['abbruch', 'ausbruch', 'feuerregen', 'lavastrom', 'magmawurm'],
+}
+/** Name einer Gefahren-Stufe nach ihrer Chance je Apfel */
+export const gefahrStufe = (chance: number) => (chance <= 0 ? 'aus' : chance >= 10 ? 'häufig' : chance >= 6 ? 'mittel' : chance >= 3 ? 'selten' : 'sehr selten')
+
+/** Neu alle so viele Level fuer eine Stufe */
+export const stufeAlle = (c: Config, stufe: number) => Math.max(1, Math.round(stufe >= 3 ? c.haeufigAlle : stufe === 2 ? c.mittelAlle : c.seltenAlle))
+
+/** Schluessel, die aus den Stufen berechnet werden (in den Master-Einstellungen nicht einzeln) */
+export const ABGELEITET = new Set<string>([
+  'teichAb', 'teichAlle', 'baumAb', 'baumAlle', 'hausAb', 'hausAlle', 'hausGrossAb', 'turmAlle', 'eisAb', 'eisAlle', 'giftAb', 'giftAlle',
+  ...(['falle', 'wolke', 'frosch', 'ameise', 'gegner'] as const).flatMap((a) => [`${a}Ab`, `${a}Min`, `${a}Max`]),
+  ...WELT_IDS.flatMap((w) => Object.keys(WELT_STUFEN[w]).filter((a) => !(GRUND_ARTEN as readonly string[]).includes(a)).flatMap((a) => [`${a}Ab`, `${a}Chance`])),
+])
+
+/**
+ * Stufen anwenden: berechnet Start-Level und Abstaende aller Dinge dieser Welt aus ihren Stufen. Was ausdruecklich
+ * eingestellt ist (anders als der Standard), bleibt. Unbekannte Welt (Sandbox, Tageslevel) = Wiese.
+ */
+export function mitStufen(c: Config, welt: string): Config {
+  const w: WeltId = welt in WELT_STUFEN ? (welt as WeltId) : 'wiese'
+  const out: Config = { ...c }
+  const setze = (k: string, v: number) => {
+    const key = k as ConfigKey
+    if (c[key] === DEFAULTS[key]) (out as Record<string, number>)[k] = v
+  }
+  const start = Math.max(1, Math.round(c.stufenAb))
+  let i = 0
+  for (const art of Object.keys(WELT_STUFEN[w])) {
+    const stufe = c[stufeKey(w, art)] ?? 2
+    const n = stufeAlle(c, stufe)
+    // Gestaffelt: die Dinge einer Stufe kommen nacheinander, nicht alle im selben Level
+    const ab = stufe <= 0 ? NIE : start + (i++ % n)
+    const pause = [Math.max(1, Math.round(n * 0.75)), Math.max(1, Math.round(n * 1.25))]
+    switch (art) {
+      case 'teich':
+      case 'baum':
+      case 'haus':
+      case 'eis':
+        setze(`${art}Ab`, ab)
+        setze(`${art}Alle`, n)
+        if (art === 'haus') setze('hausGrossAb', ab + 50)
+        break
+      case 'turm':
+        setze('turmAlle', n)
+        if (stufe <= 0) (out as Record<string, number>).turmAb = NIE
+        break
+      case 'gift':
+        setze('giftAb', ab)
+        setze('giftAlle', n * 8)
+        break
+      case 'falle':
+      case 'wolke':
+      case 'frosch':
+      case 'ameise':
+      case 'gegner':
+        setze(`${art}Ab`, ab)
+        setze(`${art}Min`, pause[0])
+        setze(`${art}Max`, pause[1])
+        break
+      default:
+        // Tiere und Dinge der Welt: Chance je Apfel
+        setze(`${art}Ab`, ab)
+        setze(`${art}Chance`, Math.round((1000 / n)) / 10)
+        if (stufe <= 0) (out as Record<string, number>)[`${art}An`] = 0
+    }
+  }
+  return out
+}
 
 /** Beschreibung jeder Zahl fuer die Master-Einstellungen */
 /** schalter: an/aus (1/0) statt Zahl */
-export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; min: number; max: number; step?: number; einheit?: string; schalter?: boolean }[] }[] = [
+/** Feld der Master-Einstellungen. schalter: an/aus (1/0), stufe: haeufig/mittel/selten/aus (3..0) */
+export type SchemaFeld = { key: ConfigKey; label: string; min: number; max: number; step?: number; einheit?: string; schalter?: boolean; stufe?: boolean }
+export type SchemaGruppe = { gruppe: string; felder: SchemaFeld[] }
+
+/** Namen der Dinge je Welt (Grund-Dinge heissen je Welt anders, dazu die Tiere und Dinge der Welt) */
+const GRUND_NAME: Record<GrundArt, string> = {
+  teich: 'Wasser (Teiche)', frosch: 'Frösche', gift: 'Giftäpfel', baum: 'Bäume', falle: 'Bärenfallen', haus: 'Hütten und Häuser',
+  eis: 'Eis', wolke: 'Giftwolken', ameise: 'Ameisen', gegner: 'Gegner-Schlangen', turm: 'Jägertürme (ab Level 50)',
+}
+const WELT_NAME_DING: Partial<Record<WeltId, Partial<Record<string, string>>>> = {
+  wueste: { teich: 'Oasen', frosch: 'Springmäuse', baum: 'Palmen und Kakteen', falle: 'Skorpione im Sand', ameise: 'Feuerameisen', klapper: 'Klapperschlange', skorpion: 'Riesenskorpion', krabbe: 'Sandkrabbe', erdmaennchen: 'Erdmännchen', mumie: 'Mumie mit Sarkophag', fata: 'Fata Morgana' },
+  winter: { teich: 'Seen mit Eisschollen', frosch: 'Pinguine', baum: 'Tannen', falle: 'Schneelöcher', haus: 'Hütten (Iglus)', ameise: 'Eiskäfer', robbe: 'Robbe', schneemann: 'Schneemann', eisbaer: 'Eisbär' },
+  bergwerk: { teich: 'Höhlenseen', frosch: 'Fledermäuse', baum: 'Kristallsäulen', falle: 'TNT-Fallen', ameise: 'Höhlenspinnen', zwerg: 'Grubenzwerg', golem: 'Steingolem', netz: 'Spinnennetze' },
+  zauberwald: { teich: 'Leuchtende Seen', frosch: 'Leuchtfrösche', falle: 'Fleischfressende Pflanzen', ameise: 'Glühkäfer', einhorn: 'Einhorn', fee: 'Fee', ent: 'Ent', pilzring: 'Pilzringe' },
+  gruselwald: { teich: 'Sumpf', frosch: 'Kröten', baum: 'Tote Bäume', falle: 'Knochenhände', ameise: 'Spinnen', gespenst: 'Gespenst', spinne: 'Riesenspinne', kraehe: 'Krähe' },
+  vulkan: { teich: 'Schwefelquellen', frosch: 'Feuersalamander', baum: 'Verkohlte Bäume', falle: 'Dampfspalten', ameise: 'Feuerameisen', lavafisch: 'Lavafisch', glutgolem: 'Glutgolem', bruecke: 'Lavabrücke', obsidian: 'Obsidian-Kristall' },
+  wiese: { igel: 'Igel', huegel: 'Maulwurfshügel', bienenstock: 'Bienenstock' },
+}
+export const dingName = (welt: WeltId, art: string) => WELT_NAME_DING[welt]?.[art] ?? GRUND_NAME[art as GrundArt] ?? art
+export const WELT_TITEL: Record<WeltId, string> = { wiese: 'Wiese', wueste: 'Wüstenoase', winter: 'Winterwald', bergwerk: 'Bergwerk', zauberwald: 'Zauberwald', gruselwald: 'Gruselwald', vulkan: 'Vulkan' }
+
+/** Stufen-Gruppen: wie oft die Stufen sind, dann je Welt, was in welcher Stufe ist */
+export const STUFEN_SCHEMA: SchemaGruppe[] = [
+  {
+    gruppe: 'Stufen: wie oft (gilt für alle Welten)',
+    felder: [
+      { key: 'stufenAb', label: 'Alles kommt ab Level', min: 1, max: 1000 },
+      { key: 'haeufigAlle', label: 'Häufig: neu etwa alle', min: 1, max: 100, einheit: 'Level' },
+      { key: 'mittelAlle', label: 'Mittel: neu etwa alle', min: 1, max: 200, einheit: 'Level' },
+      { key: 'seltenAlle', label: 'Selten: neu etwa alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'turmAb', label: 'Jägertürme ab Level (feste Zeit)', min: 1, max: 10000 },
+      { key: 'lilaAb', label: 'Lila Gegner ab Level (immer nur einer)', min: 1, max: 10000 },
+    ],
+  },
+  ...WELT_IDS.map((w) => ({
+    gruppe: `Stufen: ${WELT_TITEL[w]} (Mauern sind immer häufig)`,
+    felder: Object.keys(WELT_STUFEN[w]).map((art) => ({ key: stufeKey(w, art) as ConfigKey, label: dingName(w, art), min: 0, max: 3, stufe: true })),
+  })),
+]
+
+const SCHEMA_ROH: SchemaGruppe[] = [
   {
     gruppe: 'Karte',
     felder: [
@@ -619,7 +789,6 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'polarnachtChance', label: 'Polarnacht', min: 0, max: 100, step: 0.1, einheit: '%' },
       { key: 'polarnachtDauer', label: 'Polarnacht: Dauer', min: 2, max: 60, einheit: 's' },
       { key: 'eisRisseAn', label: 'Eis bricht beim dritten Mal', min: 0, max: 1, schalter: true },
-      { key: 'eisTauschAn', label: 'Eis so oft wie Giftäpfel (getauscht)', min: 0, max: 1, schalter: true },
       { key: 'robbeAn', label: 'Robbe', min: 0, max: 1, schalter: true },
       { key: 'robbeAb', label: 'Robbe ab Level', min: 1, max: 10000 },
       { key: 'robbeChance', label: 'Robbe', min: 0, max: 100, step: 0.1, einheit: '%' },
@@ -816,6 +985,13 @@ export const SCHEMA: { gruppe: string; felder: { key: ConfigKey; label: string; 
       { key: 'huegelDauer', label: 'Hügel bleibt', min: 0.5, max: 30, step: 0.5, einheit: 's' },
     ],
   },
+]
+/** Welt-Tiere und -Dinge (Stufe aus = aus; ihr eigener An-Schalter entfaellt) */
+const TIER_ARTEN = new Set(WELT_IDS.flatMap((w) => Object.keys(WELT_STUFEN[w]).filter((a) => !(GRUND_ARTEN as readonly string[]).includes(a))))
+/** Master-Einstellungen: erst die Stufen, dann alles, was nicht aus den Stufen kommt */
+export const SCHEMA: SchemaGruppe[] = [
+  ...STUFEN_SCHEMA,
+  ...SCHEMA_ROH.map((g) => ({ ...g, felder: g.felder.filter((f) => !ABGELEITET.has(f.key) && f.key !== 'turmAb' && f.key !== 'lilaAb' && !(f.key.endsWith('An') && TIER_ARTEN.has(f.key.slice(0, -2)))) })).filter((g) => g.felder.length > 0),
 ]
 
 /* ---------------- Ableitungen ---------------- */

@@ -1,5 +1,5 @@
 /** Einstellungen und Statistik, nur auf dem Geraet (localStorage) */
-import { DEFAULTS, type Config, type Tempo } from './game/rules'
+import { ABGELEITET, DEFAULTS, type Config, type Tempo } from './game/rules'
 import type { Kreativ, Sandbox } from './game/types'
 import { gutschrift, SPIEL_MODI, type SpielModus } from './modus'
 import type { KameraArt } from './render/renderer'
@@ -127,6 +127,8 @@ function ladeConfig(): Config {
     roh = { ...alt, apfelWert: alt.apfelMuenzen, apfelWertAlle: alt.muenzFaktorAlle }
   }
   for (const k of Object.keys(DEFAULTS) as (keyof Config)[]) {
+    // Was jetzt aus den Stufen kommt, gilt nicht mehr einzeln (alte Einstellungen wirken nicht mehr)
+    if (ABGELEITET.has(k)) continue
     const v = roh[k]
     if (typeof v === 'number' && Number.isFinite(v)) c[k] = v
   }

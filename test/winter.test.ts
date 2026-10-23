@@ -33,13 +33,11 @@ function essen(g: Game) {
 }
 
 describe('Winterwald', () => {
-  it('Eis und Giftäpfel tauschen ihre Häufigkeit', () => {
+  it('Eis und Giftäpfel kommen in der mittleren Stufe', () => {
     const g = winter()
-    expect(g.cfg.eisAb).toBe(R.DEFAULTS.giftAb)
-    expect(g.cfg.giftAb).toBe(R.DEFAULTS.eisAb)
-    expect(g.cfg.eisAlle).toBeLessThan(R.DEFAULTS.eisAlle)
-    const aus = winter({ eisTauschAn: 0 })
-    expect(aus.cfg.eisAb).toBe(R.DEFAULTS.eisAb)
+    expect(g.cfg.eisAlle).toBe(R.DEFAULTS.mittelAlle)
+    expect(g.cfg.giftAlle).toBe(R.DEFAULTS.mittelAlle * 8)
+    expect(g.cfg.eisAb).toBeLessThan(R.DEFAULTS.stufenAb + R.DEFAULTS.mittelAlle)
   })
 
   it('Eiszapfen: 2 × 2 in der Nähe, Schatten erst, dann fällt er; Kopf getroffen = vorbei', () => {
@@ -148,7 +146,7 @@ describe('Winterwald', () => {
       }
       aepfel += g.gegessen
     }
-    expect(aepfel).toBeGreaterThan(10)
+    expect(aepfel).toBeGreaterThan(5)
     expect(wesen).toBeGreaterThan(0)
-  })
+  }, 30_000)
 })

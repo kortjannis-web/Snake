@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { autopilot } from '../src/game/autopilot'
 import { Game, key } from '../src/game/game'
 import * as R from '../src/game/rules'
-import { GEFAHREN, schwereBis, zufallsReihenfolge } from '../src/game/reihenfolge'
 import type { GameEvent } from '../src/game/types'
 
 const SW = 12
@@ -240,38 +239,3 @@ describe('Wüste: Wüstenfrösche', () => {
   })
 })
 
-describe('Zufällige Reihenfolge der Gefahren', () => {
-  const C = R.DEFAULTS
-  const keys = GEFAHREN.map((g) => g.key)
-  it('dieselben Level, nur anders verteilt', () => {
-    for (let s = 0; s < 50; s++) {
-      let z = s * 9301 + 49297
-      const zufall = () => ((z = (z * 9301 + 49297) % 233280) / 233280)
-      const c = zufallsReihenfolge(C, zufall)
-      expect(keys.map((k) => c[k]).sort((a, b) => a - b)).toEqual(keys.map((k) => C[k]).sort((a, b) => a - b))
-      // Abhaengige wandern mit
-      expect(c.hausGrossAb - c.hausAb).toBe(C.hausGrossAb - C.hausAb)
-      expect(c.lilaAb - c.gegnerAb).toBe(C.lilaAb - C.gegnerAb)
-      // Schwere Gefahren nie auf fruehen Plaetzen
-      const plaetze = keys.map((k) => C[k]).sort((a, b) => a - b)
-      for (const g of GEFAHREN) expect(g.schwere).toBeLessThanOrEqual(schwereBis(plaetze.indexOf(c[g.key])) + 1e-9)
-    }
-  })
-  it('Mauern, Wasser, Frösche und Giftäpfel kommen eher früh, es ist aber nicht immer gleich', () => {
-    const erster = new Map<string, number>()
-    const reihen = new Set<string>()
-    for (let i = 0; i < 2000; i++) {
-      const c = zufallsReihenfolge(C)
-      const k = keys.find((x) => c[x] === 5)!
-      erster.set(k, (erster.get(k) ?? 0) + 1)
-      reihen.add(keys.map((x) => c[x]).join(','))
-    }
-    expect([...erster.keys()].every((k) => ['mauerAb', 'teichAb', 'froschAb', 'giftAb'].includes(k))).toBe(true)
-    expect(erster.get('mauerAb')!).toBeGreaterThan(erster.get('teichAb')!)
-    expect(reihen.size).toBeGreaterThan(200)
-    // Tuerme kommen meist spaet
-    let spaet = 0
-    for (let i = 0; i < 500; i++) if (zufallsReihenfolge(C).turmAb >= 100) spaet++
-    expect(spaet).toBeGreaterThan(300)
-  })
-})

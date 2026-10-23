@@ -16,7 +16,7 @@
  */
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Baum, Bienenstock, Bruecke, Cause, Dir, Durchzug, Lavafisch, Lavastrom, Obsidian, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
+import type { Ameise, Baum, Bienenstock, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -68,6 +68,9 @@ export const WESEN_TAKT: Record<WesenArt, number> = {
   bienen: 240,
   igel: 900,
   klapperschlange: 1100,
+  riesenskorpion: 800,
+  sandkrabbe: 450,
+  mumie: 1000,
 }
 /** Fliegende Wesen: kein Hindernis, fliegen ueber alles (nur nicht in die Schlange) */
 export const FLIEGT = new Set<WesenArt>(['fee', 'gespenst', 'kraehe', 'bienen'])
@@ -98,6 +101,17 @@ const FISCH_BLEIBT = 32_000
 const OBSIDIAN_BLEIBT = 40_000
 const STOCK_BLEIBT = 45_000
 const BIENEN_BLEIBT = 7000
+/** Wueste: Kolonie, Sarkophag, Fata Morgana bleiben so lange; die Mumie schlurft so lange herum (ms) */
+const KOLONIE_BLEIBT = 40_000
+const SARKOPHAG_BLEIBT = 40_000
+const MUMIE_BLEIBT = 32_000
+const FATA_BLEIBT = 20_000
+/** Erdmaennchen: so lange dauert ein Kreis (ms), so lange davon sind sie oben, so lange vorher schauen sie heraus */
+export const ERDMANN_KREIS = 3200
+export const ERDMANN_OBEN = 1100
+export const ERDMANN_GUCKEN = 450
+/** Riesenskorpion: so lange ist der Schwanz erhoben, bevor er sticht (ms) */
+export const STICH_WARNUNG = 650
 /** Erkalteter Lavastrom verschwindet nach so vielen ms */
 export const STROM_KALT = 3000
 export const GESCHOSS_TAKT = 200
@@ -209,6 +223,10 @@ export class Game {
   glut: { p: P; t: number; bis: number }[] = []
   /** Wiese: Bienenstoecke */
   stoecke: Bienenstock[] = []
+  /** Wueste: Erdmaennchen-Kolonien, Sarkophage, Fata Morganas */
+  kolonien: Kolonie[] = []
+  sarkophage: Sarkophag[] = []
+  fatas: FataMorgana[] = []
   /** Vulkan-Karte (groessere Bloecke, Krater)? Nicht in Sandbox und Tageslevel */
   readonly vulkan: boolean
   /** Vulkan-Welt: rund um die Karte ist der Lava-Abgrund statt Erde (auch in Sandbox und Tageslevel; kein Maulwurf) */
@@ -327,13 +345,9 @@ export class Game {
   protected offen = { baum: 0, haus: 0, turm: 0, eis: 0 }
 
   constructor(o: GameOpts) {
-    this.cfg = { ...R.DEFAULTS, ...(o.cfg ?? {}) }
     this.weltId = o.welt ?? (o.wueste ? 'wueste' : o.vulkan ? 'vulkan' : '')
-    // Winterwald: Eis kommt so oft wie sonst Giftaepfel (ab deren Level, oft), Giftaepfel so selten wie sonst Eis
-    if (this.weltId === 'winter' && this.cfg.eisTauschAn > 0 && !o.sandbox) {
-      const c = this.cfg
-      this.cfg = { ...c, eisAb: c.giftAb, giftAb: c.eisAb, eisAlle: Math.max(1, Math.round(c.giftAlle / 5)), eisFelder: Math.max(30, Math.round(c.eisFelder / 2)), giftAlle: c.giftAlle * 2, giftMax: Math.max(1, Math.round(c.giftMax / 2)) }
-    }
+    // Stufen der Welt: wann und wie oft Wasser, Froesche, Baeume, Tiere ... kommen
+    this.cfg = R.mitStufen({ ...R.DEFAULTS, ...(o.cfg ?? {}) }, this.weltId)
     this.kreativ = o.kreativ ?? null
     this.tempo = o.tempo ?? 'normal'
     this.wueste = !!o.wueste
@@ -878,7 +892,7 @@ export class Game {
   }
 
   /** n Level zurueck: Schlange wird um das kuerzer, was sie in diesen Leveln gewachsen war */
-  setback(n: number, grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem' | 'skelett' | 'werwolf' | 'gespenst' | 'bienen' | 'klapperschlange') {
+  setback(n: number, grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem' | 'skelett' | 'werwolf' | 'gespenst' | 'bienen' | 'klapperschlange' | 'riesenskorpion' | 'mumie') {
     if (n <= 0) return
     const von = this.level
     const auf = Math.max(1, von - n)
@@ -930,6 +944,9 @@ export class Game {
     if (this.lavastroeme.some((l) => !l.kalt && l.cells.slice(0, l.grown).some((p) => same(p, n)))) return 'lavastrom'
     if (this.glut.some((g) => same(g.p, n))) return 'glut'
     if (this.stoecke.some((b) => same(b.p, n))) return 'bienenstock'
+    if (this.sarkophage.some((b) => same(b.p, n))) return 'sarkophag'
+    if (this.fatas.some((f) => same(f.p, n))) return 'fata'
+    if (this.kolonien.length && this.erdmannOben(n)) return 'erdmaennchen'
     const ob = this.obsidiane.find((o) => same(o.p, n))
     if (ob && !this.obsidianOffen(ob)) return 'obsidian'
     const w = this.wesen.find((o) => same(o.p, n) && !FLIEGT.has(o.art))
@@ -1051,6 +1068,8 @@ export class Game {
     if (R.neuesHaus(c, l)) this.offen.haus++
     if (R.neuerTurm(c, l)) this.offen.turm++
     this.bauten()
+    // Feste Zeit: mit lilaAb kommt der lila Gegner (immer nur einer)
+    if (l === c.lilaAb && !this.aufbau && !this.gegner.some((e) => e.art === 'lila')) this.neuerGegner('lila', true)
   }
 
   /** Faellige Baeume, Haeuser und Tuerme setzen, soweit Platz ist */
@@ -1215,7 +1234,7 @@ export class Game {
     if (this.weltId === 'gruselwald') return ['zombiehand', 'grab', 'kraehenschwarm', 'vollmond', 'gespenst', 'riesenspinne', 'kraehe']
     if (this.weltId === 'vulkan') return ['abbruch', 'ausbruch', 'lavastrom', 'magmawurm', 'feuerregen', 'lavafisch', 'glutgolem', 'bruecke', 'obsidian']
     if (this.weltId === 'wiese') return ['bienenstock', 'igel', 'huegel']
-    if (this.wueste) return ['sandsturm', 'flut', 'sandwurm', 'karawane', 'geier', 'klapperschlange']
+    if (this.wueste) return ['sandsturm', 'flut', 'sandwurm', 'karawane', 'geier', 'klapperschlange', 'riesenskorpion', 'sandkrabbe', 'erdmaennchen', 'mumie', 'fata']
     return []
   }
 
@@ -1261,9 +1280,12 @@ export class Game {
         return this.karawane()
       case 'geier':
         return this.geier()
-      case 'glutgolem':
-      case 'igel':
-      case 'klapperschlange':
+      case 'erdmaennchen':
+        return this.koloniesetzen()
+      case 'mumie':
+        return this.sarkophagSetzen()
+      case 'fata':
+        return this.fataSetzen()
       case 'steinschlag':
         return this.steinschlag()
       case 'lore':
@@ -1308,6 +1330,11 @@ export class Game {
       case 'eisbaer':
       case 'zwerg':
       case 'golem':
+      case 'glutgolem':
+      case 'igel':
+      case 'klapperschlange':
+      case 'riesenskorpion':
+      case 'sandkrabbe':
         return this.wesenNeu(was)
     }
     return false
@@ -1411,7 +1438,13 @@ export class Game {
     const frei = (c: P) => this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && !same(c, this.apple.p)
     let p: P | null = null
     let dir: Dir = 'r'
-    if (art === 'yeti' || art === 'einhorn') {
+    if (art === 'sandkrabbe') {
+      // Sandkrabbe: nur am Strand (Feld am Rand der Insel)
+      const cand = this.freieFelder((c) => manhattan(c, h) >= 6 && this.amAbgrund(c))
+      if (!cand.length) return false
+      p = this.r.pick(cand)
+      dir = this.r.pick(DIRS)
+    } else if (art === 'yeti' || art === 'einhorn') {
       // Randfelder, an denen es nach innen weitergeht, weit weg vom Kopf
       const cand: { p: P; d: Dir }[] = []
       for (let y = 0; y < this.h; y++)
@@ -1464,7 +1497,7 @@ export class Game {
       if (this.time < w.next) continue
       w.next = this.time + WESEN_TAKT[w.art]
       wand ??= this.hindernisse()
-      if ((w.art === 'zwerg' && this.time - w.t > ZWERG_BLEIBT) || ((w.art === 'irrlicht' || w.art === 'kraehe' || w.art === 'fee') && this.time - w.t > KURZ_BLEIBT) || (w.art === 'bienen' && this.time - w.t > BIENEN_BLEIBT)) {
+      if ((w.art === 'zwerg' && this.time - w.t > ZWERG_BLEIBT) || (w.art === 'mumie' && this.time - w.t > MUMIE_BLEIBT) || ((w.art === 'irrlicht' || w.art === 'kraehe' || w.art === 'fee') && this.time - w.t > KURZ_BLEIBT) || (w.art === 'bienen' && this.time - w.t > BIENEN_BLEIBT)) {
         this.wesen = this.wesen.filter((o) => o !== w)
         this.wesenWeg.push({ w, t: this.time })
         continue
@@ -1481,7 +1514,11 @@ export class Game {
         if (this.time >= (w.kugelBis ?? 0)) this.wesenBummeln(w, wand)
       } else if (w.art === 'klapperschlange') {
         if ((w.rassel ?? -1) < 0) this.wesenBummeln(w, wand)
-      } else if (w.art === 'robbe') this.wesenGeradeaus(w, wand, true)
+      } else if (w.art === 'riesenskorpion') {
+        if (w.stichAb === undefined) this.wesenBummeln(w, wand)
+      } else if (w.art === 'sandkrabbe') this.krabbeTakt(w, wand)
+      else if (w.art === 'mumie') this.baerTakt(w, wand, this.cfg.mumieZurueck, 'mumie')
+      else if (w.art === 'robbe') this.wesenGeradeaus(w, wand, true)
       else if (w.art === 'yeti') this.wesenGeradeaus(w, wand, false)
       else this.wesenBummeln(w, wand)
     }
@@ -1524,7 +1561,7 @@ export class Game {
   }
 
   /** Eisbaer: tappt langsam zum Kopf. Steht er direkt daneben, haut er zu (kostet Level), dann ist er satt und geht heim */
-  protected baerTakt(w: Wesen, wand: Set<number>, zurueck: number, grund: 'eisbaer' | 'golem' | 'skelett' | 'werwolf') {
+  protected baerTakt(w: Wesen, wand: Set<number>, zurueck: number, grund: 'eisbaer' | 'golem' | 'skelett' | 'werwolf' | 'mumie') {
     const h = this.body[0]
     const satt = this.time < w.sattBis
     if (!satt && manhattan(w.p, h) === 1) {
@@ -2659,11 +2696,136 @@ export class Game {
     return true
   }
 
+  /** Steht der Kopf in Reihe oder Spalte hoechstens 2 Felder vom Skorpion weg? (So weit reicht sein Stachel) */
+  protected inStichweite(w: Wesen, h: P) {
+    const dx = Math.abs(h.x - w.p.x)
+    const dy = Math.abs(h.y - w.p.y)
+    return (dx === 0 && dy > 0 && dy <= 2) || (dy === 0 && dx > 0 && dx <= 2)
+  }
+
+  /** Riesenskorpion: ist der Kopf in Stichweite, hebt er den Schwanz (Warnung), dann sticht er (kostet Level). true = Spiel vorbei */
+  protected skorpionTakt(w: Wesen): boolean {
+    const h = this.body[0]
+    if (w.stichAb === undefined) {
+      if (this.time >= w.sattBis && this.inStichweite(w, h)) {
+        w.stichAb = this.time + STICH_WARNUNG
+        this.emit({ type: 'stich' })
+      }
+      return false
+    }
+    if (this.time < w.stichAb) return false
+    w.stichAb = undefined
+    w.sattBis = this.time + 5000
+    if (!this.inStichweite(w, h) || this.time < this.schutzBis || this.geist() || (this.kreativ && !this.kreativ.rueckschlag)) return false
+    if (this.schildBrechen()) this.schutzBis = this.time + this.cfg.schutz * 1000
+    else this.setback(this.cfg.skorpionZurueck, 'riesenskorpion')
+    return this.status !== 'play'
+  }
+
+  /** Sandkrabbe: laeuft seitwaerts am Strand entlang (nur Felder am Rand der Insel), am Ende kehrt sie um */
+  protected krabbeTakt(w: Wesen, wand: Set<number>) {
+    const ok = (d: Dir) => {
+      const p = { x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }
+      return this.wesenFrei(p, wand) && this.amAbgrund(p)
+    }
+    const d = [w.dir, ...this.r.shuffle(DIRS.filter((o) => o !== w.dir && o !== OPP[w.dir])), OPP[w.dir]].find(ok)
+    if (d) this.wesenSchritt(w, d, wand)
+  }
+
+  /** Schaut in diesem Loch gerade ein Erdmaennchen heraus (steht es)? Nie, wenn die Schlange darauf liegt */
+  erdmannZustand(k: Kolonie, i: number): 'unten' | 'gucken' | 'oben' {
+    const z = (this.time - k.t + k.phase[i]) % ERDMANN_KREIS
+    if (z < ERDMANN_GUCKEN) return 'gucken'
+    if (z < ERDMANN_GUCKEN + ERDMANN_OBEN) return 'oben'
+    return 'unten'
+  }
+  protected erdmannOben(n: P) {
+    for (const k of this.kolonien) {
+      const i = k.loecher.findIndex((p) => same(p, n))
+      if (i >= 0 && this.erdmannZustand(k, i) === 'oben') return true
+    }
+    return false
+  }
+
+  /** Erdmaennchen-Kolonie: 3 bis 5 Loecher dicht beieinander, mit Abstand zum Kopf */
+  koloniesetzen(): boolean {
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    const frei = (p: P) => this.inside(p) && !wand.has(key(p.x, p.y)) && !this.aufSchlange(p) && !same(p, this.apple.p) && manhattan(p, h) >= 4
+    for (const m of this.r.shuffle(this.freieFelder((q) => manhattan(q, h) >= 7 && !this.imWeg(q, 4))).slice(0, 20)) {
+      const n = this.r.int(3, 5)
+      const loecher: P[] = []
+      for (const o of this.r.shuffle([{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: -2, y: 0 }, { x: 0, y: 2 }, { x: 0, y: -2 }, { x: 1, y: 1 }, { x: -1, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 1 }])) {
+        const p = { x: m.x + o.x, y: m.y + o.y }
+        if (loecher.length >= n) break
+        if (!frei(p) || loecher.some((q) => manhattan(q, p) < 2) || !this.keinAbschluss([...loecher, p], wand)) continue
+        loecher.push(p)
+      }
+      if (loecher.length < 3) continue
+      this.kolonien.push({ loecher, phase: loecher.map(() => this.r.int(0, ERDMANN_KREIS - 1)), t: this.time, bis: this.time + KOLONIE_BLEIBT })
+      this.emit({ type: 'erdmaennchen' })
+      return true
+    }
+    return false
+  }
+
+  /** Sarkophag: liegt da, geht nach 2,5 s auf, dann schlurft die Mumie heraus */
+  sarkophagSetzen(): boolean {
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    for (const p of this.r.shuffle(this.freieFelder((q) => manhattan(q, h) >= 8 && !this.imWeg(q, 4))).slice(0, 20)) {
+      if (!this.keinAbschluss([p], wand)) continue
+      this.sarkophage.push({ p: { ...p }, t: this.time, auf: this.time + 2500, bis: this.time + SARKOPHAG_BLEIBT })
+      this.emit({ type: 'sarkophag' })
+      return true
+    }
+    return false
+  }
+
+  /** Fata Morgana: eine flimmernde Oase mit einer falschen Kaktusfeige in der Mitte */
+  fataSetzen(): boolean {
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    for (const p of this.r.shuffle(this.freieFelder((q) => manhattan(q, h) >= 6 && !this.imWeg(q, 3))).slice(0, 20)) {
+      if (!this.keinAbschluss([p], wand)) continue
+      const cells: P[] = []
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.inside({ x: p.x + dx, y: p.y + dy })) cells.push({ x: p.x + dx, y: p.y + dy })
+      this.fatas.push({ p: { ...p }, cells, t: this.time, bis: this.time + FATA_BLEIBT })
+      this.emit({ type: 'fata' })
+      return true
+    }
+    return false
+  }
+
+  /** Wueste je Takt: Kolonien, Sarkophage und Fata Morganas vergehen, aus offenen Sarkophagen steigt die Mumie */
+  protected wuesteDingeTakt() {
+    if (this.kolonien.length) this.kolonien = this.kolonien.filter((k) => this.time < k.bis)
+    if (this.fatas.length) this.fatas = this.fatas.filter((f) => this.time < f.bis)
+    for (const s of this.sarkophage) {
+      if (this.time < s.auf || s.auf < 0) continue
+      s.auf = -1
+      const wand = this.hindernisse()
+      const neben = this.r.shuffle(DIRS.slice()).map((d) => ({ x: s.p.x + STEP[d].x, y: s.p.y + STEP[d].y })).find((q) => this.wesenFrei(q, wand))
+      if (!neben) {
+        s.bis = this.time
+        continue
+      }
+      this.wesen.push({ art: 'mumie', p: neben, from: { ...s.p }, dir: 'r', t: this.time, schrittT: this.time, next: this.time + WESEN_TAKT.mumie, heim: { ...s.p }, sattBis: 0, wurfNext: 0 })
+      this.emit({ type: 'wesen', art: 'mumie' })
+    }
+    if (this.sarkophage.length) this.sarkophage = this.sarkophage.filter((s) => this.time < s.bis)
+  }
+
   /** Je Takt (alle Welten): Igel rollen sich ein, Klapperschlangen rasseln und beissen, Bienen schwaermen aus */
   protected tiereTakt() {
     const h = this.body[0]
+    if (this.kolonien.length || this.sarkophage.length || this.fatas.length) this.wuesteDingeTakt()
     for (const w of this.wesen) {
       if (w.art === 'igel' && manhattan(w.p, h) <= 2) w.kugelBis = this.time + 3000
+      if (w.art === 'riesenskorpion') {
+        if (this.skorpionTakt(w)) return
+        continue
+      }
       if (w.art !== 'klapperschlange') continue
       const nah = manhattan(w.p, h) <= 3 && this.time >= w.sattBis
       if (!nah) {
@@ -2743,7 +2905,15 @@ export class Game {
         stop: () => (this.durchzuege = this.durchzuege.filter((d) => d.art !== 'karawane')),
       },
     ])
-    this.wesenWuerfeln([['klapperschlange', c.klapperAn, c.klapperAb, c.klapperChance, c.klapperMax]])
+    this.wesenWuerfeln([
+      ['klapperschlange', c.klapperAn, c.klapperAb, c.klapperChance, c.klapperMax],
+      ['riesenskorpion', c.skorpionAn, c.skorpionAb, c.skorpionChance, c.skorpionMax],
+      ['sandkrabbe', c.krabbeAn, c.krabbeAb, c.krabbeChance, c.krabbeMax],
+    ])
+    const wuerfel = (an: number, ab: number, chance: number, voll: boolean) => an > 0 && this.level >= ab && !voll && this.r.next() * 100 < chance
+    if (wuerfel(c.erdmaennchenAn, c.erdmaennchenAb, c.erdmaennchenChance, this.kolonien.length > 0)) this.koloniesetzen()
+    if (wuerfel(c.mumieAn, c.mumieAb, c.mumieChance, this.sarkophage.length > 0 || this.wesen.some((w) => w.art === 'mumie'))) this.sarkophagSetzen()
+    if (wuerfel(c.fataAn, c.fataAb, c.fataChance, this.fatas.length > 0)) this.fataSetzen()
   }
 
   /** Flut vorbei: das Wasser geht zurueck */
@@ -3428,6 +3598,12 @@ export class Game {
     this.obsidiane.forEach((o) => mv(o.p))
     this.glut.forEach((g) => mv(g.p))
     this.stoecke.forEach((b) => mv(b.p))
+    this.kolonien.forEach((k) => k.loecher.forEach(mv))
+    this.sarkophage.forEach((b) => mv(b.p))
+    this.fatas.forEach((f) => {
+      mv(f.p)
+      f.cells.forEach(mv)
+    })
     // Flut bleibt auf denselben Feldern (neue Bloecke stehen nicht unter Wasser), der Sandwurm in seiner Reihe
     if (this.flut) this.flut.zellen = new Set([...this.flut.zellen].map((k) => ausKey(k)).map((p) => key(p.x + dx, p.y + dy)))
     const sw = this.sandwurm
@@ -3480,6 +3656,9 @@ export class Game {
     this.glut.forEach((g) => add(g.p))
     this.obsidiane.forEach((o) => add(o.p))
     this.stoecke.forEach((b) => add(b.p))
+    this.sarkophage.forEach((b) => add(b.p))
+    this.fatas.forEach((f) => add(f.p))
+    this.kolonien.forEach((k) => k.loecher.forEach(add))
     if (mitGegnern) this.gegner.forEach((e) => e.body.forEach(add))
     return s
   }
@@ -4308,7 +4487,10 @@ export class Game {
     const c0 = this.cfg
     const max = this.kreativ ? Math.max(1, c0.gegnerAnzahl) : R.gegnerMax(c0, this.level)
     if (!egal && this.gegner.length >= max) return false
-    art ??= this.level >= c0.lilaAb && this.r.next() * 100 < c0.lilaChance ? 'lila' : 'rot'
+    // Lila: ab lilaAb, aber immer nur einer gleichzeitig
+    const lilaFrei = this.level >= c0.lilaAb && !this.gegner.some((e) => e.art === 'lila')
+    art ??= lilaFrei && this.r.next() * 100 < c0.lilaChance ? 'lila' : 'rot'
+    if (art === 'lila' && !egal && !lilaFrei) return false
     const head = this.body[0]
     const wand = this.hindernisse()
     const reach = this.erreichbar(wand)

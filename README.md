@@ -39,31 +39,19 @@ Freunden** (Nachrichten 30 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIE
 
 Level = gegessene Äpfel + 1. Alle Werte stehen in `src/game/rules.ts`.
 
-**Zufällige Gefahren** (Standard, abschaltbar in den Optionen): Die Level unten bleiben, aber welche Gefahr dort kommt, wird jede Runde neu ausgelost; Mauern, Wasser, Frösche und Giftäpfel kommen eher früh, schwere Gefahren erst später (`src/game/reihenfolge.ts`). Die Tabelle zeigt die feste Reihenfolge.
+**Stufen (seit 1.38):** Alles außer den Welt-Gefahren kommt in Stufen: **häufig** (etwa alle 3 Level), **mittel** (etwa alle 8), **selten** (etwa alle 20) oder **aus**. Mauern sind immer häufig. Wiese: Wasser und Frösche häufig, alles andere mittel. Wüste: Palmen, Springmäuse und Feuerameisen häufig. In den anderen Welten ist nur die Mauer häufig. Alles kommt **ab Level 5**, gestaffelt (nicht alles im selben Level), nichts erst im späten Spiel. Feste Zeiten: **Jägertürme ab Level 50**, **ab Level 75 der lila Gegner** (immer nur einer). Die Gefahren der Welten sind je Welt klar von häufig nach selten abgestuft. Alles im Admin einstellbar (Stufen je Welt und Ding, wie oft die Stufen sind), im Kreativ-Modus mit Übersicht der gewählten Welt.
 
 Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar, nur mit Master-Code, siehe `docs/SPIELFUNKTIONEN.md` 16b):
 
 | Ab Level | Was passiert |
 |---|---|
-| 1 | Zwei Kartenblöcke (je ein halber Bildschirm plus ein Feld in jede Richtung, die Karte ist also etwas größer als der Bildschirm), das **Bild steht still**, bis das erste neue Gebiet dazukommt. **Endlos:** Jede Runde liegt die Welt woanders (Wurzeln, Steine, Erze und Lava im Stein sind neu verteilt), und die Ränder sind nie ganz gerade: vor allem an den Ecken ist etwas verschüttet (meist 2 Felder tief), an den Wänden selten eine minimale Einkerbung (1 tief, 2 bis 4 breit); jeder Block anders, manche gar nicht, zusammen etwa 3 % (in der Wüste als Buchten). Baut man dort an, wird die Nahtstelle wieder frei. Die Schlange wächst **alle 2 Äpfel** ein Glied (ab 50 alle 4, ab 300 alle 6). **Lava im Stein:** In 30 % der Blöcke rund um die Karte steckt ein einzelnes Lavafeld, man sieht es in der Erde. |
-| 5 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
+| 1 | Zwei Kartenblöcke (je ein halber Bildschirm plus ein Feld in jede Richtung, die Karte ist also etwas größer als der Bildschirm), das **Bild steht still**, bis das erste neue Gebiet dazukommt. **Endlos:** Jede Runde liegt die Welt woanders (Wurzeln, Steine, Erze und Lava im Stein sind neu verteilt), und die Ränder sind nie ganz gerade. Die Schlange wächst **alle 2 Äpfel** ein Glied (ab 50 alle 4, ab 300 alle 6). **Lava im Stein:** In 30 % der Blöcke rund um die Karte steckt ein einzelnes Lavafeld. |
+| 5 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. Ab hier kommt nach und nach alles andere in seiner Stufe: Teiche, Frösche, Giftäpfel, Bäume, Bärenfallen, Hütten (große Häuser 50 Level später), Eis, Giftwolken, Ameisen, rote Gegner-Schlangen und die Tiere der Welt. |
 | 10 | **Power-ups** (Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, Spitzhacke). |
-| 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
-| 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s (die letzten 5 blinken), wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. Steckt im Block Lava, bricht sie als Lavasee aus (wächst jeden 2. Apfel um eins bis 6–15 Felder, tödlich). |
-| 30 | **Frösche** (alle 1–3 Level, höchstens 6): hüpfen alle 3 s, 1 s Anlauf, 20 % Richtungswechsel nach der Landung, nie in die Schlange. |
-| 40 | **Giftäpfel** mit verschimmelter Ecke: essen = Spielende (2 ab 110, 3 ab 180, 4 ab 250). |
-| 50 | **Goldene Schere** (selten), Äpfel ×2 wert. |
-| 60 | **Bäume** alle 40 Level: stehen erst als Plus, kippen nach 10–60 s langsam um (nie auf die Schlange, sie kann sie aufhalten) und liegen dann 1-1-3-1. |
-| 70 | **Bärenfallen** 5 bis 8 Felder vor dem Kopf (alle 4 bis 5 Level). |
-| 80 | **Hütten** (2 × 2) alle 30 Level, ab 130 große Häuser. Licht immer 2 Felder tief, Licht = **5 Level zurück**. |
+| 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s, wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. |
+| 50 | **Jägertürme** (feste Zeit, danach mittel), **Goldene Schere** (selten), Äpfel ×2 wert. |
+| 75 | **Lila Gegner** (feste Zeit): 5 lang, 20 % schneller, immer nur einer. |
 | 90 | **Maulwurf** als Power-up. |
-| 100 | **Gegner-Schlangen** (rot, 3–4 lang, halb so schnell), **selten**: alle 30–45 Level eine, höchstens 1 (ab 200: 2). Bei Mauern, Bäumen, Häusern schlau, bei der Schlange langsam: Läuft eine auf die Schlange zu, braucht sie 2 Felder zum Reagieren, baut sich die Schlange gerade vor ihr auf, 4 Felder. Sonst rast sie hinein, zerplatzt und bringt Äpfel. |
-| 110 | **Giftwolken**, wachsen alle 5 s. Hinein = **10 Level zurück**. |
-| 120 | **Eis** (4–10 Felder) alle 30 Level, bleibt; darauf kann man nicht lenken. |
-| 130 | **Große Häuser** (2 × 3 oder mit Ecke) statt Hütten, vier Fenster, Licht 2 Felder (nie auf die Schlange, kein Platz = dunkel). Haus = Tod. |
-| 140 | **Ameisen** chillen, kommen im 2-Felder-Umkreis langsam auf dich zu, Biss −3 Level, der Kopf zertritt sie. |
-| 150 | **Lila Gegner** (25 % der neuen): 5 lang, 20 % schneller, noch böser. |
-| 160 | **Jägertürme** (2 × 2) alle 40 Level, Lichtkegel 2 × 6, dreht jede Runde im Uhrzeigersinn, Schlange wirft Schatten. Turm = Tod, Kegel = **10 Level zurück**. Giftwolken größer (wieder bei 210, 260). |
 | 170 / 230 / 290 | Mindestens 1 / 2 / 3 Ereignisse (Falle, Wolke, Frosch) gleichzeitig. |
 | 190 | Alle zufälligen Abstände 1 Level kürzer. |
 

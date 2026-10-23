@@ -300,4 +300,10 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   karawane: 'gegner',
   geier: 'gegner',
   klapperschlange: 'gegner',
+  riesenskorpion: 'falle',
+  sandkrabbe: 'frosch',
+  erdmaennchen: 'frosch',
+  mumie: 'gegner',
+  sarkophag: 'mauer',
+  fata: 'gift',
 }

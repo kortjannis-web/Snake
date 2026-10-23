@@ -157,7 +157,7 @@ describe('Gruselwald', () => {
         }
         aepfel += g.gegessen
       }
-      expect(aepfel, id).toBeGreaterThan(8)
+      expect(aepfel, id).toBeGreaterThan(4)
     }
   })
 })

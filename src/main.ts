@@ -17,9 +17,8 @@ import { Game } from './game/game'
 import { karteVon, MissionGame } from './game/mission'
 import { spielbar, WIESE_MISSIONEN, type MissionDef } from './game/missionen'
 import { erreicht, geschafft, missionGeschafft, offen, setzeErreicht } from './kampagne'
-import { apfelFaktor, DEFAULTS, gebietFortschritt, SCHEMA, type ConfigKey, type Tempo } from './game/rules'
+import { apfelFaktor, DEFAULTS, gebietFortschritt, gefahrStufe, mitStufen, SCHEMA, STUFE_NAME, STUFEN_SCHEMA, stufeKey, WELT_GEFAHREN, WELT_STUFEN, type SchemaFeld, type Tempo, type WeltId } from './game/rules'
 import { modusProzent, SPIELMODUS_NAME, type SpielModus } from './modus'
-import { zufallsReihenfolge } from './game/reihenfolge'
 import { ERFOLGE, erfolgePruefen, stand, zaehle } from './erfolge'
 import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
 import { dauerhaft, zeitleiste } from './game/zeitleiste'
@@ -262,7 +261,7 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       screenH: sc.h,
       tempo: tempoVon(laufModus),
       // Zufaellige Reihenfolge der Gefahren (nicht im Kreativ-Modus: dort soll der Aufbau planbar sein)
-      cfg: !istKreativ && settings.zufall ? zufallsReihenfolge(config) : { ...config },
+      cfg: { ...config },
       wueste: renderer.welt.id === 'wueste',
       vulkan: renderer.welt.id === 'vulkan',
       welt: renderer.welt.id,
@@ -1041,6 +1040,138 @@ function handle(e: GameEvent) {
       audio.zertreten()
       haptic.heavy()
       toast('gegner', 'Erwischt!', `Der ${game?.weltId === 'vulkan' ? 'Magmawurm' : 'Sandwurm'} hat ${e.weg} Glieder abgebissen.`, { minus: true })
+      break
+    /* Welt-Ereignisse: Warnung mit kurzem Hinweis (nur Gefahren, die man sehen muss), sonst nur ein Ton */
+    case 'einschlagWarnung': {
+      const w: Partial<Record<typeof e.art, [Parameters<typeof drawMini>[1], string, string]>> = {
+        eiszapfen: ['eis', 'Eiszapfen!', 'Weg aus dem Schatten, gleich fällt er.'],
+        stein: ['mauer', 'Steinschlag!', 'Wo Staub rieselt, fallen gleich Felsen.'],
+        abbruch: ['lava', 'Die Kante bricht!', 'Runter von den Rissen am Abgrund.'],
+        lavabombe: ['lava', 'Ausbruch!', 'Wo es glüht, schlagen Lavabomben ein.'],
+        meteor: ['lava', 'Feuerregen!', 'Wo die Schatten wachsen, schlagen Meteore ein.'],
+        geier: ['gegner', 'Ein Geier kreist!', 'Gleich stößt er herab, wo sein Schatten ist.'],
+      }
+      const t = w[e.art]
+      if (t) {
+        audio.wahl()
+        haptic.light()
+        toast(t[0], t[1], t[2])
+      } else audio.hop()
+      break
+    }
+    case 'einschlag':
+      if (!nah(e.p, 1)) break
+      if (e.art === 'lavabombe' || e.art === 'meteor' || e.art === 'abbruch') audio.lava(true)
+      else if (e.art === 'zombiehand' || e.art === 'huegel') audio.zertreten()
+      else if (e.art === 'geier') audio.gegner()
+      else audio.tree()
+      if (e.art !== 'huegel') haptic.medium()
+      break
+    case 'explosion':
+      audio.lava(true)
+      haptic.heavy()
+      break
+    case 'abgetrennt':
+      audio.zertreten()
+      haptic.heavy()
+      toast('schlange', 'Abgetrennt!', `${e.weg} Glieder sind weg.`, { minus: true })
+      break
+    case 'schneesturm':
+      audio.cloud()
+      toast('wolke', 'Schneesturm!', 'Gleich siehst du fast nichts mehr.')
+      break
+    case 'polarnacht':
+      audio.wahl()
+      toast('eis', 'Polarnacht', 'Es wird dunkel, Nordlichter ziehen auf.')
+      break
+    case 'eisRiss':
+      audio.zertreten()
+      haptic.light()
+      if (e.stufe >= 2) toast('eis', 'Das Eis knackt!', 'Noch einmal drauf, und es bricht.')
+      break
+    case 'wesen':
+      audio.gegner()
+      break
+    case 'loreWarnung':
+      audio.wahl()
+      toast('gegner', 'Die Lore kommt!', 'Die Glocke läutet: runter von den Schienen.')
+      break
+    case 'lore':
+      audio.lava(true)
+      haptic.medium()
+      break
+    case 'fledermaeuse':
+    case 'kraehen':
+    case 'sporen':
+      audio.cloud()
+      break
+    case 'zuendschnur':
+      audio.trap()
+      toast('falle', 'TNT!', 'Fahr über den Funken, dann geht die Schnur aus.')
+      break
+    case 'erdbeben':
+      audio.lava()
+      haptic.heavy()
+      toast('erde', 'Erdbeben!', 'Gleich reißt ein Spalt auf.')
+      break
+    case 'netz':
+    case 'geklaut':
+      audio.stolen()
+      break
+    case 'spiegel':
+      audio.wahl()
+      toast('gift', 'Spiegelfluch!', 'Gleich ist die Steuerung vertauscht.')
+      break
+    case 'ranke':
+      audio.tree()
+      break
+    case 'eile':
+    case 'fata':
+      audio.power()
+      break
+    case 'regenbogen':
+    case 'obsidian':
+      audio.fund(true)
+      haptic.success()
+      break
+    case 'teleport':
+      audio.expand()
+      break
+    case 'vollmond':
+      audio.wahl()
+      haptic.medium()
+      toast('gegner', 'Vollmond!', 'Der Werwolf jagt dich.')
+      break
+    case 'lavastrom':
+      audio.lava()
+      toast('lava', 'Lavastrom!', 'Lava quillt aus dem Abgrund und fließt übers Feld.')
+      break
+    case 'lavafisch':
+      if (nah(e.p, 0.6)) audio.hop()
+      break
+    case 'brueckeBricht':
+      audio.zertreten()
+      haptic.medium()
+      break
+    case 'bienen':
+      audio.ameise()
+      toast('gegner', 'Bienen!', 'Der Schwarm verfolgt dich.')
+      break
+    case 'rassel':
+    case 'stich':
+      audio.ameise()
+      haptic.light()
+      break
+    case 'karawane':
+      audio.wahl()
+      toast('gegner', 'Karawane!', 'Gleich zieht eine Kamelkarawane quer durch.')
+      break
+    case 'sarkophag':
+      audio.tower()
+      toast('gegner', 'Ein Sarkophag!', 'Gleich steigt die Mumie heraus.')
+      break
+    case 'erdmaennchen':
+      audio.hop()
       break
     case 'geld':
       // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt, in Missionen gibt es nur die Belohnung am Ende
@@ -1881,15 +2012,7 @@ function newDemo() {
 function renderHelp() {
   const list = $('help-list')
   list.innerHTML = ''
-  if (settings.zufall) {
-    const p = document.createElement('p')
-    p.className = 'hinweis'
-    p.textContent = game
-      ? 'Zufällige Gefahren sind an: Die Level unten gelten für diese Runde, die nächste wird neu ausgelost.'
-      : 'Zufällige Gefahren sind an: Jede Runde wird neu ausgelost, welche Gefahr bei welchem Level kommt. Unten steht die feste Reihenfolge.'
-    list.append(p)
-  }
-  for (const h of help(game?.cfg ?? config)) {
+  for (const h of help(game?.cfg ?? mitStufen(config, renderer.welt.id))) {
     const item = document.createElement('article')
     item.className = 'help'
     item.innerHTML = `<canvas width="56" height="56"></canvas><div><h3></h3><p></p></div>`
@@ -1945,7 +2068,6 @@ function renderSettings() {
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
   $<HTMLInputElement>('opt-dpad').checked = settings.dpad
-  $<HTMLInputElement>('opt-zufall').checked = settings.zufall
   for (const [id, v] of [['opt-tempo', settings.tempo]])
     $(id)
       .querySelectorAll<HTMLButtonElement>('button')
@@ -2017,6 +2139,7 @@ function renderKreativ() {
       box.append(b)
     }
   }
+  renderWeltUebersicht()
   // Welt: jede (Admin). Im laufenden Kreativ-Spiel startet die Runde in der neuen Welt neu
   const wb = $('k-welt')
   wb.replaceChildren()
@@ -2192,7 +2315,7 @@ function renderZeitleiste() {
   }
   const box = $('zeitleiste-list')
   box.innerHTML = ''
-  for (const e of zeitleiste(config, 500)) {
+  for (const e of zeitleiste(mitStufen(config, 'wiese'), 500)) {
     const row = document.createElement('div')
     row.className = 'zl'
     const b = document.createElement('b')
@@ -2209,6 +2332,129 @@ function renderZeitleiste() {
   }
 }
 
+/** Eine Zeile der Master-Einstellungen: Schalter, Stufe (häufig … aus) oder Zahl. `geaendert` nach jeder Änderung */
+function configZeile(f: SchemaFeld, geaendert: () => void): HTMLElement {
+  const row = document.createElement('label')
+  row.className = 'master__row'
+  const t = document.createElement('span')
+  t.textContent = f.label
+  if (f.schalter) {
+    // An/aus (1/0)
+    const sw = document.createElement('input')
+    sw.type = 'checkbox'
+    sw.className = 'switch'
+    sw.checked = config[f.key] > 0
+    sw.addEventListener('change', () => {
+      config[f.key] = sw.checked ? 1 : 0
+      saveConfig()
+      geaendert()
+    })
+    row.append(t, sw)
+    return row
+  }
+  if (f.stufe) {
+    // Stufe: häufig (3), mittel (2), selten (1), aus (0)
+    const sel = document.createElement('select')
+    sel.className = 'stufe'
+    for (let v = 3; v >= 0; v--) {
+      const o = document.createElement('option')
+      o.value = String(v)
+      o.textContent = STUFE_NAME[v]
+      sel.append(o)
+    }
+    sel.value = String(config[f.key])
+    sel.dataset.stufe = sel.value
+    sel.addEventListener('change', () => {
+      config[f.key] = Number(sel.value)
+      sel.dataset.stufe = sel.value
+      saveConfig()
+      geaendert()
+    })
+    row.append(t, sel)
+    return row
+  }
+  const inp = document.createElement('input')
+  inp.type = 'number'
+  inp.min = String(f.min)
+  inp.max = String(f.max)
+  inp.step = String(f.step ?? 1)
+  inp.inputMode = f.step && f.step < 1 ? 'decimal' : 'numeric'
+  inp.value = String(config[f.key])
+  inp.dataset.key = f.key
+  const u = document.createElement('small')
+  u.textContent = f.einheit ?? ''
+  inp.addEventListener('change', () => {
+    let v = Number(inp.value.replace(',', '.'))
+    if (!Number.isFinite(v)) v = config[f.key]
+    v = Math.min(f.max, Math.max(f.min, v))
+    if (!f.step || f.step >= 1) v = Math.round(v)
+    config[f.key] = v
+    inp.value = String(v)
+    saveConfig()
+    geaendert()
+  })
+  row.append(t, inp, u)
+  return row
+}
+
+/** Feld der Master-Einstellungen zu einem Schluessel */
+const schemaFeld = (key: string) => SCHEMA.flatMap((g) => g.felder).find((f) => f.key === key)
+
+/**
+ * Entwickler-Übersicht (Kreativ-Menü, nur Admin): was es in der gewählten Welt gibt. Gefahren von häufig bis selten mit
+ * Schalter und Chance je Apfel, feste Zeiten, dann alle anderen Dinge mit ihrer Stufe und wie oft die Stufen kommen.
+ */
+function renderWeltUebersicht() {
+  const box = $('k-uebersicht')
+  box.replaceChildren()
+  const w = (renderer.welt.id in WELT_STUFEN ? renderer.welt.id : 'wiese') as WeltId
+  const kopf = (text: string) => {
+    const h = document.createElement('h4')
+    h.textContent = text
+    box.append(h)
+  }
+  const hinweis = (text: string) => {
+    const p = document.createElement('p')
+    p.className = 'hinweis'
+    p.textContent = text
+    box.append(p)
+  }
+  kopf('Gefahren (je Apfel)')
+  const gefahren = WELT_GEFAHREN[w]
+  if (!gefahren.length) hinweis('Hier gibt es keine Welt-Gefahren, nur die Dinge unten.')
+  for (const k of gefahren) {
+    const an = schemaFeld(`${k}An`)
+    const chance = schemaFeld(`${k}Chance`)
+    if (!an || !chance) continue
+    const zeile = document.createElement('div')
+    zeile.className = 'gefahr'
+    const name = document.createElement('b')
+    name.textContent = an.label
+    const badge = document.createElement('span')
+    badge.className = 'stufe-badge'
+    const stufe = () => {
+      const s = config[an.key] > 0 ? gefahrStufe(config[chance.key]) : 'aus'
+      badge.textContent = s
+      badge.dataset.s = s
+    }
+    stufe()
+    // Erste Zeile: Name und Stufe, zweite: an/aus und Chance je Apfel
+    zeile.append(name, badge, configZeile({ ...an, label: '' }, stufe), configZeile({ ...chance, label: 'Chance' }, stufe))
+    box.append(zeile)
+  }
+  if (w === 'gruselwald') {
+    const f = schemaFeld('werwolfAlle')
+    if (f) box.append(configZeile(f, () => {}))
+  }
+  kopf('Feste Zeiten')
+  hinweis(`Jägertürme ab Level ${config.turmAb}, der lila Gegner ab Level ${config.lilaAb} (immer nur einer).`)
+  kopf('Alles andere (Mauern sind immer häufig)')
+  const gruppe = STUFEN_SCHEMA.find((g) => g.felder.some((f) => f.key === stufeKey(w, 'teich')))
+  for (const f of gruppe?.felder ?? []) box.append(configZeile(f, () => {}))
+  kopf('Wie oft die Stufen kommen (alle Welten)')
+  for (const f of STUFEN_SCHEMA[0].felder) box.append(configZeile(f, renderWeltUebersicht))
+}
+
 function renderMaster() {
   renderZeitleiste()
   const list = $('master-list')
@@ -2219,48 +2465,7 @@ function renderMaster() {
     const h = document.createElement('h3')
     h.textContent = g.gruppe
     box.append(h)
-    for (const f of g.felder) {
-      const row = document.createElement('label')
-      row.className = 'master__row'
-      const t = document.createElement('span')
-      t.textContent = f.label
-      if (f.schalter) {
-        // An/aus (1/0)
-        const sw = document.createElement('input')
-        sw.type = 'checkbox'
-        sw.className = 'switch'
-        sw.checked = config[f.key] > 0
-        sw.addEventListener('change', () => {
-          config[f.key as ConfigKey] = sw.checked ? 1 : 0
-          saveConfig()
-        })
-        row.append(t, sw)
-        box.append(row)
-        continue
-      }
-      const inp = document.createElement('input')
-      inp.type = 'number'
-      inp.min = String(f.min)
-      inp.max = String(f.max)
-      inp.step = String(f.step ?? 1)
-      inp.inputMode = f.step && f.step < 1 ? 'decimal' : 'numeric'
-      inp.value = String(config[f.key])
-      inp.dataset.key = f.key
-      const u = document.createElement('small')
-      u.textContent = f.einheit ?? ''
-      inp.addEventListener('change', () => {
-        let v = Number(inp.value.replace(',', '.'))
-        if (!Number.isFinite(v)) v = config[f.key as ConfigKey]
-        v = Math.min(f.max, Math.max(f.min, v))
-        if (!f.step || f.step >= 1) v = Math.round(v)
-        config[f.key as ConfigKey] = v
-        inp.value = String(v)
-        saveConfig()
-        renderZeitleiste()
-      })
-      row.append(t, inp, u)
-      box.append(row)
-    }
+    for (const f of g.felder) box.append(configZeile(f, renderZeitleiste))
     list.append(box)
   }
 }
@@ -2594,7 +2799,7 @@ document.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => b.addEventLis
 }))
 document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', closePage))
 
-for (const k of ['sound', 'music', 'vibration', 'dpad', 'zufall'] as const)
+for (const k of ['sound', 'music', 'vibration', 'dpad'] as const)
   $<HTMLInputElement>(`opt-${k}`).addEventListener('change', (e) => {
     settings[k] = (e.target as HTMLInputElement).checked
     applySettings()
