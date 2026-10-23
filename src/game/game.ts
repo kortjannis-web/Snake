@@ -16,7 +16,7 @@
  */
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Baum, Cause, Dir, Durchzug, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
+import type { Ameise, Baum, Cause, Dir, Durchzug, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -48,13 +48,33 @@ export type GameOpts = {
 }
 
 /** Schritt-Takt der Welt-Wesen (ms je Feld) und der Schneebaelle */
-export const WESEN_TAKT: Record<WesenArt, number> = { eisbaer: 760, robbe: 320, schneemann: 1500, yeti: 620, zwerg: 900, golem: 1100 }
+export const WESEN_TAKT: Record<WesenArt, number> = {
+  eisbaer: 760,
+  robbe: 320,
+  schneemann: 1500,
+  yeti: 620,
+  zwerg: 900,
+  golem: 1100,
+  irrlicht: 650,
+  einhorn: 280,
+  fee: 420,
+  ent: 1800,
+  skelett: 950,
+  werwolf: 300,
+  gespenst: 700,
+  riesenspinne: 700,
+  kraehe: 280,
+}
+/** Fliegende Wesen: kein Hindernis, fliegen ueber alles (nur nicht in die Schlange) */
+export const FLIEGT = new Set<WesenArt>(['fee', 'gespenst', 'kraehe'])
+/** So lange bleiben Irrlicht und Kraehe, dann verschwinden sie (ms) */
+const KURZ_BLEIBT = 22_000
 /** Wurf (Schneeball) bzw. beim Zwerg: Erz ablegen, alle so viele ms */
-const WURF_TAKT: Partial<Record<WesenArt, number>> = { yeti: 2600, schneemann: 4200, zwerg: 9000 }
+const WURF_TAKT: Partial<Record<WesenArt, number>> = { yeti: 2600, schneemann: 4200, zwerg: 9000, riesenspinne: 6000 }
 /** So lange bleibt ein Zwerg, dann geht er (ms) */
 const ZWERG_BLEIBT = 45_000
 /** Durch welchen Einschlag stirbt man woran */
-const EINSCHLAG_TOD: Record<EinschlagArt, Cause> = { eiszapfen: 'eiszapfen', stein: 'stein', explosion: 'tnt' }
+const EINSCHLAG_TOD: Record<EinschlagArt, Cause> = { eiszapfen: 'eiszapfen', stein: 'stein', explosion: 'tnt', zombiehand: 'zombiehand' }
 export const GESCHOSS_TAKT = 200
 /** So lange sieht man ein verschwundenes Wesen (ms) */
 export const WESEN_WEG = 600
@@ -143,6 +163,19 @@ export class Game {
   loren: P[] = []
   /** Spinnennetz: bis dahin ist die Schlange langsamer */
   bremseBis = 0
+  /** Zauberwald: Ranken, wandernde Baeume, Sporenwolken, Spiegelfluch, Regenbogen (Einhorn), Pilzringe */
+  ranken: Ranke[] = []
+  wanderbaeume: { p: P; from: P; t: number }[] = []
+  sporen: Sporen[] = []
+  spiegel: { t: number; ab: number; bis: number } | null = null
+  /** Sporen: bis dahin ist die Schlange schneller */
+  eileBis = 0
+  regenbogen: { p: P; t: number }[] = []
+  pilzringe: Pilzringe | null = null
+  /** Nach dem Beamen: auf diesem Ring wird erst wieder gebeamt, wenn der Kopf ihn verlassen hat */
+  protected ringSperre = -1
+  /** Gruselwald: Vollmond (der Werwolf jagt bis `bis`) */
+  vollmond: { t: number; bis: number } | null = null
   /** Vulkan-Karte (groessere Bloecke, Krater)? Nicht in Sandbox und Tageslevel */
   readonly vulkan: boolean
   /** Vulkan-Welt: rund um die Karte ist der Lava-Abgrund statt Erde (auch in Sandbox und Tageslevel; kein Maulwurf) */
@@ -430,6 +463,7 @@ export class Game {
     this.sandwurmTakt()
     this.einschlaegeTakt()
     this.bergwerkTakt()
+    this.zauberTakt()
     this.wesenTakt()
     this.regie()
   }
@@ -443,8 +477,9 @@ export class Game {
   /** Aktueller Takt je Feld (Zeitlupe macht ihn laenger) */
   get takt() {
     const t = this.time < this.effekt.zeitlupeBis ? this.tick * R.zeitlupe(this.cfg) : this.tick
-    // Spinnennetz: kurz langsamer
-    return this.time < this.bremseBis ? t * 1.6 : t
+    // Spinnennetz: kurz langsamer, Sporen: kurz schneller
+    const b = this.time < this.bremseBis ? t * 1.6 : t
+    return this.time < this.eileBis ? b * 0.72 : b
   }
 
   /** Geist: durch Hindernisse (Kreativ oder Power-up Geist) */
@@ -475,6 +510,8 @@ export class Game {
    *  Sofort-Wende im ersten Drittel eines Schritts (wie im Telefon) */
   turn(d: Dir, sofort = true) {
     if (this.status !== 'play') return
+    // Spiegelfluch: die Steuerung ist vertauscht
+    if (this.spiegelt()) d = OPP[d]
     // Auf Eis laesst sich nicht lenken (ausser im Kreativ-Modus, wenn die Schlange vor einem Hindernis steht)
     if (!this.halt && this.aufEis(this.body[0])) return
     // Reaktionszeit vor dem Aufprall: Abbiegen rettet (nicht in den Hals, nicht noch einmal geradeaus)
@@ -612,6 +649,7 @@ export class Game {
     this.halt = false
     this.eisBetreten(h, n)
     this.bergwerkBetreten(n)
+    this.zauberBetreten(n)
     this.body.unshift(n)
     this.gegnerUeberrascht(n)
     if (!grows) this.body.pop()
@@ -803,7 +841,7 @@ export class Game {
   }
 
   /** n Level zurueck: Schlange wird um das kuerzer, was sie in diesen Leveln gewachsen war */
-  setback(n: number, grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem') {
+  setback(n: number, grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem' | 'skelett' | 'werwolf' | 'gespenst') {
     if (n <= 0) return
     const von = this.level
     const auf = Math.max(1, von - n)
@@ -840,13 +878,15 @@ export class Game {
     if (this.haeuser.some((h) => h.cells.some((p) => same(p, n)))) return 'haus'
     if (this.tuerme.some((t) => t.cells.some((p) => same(p, n)))) return 'turm'
     if (this.lava.some((l) => l.cells.some((p) => same(p, n)))) return 'lava'
-    const ein = this.einschlaege.find((e) => e.gefallen && e.bleibt && e.cells.some((p) => same(p, n)))
+    const ein = this.einschlaege.find((e) => this.einschlagLiegt(e) && e.cells.some((p) => same(p, n)))
     if (ein) return EINSCHLAG_TOD[ein.art]
+    if (this.ranken.some((r) => r.cells.slice(0, r.grown).some((p) => same(p, n)))) return 'ranke'
+    if (this.wanderbaeume.some((b) => same(b.p, n))) return 'wanderbaum'
     if (this.loren.some((p) => same(p, n))) return 'lorenlager'
     if (this.zuendschnuere.some((z) => same(z.fass, n))) return 'tnt'
     if (this.spalten.some((s) => this.time >= s.ab && s.cells.some((p) => same(p, n)))) return 'spalt'
-    const w = this.wesen.find((o) => same(o.p, n))
-    if (w) return w.art
+    const w = this.wesen.find((o) => same(o.p, n) && !FLIEGT.has(o.art))
+    if (w) return w.art as Cause
     if (this.eisBricht(n)) return 'eisbruch'
     if (this.aufGegner(n)) return 'gegner'
     if (!this.durchSelbst() && rest.some((p) => same(p, n))) return 'selbst'
@@ -1072,6 +1112,8 @@ export class Game {
     if (this.wueste) this.wuesteNachApfel()
     if (this.weltId === 'winter') this.winterNachApfel()
     if (this.weltId === 'bergwerk') this.bergwerkNachApfel()
+    if (this.weltId === 'zauberwald') this.zauberNachApfel()
+    if (this.weltId === 'gruselwald') this.gruselNachApfel()
   }
 
   protected winterNachApfel() {
@@ -1120,6 +1162,8 @@ export class Game {
   weltAuswahl(): string[] {
     if (this.weltId === 'winter') return ['eiszapfen', 'schneesturm', 'yeti', 'polarnacht', 'robbe', 'schneemann', 'eisbaer']
     if (this.weltId === 'bergwerk') return ['steinschlag', 'lore', 'tnt', 'erdbeben', 'fledermaus', 'zwerg', 'golem', 'netz']
+    if (this.weltId === 'zauberwald') return ['spiegel', 'ranken', 'wanderbaum', 'sporen', 'irrlicht', 'einhorn', 'fee', 'ent', 'pilzring']
+    if (this.weltId === 'gruselwald') return ['zombiehand', 'grab', 'kraehenschwarm', 'vollmond', 'gespenst', 'riesenspinne', 'kraehe']
     if (this.wueste) return ['sandsturm', 'flut', 'sandwurm']
     return []
   }
@@ -1155,6 +1199,32 @@ export class Game {
         return this.fledermaeuse()
       case 'netz':
         return this.netzSpannen()
+      case 'spiegel':
+        this.spiegelfluch()
+        return true
+      case 'ranken':
+        return this.rankeWachsen()
+      case 'wanderbaum':
+        return this.wanderbaumSetzen()
+      case 'sporen':
+        return this.sporenwolke()
+      case 'pilzring':
+        return this.pilzringeSetzen()
+      case 'zombiehand':
+        return this.zombiehaende()
+      case 'grab':
+        return this.wesenNeu('skelett')
+      case 'kraehenschwarm':
+        return this.kraehenschwarm()
+      case 'vollmond':
+        return this.vollmondStarten()
+      case 'irrlicht':
+      case 'einhorn':
+      case 'fee':
+      case 'ent':
+      case 'gespenst':
+      case 'riesenspinne':
+      case 'kraehe':
       case 'yeti':
       case 'robbe':
       case 'schneemann':
@@ -1194,6 +1264,8 @@ export class Game {
 
   /** Einschlaege: wenn die Warnung um ist, fallen sie. Kopf getroffen = vorbei (Schild rettet), Koerper wird abgetrennt */
   protected einschlaegeTakt() {
+    // Zombiehaende greifen nur kurz zu
+    if (this.einschlaege.some((e) => e.weg !== undefined && this.time >= e.weg)) this.einschlaege = this.einschlaege.filter((e) => e.weg === undefined || this.time < e.weg)
     for (const e of this.einschlaege) {
       if (e.gefallen || this.time < e.bis) continue
       e.gefallen = true
@@ -1256,7 +1328,7 @@ export class Game {
     const frei = (c: P) => this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && !same(c, this.apple.p)
     let p: P | null = null
     let dir: Dir = 'r'
-    if (art === 'yeti') {
+    if (art === 'yeti' || art === 'einhorn') {
       // Randfelder, an denen es nach innen weitergeht, weit weg vom Kopf
       const cand: { p: P; d: Dir }[] = []
       for (let y = 0; y < this.h; y++)
@@ -1274,8 +1346,11 @@ export class Game {
       p = w.p
       dir = w.d
     } else {
-      const abstand = art === 'eisbaer' || art === 'golem' ? 9 : 6
-      const cand = this.freieFelder((c) => manhattan(c, h) >= abstand && !this.imWeg(c, 3))
+      const abstand = art === 'eisbaer' || art === 'golem' || art === 'werwolf' ? 9 : 6
+      // Skelett steigt neben einem Grabstein (Mauer) aus dem Grab, wenn es einen gibt
+      const graeber = art === 'skelett' ? new Set(this.mauern.flatMap((m) => m.cells.slice(0, m.grown)).flatMap((c) => DIRS.map((d) => key(c.x + STEP[d].x, c.y + STEP[d].y)))) : null
+      let cand = this.freieFelder((c) => manhattan(c, h) >= abstand && !this.imWeg(c, 3) && (!graeber || graeber.has(key(c.x, c.y))))
+      if (!cand.length && graeber) cand = this.freieFelder((c) => manhattan(c, h) >= abstand && !this.imWeg(c, 3))
       if (!cand.length) return false
       p = this.r.pick(cand)
       dir = this.r.pick(DIRS)
@@ -1306,13 +1381,18 @@ export class Game {
       if (this.time < w.next) continue
       w.next = this.time + WESEN_TAKT[w.art]
       wand ??= this.hindernisse()
-      if (w.art === 'zwerg' && this.time - w.t > ZWERG_BLEIBT) {
+      if ((w.art === 'zwerg' && this.time - w.t > ZWERG_BLEIBT) || ((w.art === 'irrlicht' || w.art === 'kraehe' || w.art === 'fee') && this.time - w.t > KURZ_BLEIBT)) {
         this.wesen = this.wesen.filter((o) => o !== w)
         this.wesenWeg.push({ w, t: this.time })
         continue
       }
       if (w.art === 'eisbaer') this.baerTakt(w, wand, this.cfg.eisbaerZurueck, 'eisbaer')
       else if (w.art === 'golem') this.baerTakt(w, wand, this.cfg.golemZurueck, 'golem')
+      else if (w.art === 'skelett') this.baerTakt(w, wand, this.cfg.skelettZurueck, 'skelett')
+      else if (w.art === 'werwolf') this.baerTakt(w, wand, this.cfg.werwolfZurueck, 'werwolf')
+      else if (w.art === 'einhorn') this.wesenGeradeaus(w, wand, false)
+      else if (w.art === 'irrlicht') this.wesenFlieht(w, wand)
+      else if (w.art === 'fee' || w.art === 'gespenst' || w.art === 'kraehe') this.wesenFliegt(w)
       else if (w.art === 'robbe') this.wesenGeradeaus(w, wand, true)
       else if (w.art === 'yeti') this.wesenGeradeaus(w, wand, false)
       else this.wesenBummeln(w, wand)
@@ -1326,6 +1406,8 @@ export class Game {
 
   protected wesenSchritt(w: Wesen, d: Dir, wand: Set<number>) {
     const p = { x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }
+    // Einhorn: hinter ihm leuchtet ein Regenbogen (Bonus)
+    if (w.art === 'einhorn') this.regenbogen.push({ p: { ...w.p }, t: this.time })
     wand.delete(key(w.p.x, w.p.y))
     wand.add(key(p.x, p.y))
     w.from = { ...w.p }
@@ -1354,7 +1436,7 @@ export class Game {
   }
 
   /** Eisbaer: tappt langsam zum Kopf. Steht er direkt daneben, haut er zu (kostet Level), dann ist er satt und geht heim */
-  protected baerTakt(w: Wesen, wand: Set<number>, zurueck: number, grund: 'eisbaer' | 'golem') {
+  protected baerTakt(w: Wesen, wand: Set<number>, zurueck: number, grund: 'eisbaer' | 'golem' | 'skelett' | 'werwolf') {
     const h = this.body[0]
     const satt = this.time < w.sattBis
     if (!satt && manhattan(w.p, h) === 1) {
@@ -1382,6 +1464,11 @@ export class Game {
   /** Schneeball werfen: der Yeti quer zu seinem Weg Richtung Kopf, der Schneemann nur, wenn der Kopf in seiner Reihe ist */
   protected werfen(w: Wesen) {
     if (w.art === 'zwerg') return this.erzAblegen(w)
+    // Riesenspinne spinnt ein Netz, wo sie gerade ist
+    if (w.art === 'riesenspinne') {
+      if (!this.netze.some((o) => same(o.p, w.p)) && this.netze.length < 8) this.netze.push({ p: { ...w.p }, t: this.time })
+      return
+    }
     const h = this.body[0]
     const dx = h.x - w.p.x
     const dy = h.y - w.p.y
@@ -1604,7 +1691,7 @@ export class Game {
       if (this.time < d.los) continue
       if (!d.raus) {
         d.raus = true
-        this.emit({ type: d.art === 'lore' ? 'lore' : 'fledermaeuse' })
+        if (d.art !== 'kraehen') this.emit({ type: d.art === 'lore' ? 'lore' : 'fledermaeuse' })
       }
       if ((this.time - d.los) / d.takt > d.bis - d.von + 1 + d.laenge) {
         this.durchzuege = this.durchzuege.filter((o) => o !== d)
@@ -1762,6 +1849,312 @@ export class Game {
       if (!this.inside(p) || wand.has(key(p.x, p.y)) || this.aufSchlange(p) || same(p, this.apple.p) || this.funde.some((f) => same(f.p, p))) continue
       this.funde.push({ p, art: this.r.next() < 0.8 ? 'gold' : 'dia', t: this.time })
       this.emit({ type: 'erzAbgelegt', p: { ...p } })
+      return
+    }
+  }
+
+  /* ================= Zauberwald und Gruselwald ================= */
+
+  /** Liegt ein Einschlag gerade als Hindernis da? (Block bis zum Apfel, Zombiehand nur kurz) */
+  protected einschlagLiegt(e: Einschlag) {
+    return e.gefallen && (e.bleibt || (e.weg !== undefined && this.time < e.weg))
+  }
+
+  /** Spiegelfluch: gerade vertauschte Steuerung? */
+  spiegelt() {
+    return !!this.spiegel && this.time >= this.spiegel.ab && this.time < this.spiegel.bis
+  }
+
+  protected zauberNachApfel() {
+    const c = this.cfg
+    // Ranken verwelken nach ein paar Aepfeln, wandernde Baeume ruecken ein Feld weiter
+    for (const r of this.ranken) r.aepfel--
+    this.ranken = this.ranken.filter((r) => r.aepfel > 0)
+    this.wanderbaeumeRuecken()
+    this.ereignisWuerfeln([
+      { an: c.spiegelAn, chance: c.spiegelChance, laeuft: !!this.spiegel && this.time < this.spiegel.bis, start: () => this.spiegelfluch(), stop: () => (this.spiegel = null) },
+      { an: c.rankenAn, chance: c.rankenChance, laeuft: false, start: () => this.rankeWachsen(), stop: () => {} },
+      { an: c.wanderbaumAn, chance: c.wanderbaumChance, laeuft: this.wanderbaeume.length >= c.wanderbaumMax, start: () => this.wanderbaumSetzen(), stop: () => {} },
+      { an: c.sporenAn, chance: c.sporenChance, laeuft: this.sporen.length > 0, start: () => this.sporenwolke(), stop: () => (this.sporen = []) },
+      { an: c.irrlichtAn, chance: c.irrlichtChance, laeuft: this.wesen.some((w) => w.art === 'irrlicht'), start: () => this.wesenNeu('irrlicht'), stop: () => this.wesenFort('irrlicht') },
+    ])
+    this.wesenWuerfeln([
+      ['einhorn', c.einhornAn, c.einhornAb, c.einhornChance, 1],
+      ['fee', c.feeAn, c.feeAb, c.feeChance, 1],
+      ['ent', c.entAn, c.entAb, c.entChance, c.entMax],
+    ])
+    if (c.pilzringAn > 0 && !this.pilzringe && this.level >= c.pilzringAb && this.r.next() * 100 < c.pilzringChance) this.pilzringeSetzen()
+  }
+
+  protected gruselNachApfel() {
+    const c = this.cfg
+    this.ereignisWuerfeln([
+      { an: c.zombiehandAn, chance: c.zombiehandChance, laeuft: this.einschlaege.some((e) => e.art === 'zombiehand'), start: () => this.zombiehaende(), stop: () => (this.einschlaege = this.einschlaege.filter((e) => e.art !== 'zombiehand')) },
+      { an: c.grabAn, chance: c.grabChance, laeuft: this.wesen.some((w) => w.art === 'skelett'), start: () => this.wesenNeu('skelett'), stop: () => this.wesenFort('skelett') },
+      { an: c.kraehenschwarmAn, chance: c.kraehenschwarmChance, laeuft: this.durchzuege.some((d) => d.art === 'kraehen'), start: () => this.kraehenschwarm(), stop: () => (this.durchzuege = this.durchzuege.filter((d) => d.art !== 'kraehen')) },
+    ])
+    // Vollmond: alle werwolfAlle Level jagt der Werwolf
+    if (c.werwolfAn > 0 && c.werwolfAlle > 0 && this.level % Math.round(c.werwolfAlle) === 0) this.vollmondStarten()
+    this.wesenWuerfeln([
+      ['gespenst', c.gespenstAn, c.gespenstAb, c.gespenstChance, c.gespenstMax],
+      ['riesenspinne', c.spinneAn, c.spinneAb, c.spinneChance, 1],
+      ['kraehe', c.kraeheAn, c.kraeheAb, c.kraeheChance, 1],
+    ])
+  }
+
+  /** Je Takt: Ranken wachsen, Sporen und Regenbogen vergehen, Pilzringe beamen, der Vollmond geht unter */
+  protected zauberTakt() {
+    const c = this.cfg
+    for (const r of this.ranken) {
+      if (r.grown >= r.cells.length || this.time < r.next) continue
+      const n = r.cells[r.grown]
+      // Nie in die Schlange oder auf den Apfel wachsen: warten
+      if (this.aufSchlange(n) || same(n, this.apple.p) || this.hindernisse().has(key(n.x, n.y))) continue
+      r.grown++
+      r.next = this.time + c.rankenTakt * 1000
+    }
+    if (this.sporen.length) this.sporen = this.sporen.filter((sp) => this.time < sp.bis)
+    if (this.regenbogen.length) this.regenbogen = this.regenbogen.filter((r) => this.time - r.t < 5000)
+    if (this.pilzringe && this.time >= this.pilzringe.bis) this.pilzringe = null
+    if (this.pilzringe) this.ringPruefen()
+    if (this.vollmond && this.time >= this.vollmond.bis) {
+      this.vollmond = null
+      this.wesenFort('werwolf')
+    }
+  }
+
+  /** Zauberwald: Kopf in der Sporenwolke (schneller) oder auf dem Regenbogen (Bonus) */
+  protected zauberBetreten(n: P) {
+    if (this.sporen.some((sp) => sp.cells.some((c) => same(c, n)))) {
+      if (this.time >= this.eileBis) this.emit({ type: 'eile' })
+      this.eileBis = this.time + this.cfg.sporenDauer * 1000
+    }
+    const ri = this.regenbogen.findIndex((r) => same(r.p, n))
+    if (ri >= 0) {
+      this.regenbogen.splice(ri, 1)
+      const wert = this.cfg.apfelWert * this.apfelStufe()
+      this.verdient += wert
+      this.emit({ type: 'regenbogen', p: { ...n }, wert })
+      this.emit({ type: 'geld', wert, p: { ...n }, quelle: 'futter' })
+    }
+  }
+
+  /** Pilzringe: steht der Kopf in einem Ring, kommt die ganze Schlange am anderen heraus (nur, wenn dort Platz ist) */
+  protected ringPruefen() {
+    const pr = this.pilzringe!
+    const h = this.body[0]
+    const auf = same(h, pr.a) ? pr.a : same(h, pr.b) ? pr.b : null
+    if (!auf) {
+      this.ringSperre = -1
+      return
+    }
+    if (this.ringSperre === key(auf.x, auf.y)) return
+    const ziel = auf === pr.a ? pr.b : pr.a
+    const dx = ziel.x - auf.x
+    const dy = ziel.y - auf.y
+    const wand = this.hindernisse()
+    const neu = this.body.map((p) => ({ x: p.x + dx, y: p.y + dy }))
+    if (!neu.every((p) => this.inside(p) && !wand.has(key(p.x, p.y)))) return
+    this.body = neu
+    this.prev = this.prev.map((p) => ({ x: p.x + dx, y: p.y + dy }))
+    this.ringSperre = key(ziel.x, ziel.y)
+    this.emit({ type: 'teleport', von: { ...auf }, nach: { ...ziel } })
+  }
+
+  spiegelfluch() {
+    const c = this.cfg
+    const ab = this.time + c.spiegelWarnung * 1000
+    this.spiegel = { t: this.time, ab, bis: ab + c.spiegelDauer * 1000 }
+    this.emit({ type: 'spiegel' })
+  }
+
+  /** Ranke: vom Kartenrand (Feld neben Stein oder Wald) nach innen, bis rankenLaenge Felder, nichts darf abgeschlossen werden */
+  rankeWachsen(): boolean {
+    const c = this.cfg
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    const L = Math.max(2, Math.round(c.rankenLaenge))
+    const frei = (p: P) => this.inside(p) && !wand.has(key(p.x, p.y)) && !this.aufSchlange(p) && !same(p, this.apple.p)
+    const cand: { p: P; d: Dir }[] = []
+    for (let y = 0; y < this.h; y++)
+      for (let x = 0; x < this.w; x++) {
+        const p = { x, y }
+        if (!frei(p) || manhattan(p, h) < 4) continue
+        for (const d of DIRS) if (!this.inside({ x: x - STEP[d].x, y: y - STEP[d].y })) cand.push({ p, d })
+      }
+    const vorher = this.erreichbar(wand)
+    for (let v = 0; v < 30 && cand.length; v++) {
+      const { p, d } = cand.splice(this.r.int(0, cand.length - 1), 1)[0]
+      const cells: P[] = []
+      for (let i = 0; i < L; i++) {
+        const q = { x: p.x + STEP[d].x * i, y: p.y + STEP[d].y * i }
+        if (!frei(q) || manhattan(q, h) < 3) break
+        cells.push(q)
+      }
+      if (cells.length < 2 || !this.keinAbschluss(cells, wand, vorher)) continue
+      this.ranken.push({ cells, grown: 1, t: this.time, next: this.time + c.rankenTakt * 1000, aepfel: Math.max(1, Math.round(c.rankenAepfel)) })
+      this.emit({ type: 'ranke' })
+      return true
+    }
+    return false
+  }
+
+  /** Wandernder Baum: ein kleiner Baum, der mit jedem Apfel ein Feld weiterrueckt */
+  wanderbaumSetzen(): boolean {
+    const h = this.body[0]
+    const cand = this.freieFelder((p) => manhattan(p, h) >= 5 && !this.imWeg(p, 3))
+    const wand = this.hindernisse()
+    for (const p of this.r.shuffle(cand).slice(0, 20)) {
+      if (!this.keinAbschluss([p], wand)) continue
+      this.wanderbaeume.push({ p: { ...p }, from: { ...p }, t: this.time })
+      return true
+    }
+    return false
+  }
+
+  protected wanderbaeumeRuecken() {
+    if (!this.wanderbaeume.length) return
+    const h = this.body[0]
+    for (const b of this.wanderbaeume) {
+      const wand = this.hindernisse()
+      wand.delete(key(b.p.x, b.p.y))
+      for (const d of this.r.shuffle(DIRS.slice())) {
+        const p = { x: b.p.x + STEP[d].x, y: b.p.y + STEP[d].y }
+        if (!this.inside(p) || wand.has(key(p.x, p.y)) || this.aufSchlange(p) || same(p, this.apple.p) || manhattan(p, h) < 2) continue
+        if (!this.keinAbschluss([p], wand)) continue
+        b.from = { ...b.p }
+        b.p = p
+        b.t = this.time
+        break
+      }
+    }
+  }
+
+  /** Sporenwolke: 3 x 3 Felder in der Naehe (3 bis 7 weit), 8 s lang; wer hineinfaehrt, ist kurz schneller */
+  sporenwolke(): boolean {
+    const h = this.body[0]
+    const cand = this.freieFelder((p) => manhattan(p, h) >= 3 && manhattan(p, h) <= 7)
+    if (!cand.length) return false
+    const m = this.r.pick(cand)
+    const cells: P[] = []
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.inside({ x: m.x + dx, y: m.y + dy })) cells.push({ x: m.x + dx, y: m.y + dy })
+    this.sporen.push({ cells, t: this.time, bis: this.time + 8000 })
+    this.emit({ type: 'sporen' })
+    return true
+  }
+
+  /** Zwei Pilzringe weit auseinander (mindestens 10 Felder), 45 s lang */
+  pilzringeSetzen(): boolean {
+    const h = this.body[0]
+    const cand = this.r.shuffle(this.freieFelder((p) => manhattan(p, h) >= 3 && !this.imWeg(p, 2)))
+    for (const a of cand.slice(0, 30)) {
+      const b = cand.find((q) => manhattan(q, a) >= 10)
+      if (!b) continue
+      this.pilzringe = { a: { ...a }, b: { ...b }, t: this.time, bis: this.time + 45_000 }
+      return true
+    }
+    return false
+  }
+
+  /** Zombiehaende: 3 bis 5 Felder in der Naehe wackeln, dann greifen Haende 1 s lang zu */
+  zombiehaende(): boolean {
+    const c = this.cfg
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    const lo = Math.max(1, Math.min(c.zombiehandMin, c.zombiehandMax))
+    const n = this.r.int(lo, Math.max(lo, c.zombiehandMax))
+    const cand = this.r.shuffle(this.freieFelder((p) => manhattan(p, h) >= 2 && manhattan(p, h) <= 8))
+    const gewaehlt: P[] = []
+    for (const p of cand) {
+      if (gewaehlt.length >= n) break
+      if (gewaehlt.some((o) => cheb(o, p) < 2) || !this.keinAbschluss([...gewaehlt, p], wand)) continue
+      gewaehlt.push(p)
+    }
+    if (!gewaehlt.length) return false
+    const bis = this.time + c.zombiehandWarnung * 1000
+    for (const p of gewaehlt) this.einschlaege.push({ art: 'zombiehand', cells: [p], t: this.time, bis, gefallen: false, bleibt: false, weg: bis + 1000 })
+    this.emit({ type: 'zombiehaende' })
+    return true
+  }
+
+  /** Kraehenschwarm: vier Reihen um den Kopf, die Kraehen verdecken kurz die Sicht (sonst harmlos) */
+  kraehenschwarm(): boolean {
+    const h = this.body[0]
+    const achse: 'x' | 'y' = this.r.next() < 0.5 ? 'x' : 'y'
+    const linie = (achse === 'x' ? h.y : h.x) - 2 + this.r.int(-1, 1)
+    const b = this.reiheBereich(achse, linie, 4)
+    if (!b) return false
+    this.durchzuege.push({ art: 'kraehen', achse, linie, breite: 4, laenge: 9, von: b[0], bis: b[1], dir: this.r.next() < 0.5 ? 1 : -1, t: this.time, los: this.time + 600, takt: 70, raus: false, verschont: true })
+    this.emit({ type: 'kraehen' })
+    return true
+  }
+
+  /** Vollmond: der Werwolf erscheint weit weg und jagt werwolfDauer Sekunden lang */
+  vollmondStarten(): boolean {
+    this.wesenFort('werwolf')
+    this.vollmond = { t: this.time, bis: this.time + this.cfg.werwolfDauer * 1000 }
+    this.emit({ type: 'vollmond' })
+    return this.wesenNeu('werwolf')
+  }
+
+  /** Irrlicht: schwebt vom Kopf weg */
+  protected wesenFlieht(w: Wesen, wand: Set<number>) {
+    const h = this.body[0]
+    const opts = this.r
+      .shuffle(DIRS.slice())
+      .filter((d) => this.wesenFrei({ x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }, wand))
+      .sort((a, b) => manhattan({ x: w.p.x + STEP[b].x, y: w.p.y + STEP[b].y }, h) - manhattan({ x: w.p.x + STEP[a].x, y: w.p.y + STEP[a].y }, h))
+    if (opts[0]) this.wesenSchritt(w, opts[0], wand)
+  }
+
+  /** Fliegende Wesen (ueber alles, nur nicht in die Schlange): Fee zum Apfel, Gespenst zum Kopf, Kraehe zum naechsten Power-up */
+  protected wesenFliegt(w: Wesen) {
+    const h = this.body[0]
+    let ziel: P | null = null
+    if (w.art === 'fee') {
+      ziel = this.apple.p
+      // Kommt der Kopf dem Apfel nahe und die Fee ist dort: sie schnappt ihn weg und legt ihn woanders hin
+      if (manhattan(w.p, this.apple.p) <= 1 && manhattan(h, this.apple.p) <= 3) {
+        const alt = { ...this.apple.p }
+        this.neuerApfel()
+        this.emit({ type: 'geklaut', was: 'apfel', p: alt })
+        this.wesen = this.wesen.filter((o) => o !== w)
+        this.wesenWeg.push({ w, t: this.time })
+        return
+      }
+    } else if (w.art === 'gespenst') {
+      ziel = h
+      if (manhattan(w.p, h) <= 1) {
+        this.wesen = this.wesen.filter((o) => o !== w)
+        this.wesenWeg.push({ w, t: this.time })
+        if (this.time < this.schutzBis || this.geist() || (this.kreativ && !this.kreativ.rueckschlag)) return
+        if (this.schildBrechen()) this.schutzBis = this.time + this.cfg.schutz * 1000
+        else this.setback(this.cfg.gespenstZurueck, 'gespenst')
+        return
+      }
+    } else {
+      const pw = this.powers.slice().sort((a, b) => manhattan(a.p, w.p) - manhattan(b.p, w.p))[0]
+      if (pw && same(pw.p, w.p)) {
+        this.powers = this.powers.filter((o) => o !== pw)
+        this.emit({ type: 'geklaut', was: 'power', p: { ...pw.p } })
+        this.wesen = this.wesen.filter((o) => o !== w)
+        this.wesenWeg.push({ w, t: this.time })
+        return
+      }
+      ziel = pw?.p ?? null
+    }
+    const dirs = this.r.shuffle(DIRS.slice())
+    if (ziel) {
+      const z = ziel
+      dirs.sort((a, b) => manhattan({ x: w.p.x + STEP[a].x, y: w.p.y + STEP[a].y }, z) - manhattan({ x: w.p.x + STEP[b].x, y: w.p.y + STEP[b].y }, z))
+    }
+    for (const d of dirs) {
+      const p = { x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }
+      if (!this.inside(p) || this.aufSchlange(p)) continue
+      w.from = { ...w.p }
+      w.p = p
+      w.dir = d
+      w.schrittT = this.time
       return
     }
   }
@@ -2482,6 +2875,17 @@ export class Game {
     this.spalten.forEach((s) => s.cells.forEach(mv))
     this.netze.forEach((n) => mv(n.p))
     this.loren.forEach(mv)
+    this.ranken.forEach((r) => r.cells.forEach(mv))
+    this.wanderbaeume.forEach((b) => {
+      mv(b.p)
+      mv(b.from)
+    })
+    this.sporen.forEach((s) => s.cells.forEach(mv))
+    this.regenbogen.forEach((r) => mv(r.p))
+    if (this.pilzringe) {
+      mv(this.pilzringe.a)
+      mv(this.pilzringe.b)
+    }
     // Flut bleibt auf denselben Feldern (neue Bloecke stehen nicht unter Wasser), der Sandwurm in seiner Reihe
     if (this.flut) this.flut.zellen = new Set([...this.flut.zellen].map((k) => ausKey(k)).map((p) => key(p.x + dx, p.y + dy)))
     const sw = this.sandwurm
@@ -2523,8 +2927,10 @@ export class Game {
     this.tuerme.forEach((t) => t.cells.forEach(add))
     this.lava.forEach((l) => l.cells.forEach(add))
     this.ameisen.forEach((a) => add(a.p))
-    this.wesen.forEach((w) => add(w.p))
-    this.einschlaege.forEach((e) => e.gefallen && e.bleibt && e.cells.forEach(add))
+    this.wesen.forEach((w) => !FLIEGT.has(w.art) && add(w.p))
+    this.einschlaege.forEach((e) => this.einschlagLiegt(e) && e.cells.forEach(add))
+    this.ranken.forEach((r) => r.cells.slice(0, r.grown).forEach(add))
+    this.wanderbaeume.forEach((b) => add(b.p))
     this.loren.forEach(add)
     this.zuendschnuere.forEach((z) => add(z.fass))
     this.spalten.forEach((s) => this.time >= s.ab && s.cells.forEach(add))

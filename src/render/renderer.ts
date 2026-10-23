@@ -3,7 +3,8 @@
  * kann groesser als der Bildschirm werden), neue Gebiete klappen Feld fuer
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
-import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, GESCHOSS_TAKT, key, WESEN_TAKT, WESEN_WEG, type Game } from '../game/game'
+import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, FLIEGT, GEGNER_WEG, GESCHOSS_TAKT, key, WESEN_TAKT, WESEN_WEG, type Game } from '../game/game'
+import { drawEinhorn, drawEnt, drawFee, drawGespenst, drawIrrlichtSchein, drawKraehe, drawKraehenschwarm, drawPilzring, drawRanke, drawRegenbogen, drawRiesenspinne, drawSkelett, drawSpiegelfluch, drawSporen, drawVollmond, drawWanderbaum, drawWerwolf, drawZombiehand } from './waelder'
 import { drawFledermaeuse, drawFledermausWarnung, drawGolem, drawLore, drawLoreAbgestellt, drawLoreWarnung, drawNetz, drawSchieneFeld, drawSpalt, drawSteinWarnung, drawStollenBoden, drawStolleneingang, drawTnt, drawZwerg } from './bergwerk'
 import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapfenSchatten, drawIglu, drawNordlicht, drawRobbe, drawSchneeball, drawSchneemann, drawSchneesturm, drawYeti } from './winter'
 import { WUESTE } from '../game/rules'
@@ -417,13 +418,15 @@ export class Renderer {
     } else if ((e.type === 'einschlag' || e.type === 'platsch') && !this.reduce) {
       // Eis splittert bzw. Schnee spritzt
       const gross = e.type === 'einschlag'
-      const n = gross ? 22 : 10
+      const n = gross ? (e.type === 'einschlag' && e.art === 'zombiehand' ? 12 : 22) : 10
       for (let i = 0; i < n; i++) {
         const ang = (Math.PI * 2 * i) / n + Math.random() * 0.4
         const sp = cell * (gross ? 1.2 + Math.random() * 1.2 : 0.5 + Math.random() * 0.6)
-        const stein = e.type === 'einschlag' && e.art === 'stein'
-        const mitte = gross && !stein ? 1 : 0.5
-        this.funken.push({ x: (e.p.x + mitte) * cell, y: (e.p.y + mitte) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: stein ? (i % 3 ? '#8A827C' : '#C8BFB5') : i % 3 ? '#FFFFFF' : '#BFE3F5' })
+        // Stein und Zombiehand werfen Erde/Geroell (1 Feld), Eiszapfen splittern weiss-blau (2x2)
+        const erde = e.type === 'einschlag' && (e.art === 'stein' || e.art === 'zombiehand')
+        const mitte = gross && !erde ? 1 : 0.5
+        const c = e.type === 'einschlag' && e.art === 'zombiehand' ? (i % 3 ? '#4A3A2A' : '#7A6A50') : erde ? (i % 3 ? '#8A827C' : '#C8BFB5') : i % 3 ? '#FFFFFF' : '#BFE3F5'
+        this.funken.push({ x: (e.p.x + mitte) * cell, y: (e.p.y + mitte) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c })
       }
       if (gross) this.shake = { until: g.time + 260, amp: cell * 0.12 }
     } else if (e.type === 'setback') {
@@ -903,7 +906,8 @@ export class Renderer {
     for (const e of g.einschlaege) {
       if (e.art === 'explosion' || !e.cells.some((c) => sicht(c))) continue
       const k = clamp01((now - e.t) / Math.max(1, e.bis - e.t))
-      if (e.art === 'stein') {
+      if (e.art === 'zombiehand') drawZombiehand(ctx, e.cells[0], cell, k, e.gefallen, now)
+      else if (e.art === 'stein') {
         if (!e.gefallen) drawSteinWarnung(ctx, e.cells[0], cell, k, now)
         else if (e.bleibt) drawMauerWelt(ctx, welt, e.cells[0].x * cell, e.cells[0].y * cell, cell, this.reduce ? 1 : backOut(clamp01((now - e.bis) / 300)))
       } else if (!e.gefallen) drawEiszapfenSchatten(ctx, e.cells, cell, k, now)
@@ -923,12 +927,29 @@ export class Renderer {
       const f = g.schieneFelder({ achse: d.achse, linie: d.linie })
       if (f) drawLoreWarnung(ctx, f.cells, cell, clamp01((now - d.t) / Math.max(1, d.los - d.t)), now)
     }
-    // Welt-Wesen (Tiere und Gestalten) und Schneebaelle
-    for (const w of g.wesen) if (sicht(w.p)) this.drawWesen(w, now, 1, 1)
+    // Zauberwald: Sporen, Regenbogen, Pilzringe, Ranken, wandernde Baeume
+    for (const sp of g.sporen) if (sp.cells.some((c) => sicht(c))) drawSporen(ctx, sp.cells, cell, now, Math.min(clamp01((now - sp.t) / 500), clamp01((sp.bis - now) / 800)))
+    for (const r of g.regenbogen) if (sicht(r.p)) drawRegenbogen(ctx, r.p, cell, now - r.t, now)
+    if (g.pilzringe) for (const p of [g.pilzringe.a, g.pilzringe.b]) if (sicht(p)) drawPilzring(ctx, p, cell, now, clamp01((now - g.pilzringe.t) / 500) * clamp01((g.pilzringe.bis - now) / 1000))
+    for (const r of g.ranken) {
+      if (!r.cells.some((c) => sicht(c))) continue
+      for (let i = 0; i < r.grown; i++) {
+        const von = i > 0 ? r.cells[i - 1] : { x: 2 * r.cells[0].x - (r.cells[1]?.x ?? r.cells[0].x), y: 2 * r.cells[0].y - (r.cells[1]?.y ?? r.cells[0].y) }
+        const s = i === r.grown - 1 && i > 0 ? (this.reduce ? 1 : easeOut(clamp01((now - (r.next - g.cfg.rankenTakt * 1000)) / 500))) : 1
+        drawRanke(ctx, r.cells[i], von, cell, s, now)
+      }
+    }
+    for (const b of g.wanderbaeume) {
+      if (!sicht(b.p)) continue
+      const k = this.reduce ? 1 : clamp01((now - b.t) / 450)
+      drawWanderbaum(ctx, px(lerp(b.from.x, b.p.x, easeOut(k))), px(lerp(b.from.y, b.p.y, easeOut(k))), cell, now, k)
+    }
+    // Welt-Wesen (Tiere und Gestalten) und Schneebaelle; Fliegende kommen ueber die Schlange
+    for (const w of g.wesen) if (sicht(w.p) && !FLIEGT.has(w.art)) this.drawWesen(g, w, now, 1, 1)
     for (const { w, t } of g.wesenWeg) {
       if (!sicht(w.p)) continue
       const k = clamp01((now - t) / WESEN_WEG)
-      this.drawWesen(w, now, 1 + k * 0.4, 1 - k)
+      this.drawWesen(g, w, now, 1 + k * 0.4, 1 - k)
     }
     for (const s of g.geschosse) {
       if (!sicht(s.p)) continue
@@ -954,9 +975,15 @@ export class Renderer {
     if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
     if (this.mehr?.blasen) for (const b of this.mehr.blasen) if (sicht(b.p, 2)) this.drawBlase(b)
     this.drawGrabWarnung(g, head, now)
-    // Lore und Fledermaeuse (ueber der Schlange)
+    // Fliegende Wesen (Fee, Gespenst, Kraehe)
+    for (const w of g.wesen) if (sicht(w.p) && FLIEGT.has(w.art)) this.drawWesen(g, w, now, 1, 1)
+    // Lore, Fledermaeuse und Kraehen (ueber der Schlange)
     for (const d of g.durchzuege) {
       const k = g.durchzugKopf(d)
+      if (d.art === 'kraehen') {
+        if (k !== null) drawKraehenschwarm(ctx, g.durchzugFelder(d), cell, d.dir, d.achse, now)
+        continue
+      }
       if (k === null) {
         if (d.art === 'fledermaus') {
           const [x0, y0, w, h] = d.achse === 'x' ? [d.von * cell, d.linie * cell, (d.bis - d.von + 1) * cell, d.breite * cell] : [d.linie * cell, d.von * cell, d.breite * cell, (d.bis - d.von + 1) * cell]
@@ -1035,6 +1062,11 @@ export class Renderer {
       const staerke = Math.min(clamp01((now - st.t) / 600), 1 - clamp01((now - st.bis) / 800))
       drawSandsturm(ctx, vw, vh, (head.x + 0.5) * cell + ox, (head.y + 0.5) * cell + oy, cell, staerke, now)
     }
+    // Vollmond (Werwolf jagt) und Spiegelfluch
+    const vm = g.vollmond
+    if (vm && now < vm.bis + 1500) drawVollmond(ctx, vw, vh, Math.min(clamp01((now - vm.t) / 1200), 1 - clamp01((now - vm.bis) / 1500)))
+    const spg = g.spiegel
+    if (spg && now < spg.bis) drawSpiegelfluch(ctx, vw, vh, now, clamp01((now - spg.t) / Math.max(1, spg.ab - spg.t)), now >= spg.ab)
     // Schneesturm: erst wird der Schnee dichter (Ankuendigung), dann ist die Sicht fast ganz weg
     const ss = g.sichtsperre
     if (ss && now < ss.bis + 600) {
@@ -1327,7 +1359,7 @@ export class Renderer {
   }
 
   /** Ein Welt-Wesen, weich zwischen zwei Feldern (s = Groesse, a = Deckkraft) */
-  private drawWesen(w: Wesen, now: number, s: number, a: number) {
+  private drawWesen(g: Game, w: Wesen, now: number, s: number, a: number) {
     const { ctx, cell } = this
     const k = this.reduce ? 1 : easeOut(clamp01((now - w.schrittT) / (WESEN_TAKT[w.art] * 0.85)))
     const x = (lerp(w.from.x, w.p.x, k) + 0.5) * cell
@@ -1335,7 +1367,22 @@ export class Renderer {
     const lauf = k < 1 ? (now / 200) % 1 : -1
     const auf = (this.reduce ? 1 : backOut(clamp01((now - w.t) / 380))) * s
     const ang = DIR_WINKEL[w.dir]
-    if (w.art === 'zwerg') drawZwerg(ctx, x, y, cell, ang, lauf, auf, a, now)
+    if (w.art === 'irrlicht') {
+      // Falscher Apfel: schwebt, flackert, leicht durchsichtig
+      const yy = y - cell * 0.1 + Math.sin(now / 300) * cell * 0.06
+      drawIrrlichtSchein(ctx, x, yy, cell, now)
+      ctx.globalAlpha = a * (0.65 + 0.25 * Math.sin(now / 90))
+      drawFutter(ctx, this.welt, x, yy, cell, auf, 0, undefined, g.apfelStufe(), now)
+      ctx.globalAlpha = 1
+    } else if (w.art === 'einhorn') drawEinhorn(ctx, x, y, cell, ang, lauf, auf, a, now)
+    else if (w.art === 'fee') drawFee(ctx, x, y, cell, auf, a, now)
+    else if (w.art === 'ent') drawEnt(ctx, x, y, cell, ang, lauf, auf, a)
+    else if (w.art === 'skelett') drawSkelett(ctx, x, y, cell, ang, lauf, auf, a)
+    else if (w.art === 'werwolf') drawWerwolf(ctx, x, y, cell, ang, lauf, auf, a)
+    else if (w.art === 'gespenst') drawGespenst(ctx, x, y, cell, auf, a, now)
+    else if (w.art === 'riesenspinne') drawRiesenspinne(ctx, x, y, cell, ang, lauf, auf, a)
+    else if (w.art === 'kraehe') drawKraehe(ctx, x, y - cell * 0.3, cell, ang, now, auf, a)
+    else if (w.art === 'zwerg') drawZwerg(ctx, x, y, cell, ang, lauf, auf, a, now)
     else if (w.art === 'golem') drawGolem(ctx, x, y, cell, ang, lauf, auf, a, now)
     else if (w.art === 'eisbaer') drawEisbaer(ctx, x, y, cell, ang, lauf, auf, a)
     else if (w.art === 'robbe') drawRobbe(ctx, x, y, cell, ang, lauf, auf, a)

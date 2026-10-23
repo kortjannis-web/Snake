@@ -36,6 +36,15 @@ export const CAUSE: Record<Cause, string> = {
   zwerg: 'Den Grubenzwerg umgerannt',
   golem: 'Gegen den Steingolem gelaufen',
   lorenlager: 'Gegen eine abgestellte Lore gefahren',
+  irrlicht: 'Den Irrlicht-Apfel erwischt',
+  einhorn: 'Mit dem Einhorn zusammengestoßen',
+  ent: 'Gegen den Ent gelaufen',
+  ranke: 'In die Ranken gefahren',
+  wanderbaum: 'Gegen den wandernden Baum gelaufen',
+  zombiehand: 'Von einer Zombiehand gepackt',
+  skelett: 'Dem Skelett in die Arme gelaufen',
+  werwolf: 'Dem Werwolf in die Arme gelaufen',
+  riesenspinne: 'Gegen die Riesenspinne gelaufen',
 }
 
 /** Welt-Ereignisse und Tiere (Kreativ: sofort ausloesen) */
@@ -58,6 +67,22 @@ export const WELT_EREIGNIS_NAME: Record<string, string> = {
   zwerg: 'Zwerg',
   golem: 'Golem',
   netz: 'Netz',
+  spiegel: 'Spiegelfluch',
+  ranken: 'Ranken',
+  wanderbaum: 'Wandernder Baum',
+  sporen: 'Sporenwolke',
+  irrlicht: 'Irrlicht-Apfel',
+  einhorn: 'Einhorn',
+  fee: 'Fee',
+  ent: 'Ent',
+  pilzring: 'Pilzringe',
+  zombiehand: 'Zombiehände',
+  grab: 'Offenes Grab',
+  kraehenschwarm: 'Krähenschwarm',
+  vollmond: 'Vollmond',
+  gespenst: 'Gespenst',
+  riesenspinne: 'Riesenspinne',
+  kraehe: 'Krähe',
 }
 
 export const OBJEKT_NAME: Record<SandboxObjekt, string> = {
