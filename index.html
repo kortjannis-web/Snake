@@ -104,7 +104,8 @@
               <button data-v="speedrun" role="radio">Speedrun</button>
             </div>
             <p class="home-modus-text" id="home-modus-text"></p>
-            <div class="home__paar home__paar--eins">
+            <div class="home__paar">
+              <button class="btn btn--ghost" id="btn-kampagne"><span data-icon="Flag"></span>Kampagne</button>
               <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Täglich</button>
             </div>
             <div class="home__paar home__paar--eins" id="home-online" hidden>
@@ -138,17 +139,35 @@
         </div>
       </section>
 
+      <!-- Kampagne: Karte der Welt mit den Missionen (scrollt nur nach oben und unten) -->
+      <section class="screen screen--page screen--kampagne" id="kampagne">
+        <div class="kampagne">
+          <canvas class="kampagne__bild" id="kampagne-bild" aria-hidden="true"></canvas>
+          <div class="kampagne__scroll" id="kampagne-scroll" role="list" aria-label="Missionen"><div id="kampagne-hoehe"></div></div>
+          <header class="page__head kampagne__kopf">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <div class="kampagne__titel">
+              <h2>Kampagne</h2>
+              <small id="kampagne-info">Wiese</small>
+            </div>
+            <span class="geld-pille"><i class="apfel-ico" aria-hidden="true"></i><b id="kampagne-geld">0</b></span>
+          </header>
+          <p class="kampagne__hinweis" id="kampagne-hinweis" aria-live="polite" hidden></p>
+        </div>
+      </section>
+
       <!-- Spielende -->
       <section class="screen screen--dim" id="over">
         <div class="card card--over">
           <canvas class="card__icon" id="over-icon" width="128" height="128" aria-hidden="true"></canvas>
           <p class="card__cause" id="over-cause"></p>
-          <span class="card__label">Level</span>
+          <span class="card__label" id="over-label">Level</span>
           <b class="card__big" id="over-level">1</b>
           <span class="card__max" id="over-max" hidden></span>
           <span class="badge" id="over-record" hidden><span data-icon="Trophy"></span>Neuer Rekord</span>
           <span class="badge badge--heute" id="over-heute" hidden><span data-icon="Sun"></span>Neuer Tagesrekord</span>
           <span class="badge badge--heute" id="over-tages" hidden><span data-icon="Sun"></span>Tages-Herausforderung</span>
+          <span class="badge" id="over-mission" hidden><span data-icon="Flag"></span><b></b></span>
           <div class="facts">
             <div><b id="over-apples">0</b><small>Äpfel</small></div>
             <div><b id="over-len">3</b><small>Länge</small></div>

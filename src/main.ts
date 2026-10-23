@@ -14,6 +14,9 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
+import { karteVon, MissionGame } from './game/mission'
+import { spielbar, WIESE_MISSIONEN, type MissionDef } from './game/missionen'
+import { erreicht, geschafft, missionGeschafft, offen, setzeErreicht } from './kampagne'
 import { apfelFaktor, DEFAULTS, gebietFortschritt, SCHEMA, type ConfigKey, type Tempo } from './game/rules'
 import { modusProzent, SPIELMODUS_NAME, type SpielModus } from './modus'
 import { zufallsReihenfolge } from './game/reihenfolge'
@@ -29,10 +32,12 @@ import { perPushEinladen, pushAuffrischen, pushAusschalten, pushEinschalten, pus
 import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
+import { BergKacheln } from './render/berge'
+import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
 import { abonniere, abonniereSozial, adminLoeschen, kontoLoeschen, kontoSichern, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienenModus, wallet, type LookWahl } from './storage'
+import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELT_STUFE, WELTEN, weltFrei, weltFreiAlt, weltVon, type Welt } from './render/welten'
@@ -41,7 +46,7 @@ import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over' | 'mehr'
-type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'shopteil' | 'liste' | 'mehr' | 'hall' | 'chat'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'shopteil' | 'liste' | 'mehr' | 'hall' | 'chat' | 'kampagne'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -91,6 +96,10 @@ const page = () => pages[pages.length - 1] ?? null
 let istKreativ = false
 /** Laeuft gerade die Tages-Herausforderung (gleiche Welt fuer alle)? */
 let istTages = false
+/** Laufende Mission der Kampagne (null = keine) */
+let laufMission: MissionDef | null = null
+/** Berge je Mission: bleiben vorgezeichnet, so startet "Nochmal" ohne Wartezeit */
+const bergeJe = new Map<string, BergKacheln>()
 /** Welcher Modus laeuft gerade (Abenteuer, Normal, Speedrun)? Tages- und Kreativ-Runden sind immer Normal */
 let laufModus: SpielModus = 'normal'
 /** Laeuft gerade ein Speedrun (25 % schneller, jeder Apfel mit Zeitlimit)? */
@@ -175,6 +184,7 @@ function openPage(p: Page) {
   if (p === 'liste') oeffneListe()
   if (p === 'mehr') void freundeLaden()
   if (p === 'hall') void ladeHallAnzeige()
+  if (p === 'kampagne') kampagneOeffnen()
   if (p === 'mehr' || p === 'hall') pushFragen()
   show(p, true)
 }
@@ -198,11 +208,15 @@ function closeAllPages() {
 
 /* ================= Spiel ================= */
 
-function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = laufModus) {
+function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = laufModus, mission: MissionDef | null = laufMission) {
   clearTimeout(overTimer)
   istKreativ = alsKreativ
   istTages = !alsKreativ && tages
-  laufModus = !alsKreativ && !istTages ? modus : 'normal'
+  laufMission = !alsKreativ && !istTages ? mission : null
+  laufModus = !alsKreativ && !istTages && !laufMission ? modus : 'normal'
+  // Missionen spielen in ihrer eigenen Welt (bisher die Wiese), sonst die gewaehlte
+  renderer.welt = laufMission ? weltVon(laufMission.welt) : aktiveWelt()
+  app.toggleAttribute('data-mission', !!laufMission)
   istSpeedrun = laufModus === 'speedrun'
   laufGeld = 0
   renderer.blitzApfel = istSpeedrun
@@ -211,7 +225,17 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
   const sc = screenCells()
   const { start, sandbox, ...k } = kreativ
   const { an, ...sb } = sandbox
-  if (istTages) {
+  if (laufMission) {
+    // Kampagne: feste Karte, immer gleich (Berge rundherum, alle Aepfel liegen schon da)
+    const mg = new MissionGame(laufMission)
+    game = mg
+    let b = bergeJe.get(laufMission.id)
+    if (!b) {
+      b = new BergKacheln(mg)
+      bergeJe.set(laufMission.id, b)
+    }
+    renderer.berge = b
+  } else if (istTages) {
     // Tages-Herausforderung: feste Kartengroesse, Standardregeln, Startwert vom Tag (gleich fuer alle)
     // Tageslevel: eigene Karte (Bloecke, Ecken), Motto, Laenge und Apfelziel aus dem Datum; alles bleibt liegen
     tagesTag = tagBerlin()
@@ -247,9 +271,12 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       // Jede Runde eine andere Welt mit unregelmaessigen Raendern (Sandbox hat ihre eigene Karte)
       zufallsWelt: true,
     })
+  if (!laufMission) renderer.berge = null
+  renderer.minikarte = !laufMission
   renderer.reset()
   renderer.sonderApfel = false
-  $('tages-ziel').hidden = !istTages
+  $('tages-ziel').hidden = !istTages && !laufMission
+  $('tages-ziel').classList.toggle('tages-ziel--mission', !!laufMission)
   readyText()
   setMode('ready')
   // Steuerkreuz veraendert die Hoehe: danach neu messen
@@ -306,7 +333,7 @@ function onDir(d: Dir) {
 
 /** Zaehlt die Runde fuer die Online-Bestenliste? Nur echte Runden mit Standardregeln, ohne Level-Sprung und Autopilot */
 function zaehltOnline() {
-  if (istKreativ || auto) return false
+  if (istKreativ || auto || laufMission) return false
   if (istTages) return true
   if (startLevel !== 1) return false
   return (Object.keys(DEFAULTS) as (keyof typeof DEFAULTS)[]).every((k) => config[k] === DEFAULTS[k])
@@ -791,10 +818,24 @@ function gameOver() {
   const g = game
   // Kreativ-Runden zaehlen nicht
   // Kreativ-Runden und Tageslevel (eigene Wertung) zaehlen nicht fuer den Rekord
-  const neu = !istKreativ && !istTages && g.maxLevel > stats.best && g.gegessen > 0
+  // Missionen der Kampagne ebenso nicht
+  const endlos = !istKreativ && !istTages && !laufMission
+  const neu = endlos && g.maxLevel > stats.best && g.gegessen > 0
   // Tagesrekord (nur, wenn es nicht gleich der Rekord aller Zeiten ist)
-  const neuHeute = !istKreativ && !istTages && !neu && g.maxLevel > heuteBest() && g.gegessen > 0
-  if (!istKreativ && !istTages && g.gegessen > 0 && g.maxLevel > heuteBest()) stats.heute = { datum: heuteDatum(), best: g.maxLevel }
+  const neuHeute = endlos && !neu && g.maxLevel > heuteBest() && g.gegessen > 0
+  if (endlos && g.gegessen > 0 && g.maxLevel > heuteBest()) stats.heute = { datum: heuteDatum(), best: g.maxLevel }
+  // Mission geschafft: Belohnung nur beim ersten Mal
+  const mission = laufMission
+  const missionOk = !!mission && g.cause === 'ziel'
+  if (mission && missionOk) {
+    const lohn = missionGeschafft(mission)
+    if (lohn > 0) {
+      verdienen(lohn)
+      laufGeld += lohn
+      saveWallet()
+      updateGeld(true)
+    }
+  }
   if (!istKreativ) {
     stats.apples += g.gegessen
     stats.time += performance.now() - startedAt
@@ -811,13 +852,18 @@ function gameOver() {
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
-    $('over-cause').textContent = g.cause ? CAUSE[g.cause] : ''
-    $('over-level').textContent = istTages ? `${Math.min(g.gegessen, tagesZiel)}/${tagesZiel}` : String(g.level)
+    $('over-cause').textContent = mission ? (missionOk ? 'Mission geschafft!' : g.cause === 'rand' ? 'Gegen den Berg gefahren' : g.cause ? CAUSE[g.cause] : '') : g.cause ? CAUSE[g.cause] : ''
+    $('over-label').textContent = mission ? `Mission ${mission.nr}` : 'Level'
+    $('over-level').textContent = mission && g instanceof MissionGame ? `${g.ziel - g.uebrig}/${g.ziel}` : istTages ? `${Math.min(g.gegessen, tagesZiel)}/${tagesZiel}` : String(g.level)
+    const mb = $('over-mission')
+    mb.hidden = !mission
+    mb.querySelector('b')!.textContent = mission ? `${mission.name}${missionOk && laufGeld <= 0 ? ' · schon geschafft' : ''}` : ''
+    $('btn-menu').lastChild!.textContent = mission ? 'Zur Karte' : 'Hauptmenü'
     $('over-record').hidden = !neu
     $('over-heute').hidden = !neuHeute
     $('over-tages').hidden = !istTages
     $('over-apples').textContent = String(g.gegessen)
-    $('over-max').hidden = g.maxLevel <= g.level
+    $('over-max').hidden = !!mission || g.maxLevel <= g.level
     $('over-max').textContent = `Höchster Level: ${g.maxLevel}`
     $('over-len').textContent = String(g.body.length)
     const sec = Math.round((performance.now() - startedAt) / 1000)
@@ -896,7 +942,7 @@ function handle(e: GameEvent) {
         break
       }
       // Fortschritt in dieser Welt: naechste Welt bei Level 100, Belohnungen bei 100, 150 und 200
-      if (!istKreativ && !istTages && game) weltFortschritt(game.maxLevel)
+      if (!istKreativ && !istTages && !laufMission && game) weltFortschritt(game.maxLevel)
       break
     }
     case 'milestone':
@@ -994,8 +1040,8 @@ function handle(e: GameEvent) {
       toast('gegner', 'Erwischt!', `Der Sandwurm hat ${e.weg} Glieder abgebissen.`, { minus: true })
       break
     case 'geld':
-      // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt
-      if (!istKreativ) {
+      // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt, in Missionen gibt es nur die Belohnung am Ende
+      if (!istKreativ && !laufMission) {
         // Tageslevel: der letzte (pinke) Apfel bringt 10 Aepfel, aber nur einmal am Tag
         const tagesBonus = istTages && e.quelle === 'apfel' && !!game && game.gegessen >= tagesZiel && stats.tagesBonus !== tagesTag
         if (tagesBonus) {
@@ -1118,7 +1164,9 @@ function nah(p: { x: number; y: number }, bildschirme: number) {
 function updateHud(pop: boolean) {
   const lv = game?.level ?? 1
   const el = $('hud-level')
-  el.textContent = String(lv)
+  // Kampagne: statt des Levels die Nummer der Mission
+  el.textContent = String(laufMission ? laufMission.nr : lv)
+  $('hud-level').previousElementSibling!.textContent = laufMission ? 'Mission' : 'Level'
   if (pop && !reduce) {
     el.classList.remove('pop')
     void el.offsetWidth
@@ -1131,7 +1179,7 @@ function updateHud(pop: boolean) {
   const c = game?.cfg ?? config
   const bar = $('hud-bar')
   const f = gebietFortschritt(c, lv)
-  bar.hidden = c.gebietAlle <= 0
+  bar.hidden = c.gebietAlle <= 0 || !!laufMission
   $('hud-bar-fill').style.transform = `scaleX(${1 - f.rest / f.abschnitt})`
   bar.title = `Neues Gebiet in ${f.rest} Level`
 }
@@ -2335,18 +2383,115 @@ function speedrunTakt(g: Game) {
   }
 }
 
+/* ================= Kampagne ================= */
+
+const karte = new KampagnenKarte(WIESE_MISSIONEN)
+const kScroll = $('kampagne-scroll')
+const kBild = $<HTMLCanvasElement>('kampagne-bild')
+let kHinweisZeit = 0
+
+function feldZustand(i: number): FeldZustand {
+  const m = WIESE_MISSIONEN[i]
+  if (geschafft(m)) return 'geschafft'
+  return spielbar(m) && offen(m, WIESE_MISSIONEN) ? 'offen' : 'zu'
+}
+/** Die Mission, die als naechste dran ist (pulsiert auf der Karte) */
+function naechsteMission() {
+  return WIESE_MISSIONEN.find((m) => !geschafft(m) && spielbar(m) && offen(m, WIESE_MISSIONEN)) ?? null
+}
+
+/** Karte oeffnen: Groesse messen, Schlange auf den Stand setzen, zur aktuellen Mission scrollen */
+function kampagneOeffnen() {
+  const fertig = WIESE_MISSIONEN.filter(geschafft).length
+  $('kampagne-info').textContent = `Wiese · ${fertig} von ${WIESE_MISSIONEN.length} geschafft`
+  $('kampagne-geld').textContent = String(wallet.aepfel)
+  $('kampagne-hinweis').hidden = true
+  requestAnimationFrame(() => {
+    karte.messen(kScroll.clientWidth)
+    $('kampagne-hoehe').style.height = `${karte.h}px`
+    karte.setzen(erreicht('wiese'))
+    const ziel = naechsteMission()?.nr ?? Math.max(1, erreicht('wiese'))
+    kScroll.scrollTop = karte.scrollFuer(ziel, kScroll.clientHeight)
+  })
+}
+
+/** Ein Bild der Karte (laeuft in der Spielschleife, solange die Seite offen ist) */
+function kampagneBild(now: number) {
+  const vw = kScroll.clientWidth
+  const vh = kScroll.clientHeight
+  if (!vw || !vh) return
+  karte.messen(vw)
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1)
+  if (kBild.width !== Math.round(vw * dpr) || kBild.height !== Math.round(vh * dpr)) {
+    kBild.width = Math.round(vw * dpr)
+    kBild.height = Math.round(vh * dpr)
+  }
+  const ctx = kBild.getContext('2d')!
+  karte.zeichnen(ctx, dpr, vw, vh, kScroll.scrollTop, now, renderer.skin, feldZustand, (naechsteMission()?.nr ?? 0) - 1, reduce)
+  if (kHinweisZeit && now - kHinweisZeit > 2600) {
+    kHinweisZeit = 0
+    $('kampagne-hinweis').hidden = true
+  }
+}
+
+function kampagneHinweis(text: string) {
+  const el = $('kampagne-hinweis')
+  el.textContent = text
+  el.hidden = false
+  kHinweisZeit = performance.now()
+}
+
+/** Mission starten: die Schlange waechst auf der Karte bis zum Feld, dann geht es los */
+function missionStarten(m: MissionDef) {
+  audio.unlock()
+  audio.click()
+  haptic.light()
+  karte.wachsen(m.nr, () => {
+    setzeErreicht(m.welt, m.nr)
+    closeAllPages()
+    newGame(false, false, 'normal', m)
+    toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.`)
+  })
+}
+
+kScroll.addEventListener('click', (e) => {
+  if (karte.waechst) return
+  const r = kScroll.getBoundingClientRect()
+  const x = e.clientX - r.left - (r.width - karte.w) / 2
+  const y = e.clientY - r.top + kScroll.scrollTop
+  const i = karte.treffer(x, y)
+  if (i < 0) return
+  const m = WIESE_MISSIONEN[i]
+  if (!spielbar(m)) {
+    audio.click()
+    kampagneHinweis(`Mission ${m.nr} kommt bald.`)
+    return
+  }
+  if (!offen(m, WIESE_MISSIONEN)) {
+    audio.click()
+    kampagneHinweis(`Schaff erst Mission ${m.nr - 1}.`)
+    return
+  }
+  missionStarten(m)
+})
+
+$('btn-kampagne').addEventListener('click', () => {
+  audio.unlock()
+  openPage('kampagne')
+})
+
 /* ================= Verdrahtung ================= */
 
 $('btn-play').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false, false, settings.modus)
+  newGame(false, false, settings.modus, null)
   if (settings.modus !== 'normal') toast(settings.modus === 'speedrun' ? 'apfel' : 'zeitlupe', SPIELMODUS_NAME[settings.modus], modusInfo(settings.modus))
 })
 $('btn-tages').addEventListener('click', () => {
   audio.unlock()
   audio.click()
-  newGame(false, true, 'normal')
+  newGame(false, true, 'normal', null)
   const tl = heutigesLevel()
   const bonus = stats.tagesBonus === tagBerlin() ? 'Den 10er-Bonus hast du heute schon.' : 'Der letzte leuchtet pink und bringt 10 Äpfel.'
   toast('gebiet', `Tageslevel: ${tl.motto}`, `Hol ${tl.ziel} Äpfel. ${bonus} Schwierigkeit ${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][wochentag(tagBerlin())]}: ${tl.schwierigkeit}.`)
@@ -2389,11 +2534,7 @@ $('btn-restart').addEventListener('click', () => {
 })
 $('btn-quit').addEventListener('click', () => {
   audio.click()
-  game = null
-  istKreativ = false
-  app.removeAttribute('data-kreativ')
-  newDemo()
-  setMode('home')
+  zumMenue()
 })
 $('btn-again').addEventListener('click', () => {
   audio.click()
@@ -2401,12 +2542,23 @@ $('btn-again').addEventListener('click', () => {
 })
 $('btn-menu').addEventListener('click', () => {
   audio.click()
+  zumMenue()
+})
+/** Spiel verlassen: ins Startmenue, nach einer Mission zurueck auf die Karte der Kampagne */
+function zumMenue() {
+  const mission = laufMission
   game = null
   istKreativ = false
+  laufMission = null
   app.removeAttribute('data-kreativ')
+  app.removeAttribute('data-mission')
+  renderer.berge = null
+  renderer.minikarte = true
+  renderer.welt = aktiveWelt()
   newDemo()
   setMode('home')
-})
+  if (mission) openPage('kampagne')
+}
 $('btn-sound').addEventListener('click', () => {
   audio.unlock()
   settings.sound = !settings.sound
@@ -2557,6 +2709,7 @@ function frame(now: number) {
   last = now
   // Eine Unterseite (Skins, Anleitung, Online ...) deckt das Spielfeld ganz ab: dann nicht zeichnen
   const verdeckt = page() !== null
+  if (page() === 'kampagne') kampagneBild(now)
   if (mode === 'home') {
     // Die Demo im Startmenue ist nur fuers Auge: solange eine Seite sie verdeckt, ruht sie
     if (!verdeckt) demoBild(dt)
@@ -2575,6 +2728,13 @@ function frame(now: number) {
     if (istTages) {
       $('tages-ziel').textContent = `${Math.min(game.gegessen, tagesZiel)} / ${tagesZiel}`
       renderer.sonderApfel = game.gegessen === tagesZiel - 1
+    }
+    // Kampagne: geholte Aepfel oben rechts, der letzte liegende leuchtet
+    if (laufMission && game instanceof MissionGame) {
+      const t = `${game.ziel - game.uebrig} / ${game.ziel}`
+      const zt = $('tages-ziel')
+      if (zt.textContent !== t) zt.textContent = t
+      renderer.sonderApfel = game.uebrig === 1
     }
     renderer.mehr = null
     if (!verdeckt) renderer.draw(game)
@@ -2598,6 +2758,14 @@ const mehr = mehrspieler({
   modus: (m) => {
     if (m === 'mehr') {
       game = null
+      // Eine laufende Mission ist damit vorbei: keine Berge, wieder die gewaehlte Welt
+      if (laufMission) {
+        laufMission = null
+        app.removeAttribute('data-mission')
+        renderer.berge = null
+        renderer.minikarte = true
+        renderer.welt = aktiveWelt()
+      }
       setMode('mehr')
     } else if (mode === 'mehr') {
       newDemo()

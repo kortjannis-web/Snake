@@ -3244,3 +3244,103 @@ html[data-install] #app {
   font: 500 0.8rem/1.3 var(--sans);
   color: var(--creme-leise);
 }
+
+/* ---------------- Kampagne ---------------- */
+.screen--kampagne {
+  background: #8fc77e;
+}
+
+.kampagne {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.kampagne__bild {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Unsichtbare Scrollflaeche ueber dem Bild: natuerliches Scrollen mit Schwung, Antippen der Felder */
+.kampagne__scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  cursor: pointer;
+}
+
+.kampagne__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.kampagne__kopf {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(rgba(23, 21, 19, 0.72), rgba(23, 21, 19, 0));
+  padding-bottom: 28px;
+  pointer-events: none;
+}
+
+.kampagne__kopf > * {
+  pointer-events: auto;
+}
+
+.kampagne__titel {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.kampagne__titel h2 {
+  margin: 0;
+  font: 500 1.9rem/1 var(--serif);
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.kampagne__titel small {
+  color: rgba(255, 255, 255, 0.85);
+  font: 600 0.8rem/1.2 var(--sans);
+}
+
+.kampagne__hinweis {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 22px);
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(23, 21, 19, 0.86);
+  color: #fff;
+  font: 600 0.9rem/1.2 var(--sans);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.kampagne__hinweis[hidden] {
+  display: none;
+}
+
+/* Mission: geholte Aepfel oben rechts statt des Rekords */
+.tages-ziel--mission {
+  left: auto;
+  right: 12px;
+  transform: none;
+  color: #ffd36b;
+}
+
+[data-mission] .hud__best {
+  display: none;
+}

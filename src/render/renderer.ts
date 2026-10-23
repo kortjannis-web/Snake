@@ -5,6 +5,8 @@
  */
 import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, key, type Game } from '../game/game'
 import { WUESTE } from '../game/rules'
+import { MissionGame } from '../game/mission'
+import type { BergKacheln } from './berge'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { abgrundKachel, drawAbgrund, drawSprudeln, drawVulkanBoden, type AbgrundKachel } from './vulkan'
 import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
@@ -171,6 +173,8 @@ export class Renderer {
   blitzApfel = false
   /** Tageslevel: der letzte Apfel leuchtet pink (bringt 10 Aepfel) */
   sonderApfel = false
+  /** Kampagne: Berge rund um die Taeler der Mission (statt Erde), null = normales Spiel */
+  berge: BergKacheln | null = null
   /** Meer um die Insel (Wueste) in Kacheln: 'n|kx,ky' normal, 'f|kx,ky' bei Flut (Land ohne die Flutfelder) */
   private meer = new Map<string, { m: MeerKachel | null; benutzt: number }>()
   /** Stuecke vom vorigen Kartenstand: stehen noch da, bis die neuen fertig sind (die Neuberechnung ist auf mehrere Bilder verteilt) */
@@ -507,7 +511,10 @@ export class Renderer {
       this.abgrundZeichnen(g, cell, now, ex0, ey0, ex1, ey1)
       if (!this.reduce) drawSprudeln(ctx, drin, g.ursprung, cell, now, ex0, ey0, ex1, ey1)
     }
-    if (!vulkan)
+    // Kampagne: rundherum Berge (vorgezeichnete Kacheln), keine Erde
+    const berge = this.berge
+    if (berge) berge.zeichnen(ctx, cell, this.dpr, ex0, ey0, ex1, ey1)
+    if (!vulkan && !berge)
     for (let y = ey0; y <= ey1; y++)
       for (let x = ex0; x <= ex1; x++) {
         if (drin(x, y)) continue
@@ -543,7 +550,7 @@ export class Renderer {
     // Lava im Stein: das einzige, was in der Erde pulsierend glueht. Der Schein reicht ein paar Felder
     // weit durch die Erde, auch von knapp ausserhalb des Bildes, damit man sieht, wo Lava steckt
     const ls = Math.ceil(LAVA_SCHEIN)
-    if (!vulkan)
+    if (!vulkan && !berge)
     for (let y = ey0 - ls; y <= ey1 + ls; y++)
       for (let x = ex0 - ls; x <= ex1 + ls; x++) {
         if (drin(x, y) || !g.lavaImStein(x - g.ursprung.x, y - g.ursprung.y)) continue
@@ -815,6 +822,13 @@ export class Renderer {
     }
     drawFutter(ctx, welt, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, this.sonderApfel ? 8 : stufe, now)
     licht(px(g.apple.p.x), px(g.apple.p.y), cell * 1.6)
+    // Kampagne: die anderen Aepfel, die noch liegen
+    if (g instanceof MissionGame)
+      for (const ap of g.aepfel) {
+        if (ap === g.apple || !sicht(ap.p)) continue
+        drawFutter(ctx, welt, px(ap.p.x), px(ap.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - ap.t) / 340)), wipp, undefined, stufe, now)
+        licht(px(ap.p.x), px(ap.p.y), cell * 1.6)
+      }
     if (this.blitzApfel && stufe >= 2 && !this.reduce) apfelBlitze(ctx, px(g.apple.p.x), px(g.apple.p.y), cell, now)
     for (const pw of g.powers) {
       if (!sicht(pw.p)) continue
