@@ -2431,7 +2431,10 @@ document.addEventListener('visibilitychange', () => {
     if (mode === 'mehr') mehr.hintergrund()
     pause()
     audio.suspend()
-  } else audio.resume()
+  } else {
+    audio.resume()
+    if (profil.name) online?.wieder()
+  }
 })
 window.addEventListener('blur', pause)
 
@@ -2456,7 +2459,10 @@ if (nativ) {
       if (mode === 'mehr') mehr.hintergrund()
       pause()
       audio.suspend()
-    } else audio.resume()
+    } else {
+      audio.resume()
+      if (profil.name) online?.wieder()
+    }
   })
   void StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
   void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})

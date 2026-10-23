@@ -535,8 +535,12 @@ function sumpfBlasen(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, no
 
 /* ================= Meer um die Insel (Wueste) ================= */
 
-/** Ein Stueck Meer: Wasser mit Strand (basis), Maske fuer die bewegte Oberflaeche, Gischtbaender fuer die Wellen */
-export type MeerKachel = { basis: Bild; maske: Bild; wellen: Bild[] }
+/**
+ * Ein Stueck Meer: Wasser mit Strand (basis), Maske fuer die bewegte Oberflaeche, Gischtbaender fuer die Wellen
+ * (wellenDa: ob im Band ueberhaupt Gischt liegt). lebend = basis samt bewegter Oberflaeche und Wellen, fertig zusammengesetzt
+ * und nur alle paar Bilder neu (zeit = wann zuletzt), so kostet ein Stueck Meer je Bild nur noch ein Bild kopieren
+ */
+export type MeerKachel = { basis: Bild; maske: Bild; wellen: Bild[]; wellenDa: boolean[]; lebend: HTMLCanvasElement | null; zeit: number; staerke: number }
 /** Wo die Gischtbaender liegen (Abstand vom Land in Feldern): aussen, mitte, am Strand */
 export const MEER_WELLEN = [0.85, 0.5, 0.2]
 
@@ -544,23 +548,33 @@ export const MEER_WELLEN = [0.85, 0.5, 0.2]
  * Meer fuer das Rechteck x0..x0+n, y0..y0+n (Kartenfelder): Wasser ueberall, wo kein Land ist. Die Kueste ist weich:
  * Abstand zum Land mit runden Aussenecken, gefuellten Innenecken und leichten Unebenheiten (Rauschen). Am Land erst
  * Sand, dann nasser Sand, Brandung, flaches tuerkises Wasser und nach aussen immer tiefer.
+ * null: in diesem Stueck ist nur Land (nichts zu zeichnen).
  */
-export function meerKachel(land: (x: number, y: number) => boolean, x0: number, y0: number, n: number, px: number, o: P): MeerKachel {
+export function meerKachel(land: (x: number, y: number) => boolean, x0: number, y0: number, n: number, px: number, o: P): MeerKachel | null {
   const R = 3
   const rund = 0.32
   // Land in der Naehe einmal einsammeln (Kachel plus Rand)
   const nah: P[] = []
   for (let y = y0 - R; y < y0 + n + R; y++) for (let x = x0 - R; x < x0 + n + R; x++) if (land(x, y)) nah.push({ x, y })
   const set = new Set(nah.map((c) => c.x * 4096 + c.y))
+  let nurLand = true
+  for (let y = y0; y < y0 + n && nurLand; y++) for (let x = x0; x < x0 + n; x++) if (!set.has(x * 4096 + y)) nurLand = false
+  if (nurLand) return null
+  // Landfelder im Umkreis je Feld nur einmal suchen (nicht fuer jedes Pixel neu)
+  const umkreis = new Map<number, P[]>()
+  const nachbarn = (cx: number, cy: number) => {
+    const k = cx * 4096 + cy
+    let l = umkreis.get(k)
+    if (!l) {
+      l = []
+      for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) if (set.has((cx + i) * 4096 + cy + j)) l.push({ x: cx + i + 0.5, y: cy + j + 0.5 })
+      umkreis.set(k, l)
+    }
+    return l
+  }
   const abst = (x: number, y: number) => {
-    const cx = Math.floor(x)
-    const cy = Math.floor(y)
     let d = R + 1
-    for (let j = -R; j <= R; j++)
-      for (let i = -R; i <= R; i++) {
-        if (!set.has((cx + i) * 4096 + cy + j)) continue
-        d = smin(d, sdBox(x - (cx + i + 0.5), y - (cy + j + 0.5), 0.5 - rund) - rund, 0.7)
-      }
+    for (const c of nachbarn(Math.floor(x), Math.floor(y))) d = smin(d, sdBox(x - c.x, y - c.y, 0.5 - rund) - rund, 0.7)
     return d + (rauschen((x - o.x) * 2.1, (y - o.y) * 2.1) - 0.5) * 0.16
   }
   const w = Math.ceil(n * px)
@@ -585,6 +599,7 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
   const flach: Farbe4 = [112, 204, 200, 1]
   const mitte: Farbe4 = [58, 158, 192, 1]
   const tief: Farbe4 = [28, 104, 152, 1]
+  const wellenDa = MEER_WELLEN.map(() => false)
   for (let py = 0; py < w; py++)
     for (let pxx = 0; pxx < w; pxx++) {
       const x = x0 + (pxx + 0.5) / px
@@ -611,12 +626,57 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
       MEER_WELLEN.forEach((c, k) => {
         const breite = k === MEER_WELLEN.length - 1 ? 0.09 : 0.07
         const a = 1 - Math.abs(d - c - nz) / breite
-        if (a > 0) set4(dw[k], i, [255, 255, 255, a * (0.75 + 0.25 * rauschen(wx * 6, wy * 6))])
+        if (a <= 0) return
+        set4(dw[k], i, [255, 255, 255, a * (0.75 + 0.25 * rauschen(wx * 6, wy * 6))])
+        wellenDa[k] = true
       })
     }
   bilder.forEach((cv, k) => cv.getContext('2d')!.putImageData(datas[k], 0, 0))
   const bild = (cv: HTMLCanvasElement): Bild => ({ cv, x0, y0, w: n, h: n })
-  return { basis: bild(bilder[0]), maske: bild(bilder[1]), wellen: bilder.slice(2).map(bild) }
+  return { basis: bild(bilder[0]), maske: bild(bilder[1]), wellen: bilder.slice(2).map(bild), wellenDa, lebend: null, zeit: 0, staerke: 1 }
+}
+
+/** So oft wird die bewegte Oberflaeche eines Stuecks Meer neu zusammengesetzt (ms), hoechstens so viele Stuecke je Bild */
+const MEER_TAKT = 70
+const MEER_JE_BILD = 4
+let meerBild = -1
+let meerNeu = 0
+
+/** Grund, bewegte Oberflaeche (zwei Lagen Lichtnetz) und Wellen in das Bild `lebend` des Stuecks zusammensetzen */
+function meerAuffrischen(m: MeerKachel, now: number, staerke: number) {
+  const { basis, maske, wellen } = m
+  const cv = (m.lebend ??= document.createElement('canvas'))
+  if (cv.width !== basis.cv.width || cv.height !== basis.cv.height) {
+    cv.width = basis.cv.width
+    cv.height = basis.cv.height
+  }
+  const c = cv.getContext('2d')!
+  const ppc = maske.cv.width / maske.w
+  c.setTransform(1, 0, 0, 1, 0, 0)
+  c.globalCompositeOperation = 'copy'
+  c.drawImage(basis.cv, 0, 0)
+  c.globalCompositeOperation = 'source-over'
+  // Textur an der Welt ausrichten (nicht an der Kachel), sonst sieht man die Kachelgrenzen
+  const ox = maske.x0 * ppc
+  const oy = maske.y0 * ppc
+  c.setTransform(1, 0, 0, 1, -ox, -oy)
+  fuellung(c, maske, tex('kaustik'), ppc, ox + now / 60, oy + now / 90, 0.3)
+  fuellung(c, maske, tex('kaustik'), ppc, ox / 1.3 - now / 80, oy / 1.3 + now / 70, 0.2, 1.3)
+  c.setTransform(1, 0, 0, 1, 0, 0)
+  // Wellen: alle `periode` ms laeuft eine Welle von aussen an den Strand und zieht sich zurueck
+  const periode = staerke > 1 ? 1500 : 2600
+  const p = (now % periode) / periode
+  wellen.forEach((b, k) => {
+    if (!m.wellenDa[k]) return
+    const s = (p - k * 0.2 + 1) % 1
+    const an = Math.max(0, Math.sin(Math.PI * Math.min(1, s / 0.55)))
+    const ruhe = k === wellen.length - 1 ? 0.3 : 0.08
+    c.globalAlpha = Math.min(1, (ruhe + an * 0.8) * staerke)
+    c.drawImage(b.cv, 0, 0)
+  })
+  c.globalAlpha = 1
+  m.zeit = now
+  m.staerke = staerke
 }
 
 /**
@@ -624,27 +684,22 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
  * staerke > 1: hoehere, schnellere Wellen (Flut kommt)
  */
 export function drawMeer(ctx: CanvasRenderingContext2D, m: MeerKachel, cell: number, now: number, alpha = 1, staerke = 1, reduce = false) {
-  const { basis, maske, wellen } = m
+  const { basis } = m
   const a0 = ctx.globalAlpha
   ctx.globalAlpha = a0 * alpha
-  ctx.drawImage(basis.cv, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
-  if (!reduce) {
-    // Textur an der Welt ausrichten (nicht an der Kachel), sonst sieht man die Kachelgrenzen
-    const ppc = maske.cv.width / maske.w
-    const ox = maske.x0 * ppc
-    const oy = maske.y0 * ppc
-    fuellung(ctx, maske, tex('kaustik'), cell, ox + now / 60, oy + now / 90, 0.3)
-    fuellung(ctx, maske, tex('kaustik'), cell, ox / 1.3 - now / 80, oy / 1.3 + now / 70, 0.2, 1.3)
-    // Wellen: alle `periode` ms laeuft eine Welle von aussen an den Strand und zieht sich zurueck
-    const periode = staerke > 1 ? 1500 : 2600
-    const p = (now % periode) / periode
-    wellen.forEach((b, k) => {
-      const s = (p - k * 0.2 + 1) % 1
-      const an = Math.max(0, Math.sin(Math.PI * Math.min(1, s / 0.55)))
-      const ruhe = k === wellen.length - 1 ? 0.3 : 0.08
-      ctx.globalAlpha = a0 * alpha * Math.min(1, (ruhe + an * 0.8) * staerke)
-      ctx.drawImage(b.cv, b.x0 * cell, b.y0 * cell, b.w * cell, b.h * cell)
-    })
+  if (reduce) ctx.drawImage(basis.cv, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
+  else {
+    // Bewegte Oberflaeche nur alle MEER_TAKT ms neu und je Bild nur fuer ein paar Stuecke (das Auge merkt das nicht,
+    // das Handy sehr wohl: vorher wurde jedes Stueck in jedem Bild mehrfach neu zusammengesetzt)
+    if (now !== meerBild) {
+      meerBild = now
+      meerNeu = 0
+    }
+    if (!m.lebend || m.staerke !== staerke || (Math.abs(now - m.zeit) >= MEER_TAKT && meerNeu < MEER_JE_BILD)) {
+      meerNeu++
+      meerAuffrischen(m, now, staerke)
+    }
+    ctx.drawImage(m.lebend!, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
   }
   ctx.globalAlpha = a0
 }

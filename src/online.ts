@@ -721,18 +721,33 @@ export function lobby(ich: () => Omit<OnlineSpieler, 'uid'>, bei: LobbyRueckruf)
   let kanal: ReturnType<SupabaseClient['channel']> | null = null
   let uid: string | null = null
   let weg = false
+  let laeuft = false
+  let nochmal: ReturnType<typeof setTimeout> | null = null
+  /** Verbindung weg oder Start ging schief (kein Netz beim App-Start, Server kurz weg): spaeter neu versuchen,
+   *  sonst bleibt der Spieler die ganze Sitzung fuer alle anderen unsichtbar */
+  const spaeter = (ms: number) => {
+    if (weg || nochmal) return
+    nochmal = setTimeout(() => {
+      nochmal = null
+      void start()
+    }, ms)
+  }
   const melden = async () => {
     if (!kanal) return
     const i = ich()
     if (!i.name) return
     try {
+      // Die Nutzer-Id jedes Mal frisch holen: nach Anmelden mit dem Namen oder Kontowechsel ist es eine andere,
+      // und mit der alten Id erscheint der Spieler in der Hall of Snakes und bei Freunden nicht als online
+      uid = await nutzerId().catch(() => uid)
       await kanal.track({ ...i, uid })
     } catch {
       /* noch nicht verbunden */
     }
   }
   const start = async () => {
-    if (!onlineAktiv || kanal || weg) return
+    if (!onlineAktiv || kanal || weg || laeuft) return
+    laeuft = true
     try {
       const sb = await client()
       uid = await nutzerId()
@@ -757,14 +772,27 @@ export function lobby(ich: () => Omit<OnlineSpieler, 'uid'>, bei: LobbyRueckruf)
       })
       k.subscribe((status) => {
         if (status === 'SUBSCRIBED') void melden()
+        else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') && kanal === k && !weg) {
+          // Kanal kaputt: abbauen und neu aufbauen
+          kanal = null
+          void sb.removeChannel(k)
+          spaeter(5000)
+        }
       })
       kanal = k
     } catch {
-      /* kein Netz: beim naechsten Mal */
+      spaeter(15_000)
+    } finally {
+      laeuft = false
     }
   }
   return {
     start,
+    /** App wieder im Vordergrund: Verbindung pruefen und neu melden */
+    wieder() {
+      if (kanal) void melden()
+      else void start()
+    },
     /** Name, Skin oder "im Spiel" hat sich geaendert */
     melden,
     einladen(an: string, code: string, modus: string) {
@@ -777,6 +805,7 @@ export function lobby(ich: () => Omit<OnlineSpieler, 'uid'>, bei: LobbyRueckruf)
     },
     stop() {
       weg = true
+      if (nochmal) clearTimeout(nochmal)
       void kanal?.unsubscribe()
       kanal = null
     },
