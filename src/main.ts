@@ -229,6 +229,8 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       seed,
       startLevel: 1,
       sandbox: { breite: 0, hoehe: 0, laenge: tl.laenge, objekte: tl.objekte, weiter: false, bloecke: tl.bloecke, aus: felder('ab'), dazu: felder('dazu') },
+      // Im Vulkan ist auch hier rundherum der Lava-Abgrund (die Karte selbst bleibt fuer alle gleich)
+      vulkan: renderer.welt.id === 'vulkan',
     })
   } else
     game = new Game({

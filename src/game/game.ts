@@ -109,8 +109,10 @@ export class Game {
   aus: P[] = []
   /** Vulkan: Krater mitten in den Bloecken (gehoeren nicht zur Karte, tief unten Lava). Bleiben beim Anbauen */
   krater: P[] = []
-  /** Vulkan-Karte (groessere Bloecke, Krater, Lava-Abgrund statt Erde)? */
+  /** Vulkan-Karte (groessere Bloecke, Krater)? Nicht in Sandbox und Tageslevel */
   readonly vulkan: boolean
+  /** Vulkan-Welt: rund um die Karte ist der Lava-Abgrund statt Erde (auch in Sandbox und Tageslevel; kein Maulwurf) */
+  readonly abgrund: boolean
   /** Wueste: Sandsturm, Flut und Sandwurm an? */
   readonly wueste: boolean
   /** Sandsturm: Sicht schlecht bis `bis` (Spielzeit) */
@@ -229,7 +231,8 @@ export class Game {
     this.kreativ = o.kreativ ?? null
     this.tempo = o.tempo ?? 'normal'
     this.wueste = !!o.wueste
-    this.vulkan = !!o.vulkan && !o.sandbox
+    this.abgrund = !!o.vulkan
+    this.vulkan = this.abgrund && !o.sandbox
     this.r = rng(o.seed)
     this.lavaSalz = 11 + 3 * ((o.seed ?? Math.floor(Math.random() * 2 ** 31)) % 100_000)
     const zw = !!o.zufallsWelt && !o.sandbox
@@ -767,7 +770,7 @@ export class Game {
 
   /** Was liegt auf diesem Feld (fuer den Kopf)? */
   gefahr(n: P, rest: P[] = this.body): Cause | null {
-    if (!this.inside(n)) return this.vulkan ? 'abgrund' : 'rand'
+    if (!this.inside(n)) return this.abgrund ? 'abgrund' : 'rand'
     if (this.geist()) return null
     if (this.flut?.phase === 'aktiv' && this.flut.zellen.has(key(n.x, n.y))) return 'flut'
     if (this.mauern.some((m) => m.cells.slice(0, m.grown).some((p) => same(p, n)))) return 'mauer'
@@ -981,7 +984,7 @@ export class Game {
     const tiere = this.aktiveFroesche.length + this.ameisen.length + this.gegner.length > 0
     const c = this.cfg
     const arten = R.POWER_ARTEN.filter(
-      (a) => (a !== 'maulwurf' || (this.level >= c.maulwurfAb && !this.vulkan)) && (a !== 'goldschere' || this.level >= c.goldSchereAb) && (a !== 'fuettern' || tiere),
+      (a) => (a !== 'maulwurf' || (this.level >= c.maulwurfAb && !this.abgrund)) && (a !== 'goldschere' || this.level >= c.goldSchereAb) && (a !== 'fuettern' || tiere),
     )
     let z = this.r.next() * arten.reduce((s, a) => s + R.POWER_GEWICHT[a], 0)
     for (const a of arten) {

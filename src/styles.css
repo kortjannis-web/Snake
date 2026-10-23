@@ -1054,7 +1054,8 @@ svg {
 
 .seg--welten button {
   min-height: 38px;
-  font-size: 0.8rem;
+  padding: 0 2px;
+  font-size: 0.74rem;
 }
 
 .seg button:active {

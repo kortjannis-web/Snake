@@ -71,7 +71,7 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 
 **Äpfel als Währung und Aussehen:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
-Aussehen mit Farben (auch zwei- und dreifarbig), 45 Skins, 32 Accessoires und 12 Spuren, dazu fünf Welten: Level 100 in einer Welt schaltet die nächste frei (Wiese → Wüstenoase → Winterwald → Bergwerk → Zauberwald → Gruselwald), und jede Welt belohnt mit einem Skin (100), einem Accessoire (150) und einem epischen Skin mit Spur (200). Die Wüste ist eine Insel mit Sandsturm, Flut und Sandwurm. Außerhalb der Karte ist Erde mit Steinen, Kohle,
+Aussehen mit Farben (auch zwei- und dreifarbig), 45 Skins, 32 Accessoires und 12 Spuren, dazu sieben Welten: Level 100 in einer Welt schaltet die nächste frei (Wiese → Wüstenoase → Winterwald → Bergwerk → Zauberwald → Gruselwald → Vulkan), und jede Welt belohnt mit einem Skin (100), einem Accessoire (150) und einem epischen Skin mit Spur (200). Die Wüste ist eine Insel mit Sandsturm, Flut und Sandwurm. Der Vulkan ist eine Plattform über dem Lava-Abgrund: größere Blöcke, Krater überall, Lava sprudelt hoch. Außerhalb der Karte ist Erde mit Steinen, Kohle,
 Skeletten, Lavafeldern, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
 die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild (ein Leben mehr,
 läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,
@@ -80,7 +80,7 @@ Schere (schneidet dauerhaft ab, was in 3 Leveln gewachsen ist, das Stück liegt 
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
-**Kreativ-Modus** (Stift oben rechts im Startmenü): Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,
+**Kreativ-Modus** (nur im Admin-Zugang: Stift oben rechts im Startmenü oder Admin → Kreativ-Modus; dort ist auch jede Welt spielbar): Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,
 Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im Spiel Level springen und
 jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
 normal weiter. Zählt nicht für den Rekord und die Online-Bestenliste, Äpfel gibt es dort keine.
