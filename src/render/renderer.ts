@@ -4,6 +4,7 @@
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
 import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, GEGNER_WEG, GESCHOSS_TAKT, key, WESEN_TAKT, WESEN_WEG, type Game } from '../game/game'
+import { drawFledermaeuse, drawFledermausWarnung, drawGolem, drawLore, drawLoreAbgestellt, drawLoreWarnung, drawNetz, drawSchieneFeld, drawSpalt, drawSteinWarnung, drawStollenBoden, drawStolleneingang, drawTnt, drawZwerg } from './bergwerk'
 import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapfenSchatten, drawIglu, drawNordlicht, drawRobbe, drawSchneeball, drawSchneemann, drawSchneesturm, drawYeti } from './winter'
 import { WUESTE } from '../game/rules'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
@@ -403,6 +404,16 @@ export class Renderer {
         }
         this.shake = { until: g.time + 220, amp: cell * (gold ? 0.14 : 0.1) }
       }
+    } else if (e.type === 'explosion' && !this.reduce) {
+      for (let i = 0; i < 30; i++) {
+        const ang = (Math.PI * 2 * i) / 30 + Math.random() * 0.3
+        const sp = cell * (1.5 + Math.random() * 1.8)
+        this.funken.push({ x: (e.p.x + 0.5) * cell, y: (e.p.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: ['#FFE08A', '#FF8A2A', '#C0392B', '#3A3A3A'][i % 4] })
+      }
+      this.shake = { until: g.time + 420, amp: cell * 0.25 }
+    } else if (e.type === 'erdbeben' && !this.reduce) {
+      // Das Beben wird zum Aufreissen hin schwaecher (die Staerke faellt mit der Restzeit)
+      this.shake = { until: g.time + g.cfg.erdbebenWarnung * 1000, amp: cell * 0.03 }
     } else if ((e.type === 'einschlag' || e.type === 'platsch') && !this.reduce) {
       // Eis splittert bzw. Schnee spritzt
       const gross = e.type === 'einschlag'
@@ -410,7 +421,9 @@ export class Renderer {
       for (let i = 0; i < n; i++) {
         const ang = (Math.PI * 2 * i) / n + Math.random() * 0.4
         const sp = cell * (gross ? 1.2 + Math.random() * 1.2 : 0.5 + Math.random() * 0.6)
-        this.funken.push({ x: (e.p.x + (gross ? 1 : 0.5)) * cell, y: (e.p.y + (gross ? 1 : 0.5)) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: i % 3 ? '#FFFFFF' : '#BFE3F5' })
+        const stein = e.type === 'einschlag' && e.art === 'stein'
+        const mitte = gross && !stein ? 1 : 0.5
+        this.funken.push({ x: (e.p.x + mitte) * cell, y: (e.p.y + mitte) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: stein ? (i % 3 ? '#8A827C' : '#C8BFB5') : i % 3 ? '#FFFFFF' : '#BFE3F5' })
       }
       if (gross) this.shake = { until: g.time + 260, amp: cell * 0.12 }
     } else if (e.type === 'setback') {
@@ -888,9 +901,27 @@ export class Renderer {
 
     // Einschlaege: Schatten als Warnung, danach der liegende Block (bis zum naechsten Apfel)
     for (const e of g.einschlaege) {
-      if (!e.cells.some((c) => sicht(c))) continue
-      if (!e.gefallen) drawEiszapfenSchatten(ctx, e.cells, cell, clamp01((now - e.t) / Math.max(1, e.bis - e.t)), now)
+      if (e.art === 'explosion' || !e.cells.some((c) => sicht(c))) continue
+      const k = clamp01((now - e.t) / Math.max(1, e.bis - e.t))
+      if (e.art === 'stein') {
+        if (!e.gefallen) drawSteinWarnung(ctx, e.cells[0], cell, k, now)
+        else if (e.bleibt) drawMauerWelt(ctx, welt, e.cells[0].x * cell, e.cells[0].y * cell, cell, this.reduce ? 1 : backOut(clamp01((now - e.bis) / 300)))
+      } else if (!e.gefallen) drawEiszapfenSchatten(ctx, e.cells, cell, k, now)
       else if (e.bleibt) drawEisblock(ctx, e.cells, cell, this.reduce ? 1000 : now - e.bis)
+    }
+    // Bergwerk: Netze, abgestellte Loren, Erdbeben-Spalten, TNT, Glocke vor der Lore
+    for (const nz of g.netze) if (sicht(nz.p)) drawNetz(ctx, nz.p, cell, this.reduce ? 1 : clamp01((now - nz.t) / 400))
+    for (const p of g.loren) if (sicht(p)) drawLoreAbgestellt(ctx, p, cell)
+    for (const sp of g.spalten) if (sp.cells.some((c) => sicht(c))) drawSpalt(ctx, sp.cells, cell, clamp01((now - sp.t) / Math.max(1, sp.ab - sp.t)), now >= sp.ab, now)
+    for (const z of g.zuendschnuere) {
+      if (!sicht(z.fass, 6)) continue
+      const f = (now - z.t) / z.takt
+      drawTnt(ctx, z.weg, z.fass, cell, Math.floor(f), f - Math.floor(f), now)
+    }
+    for (const d of g.durchzuege) {
+      if (d.art !== 'lore' || now >= d.los) continue
+      const f = g.schieneFelder({ achse: d.achse, linie: d.linie })
+      if (f) drawLoreWarnung(ctx, f.cells, cell, clamp01((now - d.t) / Math.max(1, d.los - d.t)), now)
     }
     // Welt-Wesen (Tiere und Gestalten) und Schneebaelle
     for (const w of g.wesen) if (sicht(w.p)) this.drawWesen(w, now, 1, 1)
@@ -923,6 +954,29 @@ export class Renderer {
     if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
     if (this.mehr?.blasen) for (const b of this.mehr.blasen) if (sicht(b.p, 2)) this.drawBlase(b)
     this.drawGrabWarnung(g, head, now)
+    // Lore und Fledermaeuse (ueber der Schlange)
+    for (const d of g.durchzuege) {
+      const k = g.durchzugKopf(d)
+      if (k === null) {
+        if (d.art === 'fledermaus') {
+          const [x0, y0, w, h] = d.achse === 'x' ? [d.von * cell, d.linie * cell, (d.bis - d.von + 1) * cell, d.breite * cell] : [d.linie * cell, d.von * cell, d.breite * cell, (d.bis - d.von + 1) * cell]
+          drawFledermausWarnung(ctx, x0, y0, w, h, clamp01((now - d.t) / Math.max(1, d.los - d.t)), now)
+        }
+        continue
+      }
+      if (d.art === 'fledermaus') {
+        drawFledermaeuse(ctx, g.durchzugFelder(d), cell, now)
+        continue
+      }
+      // Lore: weich laengs, drei Wagen
+      for (let i = 0; i < d.laenge; i++) {
+        const v = k - d.dir * i
+        if (v < d.von - 1 || v > d.bis + 1) continue
+        const x = d.achse === 'x' ? (v + 0.5) * cell : (d.linie + 0.5) * cell
+        const y = d.achse === 'x' ? (d.linie + 0.5) * cell : (v + 0.5) * cell
+        drawLore(ctx, x, y, cell, d.achse, i === 0)
+      }
+    }
     // Eiszapfen im Fall (ueber der Schlange)
     for (const e of g.einschlaege) {
       if (e.gefallen || this.reduce || !e.cells.some((c) => sicht(c, 4))) continue
@@ -1127,7 +1181,7 @@ export class Renderer {
   }
 
   private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
-    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}|${g.aus.length}|${g.krater.length}`
+    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}|${g.aus.length}|${g.krater.length}|${g.schienen.length}|${g.stollen.length}`
     if (stand !== this.grundStand) {
       this.grund.clear()
       this.grundStand = stand
@@ -1241,6 +1295,21 @@ export class Renderer {
         if (!drin(x - 1, y)) c.fillRect(x * cell, y * cell, kante, cell)
         if (!drin(x + 1, y)) c.fillRect((x + 1) * cell - kante, y * cell, kante, cell)
       }
+    // Bergwerk: Stollenboden, Schienen und Stolleneingaenge (alles fest)
+    if (welt.id === 'bergwerk' && g.schienen.length) {
+      const imBild = (c: P) => c.x >= xa && c.x <= xb && c.y >= ya && c.y <= yb
+      const stollen = new Set(g.stollen.map((c) => key(c.x, c.y)))
+      for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (stollen.has(key(x, y))) drawStollenBoden(c, x * cell, y * cell, cell, feldZufall(x - g.ursprung.x + 3, y - g.ursprung.y + 1))
+      for (const s of g.schienen) {
+        const f = g.schieneFelder(s)
+        if (!f) continue
+        for (const p of f.cells) if (imBild(p) && drin(p.x, p.y)) drawSchieneFeld(c, p.x * cell, p.y * cell, cell, s.achse)
+        const vor = s.achse === 'x' ? { x: f.von - 1, y: s.linie } : { x: s.linie, y: f.von - 1 }
+        const nach = s.achse === 'x' ? { x: f.bis + 1, y: s.linie } : { x: s.linie, y: f.bis + 1 }
+        if (imBild(vor) && !drin(vor.x, vor.y)) drawStolleneingang(c, vor.x * cell, vor.y * cell, cell, s.achse === 'x' ? 0 : Math.PI / 2)
+        if (imBild(nach) && !drin(nach.x, nach.y)) drawStolleneingang(c, nach.x * cell, nach.y * cell, cell, s.achse === 'x' ? Math.PI : -Math.PI / 2)
+      }
+    }
     // Zauber- und Gruselwald: Kronen vom Waldrand ragen ein Stueck ins Feld
     if (waldWelt(welt))
       for (let y = ya; y <= yb; y++)
@@ -1266,7 +1335,9 @@ export class Renderer {
     const lauf = k < 1 ? (now / 200) % 1 : -1
     const auf = (this.reduce ? 1 : backOut(clamp01((now - w.t) / 380))) * s
     const ang = DIR_WINKEL[w.dir]
-    if (w.art === 'eisbaer') drawEisbaer(ctx, x, y, cell, ang, lauf, auf, a)
+    if (w.art === 'zwerg') drawZwerg(ctx, x, y, cell, ang, lauf, auf, a, now)
+    else if (w.art === 'golem') drawGolem(ctx, x, y, cell, ang, lauf, auf, a, now)
+    else if (w.art === 'eisbaer') drawEisbaer(ctx, x, y, cell, ang, lauf, auf, a)
     else if (w.art === 'robbe') drawRobbe(ctx, x, y, cell, ang, lauf, auf, a)
     else if (w.art === 'schneemann') drawSchneemann(ctx, x, y, cell, ang, auf, a)
     else drawYeti(ctx, x, y, cell, ang, lauf, auf, a, now)
