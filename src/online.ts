@@ -305,22 +305,51 @@ export async function setzeName(name: string, wechseln = false): Promise<NameErg
   }
 }
 
-/** Beim Start: Account sichern (alten Gast-Account auf den Namen umstellen, nach verlorener Sitzung wieder anmelden, Umbenennungen von anderen Geraeten uebernehmen) */
+/** Antwort des Servers: diese Sitzung gilt nicht (mehr), z. B. weil der Account geloescht wurde */
+const sitzungUngueltig = (e: { status?: number; code?: string } | null) =>
+  !!e && (e.status === 401 || e.status === 403 || ['user_not_found', 'bad_jwt', 'session_not_found', 'session_expired', 'refresh_token_not_found'].includes(e.code ?? ''))
+
+let zuletztGesichert = 0
+/**
+ * Beim Start, wenn das Netz zurueckkommt und wenn die App wieder nach vorn kommt (hoechstens jede Minute):
+ * Account sichern (alten Gast-Account auf den Namen umstellen, nach verlorener Sitzung wieder anmelden, Umbenennungen
+ * von anderen Geraeten uebernehmen) und pruefen, ob das Profil wirklich in der Datenbank steht. Fehlt es (Eintrag ging
+ * verloren, Account geloescht, Sitzung ungueltig), wird es neu angelegt: wer einen Namen hat, steht in der Hall of Snakes.
+ */
 export function kontoSichern() {
-  if (!onlineAktiv || !profil.name) return
+  if (!onlineAktiv || !profil.name || Date.now() - zuletztGesichert < 60_000) return
+  zuletztGesichert = Date.now()
   void nacheinander(async () => {
     try {
-      const { status } = await kontoBereit(profil.umbenennen ? 'umbenennen' : 'sichern')
-      // Frisch angelegt: das Profil muss noch in die Datenbank
-      if (status === 'neu') {
+      const sb = await client()
+      // Die gespeicherte Sitzung beim Server pruefen (getSession glaubt dem Geraet): ungueltig = abmelden, dann neu
+      const { data: s } = await sb.auth.getSession()
+      if (s.session) {
+        const { error } = await sb.auth.getUser()
+        if (sitzungUngueltig(error)) {
+          await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
+          idP = null
+          // Gibt es den Account zum Namen noch? Nein: er wurde geloescht (Admin). Dann nicht heimlich neu anlegen,
+          // sondern den Namen auf dem Geraet vergessen: beim naechsten Start kommt die Namenswahl
+          const u = await anmeldenMitName(sb, profil.name).catch((e) => (e instanceof EinrichtungsFehler ? undefined : Promise.reject(e)))
+          if (u === null && s.session.user.email) {
+            profilVergessen()
+            return
+          }
+        }
+      }
+      const { id, status } = await kontoBereit(profil.umbenennen ? 'umbenennen' : 'sichern')
+      const { data, error } = await sb.from('profile').select('id').eq('id', id).maybeSingle()
+      // Frisch angelegt oder der Eintrag fehlt: das Profil muss (wieder) in die Datenbank
+      if (status === 'neu' || (!error && !data)) {
         profil.offen = true
         speichereProfil()
-        void sende()
       }
     } catch {
-      /* kein Netz oder Name belegt: beim naechsten Start wieder */
+      /* kein Netz oder Name belegt: beim naechsten Mal wieder */
+      zuletztGesichert = 0
     }
-  })
+  }).then(() => void sende())
 }
 
 let sendet = false
@@ -424,7 +453,10 @@ export function abonniere(bei: () => void): () => void {
 if (onlineAktiv) {
   kontoSichern()
   void sende()
-  window.addEventListener('online', () => void sende())
+  window.addEventListener('online', () => {
+    zuletztGesichert = 0
+    kontoSichern()
+  })
 }
 
 /* ================= Freunde, Siege, Koop ================= */
@@ -506,6 +538,11 @@ export async function kontoLoeschen() {
   const { error } = await sb.rpc('konto_loeschen')
   if (error) throw new Error(error.code === 'P0001' ? fehlerText(error) : `${fehlerText(error)} (${error.code ?? '?'}: ${error.message})`)
   await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  profilVergessen()
+}
+
+/** Online-Profil auf dem Geraet leeren (Spielstand und Einstellungen bleiben) */
+function profilVergessen() {
   profil.name = ''
   profil.offen = profil.umbenennen = undefined
   profil.skin = profil.silber = undefined

@@ -30,7 +30,7 @@ import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, adminLoeschen, kontoLoeschen, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, adminLoeschen, kontoLoeschen, kontoSichern, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
@@ -2449,7 +2449,10 @@ document.addEventListener('visibilitychange', () => {
     audio.suspend()
   } else {
     audio.resume()
-    if (profil.name) online?.wieder()
+    if (profil.name) {
+      online?.wieder()
+      kontoSichern()
+    }
   }
 })
 window.addEventListener('blur', pause)
@@ -2477,7 +2480,10 @@ if (nativ) {
       audio.suspend()
     } else {
       audio.resume()
-      if (profil.name) online?.wieder()
+      if (profil.name) {
+        online?.wieder()
+        kontoSichern()
+      }
     }
   })
   void StatusBar.setStyle({ style: Style.Dark }).catch(() => {})

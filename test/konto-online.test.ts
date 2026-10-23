@@ -2,14 +2,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /* Kleines Fake-Supabase: Nutzer mit E-Mail/Passwort, Gaeste, Tabelle "profile" mit eindeutigem Namen */
 type Nutzer = { id: string; email?: string; password?: string; is_anonymous: boolean; unbestaetigt?: boolean }
-const db = { nutzer: [] as Nutzer[], profile: [] as { id: string; name: string; skin?: string; silber?: number }[], n: 0, bestaetigung: false, sitzungVon: '' }
+const db = { nutzer: [] as Nutzer[], profile: [] as { id: string; name: string; skin?: string; silber?: number }[], n: 0, bestaetigung: false, sitzungVon: '', alteSitzung: null as Nutzer | null }
 
 function neuerClient() {
-  let sitzung: Nutzer | null = db.nutzer.find((x) => x.id === db.sitzungVon) ?? null
+  // alteSitzung: im Geraet gespeichert, den Nutzer gibt es auf dem Server vielleicht nicht mehr
+  let sitzung: Nutzer | null = db.nutzer.find((x) => x.id === db.sitzungVon) ?? db.alteSitzung ?? null
   const fehler = (code: string, message = code) => ({ code, message })
   const alsUser = (u: Nutzer) => ({ id: u.id, email: u.email, is_anonymous: u.is_anonymous })
   const auth = {
     getSession: async () => ({ data: { session: sitzung ? { user: alsUser(sitzung) } : null } }),
+    getUser: async () =>
+      sitzung && db.nutzer.includes(sitzung) ? { data: { user: alsUser(sitzung) }, error: null } : { data: { user: null }, error: { ...fehler('user_not_found'), status: 403 } },
+    signOut: async () => {
+      sitzung = null
+      return { error: null }
+    },
     signInAnonymously: async () => {
       const u = { id: `u${++db.n}`, is_anonymous: true }
       db.nutzer.push(u)
@@ -92,7 +99,20 @@ beforeEach(() => {
   db.n = 0
   db.bestaetigung = false
   db.sitzungVon = ''
+  db.alteSitzung = null
 })
+
+/** Das Geraet mit diesem Namen und dieser Sitzung neu starten (Modul neu laden, Start-Pruefung abwarten) */
+async function neustart(name: string, sitzung: Nutzer | null) {
+  const m = await geraet()
+  localStorage.setItem('snake.profil.v1', JSON.stringify({ name }))
+  db.alteSitzung = sitzung
+  vi.resetModules()
+  const neu = await import('../src/online')
+  await new Promise((r) => setTimeout(r, 20))
+  void m
+  return neu
+}
 
 describe('Account aus dem Namen (online)', () => {
   it('neuer Name legt den Account an, auf dem zweiten Geraet ist es derselbe', async () => {
@@ -164,6 +184,27 @@ describe('Account aus dem Namen (online)', () => {
     expect(await b.setzeName('opa')).toBe('zurueck')
     expect(await b.eigeneUid()).toBe('alt')
     void alt
+  })
+
+  it('fehlt das Profil in der Datenbank, legt der Start es wieder an (der Spieler steht wieder in der Hall)', async () => {
+    const a = await geraet()
+    await a.setzeName('Zoe')
+    const nutzer = db.nutzer.find((n) => n.id === db.profile[0].id)!
+    db.profile = []
+    const b = await neustart('Zoe', nutzer)
+    expect(db.profile).toEqual([expect.objectContaining({ id: nutzer.id, name: 'Zoe' })])
+    expect(b.profil.name).toBe('Zoe')
+  })
+
+  it('vom Admin geloescht: der Start legt den Spieler nicht heimlich neu an, das Geraet vergisst den Namen', async () => {
+    const a = await geraet()
+    await a.setzeName('Zoe2')
+    const nutzer = db.nutzer.find((n) => n.id === db.profile[0].id)!
+    db.profile = []
+    db.nutzer = db.nutzer.filter((n) => n !== nutzer)
+    const b = await neustart('Zoe2', nutzer)
+    expect(db.profile).toEqual([])
+    expect(b.profil.name).toBe('')
   })
 
   it('ohne Einrichtung (Bestaetigung an) laeuft es wie bisher als Gast weiter', async () => {
