@@ -1046,6 +1046,17 @@ svg {
   grid-template-columns: repeat(2, 1fr);
 }
 
+/* Welt-Auswahl im Kreativ-Modus (Admin): sieben Welten in zwei Reihen */
+.seg--welten {
+  grid-template-columns: repeat(4, 1fr);
+  border-radius: 22px;
+}
+
+.seg--welten button {
+  min-height: 38px;
+  font-size: 0.8rem;
+}
+
 .seg button:active {
   background: var(--mokka-hoch);
 }

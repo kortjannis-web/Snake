@@ -37,6 +37,12 @@ export type GameOpts = {
    * Kartenraender (verschuettete Ecken, Einkerbungen, zusammen etwa RAND_ANTEIL der Flaeche). Nicht in Sandbox und Tageslevel
    */
   zufallsWelt?: boolean
+  /**
+   * Vulkan: Plattform ueber dem Lava-Abgrund. Bloecke je Richtung VULKAN_PLUS Felder groesser (der Bildschirm bleibt
+   * gleich gross), dazu Krater (etwa KRATER_ANTEIL jedes Blocks), in denen tief unten Lava ist. Kein Maulwurf (keine Erde).
+   * Nicht in der Sandbox und im Tageslevel (dort ist es nur das Aussehen)
+   */
+  vulkan?: boolean
 }
 /** Feld aus einem Schluessel zurueck */
 const ausKey = (k: number): P => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })
@@ -66,6 +72,9 @@ type Sicht = {
 export const BLOCK_PLUS = 1
 /** Endlos: so viel jedes Blocks ist an den Aussenkanten ungefaehr verschuettet (Ecken und Einkerbungen) */
 export const RAND_ANTEIL = 0.027
+/** Vulkan: so viele Felder ist jeder Block je Richtung groesser, und so viel jedes Blocks sind Krater */
+export const VULKAN_PLUS = 2
+export const KRATER_ANTEIL = 0.1
 /** So tief (Felder) reichen Verschuettungen hoechstens in einen Block hinein */
 export const RAND_TIEFE = 4
 /** Zufallswelt: so viele Bloecke weit kann der Ausschnitt der Welt in jede Richtung verschoben sein */
@@ -98,6 +107,10 @@ export class Game {
   extra: P[] = []
   /** Felder innerhalb der Bloecke, die nicht zur Karte gehoeren (abgeschnittene Ecken der Tageslevel) */
   aus: P[] = []
+  /** Vulkan: Krater mitten in den Bloecken (gehoeren nicht zur Karte, tief unten Lava). Bleiben beim Anbauen */
+  krater: P[] = []
+  /** Vulkan-Karte (groessere Bloecke, Krater, Lava-Abgrund statt Erde)? */
+  readonly vulkan: boolean
   /** Wueste: Sandsturm, Flut und Sandwurm an? */
   readonly wueste: boolean
   /** Sandsturm: Sicht schlecht bis `bis` (Spielzeit) */
@@ -119,6 +132,8 @@ export class Game {
   protected startBloecke = new Set<number>()
   /** Zufall fuer die Form der Kartenraender (eigener Generator, damit der Spielablauf gleich bleibt); null = gerade Raender */
   protected readonly formZufall: Rng | null
+  /** Zufall fuer die Krater (Vulkan), eigener Generator wie formZufall */
+  protected readonly kraterZufall: Rng
   /** Freigelegte Lavafelder, die noch nicht ausbrechen konnten (etwas liegt darauf oder der Kopf ist zu nah) */
   lavaOffen: P[] = []
   /** Offene Gebiets-Wahl: die Waende leuchten, beruehren baut dort einen Block an */
@@ -214,25 +229,30 @@ export class Game {
     this.kreativ = o.kreativ ?? null
     this.tempo = o.tempo ?? 'normal'
     this.wueste = !!o.wueste
+    this.vulkan = !!o.vulkan && !o.sandbox
     this.r = rng(o.seed)
     this.lavaSalz = 11 + 3 * ((o.seed ?? Math.floor(Math.random() * 2 ** 31)) % 100_000)
     const zw = !!o.zufallsWelt && !o.sandbox
     this.formZufall = zw ? rng(o.seed === undefined ? undefined : (o.seed ^ 0x5bd1e995) >>> 0) : null
+    this.kraterZufall = rng(o.seed === undefined ? undefined : (o.seed ^ 0x27d4eb2f) >>> 0)
     // Block = halber Bildschirm, am Handy (hochkant) uebereinander, quer nebeneinander.
     // Jeder Block hat je Richtung BLOCK_PLUS Felder mehr: die Karte ist etwas groesser als ein Bildschirm
+    // Vulkan: Bloecke noch je VULKAN_PLUS Felder groesser, der Bildschirm bleibt so gross wie sonst
+    const plus = BLOCK_PLUS + (this.vulkan ? VULKAN_PLUS : 0)
     if (o.screenH >= o.screenW) {
-      this.bw = o.screenW + BLOCK_PLUS
-      this.bh = Math.max(4, Math.floor(o.screenH / 2)) + BLOCK_PLUS
+      this.bw = o.screenW + plus
+      this.bh = Math.max(4, Math.floor(o.screenH / 2)) + plus
       this.blocks = [{ x: 0, y: 0 }, { x: 0, y: 1 }]
     } else {
-      this.bh = o.screenH + BLOCK_PLUS
-      this.bw = Math.max(4, Math.floor(o.screenW / 2)) + BLOCK_PLUS
+      this.bh = o.screenH + plus
+      this.bw = Math.max(4, Math.floor(o.screenW / 2)) + plus
       this.blocks = [{ x: 0, y: 0 }, { x: 1, y: 0 }]
     }
     this.baueMaske()
-    // Ein Bildschirm = die zwei Startbloecke
-    this.screenW = this.w
-    this.screenH = this.h
+    // Ein Bildschirm = die zwei Startbloecke (ohne die Vulkan-Vergroesserung)
+    const mehr = plus - BLOCK_PLUS
+    this.screenW = this.w - (o.screenH >= o.screenW ? mehr : 2 * mehr)
+    this.screenH = this.h - (o.screenH >= o.screenW ? 2 * mehr : mehr)
     const sb = o.sandbox ?? null
     if (sb) {
       // Sandbox: rechteckige Karte aus breite x hoehe Bloecken
@@ -266,6 +286,10 @@ export class Game {
     this.apple = { p: { x: Math.min(this.w - 2, x + 5), y }, t: 0 }
     if (this.formZufall) {
       for (const b of this.blocks) this.randFormen(b)
+      this.baueMaske()
+    }
+    if (this.vulkan) {
+      for (const b of this.blocks) this.kraterFormen(b)
       this.baueMaske()
     }
 
@@ -502,12 +526,12 @@ export class Game {
     // Schild = ein Leben mehr: faengt den Aufprall ab, kurz danach gleitet die Schlange hindurch.
     // Am Kartenrand geht das nicht: dort bleibt sie stehen, bis man abbiegt
     if (cause && (!k || k.tod === 'an')) {
-      if (cause === 'rand' && this.halt) {
+      if ((cause === 'rand' || cause === 'abgrund') && this.halt) {
         this.prev = this.body.map((p) => ({ ...p }))
         return
       }
       if (this.schildBrechen()) {
-        if (cause === 'rand') {
+        if (cause === 'rand' || cause === 'abgrund') {
           this.halt = true
           this.prev = this.body.map((p) => ({ ...p }))
           this.emit({ type: 'halt' })
@@ -743,7 +767,7 @@ export class Game {
 
   /** Was liegt auf diesem Feld (fuer den Kopf)? */
   gefahr(n: P, rest: P[] = this.body): Cause | null {
-    if (!this.inside(n)) return 'rand'
+    if (!this.inside(n)) return this.vulkan ? 'abgrund' : 'rand'
     if (this.geist()) return null
     if (this.flut?.phase === 'aktiv' && this.flut.zellen.has(key(n.x, n.y))) return 'flut'
     if (this.mauern.some((m) => m.cells.slice(0, m.grown).some((p) => same(p, n)))) return 'mauer'
@@ -957,7 +981,7 @@ export class Game {
     const tiere = this.aktiveFroesche.length + this.ameisen.length + this.gegner.length > 0
     const c = this.cfg
     const arten = R.POWER_ARTEN.filter(
-      (a) => (a !== 'maulwurf' || this.level >= c.maulwurfAb) && (a !== 'goldschere' || this.level >= c.goldSchereAb) && (a !== 'fuettern' || tiere),
+      (a) => (a !== 'maulwurf' || (this.level >= c.maulwurfAb && !this.vulkan)) && (a !== 'goldschere' || this.level >= c.goldSchereAb) && (a !== 'fuettern' || tiere),
     )
     let z = this.r.next() * arten.reduce((s, a) => s + R.POWER_GEWICHT[a], 0)
     for (const a of arten) {
@@ -1137,7 +1161,7 @@ export class Game {
   /* ================= Karte aus Bloecken ================= */
 
   felder() {
-    return this.blocks.length * this.bw * this.bh + this.extra.length - this.aus.length
+    return this.blocks.length * this.bw * this.bh + this.extra.length - this.aus.length - this.krater.length
   }
 
   protected baueMaske() {
@@ -1148,6 +1172,7 @@ export class Game {
       for (let y = 0; y < this.bh; y++) this.mask.fill(1, (b.y * this.bh + y) * this.w + b.x * this.bw, (b.y * this.bh + y) * this.w + (b.x + 1) * this.bw)
     for (const c of this.extra) this.mask[c.y * this.w + c.x] = 1
     for (const c of this.aus) if (c.x >= 0 && c.y >= 0 && c.x < this.w && c.y < this.h) this.mask[c.y * this.w + c.x] = 0
+    for (const c of this.krater) if (c.x >= 0 && c.y >= 0 && c.x < this.w && c.y < this.h) this.mask[c.y * this.w + c.x] = 0
   }
 
   /** Weltkoordinaten eines Kartenfelds (bleiben gleich, auch wenn die Karte verschoben wird) */
@@ -1196,6 +1221,10 @@ export class Game {
       this.randFormen(p)
       this.baueMaske()
     }
+    if (this.vulkan) {
+      this.kraterFormen(p)
+      this.baueMaske()
+    }
     const neu = [...vorher.filter((c) => this.inside(c)), ...wieder]
     this.erzeFrei(neu)
     this.lavaFrei(neu)
@@ -1207,6 +1236,8 @@ export class Game {
 
   /** Leuchtende Wand beruehrt: Block in Laufrichtung anbauen. Gibt das Zielfeld (ggf. verschoben) zurueck */
   protected wahlAn(n: P): P | null {
+    // In einen Krater fahren baut nichts an
+    if (this.krater.some((c) => same(c, n))) return null
     let b = { x: Math.floor(n.x / this.bw), y: Math.floor(n.y / this.bh) }
     // Verschuetteter Rand: die leuchtende Wand liegt an der Blockkante dahinter. Ist sie nah genug, zaehlt das Beruehren
     if (this.blocks.some((o) => same(o, b))) {
@@ -1442,6 +1473,55 @@ export class Game {
     return frei
   }
 
+  /**
+   * Vulkan: Krater in Block b, bis etwa KRATER_ANTEIL seiner Felder fehlen. Runde Loecher (etwa 5 bis 20 Felder), mindestens
+   * 2 Felder von der Blockkante und 2 von anderen Kratern weg (dazwischen bleibt immer ein Weg), nie auf Belegtem oder
+   * nah am Kopf, und die Karte bleibt zusammenhaengend.
+   */
+  protected kraterFormen(b: P) {
+    const z = this.kraterZufall
+    const x0 = b.x * this.bw
+    const y0 = b.y * this.bh
+    const ziel = Math.round(this.bw * this.bh * KRATER_ANTEIL)
+    const kopf = this.body[0]
+    const tabu = this.hindernisse()
+    for (const c of [this.apple.p, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.gift.map((g) => g.p), ...this.lavaOffen]) tabu.add(key(c.x, c.y))
+    const nahKrater = new Set<number>()
+    const merke = (c: P) => {
+      for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) nahKrater.add(key(c.x + i, c.y + j))
+    }
+    this.krater.forEach(merke)
+    const frei = (c: P) =>
+      c.x >= x0 + 2 && c.y >= y0 + 2 && c.x < x0 + this.bw - 2 && c.y < y0 + this.bh - 2 &&
+      this.inside(c) && !tabu.has(key(c.x, c.y)) && !nahKrater.has(key(c.x, c.y)) && !this.aufSchlange(c) && (!kopf || cheb(c, kopf) > 3)
+    let weg = 0
+    for (let versuch = 0; versuch < 60 && weg < ziel; versuch++) {
+      // Groesse: meist mittel (etwa 5 Felder), oft gross (etwa 12), selten sehr gross; zu kleine sehen nicht tief aus
+      const w = z.next()
+      const r = w < 0.55 ? 1.3 : w < 0.9 ? 1.9 : 2.4
+      const mx = x0 + 2 + z.next() * (this.bw - 4)
+      const my = y0 + 2 + z.next() * (this.bh - 4)
+      const sx = 0.8 + z.next() * 0.5
+      const form: P[] = []
+      for (let y = Math.floor(my - r - 1); y <= Math.ceil(my + r + 1); y++)
+        for (let x = Math.floor(mx - r - 1); x <= Math.ceil(mx + r + 1); x++) {
+          const dx = (x + 0.5 - mx) / (r * sx)
+          const dy = (y + 0.5 - my) / (r / sx)
+          if (dx * dx + dy * dy <= 1) form.push({ x, y })
+        }
+      if (!form.length) form.push({ x: Math.floor(mx), y: Math.floor(my) })
+      if (weg + form.length > ziel + 4 || !form.every(frei)) continue
+      for (const c of form) this.mask[c.y * this.w + c.x] = 0
+      if (!this.zusammenhaengend()) {
+        for (const c of form) this.mask[c.y * this.w + c.x] = 1
+        continue
+      }
+      this.krater.push(...form)
+      form.forEach(merke)
+      weg += form.length
+    }
+  }
+
   /** Haengt die ganze Karte zusammen? (Breitensuche ueber die Maske) */
   protected zusammenhaengend() {
     const { w, h, mask } = this
@@ -1500,6 +1580,7 @@ export class Game {
     mv(this.ursprung)
     this.extra.forEach(mv)
     this.aus.forEach(mv)
+    this.krater.forEach(mv)
     this.lavaOffen.forEach(mv)
     this.funde.forEach((f) => mv(f.p))
     this.tunnel.forEach(mv)

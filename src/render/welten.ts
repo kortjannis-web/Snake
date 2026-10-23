@@ -6,9 +6,13 @@ import type { P } from '../game/types'
 import { drawBaumStehend, drawBaumStehendSchnee, type BaumArt } from './baeume'
 import { drawMeer, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
 import { drawSchlange, type Skin } from './skins'
-import { apfelFarben, drawAmeise, drawApfel, drawFalle, drawFrosch, drawStein, FROSCH_WUESTE, rund } from './sprites'
+import { abgrundKachel, drawAbgrund, drawVulkanStimmung, type AbgrundKachel } from './vulkan'
+import { apfelFarben, drawAmeise, drawApfel, drawFalle, drawFrosch, drawStein, FROSCH_WUESTE, rund, type FroschFarben } from './sprites'
 
-export type WeltId = 'wiese' | 'winter' | 'wueste' | 'bergwerk' | 'zauberwald' | 'gruselwald'
+/** Feuersalamander: schwarz mit leuchtend oranger Zeichnung */
+const FROSCH_SALAMANDER: FroschFarben = { hell: '#3A302C', mittel: '#2A211E', dunkel: '#140E0C', glanz: '#FFB347', flecken: 'rgba(255, 140, 30, 0.9)', mund: 'rgba(255, 90, 20, 0.75)' }
+
+export type WeltId = 'wiese' | 'winter' | 'wueste' | 'bergwerk' | 'zauberwald' | 'gruselwald' | 'vulkan'
 type RGB = readonly [number, number, number]
 
 export type Welt = {
@@ -28,11 +32,11 @@ export type Welt = {
   /** Winter: verschneite Tannen */
   schnee?: boolean
   wasser: WasserArt[]
-  futter: 'apfel' | 'geschenk' | 'kaktusfeige' | 'kristall' | 'beere' | 'kuerbis'
-  falle: 'baer' | 'schneeloch' | 'skorpion' | 'tnt' | 'fliegenfalle' | 'knochenhand'
-  frosch: 'frosch' | 'pinguin' | 'springmaus' | 'fledermaus' | 'leuchtfrosch' | 'kroete'
+  futter: 'apfel' | 'geschenk' | 'kaktusfeige' | 'kristall' | 'beere' | 'kuerbis' | 'glutfrucht'
+  falle: 'baer' | 'schneeloch' | 'skorpion' | 'tnt' | 'fliegenfalle' | 'knochenhand' | 'dampfspalte'
+  frosch: 'frosch' | 'pinguin' | 'springmaus' | 'fledermaus' | 'leuchtfrosch' | 'kroete' | 'salamander'
   ameise: 'ameise' | 'eiskaefer' | 'feuerameise' | 'hoehlenspinne' | 'gluehkaefer' | 'spinne'
-  mauer: 'stein' | 'schneestein' | 'sandstein' | 'fels' | 'moosstein' | 'grabstein'
+  mauer: 'stein' | 'schneestein' | 'sandstein' | 'fels' | 'moosstein' | 'grabstein' | 'basalt'
   /** Dunkelheit 0..1 (mit Lichtern um Schlange, Fackeln, Lava, Leuchtendes) und ihre Farbe */
   finster: number
   nacht: RGB
@@ -161,13 +165,36 @@ export const WELTEN: Welt[] = [
     finster: 0.3,
     nacht: [20, 6, 30],
   },
+  {
+    id: 'vulkan',
+    name: 'Vulkan',
+    ab: 240,
+    text: 'Eine Plattform über dem Lava-Abgrund: kein Rand, nur Tiefe, Krater überall und Lava, die hochsprudelt. Feuerfrüchte, Salamander, Dampfspalten und Basalt.',
+    hell: '#5B4F48',
+    dunkel: '#52463F',
+    neu: '#6A5C54',
+    kante: 'rgba(0, 0, 0, 0)',
+    // Unter dem Abgrund: Bodenfarbe (der Abgrund wird weich hochskaliert, sonst schimmert am Rand ein dunkler Strich durch)
+    erde: { nah: [86, 74, 67], mitte: [86, 74, 67], tief: [86, 74, 67], kruemelNah: 'rgba(0, 0, 0, 0)', kruemel: 'rgba(0, 0, 0, 0)', grund: '#564A43' },
+    baeume: ['totbaum'],
+    wasser: ['schwefel'],
+    futter: 'glutfrucht',
+    falle: 'dampfspalte',
+    frosch: 'salamander',
+    ameise: 'feuerameise',
+    mauer: 'basalt',
+    finster: 0,
+    nacht: [0, 0, 0],
+  },
 ]
 /** Waelder mit dichten Baumkronen statt Erde (Zauberwald, Gruselwald) */
 export const waldWelt = (w: Welt) => w.id === 'gruselwald' || w.id === 'zauberwald'
 /** Die Wueste ist eine Insel: rund um die Karte ist Wasser statt Erde */
 export const inselWelt = (w: Welt) => w.id === 'wueste'
+/** Der Vulkan: rund um die Karte (und in den Kratern) ist der Lava-Abgrund statt Erde */
+export const vulkanWelt = (w: Welt) => w.id === 'vulkan'
 /** Welten, in denen rund um die Karte keine Erde mit Steinen, Kohle und Gesteinsschichten ist */
-export const ohneErde = (w: Welt) => waldWelt(w) || inselWelt(w)
+export const ohneErde = (w: Welt) => waldWelt(w) || inselWelt(w) || vulkanWelt(w)
 export const weltVon = (id: string | undefined) => WELTEN.find((w) => w.id === id) ?? WELTEN[0]
 /** Wer in einer Welt Level 100 erreicht, schaltet die naechste frei (Reihenfolge wie WELTEN) */
 export const WELT_STUFE = 100
@@ -193,8 +220,8 @@ export function drawErdFeldWelt(ctx: CanvasRenderingContext2D, w: Welt, x: numbe
   const v = (z - 0.5) * 10
   ctx.fillStyle = `rgb(${basis[0] + v},${basis[1] + v * 0.7},${basis[2] + v * 0.5})`
   ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
-  // Insel: das Meer zeichnet der Renderer darueber (weiche Kueste, Wellen), hier nur die Grundfarbe
-  if (inselWelt(w)) return
+  // Insel und Vulkan: Meer bzw. Abgrund zeichnet der Renderer darueber, hier nur die Grundfarbe
+  if (inselWelt(w) || vulkanWelt(w)) return
   if (waldWelt(w)) {
     // Dichter Wald: Baumkronen, die ueber die Feldgrenzen ragen, mit Licht von oben links
     const art = w.id === 'zauberwald' ? 'zauber' : 'grusel'
@@ -359,6 +386,46 @@ export function drawFutter(ctx: CanvasRenderingContext2D, w: Welt, x: number, y:
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
   switch (w.futter) {
+    case 'glutfrucht': {
+      // Feuerfrucht in Wertfarbe: glühender Kern, dunkle Krustenschuppen mit Glutfugen, kleine Flamme als Stiel
+      const g = ctx.createRadialGradient(x - r * 0.25, y - r * 0.3, r * 0.1, x, y, r * 1.05)
+      g.addColorStop(0, '#FFF1B0')
+      g.addColorStop(0.35, hell)
+      g.addColorStop(0.75, mitte)
+      g.addColorStop(1, tief)
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.ellipse(x, y + r * 0.05, r * 0.86, r * 0.92, 0, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(40, 18, 14, 0.78)'
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU + 0.4
+        const cx = x + Math.cos(a) * r * 0.5
+        const cy = y + r * 0.05 + Math.sin(a) * r * 0.55
+        ctx.beginPath()
+        for (let j = 0; j < 5; j++) {
+          const b = a + (j / 5) * TAU
+          ctx.lineTo(cx + Math.cos(b) * r * 0.24, cy + Math.sin(b) * r * 0.2)
+        }
+        ctx.fill()
+      }
+      const fl = 0.85 + 0.15 * Math.sin(now / 70) + 0.08 * Math.sin(now / 41)
+      ctx.fillStyle = '#FF8A2A'
+      ctx.beginPath()
+      ctx.moveTo(x, y - r * (0.85 + 0.55 * fl))
+      ctx.quadraticCurveTo(x + r * 0.28, y - r * 0.95, x + r * 0.05, y - r * 0.78)
+      ctx.quadraticCurveTo(x - r * 0.3, y - r * 0.92, x, y - r * (0.85 + 0.55 * fl))
+      ctx.fill()
+      ctx.fillStyle = '#FFE08A'
+      ctx.beginPath()
+      ctx.ellipse(x, y - r * 0.92, r * 0.07, r * 0.16 * fl, 0, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'
+      ctx.beginPath()
+      ctx.ellipse(x - r * 0.35, y - r * 0.3, r * 0.1, r * 0.2, -0.5, 0, TAU)
+      ctx.fill()
+      break
+    }
     case 'geschenk': {
       // Paket in Wertfarbe mit goldenem Band und Schleife
       const g = ctx.createLinearGradient(x - r, y - r, x + r, y + r)
@@ -558,6 +625,46 @@ export function drawFalleWelt(ctx: CanvasRenderingContext2D, w: Welt, x: number,
     ctx.fill()
   }
   switch (w.falle) {
+    case 'dampfspalte': {
+      // Spalte im Basalt, darin Glut; Dampf steigt. Zuschnappen: die Spalte bricht auf, Lava spritzt hoch
+      ctx.fillStyle = '#2A1C18'
+      ctx.beginPath()
+      for (let i = 0; i <= 10; i++) {
+        const a = (i / 10) * TAU
+        const rr = (0.62 + (hash(i * 5) - 0.5) * 0.2) * (1 + zu * 0.15)
+        ctx.lineTo(Math.cos(a) * R * rr, Math.sin(a) * R * rr * 0.75)
+      }
+      ctx.fill()
+      const p = 0.6 + 0.4 * Math.sin(now / 260)
+      ctx.strokeStyle = `rgba(255, ${120 + Math.round(60 * zu)}, 40, ${0.65 + 0.35 * Math.max(p, zu)})`
+      ctx.lineWidth = R * (0.12 + zu * 0.12)
+      ctx.beginPath()
+      ctx.moveTo(-R * 0.45, -R * 0.1)
+      ctx.lineTo(-R * 0.12, R * 0.08)
+      ctx.lineTo(R * 0.15, -R * 0.12)
+      ctx.lineTo(R * 0.45, R * 0.1)
+      ctx.stroke()
+      if (zu > 0) {
+        ctx.fillStyle = `rgba(255, 170, 60, ${1 - zu * 0.6})`
+        for (let i = 0; i < 7; i++) {
+          const a = hash(i * 3) * TAU
+          const d = zu * R * (0.5 + hash(i) * 0.5)
+          ctx.beginPath()
+          ctx.arc(Math.cos(a) * d, Math.sin(a) * d * 0.7 - zu * R * 0.5, R * 0.1, 0, TAU)
+          ctx.fill()
+        }
+      } else {
+        // Dampfwoelkchen steigen auf
+        for (let i = 0; i < 3; i++) {
+          const z = (now / 1400 + i / 3) % 1
+          ctx.fillStyle = `rgba(230, 225, 220, ${0.35 * (1 - z)})`
+          ctx.beginPath()
+          ctx.arc((hash(i + 2) - 0.5) * R * 0.5 + Math.sin(z * 5 + i) * R * 0.1, -z * R * 1.1, R * (0.15 + z * 0.25), 0, TAU)
+          ctx.fill()
+        }
+      }
+      break
+    }
     case 'schneeloch': {
       // Dunkles Loch mit Schneerand und Eiszapfen; beim Zuschnappen bricht der Rand ein
       ctx.fillStyle = '#0E1A2A'
@@ -812,6 +919,14 @@ export function drawFroschWelt(ctx: CanvasRenderingContext2D, w: Welt, x: number
   ctx.ellipse(x, y + cell * 0.12, u * 0.8 * (1 - hoch * 0.3), u * 0.42 * (1 - hoch * 0.3), 0, 0, TAU)
   ctx.fill()
   ctx.translate(x, y - hoch * cell * 0.35)
+  if (w.frosch === 'salamander') {
+    const p = 0.5 + 0.5 * Math.sin(now / 330)
+    ctx.globalAlpha *= 0.35 + 0.15 * p
+    ctx.drawImage(stempelVon('glut', [[0, 'rgba(255, 140, 40, 1)'], [1, 'rgba(255, 90, 20, 0)']]), -cell * 0.8, -cell * 0.8, cell * 1.6, cell * 1.6)
+    ctx.restore()
+    drawFrosch(ctx, x, y, cell, ang, anlauf, flug, s, a, FROSCH_SALAMANDER)
+    return
+  }
   if (w.frosch === 'leuchtfrosch') {
     const p = 0.5 + 0.5 * Math.sin(now / 400)
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, cell * 0.9)
@@ -1134,6 +1249,35 @@ export function drawMauerWelt(ctx: CanvasRenderingContext2D, w: Welt, x: number,
   rund(ctx, ox, oy + cell * 0.1, sz, sz, r)
   ctx.fill()
   switch (w.mauer) {
+    case 'basalt': {
+      const mx = ox + sz / 2
+      const my = oy + sz / 2
+      const sechs = (rr: number, dy = 0) => {
+        ctx.beginPath()
+        for (let i = 0; i < 6; i++) ctx.lineTo(mx + Math.cos((i / 6) * TAU + 0.52) * rr, my + dy + Math.sin((i / 6) * TAU + 0.52) * rr * 0.92)
+        ctx.closePath()
+      }
+      ctx.fillStyle = '#2A2422'
+      sechs(sz * 0.54, sz * 0.06)
+      ctx.fill()
+      ctx.fillStyle = '#4A413D'
+      sechs(sz * 0.5)
+      ctx.fill()
+      ctx.fillStyle = '#5E544F'
+      sechs(sz * 0.32, -sz * 0.04)
+      ctx.fill()
+      if (z > 0.55) {
+        ctx.strokeStyle = 'rgba(255, 120, 40, 0.85)'
+        ctx.lineWidth = Math.max(1, cell * 0.04)
+        ctx.beginPath()
+        ctx.moveTo(mx - sz * 0.3, my - sz * 0.05)
+        ctx.lineTo(mx - sz * 0.05, my + sz * 0.08)
+        ctx.lineTo(mx + sz * 0.12, my - sz * 0.02)
+        ctx.lineTo(mx + sz * 0.3, my + sz * 0.15)
+        ctx.stroke()
+      }
+      break
+    }
     case 'schneestein':
       ctx.fillStyle = '#6E7C8A'
       rund(ctx, ox, oy, sz, sz, r)
@@ -1246,7 +1390,7 @@ export function hausUeberzug(ctx: CanvasRenderingContext2D, w: Welt, cells: P[],
       ctx.fill()
     } else {
       ctx.fillStyle =
-        w.id === 'wueste' ? 'rgba(230, 180, 110, 0.3)' : w.id === 'bergwerk' ? 'rgba(60, 50, 45, 0.35)' : w.id === 'zauberwald' ? 'rgba(90, 40, 150, 0.3)' : 'rgba(25, 20, 35, 0.45)'
+        w.id === 'wueste' ? 'rgba(230, 180, 110, 0.3)' : w.id === 'bergwerk' ? 'rgba(60, 50, 45, 0.35)' : w.id === 'zauberwald' ? 'rgba(90, 40, 150, 0.3)' : w.id === 'vulkan' ? 'rgba(60, 22, 14, 0.35)' : 'rgba(25, 20, 35, 0.45)'
       ctx.fillRect(x, y, cell, cell)
     }
   }
@@ -1471,6 +1615,8 @@ export function drawStimmung(ctx: CanvasRenderingContext2D, w: Welt, vw: number,
         ctx.stroke()
       }
     }
+  } else if (w.id === 'vulkan') {
+    drawVulkanStimmung(ctx, vw, vh, now, ox, oy)
   } else if (w.id === 'bergwerk') {
     ctx.fillStyle = 'rgba(255, 230, 190, 0.35)'
     for (let i = 0; i < 30; i++) {
@@ -1531,6 +1677,7 @@ export function drawFackel(ctx: CanvasRenderingContext2D, x: number, y: number, 
 
 /** Meer fuer die Vorschau der Insel (je Groesse einmal berechnet) */
 const vorschauMeer = new Map<string, MeerKachel>()
+const vorschauAbgrund = new Map<string, AbgrundKachel>()
 
 /** Kleines Vorschaubild einer Welt (fuer die Auswahl im Aussehen): Brett, Erde, ein Baum, Futter, Schlange */
 export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite: number, hoehe: number, now: number, skin: Skin) {
@@ -1554,6 +1701,16 @@ export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite:
       vorschauMeer.set(k, m)
     }
     drawMeer(ctx, m, cell, now)
+  }
+  // Vulkan: Abgrund mit Lava auch in der Vorschau
+  if (vulkanWelt(w)) {
+    const k = `${cols}|${cell}`
+    let m = vorschauAbgrund.get(k)
+    if (!m) {
+      m = abgrundKachel((x, y) => x >= 1 && y >= 1, 0, 0, cols + 1, 16, { x: 0, y: 0 })!
+      vorschauAbgrund.set(k, m)
+    }
+    drawAbgrund(ctx, m, cell, now)
   }
   ctx.fillStyle = w.kante
   ctx.fillRect(cell, cell, cols * cell, Math.max(2, cell * 0.1))

@@ -72,10 +72,12 @@ const kurzZahl = (n: number) => {
   const k = (v: number) => v.toFixed(v < 100 ? 1 : 0).replace(/\.0$/, '').replace('.', ',')
   return n < 10_000 ? n.toLocaleString('de-DE') : n < 1_000_000 ? `${k(n / 1000)}k` : `${k(n / 1_000_000)} Mio.`
 }
+/** Darf diese Welt gespielt werden? Freigeschaltet, oder im Admin-Zugang jede */
+const weltOffen = (w: Welt) => master.frei || weltFrei(w, wallet.welten ?? [])
 /** Gewaehlte Welt, wenn sie (noch) freigeschaltet ist, sonst die Wiese */
 const aktiveWelt = (): Welt => {
   const w = weltVon(wallet.welt)
-  return weltFrei(w, wallet.welten ?? []) ? w : WELTEN[0]
+  return weltOffen(w) ? w : WELTEN[0]
 }
 renderer.welt = aktiveWelt()
 
@@ -160,7 +162,8 @@ function setMode(m: Mode) {
 
 function openPage(p: Page) {
   audio.click()
-  if (pages.includes(p) || (p === 'master' && !master.frei)) return
+  // Admin-Seite und Kreativ-Modus nur im Admin-Zugang
+  if (pages.includes(p) || ((p === 'master' || p === 'kreativ') && !master.frei)) return
   pages.push(p)
   if (p === 'help') renderHelp()
   if (p === 'stats') renderStats()
@@ -235,6 +238,7 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       // Zufaellige Reihenfolge der Gefahren (nicht im Kreativ-Modus: dort soll der Aufbau planbar sein)
       cfg: !istKreativ && settings.zufall ? zufallsReihenfolge(config) : { ...config },
       wueste: renderer.welt.id === 'wueste',
+      vulkan: renderer.welt.id === 'vulkan',
       startLevel: istKreativ ? start : startLevel,
       kreativ: istKreativ ? { ...k } : null,
       sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
@@ -1396,7 +1400,7 @@ function renderShop() {
   // Welten: breiter Knopf mit der aktuellen Welt
   const b = document.createElement('button')
   b.className = 'aussehen__kachel aussehen__kachel--breit'
-  const frei = WELTEN.filter((w) => weltFrei(w, wallet.welten ?? [])).length
+  const frei = WELTEN.filter(weltOffen).length
   b.append(weltVorschauCanvas(renderer.welt))
   const t = document.createElement('b')
   t.textContent = 'Welten'
@@ -1604,7 +1608,7 @@ function renderTeil() {
     p.textContent = `Erreichst du in einer Welt Level ${WELT_STUFE}, geht die nächste auf. Jede Welt hat eigene Belohnungen: bei Level 100 ein Skin, bei 150 ein Accessoire, bei 200 ein epischer Skin mit Spur.`
     kopf.append(p)
     for (const w of WELTEN) {
-      const frei = weltFrei(w, wallet.welten ?? [])
+      const frei = weltOffen(w)
       const an = renderer.welt.id === w.id
       const card = document.createElement('button')
       card.className = 'skin welt'
@@ -1621,11 +1625,10 @@ function renderTeil() {
       const lohn = document.createElement('span')
       lohn.className = 'welt__lohn'
       const best = stats.weltBest?.[w.id] ?? 0
-      lohn.textContent =
-        `Rekord hier: ${best || '–'} · ` +
-        WELT_LOHN.filter((l) => l.welt === w.id)
-          .map((l) => `${l.level}: ${nameVon(l.id)}${hatSkin(wallet.skins, l.id) ? ' ✓' : ''}`)
-          .join(' · ')
+      lohn.textContent = [
+        `Rekord hier: ${best || '–'}`,
+        ...WELT_LOHN.filter((l) => l.welt === w.id).map((l) => `${l.level}: ${nameVon(l.id)}${hatSkin(wallet.skins, l.id) ? ' ✓' : ''}`),
+      ].join(' · ')
       text.append(lohn)
       const st = document.createElement('span')
       st.className = 'skin__preis'
@@ -1800,6 +1803,7 @@ function toastsClear() {
 
 function updateHome() {
   modusZeichnen()
+  $('btn-kreativ-home').hidden = !master.frei
   $('home-best').textContent = stats.best ? `Heute: ${heuteBest() || '–'} · Rekord: ${stats.best}` : 'Iss Äpfel, die Karte wächst mit.'
   updateGeld()
   const cv = $<HTMLCanvasElement>('home-apple')
@@ -1941,6 +1945,27 @@ function renderKreativ() {
   if (lv && game) {
     $('k-level').textContent = String(game.level)
     kInput('k-ziel').value = String(game.level)
+  }
+  // Welt: jede (Admin). Im laufenden Kreativ-Spiel startet die Runde in der neuen Welt neu
+  const wb = $('k-welt')
+  wb.replaceChildren()
+  for (const w of WELTEN) {
+    const b = document.createElement('button')
+    b.setAttribute('role', 'radio')
+    b.setAttribute('aria-checked', String(renderer.welt.id === w.id))
+    b.textContent = w.name
+    b.addEventListener('click', () => {
+      if (renderer.welt.id === w.id) return
+      audio.click()
+      wallet.welt = w.id
+      saveWallet()
+      renderer.welt = w
+      if (live()) {
+        closeAllPages()
+        newGame(true)
+      } else renderKreativ()
+    })
+    wb.append(b)
   }
 }
 
@@ -2164,6 +2189,9 @@ $('btn-admin').addEventListener('click', async () => {
       alert('Falsches Passwort.')
       return
     }
+    // Ab jetzt: Kreativ-Modus und alle Welten
+    $('btn-kreativ-home').hidden = false
+    renderer.welt = aktiveWelt()
   }
   openPage('master')
   void adminListe()
