@@ -3,7 +3,9 @@
  * kann groesser als der Bildschirm werden), neue Gebiete klappen Feld fuer
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
-import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, FLIEGT, GEGNER_WEG, GESCHOSS_TAKT, key, WESEN_TAKT, WESEN_WEG, type Game } from '../game/game'
+import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, FLIEGT, GEGNER_WEG, GESCHOSS_TAKT, key, STROM_KALT, WESEN_TAKT, WESEN_WEG, type Game } from '../game/game'
+import { drawAbbruchLoch, drawAbbruchWarnung, drawBruecke, drawFischWarnung, drawGlut, drawGlutFleck, drawGlutgolem, drawGlutZiel, drawLavabombeFlug, drawLavafisch, drawLavastrom, drawMeteorFall, drawObsidian } from './glut'
+import { drawBienen, drawBienenstock, drawGeier, drawGeierKreis, drawHuegel, drawHuegelWarnung, drawIgel, drawKamel, drawKarawaneWarnung, drawKlapperschlange } from './tiere'
 import { drawEinhorn, drawEnt, drawFee, drawGespenst, drawIrrlichtSchein, drawKraehe, drawKraehenschwarm, drawPilzring, drawRanke, drawRegenbogen, drawRiesenspinne, drawSkelett, drawSpiegelfluch, drawSporen, drawVollmond, drawWanderbaum, drawWerwolf, drawZombiehand } from './waelder'
 import { drawFledermaeuse, drawFledermausWarnung, drawGolem, drawLore, drawLoreAbgestellt, drawLoreWarnung, drawNetz, drawSchieneFeld, drawSpalt, drawSteinWarnung, drawStollenBoden, drawStolleneingang, drawTnt, drawZwerg } from './bergwerk'
 import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapfenSchatten, drawIglu, drawNordlicht, drawRobbe, drawSchneeball, drawSchneemann, drawSchneesturm, drawYeti } from './winter'
@@ -422,17 +424,33 @@ export class Renderer {
     } else if ((e.type === 'einschlag' || e.type === 'platsch') && !this.reduce) {
       // Eis splittert bzw. Schnee spritzt
       const gross = e.type === 'einschlag'
-      const n = gross ? (e.type === 'einschlag' && e.art === 'zombiehand' ? 12 : 22) : 10
+      const art = e.type === 'einschlag' ? e.art : null
+      const klein = art === 'zombiehand' || art === 'huegel' || art === 'geier'
+      const n = gross ? (klein ? 12 : 22) : 10
+      // Farben je Art: Eiszapfen splittern weiss-blau (2 x 2), alles andere trifft ein Feld
+      const farben =
+        art === 'zombiehand' || art === 'huegel'
+          ? ['#4A3A2A', '#7A6A50', '#4A3A2A']
+          : art === 'stein'
+            ? ['#8A827C', '#C8BFB5', '#8A827C']
+            : art === 'lavabombe' || art === 'meteor'
+              ? ['#FF8A2A', '#FFE08A', '#3A2A24']
+              : art === 'abbruch'
+                ? ['#564A43', '#FF7A1A', '#3A302C']
+                : art === 'geier'
+                  ? ['#3A2A20', '#F0E6D8', '#3A2A20']
+                  : ['#FFFFFF', '#FFFFFF', '#BFE3F5']
+      const mitte = gross && art === 'eiszapfen' ? 1 : 0.5
       for (let i = 0; i < n; i++) {
         const ang = (Math.PI * 2 * i) / n + Math.random() * 0.4
         const sp = cell * (gross ? 1.2 + Math.random() * 1.2 : 0.5 + Math.random() * 0.6)
-        // Stein und Zombiehand werfen Erde/Geroell (1 Feld), Eiszapfen splittern weiss-blau (2x2)
-        const erde = e.type === 'einschlag' && (e.art === 'stein' || e.art === 'zombiehand')
-        const mitte = gross && !erde ? 1 : 0.5
-        const c = e.type === 'einschlag' && e.art === 'zombiehand' ? (i % 3 ? '#4A3A2A' : '#7A6A50') : erde ? (i % 3 ? '#8A827C' : '#C8BFB5') : i % 3 ? '#FFFFFF' : '#BFE3F5'
-        this.funken.push({ x: (e.p.x + mitte) * cell, y: (e.p.y + mitte) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c })
+        this.funken.push({ x: (e.p.x + mitte) * cell, y: (e.p.y + mitte) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.4, born: g.time, c: farben[i % 3] })
       }
-      if (gross) this.shake = { until: g.time + 260, amp: cell * 0.12 }
+      if (gross && !klein) this.shake = { until: g.time + 260, amp: cell * 0.12 }
+    } else if (e.type === 'brueckeBricht' && !this.reduce) {
+      // Die Bruecke zerfaellt in Brocken, die in den Krater fallen
+      for (const c of e.cells)
+        for (let i = 0; i < 6; i++) this.funken.push({ x: (c.x + Math.random()) * cell, y: (c.y + Math.random()) * cell, vx: (Math.random() - 0.5) * cell, vy: cell * (0.4 + Math.random()), born: g.time, c: i % 3 ? '#867670' : '#FF7A1A' })
     } else if (e.type === 'setback') {
       if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
     } else if (e.type === 'halt') {
@@ -740,7 +758,7 @@ export class Renderer {
           const c = sw.achse === 'x' ? { x: v, y: sw.linie + b } : { x: sw.linie + b, y: v }
           if (g.inside(c) && sicht(c, 1)) felder.push(c)
         }
-      drawSandwurmWarnung(ctx, felder, cell, now, clamp01((now - sw.t) / WUESTE.wurmWarnung))
+      drawSandwurmWarnung(ctx, felder, cell, now, clamp01((now - sw.t) / WUESTE.wurmWarnung), welt.id === 'vulkan')
     }
 
     // Alte Mauern schrumpfen weg, neue wachsen Feld fuer Feld
@@ -920,8 +938,21 @@ export class Renderer {
     for (const e of g.einschlaege) {
       if (e.art === 'explosion' || !e.cells.some((c) => sicht(c))) continue
       const k = clamp01((now - e.t) / Math.max(1, e.bis - e.t))
+      const alter = now - e.bis
       if (e.art === 'zombiehand') drawZombiehand(ctx, e.cells[0], cell, k, e.gefallen, now)
-      else if (e.art === 'stein') {
+      else if (e.art === 'abbruch') {
+        if (!e.gefallen) drawAbbruchWarnung(ctx, e.cells, cell, k, now)
+        else drawAbbruchLoch(ctx, e.cells, cell, this.reduce ? 1000 : alter, now)
+      } else if (e.art === 'lavabombe' || e.art === 'meteor') {
+        if (!e.gefallen) drawGlutZiel(ctx, e.cells[0], cell, k, now, e.art === 'lavabombe' ? 'lava' : 'meteor')
+        else drawGlutFleck(ctx, e.cells[0], cell, alter, now)
+      } else if (e.art === 'huegel') {
+        if (!e.gefallen) drawHuegelWarnung(ctx, e.cells[0], cell, k, now)
+        else drawHuegel(ctx, e.cells[0], cell, this.reduce ? 1 : backOut(clamp01(alter / 260)), clamp01(((e.weg ?? now) - now) / 400))
+      } else if (e.art === 'geier') {
+        // Der Geier sitzt kurz auf dem Feld, dann fliegt er davon (der Kreis davor kommt ueber die Schlange)
+        if (e.gefallen) drawGeier(ctx, (e.cells[0].x + 0.5) * cell, (e.cells[0].y + 0.5) * cell, cell, -Math.PI / 2, now, 1 + clamp01(alter / 700) * 0.3, clamp01(((e.weg ?? now) - now) / 300))
+      } else if (e.art === 'stein') {
         if (!e.gefallen) drawSteinWarnung(ctx, e.cells[0], cell, k, now)
         else if (e.bleibt) drawMauerWelt(ctx, welt, e.cells[0].x * cell, e.cells[0].y * cell, cell, this.reduce ? 1 : backOut(clamp01((now - e.bis) / 300)))
       } else if (!e.gefallen) drawEiszapfenSchatten(ctx, e.cells, cell, k, now)
@@ -958,6 +989,16 @@ export class Renderer {
       const k = this.reduce ? 1 : clamp01((now - b.t) / 450)
       drawWanderbaum(ctx, px(lerp(b.from.x, b.p.x, easeOut(k))), px(lerp(b.from.y, b.p.y, easeOut(k))), cell, now, k)
     }
+    // Vulkan: Lavastroeme, Glutspur, Bruecken, Obsidian; Wiese: Bienenstoecke
+    for (const l of g.lavastroeme) {
+      if (!l.cells.some((c) => sicht(c))) continue
+      const vorn = this.reduce ? 1 : easeOut(clamp01((now - (l.next - g.cfg.lavastromTakt * 1000)) / 500))
+      drawLavastrom(ctx, l.cells, l.grown, cell, l.grown > 1 ? vorn : 1, l.kalt ? clamp01((now - l.kalt) / STROM_KALT) : 0, now)
+    }
+    for (const gl of g.glut) if (sicht(gl.p)) drawGlut(ctx, gl.p, cell, clamp01((gl.bis - now) / Math.max(1, gl.bis - gl.t)), now)
+    for (const b of g.bruecken) if (b.cells.some((c) => sicht(c))) drawBruecke(ctx, b.cells, cell, clamp01(b.ueber / Math.max(1, g.cfg.brueckeUeber)), this.reduce ? 1 : clamp01((now - b.t) / 400))
+    for (const o of g.obsidiane) if (sicht(o.p)) drawObsidian(ctx, o.p, o.offen, cell, now, Math.min(clamp01((now - o.t) / 400), clamp01((o.bis - now) / 600)))
+    for (const b of g.stoecke) if (sicht(b.p)) drawBienenstock(ctx, b.p, cell, now, Math.min(clamp01((now - b.t) / 400), clamp01((b.bis - now) / 600)))
     // Welt-Wesen (Tiere und Gestalten) und Schneebaelle; Fliegende kommen ueber die Schlange
     for (const w of g.wesen) if (sicht(w.p) && !FLIEGT.has(w.art)) this.drawWesen(g, w, now, 1, 1)
     for (const { w, t } of g.wesenWeg) {
@@ -998,6 +1039,23 @@ export class Renderer {
         if (k !== null) drawKraehenschwarm(ctx, g.durchzugFelder(d), cell, d.dir, d.achse, now)
         continue
       }
+      if (d.art === 'karawane') {
+        if (k === null) {
+          const v = d.dir === 1 ? d.von : d.bis
+          drawKarawaneWarnung(ctx, d.achse === 'x' ? { x: v, y: d.linie } : { x: d.linie, y: v }, cell, clamp01((now - d.t) / Math.max(1, d.los - d.t)), now)
+          continue
+        }
+        const ang = d.achse === 'x' ? (d.dir === 1 ? 0 : Math.PI) : d.dir === 1 ? Math.PI / 2 : -Math.PI / 2
+        for (let i = 0; i < d.laenge; i++) {
+          const v = k - d.dir * i
+          const c = d.achse === 'x' ? { x: Math.round(v), y: d.linie } : { x: d.linie, y: Math.round(v) }
+          if (v < d.von - 1 || v > d.bis + 1 || !sicht(c, 1)) continue
+          const x = d.achse === 'x' ? (v + 0.5) * cell : (d.linie + 0.5) * cell
+          const y = d.achse === 'x' ? (d.linie + 0.5) * cell : (v + 0.5) * cell
+          drawKamel(ctx, x, y, cell, ang, (now / 520 + i * 0.37) % 1, i === 0)
+        }
+        continue
+      }
       if (k === null) {
         if (d.art === 'fledermaus') {
           const [x0, y0, w, h] = d.achse === 'x' ? [d.von * cell, d.linie * cell, (d.bis - d.von + 1) * cell, d.breite * cell] : [d.linie * cell, d.von * cell, d.breite * cell, (d.bis - d.von + 1) * cell]
@@ -1020,12 +1078,22 @@ export class Renderer {
     }
     // Eiszapfen im Fall (ueber der Schlange)
     for (const e of g.einschlaege) {
-      if (e.gefallen || this.reduce || !e.cells.some((c) => sicht(c, 4))) continue
+      if (e.gefallen || !e.cells.some((c) => sicht(c, 6))) continue
       const k = clamp01((now - e.t) / Math.max(1, e.bis - e.t))
-      if (k > 0.72) drawEiszapfenFall(ctx, e.cells, cell, (k - 0.72) / 0.28)
+      if (e.art === 'geier') drawGeierKreis(ctx, e.cells[0], cell, k, now)
+      if (this.reduce) continue
+      if (e.art === 'eiszapfen' && k > 0.72) drawEiszapfenFall(ctx, e.cells, cell, (k - 0.72) / 0.28)
+      else if (e.art === 'meteor' && k > 0.72) drawMeteorFall(ctx, e.cells[0], cell, (k - 0.72) / 0.28)
+      else if (e.art === 'lavabombe' && e.von && k > 0.6) drawLavabombeFlug(ctx, e.von, e.cells[0], cell, (k - 0.6) / 0.4, now)
+    }
+    for (const f of g.lavafische) {
+      if (!sicht(f.von, 9)) continue
+      const n = f.cells.length
+      if (now < f.los) drawFischWarnung(ctx, f.von, f.cells, cell, clamp01((now - f.t) / Math.max(1, f.los - f.t)), now)
+      else if (now < f.los + (n + 1) * f.takt) drawLavafisch(ctx, f.von, f.nach, n, (now - f.los) / f.takt - 1, cell, now)
     }
     const swKopf = g.sandwurmKopf()
-    if (sw && swKopf !== null) drawSandwurm(ctx, sw.achse, sw.linie + WUESTE.wurmBreite / 2, swKopf, sw.dir, WUESTE.wurmLaenge, sw.von, sw.bis, cell, now)
+    if (sw && swKopf !== null) drawSandwurm(ctx, sw.achse, sw.linie + WUESTE.wurmBreite / 2, swKopf, sw.dir, WUESTE.wurmLaenge, sw.von, sw.bis, cell, now, welt.id === 'vulkan')
 
     // Giftwolken ueber allem (mit Warnung vor dem Wachsen)
     for (const w of [...g.wolken, ...g.wolkenWeg]) {
@@ -1397,6 +1465,10 @@ export class Renderer {
     else if (w.art === 'riesenspinne') drawRiesenspinne(ctx, x, y, cell, ang, lauf, auf, a)
     else if (w.art === 'kraehe') drawKraehe(ctx, x, y - cell * 0.3, cell, ang, now, auf, a)
     else if (w.art === 'zwerg') drawZwerg(ctx, x, y, cell, ang, lauf, auf, a, now)
+    else if (w.art === 'glutgolem') drawGlutgolem(ctx, x, y, cell, ang, lauf, auf, a, now)
+    else if (w.art === 'bienen') drawBienen(ctx, x, y, cell, now, a)
+    else if (w.art === 'igel') drawIgel(ctx, x, y, cell, ang, lauf, auf, a, now < (w.kugelBis ?? 0) ? 1 : 0, now)
+    else if (w.art === 'klapperschlange') drawKlapperschlange(ctx, x, y, cell, ang, lauf, auf, a, (w.rassel ?? -1) >= 0, now)
     else if (w.art === 'golem') drawGolem(ctx, x, y, cell, ang, lauf, auf, a, now)
     else if (w.art === 'eisbaer') drawEisbaer(ctx, x, y, cell, ang, lauf, auf, a)
     else if (w.art === 'robbe') drawRobbe(ctx, x, y, cell, ang, lauf, auf, a)
