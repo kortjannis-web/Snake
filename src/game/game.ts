@@ -38,8 +38,8 @@ export type GameOpts = {
    */
   zufallsWelt?: boolean
   /**
-   * Vulkan: Plattform ueber dem Lava-Abgrund. Bloecke je Richtung VULKAN_PLUS Felder groesser (der Bildschirm bleibt
-   * gleich gross), dazu Krater (etwa KRATER_ANTEIL jedes Blocks), in denen tief unten Lava ist. Kein Maulwurf (keine Erde).
+   * Vulkan: Plattform ueber dem Lava-Abgrund. Bloecke je Richtung cfg.vulkanBlockPlus Felder groesser (der Bildschirm bleibt
+   * gleich gross), dazu Krater (etwa cfg.kraterProzent jedes Blocks), in denen tief unten Lava ist. Kein Maulwurf (keine Erde).
    * Nicht in der Sandbox und im Tageslevel (dort ist es nur das Aussehen)
    */
   vulkan?: boolean
@@ -72,9 +72,6 @@ type Sicht = {
 export const BLOCK_PLUS = 1
 /** Endlos: so viel jedes Blocks ist an den Aussenkanten ungefaehr verschuettet (Ecken und Einkerbungen) */
 export const RAND_ANTEIL = 0.027
-/** Vulkan: so viele Felder ist jeder Block je Richtung groesser, und so viel jedes Blocks sind Krater */
-export const VULKAN_PLUS = 2
-export const KRATER_ANTEIL = 0.1
 /** So tief (Felder) reichen Verschuettungen hoechstens in einen Block hinein */
 export const RAND_TIEFE = 4
 /** Zufallswelt: so viele Bloecke weit kann der Ausschnitt der Welt in jede Richtung verschoben sein */
@@ -240,8 +237,8 @@ export class Game {
     this.kraterZufall = rng(o.seed === undefined ? undefined : (o.seed ^ 0x27d4eb2f) >>> 0)
     // Block = halber Bildschirm, am Handy (hochkant) uebereinander, quer nebeneinander.
     // Jeder Block hat je Richtung BLOCK_PLUS Felder mehr: die Karte ist etwas groesser als ein Bildschirm
-    // Vulkan: Bloecke noch je VULKAN_PLUS Felder groesser, der Bildschirm bleibt so gross wie sonst
-    const plus = BLOCK_PLUS + (this.vulkan ? VULKAN_PLUS : 0)
+    // Vulkan: Bloecke noch je vulkanBlockPlus Felder groesser, der Bildschirm bleibt so gross wie sonst
+    const plus = BLOCK_PLUS + (this.vulkan ? Math.max(0, Math.round(this.cfg.vulkanBlockPlus)) : 0)
     if (o.screenH >= o.screenW) {
       this.bw = o.screenW + plus
       this.bh = Math.max(4, Math.floor(o.screenH / 2)) + plus
@@ -996,20 +993,65 @@ export class Game {
 
   /* ================= Wueste: Sandsturm, Flut, Sandwurm ================= */
 
+  /**
+   * Welt-Ereignisse nach einem Apfel: jedes wuerfelt mit seiner Chance (Prozent je Apfel). Fallen zwei zusammen, kommt
+   * nur das seltenere, das andere wird uebersprungen. Laeuft schon eines, kommt ein neues nur, wenn es seltener ist
+   * (das laufende hoert dann auf); sonst wird das neue uebersprungen.
+   */
+  protected ereignisWuerfeln(liste: { an: number; chance: number; laeuft: boolean; start: () => unknown; stop: () => void }[]) {
+    const gewuerfelt = liste.filter((e) => e.an > 0 && e.chance > 0 && !e.laeuft && this.r.next() * 100 < e.chance)
+    if (!gewuerfelt.length) return
+    const neu = gewuerfelt.reduce((a, b) => (b.chance < a.chance ? b : a))
+    const laufen = liste.filter((e) => e.laeuft)
+    // Ein laufendes, das inzwischen aus ist (Chance 0), zaehlt als haeufig: das neue verdraengt es
+    if (laufen.some((e) => e.an > 0 && e.chance > 0 && e.chance <= neu.chance)) return
+    for (const e of laufen) e.stop()
+    neu.start()
+  }
+
   /** Nach jedem Apfel (nur in der Wueste) */
   protected wuesteNachApfel() {
     if (!this.wueste || this.aufbau || this.statisch) return
-    const W = R.WUESTE
+    const c = this.cfg
     // Flut: Warnung -> mit dem naechsten Apfel steigt das Wasser -> mit dem Apfel danach geht es zurueck
+    let flutVorbei = false
     if (this.flut?.phase === 'aktiv') {
-      this.flut = null
-      this.emit({ type: 'flutEnde' })
+      this.flutStoppen()
+      flutVorbei = true
     } else if (this.flut?.phase === 'warnung') {
       this.flut = { phase: 'aktiv', t: this.time, zellen: this.flutZone() }
       this.emit({ type: 'flut' })
-    } else if (this.r.next() * 100 < W.flutChance) this.flutWarnen()
-    if (this.r.next() * 100 < W.sturmChance) this.sandsturmStarten()
-    if (!this.sandwurm && this.r.next() * 100 < W.wurmChance) this.sandwurmStarten()
+    }
+    this.ereignisWuerfeln([
+      { an: c.flutAn, chance: c.flutChance, laeuft: !!this.flut || flutVorbei, start: () => this.flutWarnen(), stop: () => this.flutStoppen() },
+      {
+        an: c.sturmAn,
+        chance: c.sturmChance,
+        laeuft: !!this.sandsturm && this.time < this.sandsturm.bis,
+        start: () => this.sandsturmStarten(),
+        stop: () => {
+          if (this.sandsturm) this.sandsturm.bis = Math.min(this.sandsturm.bis, this.time)
+        },
+      },
+      {
+        an: c.wurmAn,
+        chance: c.wurmChance,
+        laeuft: !!this.sandwurm,
+        start: () => this.sandwurmStarten(),
+        stop: () => {
+          if (!this.sandwurm) return
+          this.sandwurm = null
+          this.emit({ type: 'sandwurmWeg' })
+        },
+      },
+    ])
+  }
+
+  /** Flut vorbei: das Wasser geht zurueck */
+  protected flutStoppen() {
+    if (!this.flut) return
+    this.flut = null
+    this.emit({ type: 'flutEnde' })
   }
 
   /** Flut ankuendigen: die Wellen schlagen hoeher, mit dem naechsten Apfel steigt das Wasser */
@@ -1477,7 +1519,7 @@ export class Game {
   }
 
   /**
-   * Vulkan: Krater in Block b, bis etwa KRATER_ANTEIL seiner Felder fehlen. Runde Loecher (etwa 5 bis 20 Felder), mindestens
+   * Vulkan: Krater in Block b, bis etwa kraterProzent seiner Felder fehlen. Runde Loecher (mindestens kraterMin Felder, eher groesser), mindestens
    * 2 Felder von der Blockkante und 2 von anderen Kratern weg (dazwischen bleibt immer ein Weg), nie auf Belegtem oder
    * nah am Kopf, und die Karte bleibt zusammenhaengend.
    */
@@ -1485,7 +1527,8 @@ export class Game {
     const z = this.kraterZufall
     const x0 = b.x * this.bw
     const y0 = b.y * this.bh
-    const ziel = Math.round(this.bw * this.bh * KRATER_ANTEIL)
+    const ziel = Math.round((this.bw * this.bh * this.cfg.kraterProzent) / 100)
+    const minFelder = Math.max(1, Math.round(this.cfg.kraterMin))
     const kopf = this.body[0]
     const tabu = this.hindernisse()
     for (const c of [this.apple.p, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.gift.map((g) => g.p), ...this.lavaOffen]) tabu.add(key(c.x, c.y))
@@ -1499,9 +1542,9 @@ export class Game {
       this.inside(c) && !tabu.has(key(c.x, c.y)) && !nahKrater.has(key(c.x, c.y)) && !this.aufSchlange(c) && (!kopf || cheb(c, kopf) > 3)
     let weg = 0
     for (let versuch = 0; versuch < 60 && weg < ziel; versuch++) {
-      // Groesse: meist mittel (etwa 5 Felder), oft gross (etwa 12), selten sehr gross; zu kleine sehen nicht tief aus
+      // Groesse: eher grosse Flecken (etwa 7 bis 20 Felder), nie kleiner als kraterMin; kleine sehen nicht tief aus
       const w = z.next()
-      const r = w < 0.55 ? 1.3 : w < 0.9 ? 1.9 : 2.4
+      const r = Math.max(Math.sqrt(minFelder / Math.PI) + 0.2, w < 0.4 ? 1.5 : w < 0.85 ? 2 : 2.6)
       const mx = x0 + 2 + z.next() * (this.bw - 4)
       const my = y0 + 2 + z.next() * (this.bh - 4)
       const sx = 0.8 + z.next() * 0.5
@@ -1512,8 +1555,7 @@ export class Game {
           const dy = (y + 0.5 - my) / (r / sx)
           if (dx * dx + dy * dy <= 1) form.push({ x, y })
         }
-      if (!form.length) form.push({ x: Math.floor(mx), y: Math.floor(my) })
-      if (weg + form.length > ziel + 4 || !form.every(frei)) continue
+      if (form.length < minFelder || weg + form.length > ziel + 6 || !form.every(frei)) continue
       for (const c of form) this.mask[c.y * this.w + c.x] = 0
       if (!this.zusammenhaengend()) {
         for (const c of form) this.mask[c.y * this.w + c.x] = 1

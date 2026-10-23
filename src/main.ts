@@ -2155,6 +2155,20 @@ function renderMaster() {
       row.className = 'master__row'
       const t = document.createElement('span')
       t.textContent = f.label
+      if (f.schalter) {
+        // An/aus (1/0)
+        const sw = document.createElement('input')
+        sw.type = 'checkbox'
+        sw.className = 'switch'
+        sw.checked = config[f.key] > 0
+        sw.addEventListener('change', () => {
+          config[f.key as ConfigKey] = sw.checked ? 1 : 0
+          saveConfig()
+        })
+        row.append(t, sw)
+        box.append(row)
+        continue
+      }
       const inp = document.createElement('input')
       inp.type = 'number'
       inp.min = String(f.min)
