@@ -391,7 +391,6 @@
             <label class="opt"><span data-icon="Music"></span><span class="opt__t">Musik</span><input type="checkbox" id="opt-music" class="switch" /></label>
             <label class="opt"><span data-icon="Vibrate"></span><span class="opt__t">Vibration</span><input type="checkbox" id="opt-vibration" class="switch" /></label>
             <label class="opt" id="opt-push-zeile" hidden><span data-icon="Bell"></span><span class="opt__t">Benachrichtigungen<small id="opt-push-info">Nur wenn dich jemand zum Spielen einlädt.</small></span><input type="checkbox" id="opt-push" class="switch" /></label>
-            <label class="opt"><span data-icon="Shuffle"></span><span class="opt__t">Zufällige Gefahren<small>Was als Nächstes kommt (Mauern, Wasser, Häuser …), wird jede Runde neu ausgelost. Mauern, Wasser, Frösche und Giftäpfel kommen eher früh</small></span><input type="checkbox" id="opt-zufall" class="switch" /></label>
             <label class="opt"><span data-icon="Gamepad2"></span><span class="opt__t">Steuerkreuz<small>Tasten statt Wischen (gilt ab dem nächsten Spiel)</small></span><input type="checkbox" id="opt-dpad" class="switch" /></label>
             <!-- Tempo gibt es nicht mehr (nur normal, schnell ist der Speedrun); bleibt unsichtbar fuer alten Code -->
             <div class="opt opt--col" style="display: none">
@@ -421,6 +420,10 @@
             <div class="opt opt--col">
               <div class="opt__row"><span data-icon="Globe"></span><span class="opt__t">Welt<small>Als Admin spielst du jede Welt, auch ohne Freischaltung. Gilt auch im normalen Spiel.</small></span></div>
               <div class="seg seg--welten" id="k-welt" role="radiogroup" aria-label="Welt"></div>
+            </div>
+            <div class="opt opt--col" id="k-uebersicht-box">
+              <div class="opt__row"><span data-icon="ListOrdered"></span><span class="opt__t">Was es in dieser Welt gibt<small>Gefahren von häufig bis selten (Chance je Apfel, fallen zwei zusammen, kommt die seltenere), dann alles andere in Stufen. Gilt nur für dich als Admin, ab der nächsten Runde.</small></span></div>
+              <div id="k-uebersicht" class="uebersicht"></div>
             </div>
             <div class="opt opt--col" id="k-start-box">
               <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Startlevel<small id="k-start-info">Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.</small></span></div>

@@ -3,9 +3,9 @@
  * kann groesser als der Bildschirm werden), neue Gebiete klappen Feld fuer
  * Feld auf, Apfel ausserhalb des Bildes zeigt ein Pfeil am Rand.
  */
-import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, FLIEGT, GEGNER_WEG, GESCHOSS_TAKT, key, STROM_KALT, WESEN_TAKT, WESEN_WEG, type Game } from '../game/game'
+import { ABGESCHNITTEN_LIEGT, ABGESCHNITTEN_WEG, AMEISE_WEG, FLIEGT, GEGNER_WEG, GESCHOSS_TAKT, key, STICH_WARNUNG, STROM_KALT, WESEN_TAKT, WESEN_WEG, type Game } from '../game/game'
 import { drawAbbruchLoch, drawAbbruchWarnung, drawBruecke, drawFischWarnung, drawGlut, drawGlutFleck, drawGlutgolem, drawGlutZiel, drawLavabombeFlug, drawLavafisch, drawLavastrom, drawMeteorFall, drawObsidian } from './glut'
-import { drawBienen, drawBienenstock, drawGeier, drawGeierKreis, drawHuegel, drawHuegelWarnung, drawIgel, drawKamel, drawKarawaneWarnung, drawKlapperschlange } from './tiere'
+import { drawBienen, drawBienenstock, drawErdmannLoch, drawFataMorgana, drawGeier, drawGeierKreis, drawHuegel, drawHuegelWarnung, drawIgel, drawKamel, drawKarawaneWarnung, drawKlapperschlange, drawMumie, drawRiesenskorpion, drawSandkrabbe, drawSarkophag } from './tiere'
 import { drawEinhorn, drawEnt, drawFee, drawGespenst, drawIrrlichtSchein, drawKraehe, drawKraehenschwarm, drawPilzring, drawRanke, drawRegenbogen, drawRiesenspinne, drawSkelett, drawSpiegelfluch, drawSporen, drawVollmond, drawWanderbaum, drawWerwolf, drawZombiehand } from './waelder'
 import { drawFledermaeuse, drawFledermausWarnung, drawGolem, drawLore, drawLoreAbgestellt, drawLoreWarnung, drawNetz, drawSchieneFeld, drawSpalt, drawSteinWarnung, drawStollenBoden, drawStolleneingang, drawTnt, drawZwerg } from './bergwerk'
 import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapfenSchatten, drawIglu, drawNordlicht, drawRobbe, drawSchneeball, drawSchneemann, drawSchneesturm, drawYeti } from './winter'
@@ -999,6 +999,21 @@ export class Renderer {
     for (const b of g.bruecken) if (b.cells.some((c) => sicht(c))) drawBruecke(ctx, b.cells, cell, clamp01(b.ueber / Math.max(1, g.cfg.brueckeUeber)), this.reduce ? 1 : clamp01((now - b.t) / 400))
     for (const o of g.obsidiane) if (sicht(o.p)) drawObsidian(ctx, o.p, o.offen, cell, now, Math.min(clamp01((now - o.t) / 400), clamp01((o.bis - now) / 600)))
     for (const b of g.stoecke) if (sicht(b.p)) drawBienenstock(ctx, b.p, cell, now, Math.min(clamp01((now - b.t) / 400), clamp01((b.bis - now) / 600)))
+    // Wueste: Fata Morgana, Erdmaennchen, Sarkophage (die falsche Kaktusfeige flackert leicht)
+    for (const f of g.fatas) {
+      if (!sicht(f.p, 2)) continue
+      const a = Math.min(clamp01((now - f.t) / 600), clamp01((f.bis - now) / 600))
+      drawFataMorgana(ctx, f.cells, cell, now, a)
+      ctx.globalAlpha = a * (0.75 + 0.2 * Math.sin(now / 110))
+      drawFutter(ctx, welt, px(f.p.x), px(f.p.y) + Math.sin(now / 160) * cell * 0.04, cell, 1, 0, undefined, g.apfelStufe(), now)
+      ctx.globalAlpha = 1
+    }
+    for (const k of g.kolonien) {
+      if (!k.loecher.some((c) => sicht(c))) continue
+      const a = Math.min(clamp01((now - k.t) / 400), clamp01((k.bis - now) / 600))
+      k.loecher.forEach((c, i) => drawErdmannLoch(ctx, c, cell, g.aufSchlange(c) ? 'unten' : g.erdmannZustand(k, i), a))
+    }
+    for (const sk of g.sarkophage) if (sicht(sk.p)) drawSarkophag(ctx, sk.p, cell, sk.auf < 0 ? 1 : 0, Math.min(clamp01((now - sk.t) / 400), clamp01((sk.bis - now) / 600)), now)
     // Welt-Wesen (Tiere und Gestalten) und Schneebaelle; Fliegende kommen ueber die Schlange
     for (const w of g.wesen) if (sicht(w.p) && !FLIEGT.has(w.art)) this.drawWesen(g, w, now, 1, 1)
     for (const { w, t } of g.wesenWeg) {
@@ -1469,6 +1484,9 @@ export class Renderer {
     else if (w.art === 'bienen') drawBienen(ctx, x, y, cell, now, a)
     else if (w.art === 'igel') drawIgel(ctx, x, y, cell, ang, lauf, auf, a, now < (w.kugelBis ?? 0) ? 1 : 0, now)
     else if (w.art === 'klapperschlange') drawKlapperschlange(ctx, x, y, cell, ang, lauf, auf, a, (w.rassel ?? -1) >= 0, now)
+    else if (w.art === 'riesenskorpion') drawRiesenskorpion(ctx, x, y, cell, ang, lauf, auf, a, w.stichAb === undefined ? 0 : clamp01(1 - (w.stichAb - now) / STICH_WARNUNG), now)
+    else if (w.art === 'sandkrabbe') drawSandkrabbe(ctx, x, y, cell, lauf, auf, a)
+    else if (w.art === 'mumie') drawMumie(ctx, x, y, cell, ang, lauf, auf, a)
     else if (w.art === 'golem') drawGolem(ctx, x, y, cell, ang, lauf, auf, a, now)
     else if (w.art === 'eisbaer') drawEisbaer(ctx, x, y, cell, ang, lauf, auf, a)
     else if (w.art === 'robbe') drawRobbe(ctx, x, y, cell, ang, lauf, auf, a)

@@ -60,6 +60,12 @@ export const CAUSE: Record<Cause, string> = {
   karawane: 'Von der Kamelkarawane überrannt',
   geier: 'Vom Geier gepackt',
   klapperschlange: 'Gegen die Klapperschlange gelaufen',
+  riesenskorpion: 'Gegen den Riesenskorpion gelaufen',
+  sandkrabbe: 'Mit der Sandkrabbe zusammengestoßen',
+  erdmaennchen: 'Gegen ein Erdmännchen gefahren',
+  mumie: 'Der Mumie in die Arme gelaufen',
+  sarkophag: 'Gegen den Sarkophag gefahren',
+  fata: 'Auf die Fata Morgana hereingefallen',
 }
 
 /** Welt-Ereignisse und Tiere (Kreativ: sofort ausloesen) */
@@ -113,6 +119,11 @@ export const WELT_EREIGNIS_NAME: Record<string, string> = {
   karawane: 'Karawane',
   geier: 'Geier',
   klapperschlange: 'Klapperschlange',
+  riesenskorpion: 'Riesenskorpion',
+  sandkrabbe: 'Sandkrabbe',
+  erdmaennchen: 'Erdmännchen',
+  mumie: 'Mumie',
+  fata: 'Fata Morgana',
 }
 
 export const OBJEKT_NAME: Record<SandboxObjekt, string> = {

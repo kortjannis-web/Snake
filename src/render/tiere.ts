@@ -336,3 +336,247 @@ export function drawKlapperschlange(ctx: CanvasRenderingContext2D, x: number, y:
     }
   }
 }
+
+/** Riesenskorpion von oben: Scheren vorn, der Schwanz biegt sich ueber den Ruecken; stich 0..1 = Schwanz erhoben (Warnung) */
+export function drawRiesenskorpion(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, lauf: number, s: number, a: number, stich: number, now: number) {
+  if (s <= 0 || a <= 0) return
+  const u = cell * 0.55 * s
+  ctx.save()
+  ctx.globalAlpha *= a
+  schatten(ctx, x, y + cell * 0.1, u * 1.0, u * 0.55)
+  ctx.translate(x, y)
+  ctx.rotate(ang)
+  const schw = lauf >= 0 ? Math.sin(lauf * TAU) * u * 0.12 : 0
+  // Beine
+  ctx.strokeStyle = '#5A3A1E'
+  ctx.lineWidth = Math.max(1, cell * 0.04)
+  ctx.lineCap = 'round'
+  for (let i = 0; i < 4; i++)
+    for (const sy of [-1, 1]) {
+      const bx = u * (0.25 - i * 0.18)
+      ctx.beginPath()
+      ctx.moveTo(bx, sy * u * 0.18)
+      ctx.lineTo(bx + (i % 2 ? schw : -schw) * sy, sy * u * 0.55)
+      ctx.stroke()
+    }
+  // Scheren
+  ctx.fillStyle = '#8A5A2C'
+  for (const sy of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(u * 0.35, sy * u * 0.15)
+    ctx.lineTo(u * 0.75, sy * u * 0.4)
+    ctx.lineTo(u * 0.95, sy * u * 0.28)
+    ctx.lineTo(u * 0.8, sy * u * 0.18)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.fillStyle = '#7A4C24'
+  ctx.beginPath()
+  ctx.ellipse(0, 0, u * 0.45, u * 0.24, 0, 0, TAU)
+  ctx.fill()
+  // Schwanz: Glieder nach hinten, erhoben kruemmt er sich nach vorn ueber den Koerper
+  const gl = 5
+  for (let i = 0; i < gl; i++) {
+    const t = (i + 1) / gl
+    const zurueck = -u * (0.45 + t * 0.55)
+    const vor = stich * u * 0.9 * t * t
+    ctx.fillStyle = i === gl - 1 ? '#C43A2A' : '#8A5A2C'
+    ctx.beginPath()
+    ctx.arc(zurueck + vor * 1.6, 0, u * (0.13 - t * 0.03) * (1 + stich * 0.2), 0, TAU)
+    ctx.fill()
+  }
+  ctx.restore()
+  if (stich > 0) {
+    ctx.strokeStyle = `rgba(255, 90, 60, ${0.5 + 0.5 * Math.sin(now / 50)})`
+    ctx.lineWidth = Math.max(1.2, cell * 0.05)
+    ctx.beginPath()
+    ctx.arc(x, y, cell * (0.6 + 0.15 * stich), 0, TAU)
+    ctx.stroke()
+  }
+}
+
+/** Sandkrabbe von oben: rund, Scheren zur Seite, laeuft seitwaerts (zappelt dabei) */
+export function drawSandkrabbe(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, lauf: number, s: number, a: number) {
+  if (s <= 0 || a <= 0) return
+  const u = cell * 0.42 * s
+  ctx.save()
+  ctx.globalAlpha *= a
+  schatten(ctx, x, y + cell * 0.08, u * 1.0, u * 0.55)
+  ctx.translate(x, y)
+  const zap = lauf >= 0 ? Math.sin(lauf * TAU * 2) * u * 0.1 : 0
+  ctx.strokeStyle = '#B8442A'
+  ctx.lineWidth = Math.max(1, cell * 0.04)
+  ctx.lineCap = 'round'
+  for (const sx of [-1, 1])
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath()
+      ctx.moveTo(sx * u * 0.4, (i - 1) * u * 0.2)
+      ctx.lineTo(sx * u * 0.85, (i - 1) * u * 0.35 + zap * (i % 2 ? 1 : -1))
+      ctx.stroke()
+    }
+  ctx.fillStyle = '#D85A34'
+  for (const sx of [-1, 1]) {
+    ctx.beginPath()
+    ctx.ellipse(sx * u * 0.55, -u * 0.55, u * 0.22, u * 0.16, sx * 0.6, 0, TAU)
+    ctx.fill()
+  }
+  ctx.fillStyle = '#E2683C'
+  ctx.beginPath()
+  ctx.ellipse(0, 0, u * 0.55, u * 0.42, 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#FFFFFF'
+  for (const sx of [-1, 1]) {
+    ctx.beginPath()
+    ctx.arc(sx * u * 0.18, -u * 0.42, u * 0.1, 0, TAU)
+    ctx.fill()
+  }
+  ctx.fillStyle = '#1A1208'
+  for (const sx of [-1, 1]) {
+    ctx.beginPath()
+    ctx.arc(sx * u * 0.18, -u * 0.44, u * 0.05, 0, TAU)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+/** Erdmaennchen-Loch: unten nur das Loch, beim Gucken schaut der Kopf heraus, oben steht es aufrecht (Hindernis) */
+export function drawErdmannLoch(ctx: CanvasRenderingContext2D, p: P, cell: number, zustand: 'unten' | 'gucken' | 'oben', a: number) {
+  const x = (p.x + 0.5) * cell
+  const y = (p.y + 0.5) * cell
+  ctx.globalAlpha = a
+  ctx.fillStyle = '#C89E62'
+  ctx.beginPath()
+  ctx.ellipse(x, y + cell * 0.12, cell * 0.36, cell * 0.2, 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#3A2614'
+  ctx.beginPath()
+  ctx.ellipse(x, y + cell * 0.12, cell * 0.24, cell * 0.12, 0, 0, TAU)
+  ctx.fill()
+  if (zustand !== 'unten') {
+    const hoch = zustand === 'oben' ? 1 : 0.35
+    const u = cell * 0.5
+    // Koerper (nur wenn es steht), Kopf mit dunklen Augenringen
+    if (hoch >= 1) {
+      ctx.fillStyle = '#C8A070'
+      ctx.beginPath()
+      ctx.ellipse(x, y - u * 0.15, u * 0.26, u * 0.5, 0, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = '#E8CDA0'
+      ctx.beginPath()
+      ctx.ellipse(x, y - u * 0.05, u * 0.14, u * 0.32, 0, 0, TAU)
+      ctx.fill()
+    }
+    const ky = y + cell * 0.08 - u * 1.0 * hoch
+    ctx.fillStyle = '#C8A070'
+    ctx.beginPath()
+    ctx.ellipse(x, ky, u * 0.22, u * 0.2, 0, 0, TAU)
+    ctx.fill()
+    ctx.fillStyle = '#3A2614'
+    for (const sx of [-1, 1]) {
+      ctx.beginPath()
+      ctx.arc(x + sx * u * 0.09, ky - u * 0.02, u * 0.06, 0, TAU)
+      ctx.fill()
+    }
+  }
+  ctx.globalAlpha = 1
+}
+
+/** Sarkophag: goldener Deckel mit Gesicht; offen = Deckel liegt schief daneben, dunkles Inneres */
+export function drawSarkophag(ctx: CanvasRenderingContext2D, p: P, cell: number, offen: number, a: number, now: number) {
+  const x = (p.x + 0.5) * cell
+  const y = (p.y + 0.5) * cell
+  const w = cell * 0.36
+  const hh = cell * 0.46
+  ctx.globalAlpha = a
+  schatten(ctx, x + cell * 0.06, y + cell * 0.1, w * 1.1, hh * 0.9)
+  ctx.fillStyle = '#6A4A1E'
+  ctx.fillRect(x - w, y - hh, w * 2, hh * 2)
+  if (offen > 0) {
+    ctx.fillStyle = '#140C06'
+    ctx.fillRect(x - w * 0.75, y - hh * 0.8, w * 1.5, hh * 1.6)
+  }
+  // Deckel (rutscht beim Oeffnen zur Seite)
+  ctx.save()
+  ctx.translate(x + offen * w * 1.1, y + offen * hh * 0.2)
+  ctx.rotate(offen * 0.5)
+  ctx.globalAlpha = a * (1 - offen * 0.2)
+  ctx.fillStyle = '#D8A838'
+  ctx.fillRect(-w * 0.85, -hh * 0.92, w * 1.7, hh * 1.84)
+  ctx.fillStyle = '#2E6FA8'
+  for (let i = 0; i < 4; i++) ctx.fillRect(-w * 0.85, -hh * 0.3 + i * hh * 0.3, w * 1.7, hh * 0.1)
+  ctx.fillStyle = '#F0D070'
+  ctx.beginPath()
+  ctx.ellipse(0, -hh * 0.55, w * 0.42, hh * 0.3, 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#1A1208'
+  for (const sx of [-1, 1]) ctx.fillRect(sx * w * 0.18 - w * 0.06, -hh * 0.6, w * 0.12, hh * 0.06)
+  ctx.restore()
+  if (offen <= 0) {
+    // Kurz vor dem Oeffnen ruckelt er
+    ctx.fillStyle = `rgba(230, 200, 140, ${0.3 + 0.3 * Math.sin(now / 70)})`
+    ctx.fillRect(x - w, y + hh * 0.9, w * 2, hh * 0.12)
+  }
+  ctx.globalAlpha = 1
+}
+
+/** Mumie von oben: Binden quer, Arme nach vorn gestreckt, gruene Augen */
+export function drawMumie(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, ang: number, lauf: number, s: number, a: number) {
+  if (s <= 0 || a <= 0) return
+  const u = cell * 0.55 * s
+  ctx.save()
+  ctx.globalAlpha *= a
+  schatten(ctx, x, y + cell * 0.12, u * 0.8, u * 0.5)
+  ctx.translate(x, y)
+  ctx.rotate(ang)
+  const schw = lauf >= 0 ? Math.sin(lauf * TAU) * u * 0.08 : 0
+  ctx.fillStyle = '#E8DEC4'
+  for (const sy of [-1, 1]) ctx.fillRect(u * 0.1 + schw * sy, sy * u * 0.36 - u * 0.08, u * 0.65, u * 0.16)
+  ctx.beginPath()
+  ctx.ellipse(-u * 0.1, 0, u * 0.42, u * 0.5, 0, 0, TAU)
+  ctx.fill()
+  ctx.strokeStyle = '#B8AC8E'
+  ctx.lineWidth = Math.max(1, cell * 0.035)
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath()
+    ctx.moveTo(-u * 0.45, i * u * 0.18)
+    ctx.lineTo(u * 0.25, i * u * 0.18 + u * 0.08)
+    ctx.stroke()
+  }
+  ctx.fillStyle = '#F0E8D2'
+  ctx.beginPath()
+  ctx.arc(u * 0.32, 0, u * 0.24, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#7CE060'
+  for (const sy of [-1, 1]) {
+    ctx.beginPath()
+    ctx.arc(u * 0.42, sy * u * 0.09, u * 0.05, 0, TAU)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+/** Fata Morgana: flimmernde, halb durchsichtige Oase; in der Mitte eine Kaktusfeige, die zittert (zeichnen: frucht) */
+export function drawFataMorgana(ctx: CanvasRenderingContext2D, cells: P[], cell: number, now: number, a: number) {
+  for (const c of cells) {
+    const x = (c.x + 0.5) * cell
+    const y = (c.y + 0.5) * cell
+    const fl = 0.5 + 0.5 * Math.sin(now / 180 + c.x * 1.7 + c.y)
+    ctx.fillStyle = `rgba(90, 190, 220, ${(0.16 + 0.12 * fl) * a})`
+    ctx.beginPath()
+    ctx.ellipse(x + Math.sin(now / 240 + c.y) * cell * 0.06, y, cell * 0.55, cell * 0.42, 0, 0, TAU)
+    ctx.fill()
+  }
+  // Hitzeflimmern: waagrechte Schlieren
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.25 * a})`
+  ctx.lineWidth = 1.5
+  const c0 = cells[Math.floor(cells.length / 2)] ?? cells[0]
+  if (!c0) return
+  for (let i = 0; i < 4; i++) {
+    const yy = (c0.y - 0.6 + i * 0.45) * cell
+    const xx = (c0.x + 0.5) * cell + Math.sin(now / 200 + i) * cell * 0.3
+    ctx.beginPath()
+    ctx.moveTo(xx - cell * 0.8, yy)
+    ctx.lineTo(xx + cell * 0.8, yy)
+    ctx.stroke()
+  }
+}
