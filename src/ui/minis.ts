@@ -276,4 +276,13 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   zwerg: 'frosch',
   golem: 'gegner',
   lorenlager: 'mauer',
+  irrlicht: 'gift',
+  einhorn: 'gegner',
+  ent: 'baum',
+  ranke: 'mauer',
+  wanderbaum: 'baum',
+  zombiehand: 'falle',
+  skelett: 'gegner',
+  werwolf: 'gegner',
+  riesenspinne: 'ameise',
 }
