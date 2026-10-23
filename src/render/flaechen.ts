@@ -225,7 +225,45 @@ export const tex = (name: string) => {
   return t
 }
 
-type Koerper = { basis: Bild; maske: Bild; cells: P[]; art: FlaechenArt; T: (x: number, y: number) => number; benutzt: number }
+/** lebend = basis samt bewegter Oberflaeche, fertig zusammengesetzt und nur alle LEBEND_TAKT ms neu (zeit = wann zuletzt) */
+type Koerper = { basis: Bild; maske: Bild; cells: P[]; art: FlaechenArt; T: (x: number, y: number) => number; benutzt: number; lebend?: HTMLCanvasElement; zeit?: number }
+
+/**
+ * Bewegte Oberflaechen (Teiche, Lava, Eis, Meer) werden nicht in jedem Bild neu zusammengesetzt, sondern nur alle
+ * LEBEND_TAKT ms und je Bild hoechstens fuer LEBEND_JE_BILD Flaechen (das Auge merkt das nicht, das Handy sehr wohl).
+ * Dazwischen wird nur das fertige Bild kopiert.
+ */
+const LEBEND_TAKT = 70
+const LEBEND_JE_BILD = 4
+let lebendBild = -1
+let lebendNeu = 0
+function auffrischenFaellig(now: number, zeit: number | undefined, fehlt: boolean) {
+  if (now !== lebendBild) {
+    lebendBild = now
+    lebendNeu = 0
+  }
+  if (!fehlt && (zeit === undefined || Math.abs(now - zeit) < LEBEND_TAKT || lebendNeu >= LEBEND_JE_BILD)) return false
+  lebendNeu++
+  return true
+}
+
+/** Leinwand fuer ein fertig zusammengesetztes Bild in der Groesse von `basis`, Transform: Felder * ppc ab basis.x0/y0 */
+function lebendLeinwand(alt: HTMLCanvasElement | undefined | null, basis: Bild) {
+  const cv = alt ?? document.createElement('canvas')
+  if (cv.width !== basis.cv.width || cv.height !== basis.cv.height) {
+    cv.width = basis.cv.width
+    cv.height = basis.cv.height
+  }
+  const c = cv.getContext('2d')!
+  const ppc = basis.cv.width / basis.w
+  c.setTransform(1, 0, 0, 1, 0, 0)
+  c.globalAlpha = 1
+  c.globalCompositeOperation = 'copy'
+  c.drawImage(basis.cv, 0, 0)
+  c.globalCompositeOperation = 'source-over'
+  c.setTransform(1, 0, 0, 1, -basis.x0 * ppc, -basis.y0 * ppc)
+  return { cv, c, ppc }
+}
 
 /** Bild einer Flaeche berechnen */
 function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
@@ -315,8 +353,8 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
 
 const koerper = new Map<string, Koerper>()
 let bildNr = 0
-/** Pixel je Feld fuers Berechnen (Feldgroesse in CSS-Pixeln, hoechstens 48: danach wird weich vergroessert) */
-const aufloesung = (cell: number) => Math.max(8, Math.min(48, Math.round(cell)))
+/** Pixel je Feld fuers Berechnen (gut zwei Drittel der Feldgroesse, hoechstens 20: wird weich vergroessert, die Formen sind ohnehin weich, und das Neuberechnen beim Wachsen geht so mehr als doppelt so schnell) */
+const aufloesung = (cell: number) => Math.max(8, Math.min(20, Math.round(cell * 0.7)))
 
 function holen(cells: P[], art: FlaechenArt, cell: number, o: P) {
   const px = aufloesung(cell)
@@ -343,14 +381,21 @@ const TAU = Math.PI * 2
 export function drawFlaeche(ctx: CanvasRenderingContext2D, cells: P[], art: FlaechenArt, cell: number, now: number, o: P, reduce = false) {
   if (!cells.length) return
   const k = holen(cells, art, cell, o)
-  const { basis, maske } = k
-  ctx.drawImage(basis.cv, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
-  if (reduce) return
-  const t0 = now
+  const { basis } = k
+  if (reduce) {
+    ctx.drawImage(basis.cv, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
+    return
+  }
+  if (auffrischenFaellig(now, k.zeit, !k.lebend)) {
+    const l = lebendLeinwand(k.lebend, basis)
+    oberflaeche(l.c, k, l.ppc, now)
+    k.lebend = l.cv
+    k.zeit = now
+  }
+  ctx.drawImage(k.lebend!, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
+  // Was einzeln gezeichnet wird (Blasen, Seerosen, Schollen, Leuchtpunkte) bleibt fluessig in jedem Bild
   switch (art) {
     case 'lava':
-      // Langsam fliessende Schlieren, dazu Blasen in der Tiefe
-      fuellung(ctx, maske, tex('lava'), cell, t0 / 54, t0 / 120, 0.85)
       cells.forEach((c, i) => {
         if (k.T(c.x + 0.5, c.y + 0.5) < 0.9) return
         const z = (now / 1500 + hash(c.x * 7 + c.y * 13)) % 1
@@ -371,6 +416,34 @@ export function drawFlaeche(ctx: CanvasRenderingContext2D, cells: P[], art: Flae
           }
         }
       })
+      break
+    case 'tief':
+      seerosen(ctx, k, cell, now)
+      break
+    case 'winter':
+      schollen(ctx, k, cell, now)
+      break
+    case 'hoehle':
+      leuchtpunkte(ctx, k, cell, now, [120, 230, 255])
+      break
+    case 'zauber':
+      leuchtpunkte(ctx, k, cell, now, [200, 140, 255])
+      leuchtpunkte(ctx, k, cell, now + 777, [120, 255, 220])
+      break
+    case 'sumpf':
+      sumpfBlasen(ctx, k, cell, now)
+      break
+  }
+}
+
+/** Bewegte Oberflaeche einer Flaeche in `ctx` (Feldkoordinaten * cell), ohne die einzeln gezeichneten Teile */
+function oberflaeche(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, now: number) {
+  const { maske, cells, art } = k
+  const t0 = now
+  switch (art) {
+    case 'lava':
+      // Langsam fliessende Schlieren
+      fuellung(ctx, maske, tex('lava'), cell, t0 / 54, t0 / 120, 0.85)
       break
     case 'eis':
     case 'eisNacht': {
@@ -393,7 +466,6 @@ export function drawFlaeche(ctx: CanvasRenderingContext2D, cells: P[], art: Flae
     case 'gras':
       fuellung(ctx, maske, tex('kaustik'), cell, t0 / 60, t0 / 90, 0.32)
       fuellung(ctx, maske, tex('kaustik'), cell, -t0 / 80, t0 / 70, 0.22, 1.3)
-      if (art === 'tief') seerosen(ctx, k, cell, now)
       break
     case 'klar':
       fuellung(ctx, maske, tex('wellen'), cell, t0 / 40, t0 / 120, 0.7)
@@ -401,20 +473,15 @@ export function drawFlaeche(ctx: CanvasRenderingContext2D, cells: P[], art: Flae
       break
     case 'winter':
       fuellung(ctx, maske, tex('wellen'), cell, t0 / 70, t0 / 160, 0.45)
-      schollen(ctx, k, cell, now)
       break
     case 'hoehle':
       fuellung(ctx, maske, tex('kaustik'), cell, t0 / 90, t0 / 120, 0.18)
-      leuchtpunkte(ctx, k, cell, now, [120, 230, 255])
       break
     case 'zauber':
       fuellung(ctx, maske, tex('kaustik'), cell, t0 / 70, -t0 / 100, 0.22)
-      leuchtpunkte(ctx, k, cell, now, [200, 140, 255])
-      leuchtpunkte(ctx, k, cell, now + 777, [120, 255, 220])
       break
     case 'sumpf':
       fuellung(ctx, maske, tex('sumpf'), cell, t0 / 200, t0 / 260, 0.9)
-      sumpfBlasen(ctx, k, cell, now)
       break
   }
 }
@@ -538,7 +605,7 @@ function sumpfBlasen(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, no
 /**
  * Ein Stueck Meer: Wasser mit Strand (basis), Maske fuer die bewegte Oberflaeche, Gischtbaender fuer die Wellen
  * (wellenDa: ob im Band ueberhaupt Gischt liegt). lebend = basis samt bewegter Oberflaeche und Wellen, fertig zusammengesetzt
- * und nur alle paar Bilder neu (zeit = wann zuletzt), so kostet ein Stueck Meer je Bild nur noch ein Bild kopieren
+ * und nur alle LEBEND_TAKT ms neu (zeit = wann zuletzt), so kostet ein Stueck Meer je Bild nur noch ein Bild kopieren
  */
 export type MeerKachel = { basis: Bild; maske: Bild; wellen: Bild[]; wellenDa: boolean[]; lebend: HTMLCanvasElement | null; zeit: number; staerke: number }
 /** Wo die Gischtbaender liegen (Abstand vom Land in Feldern): aussen, mitte, am Strand */
@@ -636,12 +703,6 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
   return { basis: bild(bilder[0]), maske: bild(bilder[1]), wellen: bilder.slice(2).map(bild), wellenDa, lebend: null, zeit: 0, staerke: 1 }
 }
 
-/** So oft wird die bewegte Oberflaeche eines Stuecks Meer neu zusammengesetzt (ms), hoechstens so viele Stuecke je Bild */
-const MEER_TAKT = 70
-const MEER_JE_BILD = 4
-let meerBild = -1
-let meerNeu = 0
-
 /** Grund, bewegte Oberflaeche (zwei Lagen Lichtnetz) und Wellen in das Bild `lebend` des Stuecks zusammensetzen */
 function meerAuffrischen(m: MeerKachel, now: number, staerke: number) {
   const { basis, maske, wellen } = m
@@ -689,16 +750,8 @@ export function drawMeer(ctx: CanvasRenderingContext2D, m: MeerKachel, cell: num
   ctx.globalAlpha = a0 * alpha
   if (reduce) ctx.drawImage(basis.cv, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
   else {
-    // Bewegte Oberflaeche nur alle MEER_TAKT ms neu und je Bild nur fuer ein paar Stuecke (das Auge merkt das nicht,
-    // das Handy sehr wohl: vorher wurde jedes Stueck in jedem Bild mehrfach neu zusammengesetzt)
-    if (now !== meerBild) {
-      meerBild = now
-      meerNeu = 0
-    }
-    if (!m.lebend || m.staerke !== staerke || (Math.abs(now - m.zeit) >= MEER_TAKT && meerNeu < MEER_JE_BILD)) {
-      meerNeu++
-      meerAuffrischen(m, now, staerke)
-    }
+    // Bewegte Oberflaeche nur alle LEBEND_TAKT ms neu und je Bild nur fuer ein paar Stuecke
+    if (auffrischenFaellig(now, m.zeit, !m.lebend || m.staerke !== staerke)) meerAuffrischen(m, now, staerke)
     ctx.drawImage(m.lebend!, basis.x0 * cell, basis.y0 * cell, basis.w * cell, basis.h * cell)
   }
   ctx.globalAlpha = a0

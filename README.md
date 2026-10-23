@@ -43,7 +43,7 @@ Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar, nur mit 
 
 | Ab Level | Was passiert |
 |---|---|
-| 1 | Zwei Kartenblöcke (je ein halber Bildschirm plus ein Feld in jede Richtung, die Karte ist also etwas größer als der Bildschirm), das **Bild steht still**, bis das erste neue Gebiet dazukommt. Die Schlange wächst **alle 2 Äpfel** ein Glied (ab 50 alle 4, ab 300 alle 6). **Lava im Stein:** In 30 % der Blöcke rund um die Karte steckt ein einzelnes Lavafeld, man sieht es in der Erde. |
+| 1 | Zwei Kartenblöcke (je ein halber Bildschirm plus ein Feld in jede Richtung, die Karte ist also etwas größer als der Bildschirm), das **Bild steht still**, bis das erste neue Gebiet dazukommt. **Endlos:** Jede Runde liegt die Welt woanders (Wurzeln, Steine, Erze und Lava im Stein sind neu verteilt), und die Ränder sind nie ganz gerade: an den Außenkanten sind Ecken verschüttet oder eingekerbt, zusammen etwa 10 % (in der Wüste als Buchten). Baut man dort an, wird die Nahtstelle wieder frei. Die Schlange wächst **alle 2 Äpfel** ein Glied (ab 50 alle 4, ab 300 alle 6). **Lava im Stein:** In 30 % der Blöcke rund um die Karte steckt ein einzelnes Lavafeld, man sieht es in der Erde. |
 | 5 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
 | 10 | **Power-ups** (Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, Spitzhacke). |
 | 15 | **Teiche:** alle 15 Level einer, bleibt liegen, wird langsam größer (2, 2, 3, 3 … bis 12). |
