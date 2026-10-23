@@ -238,6 +238,8 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       startLevel: istKreativ ? start : startLevel,
       kreativ: istKreativ ? { ...k } : null,
       sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
+      // Jede Runde eine andere Welt mit unregelmaessigen Raendern (Sandbox hat ihre eigene Karte)
+      zufallsWelt: true,
     })
   renderer.reset()
   renderer.sonderApfel = false
@@ -1813,7 +1815,7 @@ function updateHome() {
 
 function newDemo() {
   const sc = screenCells()
-  demo = new Game({ screenW: sc.w, screenH: sc.h, tempo: 'langsam', startLevel: 1, cfg: { ...config } })
+  demo = new Game({ screenW: sc.w, screenH: sc.h, tempo: 'langsam', startLevel: 1, cfg: { ...config }, zufallsWelt: true })
   renderer.reset()
 }
 

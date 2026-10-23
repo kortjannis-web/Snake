@@ -62,6 +62,27 @@ const RAND_VORN = 7.2
 const RAND_SICHER = 5.5
 /** Seite des Ausschnitts je Achse und Richtung */
 /** Kantenlaenge einer Boden-Kachel in Feldern, und wie viele Kacheln hoechstens im Speicher bleiben */
+/** Automatische Aufloesung: Pixeldichten von fein nach grob, ab dieser Bildzeit (Median und Schnitt, ms) eine Stufe groeber */
+const AUFL_STUFEN = [2.5, 2, 1.7, 1.4, 1.15]
+const AUFL_GRENZE = 24
+const AUFL_BILDER = 90
+const AUFL_KEY = 'snake.aufloesung.v1'
+function lesStufe() {
+  try {
+    const v = Number(localStorage.getItem(AUFL_KEY))
+    return Number.isFinite(v) ? Math.max(0, Math.min(AUFL_STUFEN.length - 1, Math.floor(v))) : 0
+  } catch {
+    return 0
+  }
+}
+function schreibStufe(v: number) {
+  try {
+    localStorage.setItem(AUFL_KEY, String(v))
+  } catch {
+    /* Speicher blockiert: dann eben nur fuer diese Sitzung */
+  }
+}
+
 const GRUND = 8
 const GRUND_MAX = 48
 /** Jedes Spiel bekommt eine Nummer (der Boden haengt an Welt und Einstellungen) */
@@ -213,8 +234,39 @@ export class Renderer {
     this.ctx = canvas.getContext('2d', { alpha: false })!
   }
 
+  /**
+   * Automatische Aufloesung: Ruckelt das Spiel auf diesem Geraet (Bilder dauern laenger als AUFL_GRENZE ms), wird das
+   * Spielfeld eine Stufe groeber gerechnet (weniger Pixel, das Handy schafft wieder volle Bildrate). Die Stufe merkt sich
+   * das Geraet; beim naechsten Start wird eine feinere Stufe probiert, damit eine einzelne schlechte Runde nicht fuer immer bleibt.
+   */
+  private stufe = Math.max(0, lesStufe() - 1)
+  private messung: number[] = []
+  private stufeSeit = 0
+
+  private dprFuer() {
+    return Math.min(AUFL_STUFEN[this.stufe], window.devicePixelRatio || 1)
+  }
+
+  /** Bildzeit eines laufenden Spiels mitzaehlen und bei Dauer-Ruckeln die Aufloesung senken */
+  private bildzeit(dt: number, laeuft: boolean, realNow: number) {
+    if (!laeuft || dt >= 100) return
+    this.messung.push(dt)
+    if (this.messung.length < AUFL_BILDER) return
+    const m = this.messung.sort((a, b) => a - b)
+    const median = m[m.length >> 1]
+    const schnitt = m.reduce((a, b) => a + b, 0) / m.length
+    this.messung = []
+    if (median <= AUFL_GRENZE || schnitt <= AUFL_GRENZE || realNow - this.stufeSeit < 3000) return
+    const fein = this.dprFuer()
+    while (this.stufe < AUFL_STUFEN.length - 1 && this.dprFuer() >= fein) this.stufe++
+    if (this.dprFuer() >= fein) return
+    this.stufeSeit = realNow
+    schreibStufe(this.stufe)
+    this.resize(this.vw, this.vh)
+  }
+
   resize(vw: number, vh: number) {
-    this.dpr = Math.min(2.5, window.devicePixelRatio || 1)
+    this.dpr = this.dprFuer()
     this.vw = vw
     this.vh = vh
     this.canvas.width = Math.round(vw * this.dpr)
@@ -391,6 +443,7 @@ export class Renderer {
     const realNow = performance.now()
     const dt = this.lastReal ? Math.min(100, realNow - this.lastReal) : 16
     this.lastReal = realNow
+    this.bildzeit(dt, g.status === 'play' && g.time !== this.camZeit, realNow)
     const now = g.time
     this.neueFeldgroesse(g)
     const cell = this.cell
@@ -958,7 +1011,7 @@ export class Renderer {
   }
 
   private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
-    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}`
+    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}|${g.aus.length}`
     if (stand !== this.grundStand) {
       this.grund.clear()
       this.grundStand = stand

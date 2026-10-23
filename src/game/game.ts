@@ -32,6 +32,11 @@ export type GameOpts = {
   sandbox?: Sandbox | null
   /** Wueste (Insel): Sandsturm, Flut und Sandwurm (siehe R.WUESTE) */
   wueste?: boolean
+  /**
+   * Endlos-Modus: jede Runde eine andere Welt (Erde, Wurzeln, Erze und Lava liegen woanders) und unregelmaessige
+   * Kartenraender (verschuettete Ecken, Einkerbungen, zusammen etwa RAND_ANTEIL der Flaeche). Nicht in Sandbox und Tageslevel
+   */
+  zufallsWelt?: boolean
 }
 /** Feld aus einem Schluessel zurueck */
 const ausKey = (k: number): P => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })
@@ -59,6 +64,12 @@ type Sicht = {
 }
 /** Jeder Kartenblock ist in jede Richtung so viele Felder groesser als ein halber Bildschirm */
 export const BLOCK_PLUS = 1
+/** Endlos: so viel jedes Blocks ist an den Aussenkanten ungefaehr verschuettet (Ecken und Einkerbungen) */
+export const RAND_ANTEIL = 0.1
+/** So tief (Felder) reichen Verschuettungen hoechstens in einen Block hinein */
+export const RAND_TIEFE = 4
+/** Zufallswelt: so viele Bloecke weit kann der Ausschnitt der Welt in jede Richtung verschoben sein */
+const WELT_WEITE = 40
 /** So lange zerfaellt eine besiegte Gegner-Schlange (ms) */
 export const GEGNER_WEG = 700
 /** So lange sieht man eine zertretene Ameise (ms) */
@@ -106,6 +117,8 @@ export class Game {
   /** Lava im Stein: fest je Block und Spiel, die Startbloecke haben keine (Weltkoordinaten in Bloecken) */
   protected readonly lavaSalz: number
   protected startBloecke = new Set<number>()
+  /** Zufall fuer die Form der Kartenraender (eigener Generator, damit der Spielablauf gleich bleibt); null = gerade Raender */
+  protected readonly formZufall: Rng | null
   /** Freigelegte Lavafelder, die noch nicht ausbrechen konnten (etwas liegt darauf oder der Kopf ist zu nah) */
   lavaOffen: P[] = []
   /** Offene Gebiets-Wahl: die Waende leuchten, beruehren baut dort einen Block an */
@@ -203,6 +216,8 @@ export class Game {
     this.wueste = !!o.wueste
     this.r = rng(o.seed)
     this.lavaSalz = 11 + 3 * ((o.seed ?? Math.floor(Math.random() * 2 ** 31)) % 100_000)
+    const zw = !!o.zufallsWelt && !o.sandbox
+    this.formZufall = zw ? rng(o.seed === undefined ? undefined : (o.seed ^ 0x5bd1e995) >>> 0) : null
     // Block = halber Bildschirm, am Handy (hochkant) uebereinander, quer nebeneinander.
     // Jeder Block hat je Richtung BLOCK_PLUS Felder mehr: die Karte ist etwas groesser als ein Bildschirm
     if (o.screenH >= o.screenW) {
@@ -232,7 +247,10 @@ export class Game {
           for (let x = 0; x < Math.max(1, Math.min(8, Math.round(sb.breite))); x++) this.blocks.push({ x, y })
       this.baueMaske()
     }
-    for (const b of this.blocks) this.startBloecke.add(weltKey(b.x, b.y))
+    // Zufallswelt: die Karte liegt an einer zufaelligen Stelle der Welt (ganze Bloecke weit verschoben), so stecken
+    // Wurzeln, Steine, Erze und Lava jede Runde woanders
+    if (this.formZufall) this.ursprung = { x: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bw, y: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bh }
+    for (const b of this.blocks) this.startBloecke.add(weltKey(b.x - this.ursprung.x / this.bw, b.y - this.ursprung.y / this.bh))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
     this.tick = R.takt(this.cfg, this.tempo, 1)
 
@@ -246,6 +264,10 @@ export class Game {
       { x: x - 2, y },
     ]
     this.apple = { p: { x: Math.min(this.w - 2, x + 5), y }, t: 0 }
+    if (this.formZufall) {
+      for (const b of this.blocks) this.randFormen(b)
+      this.baueMaske()
+    }
 
     // Mit hoeherem Level starten: die Welt so aufbauen, wie sie bis dahin
     // ungefaehr entstanden waere (Bloecke, Teiche, Baeume, Haeuser, Tuerme)
@@ -1115,7 +1137,7 @@ export class Game {
   /* ================= Karte aus Bloecken ================= */
 
   felder() {
-    return this.blocks.length * this.bw * this.bh + this.extra.length
+    return this.blocks.length * this.bw * this.bh + this.extra.length - this.aus.length
   }
 
   protected baueMaske() {
@@ -1164,10 +1186,17 @@ export class Game {
       this.baueMaske()
     }
     // Was vorher Erde war, wird freigelegt (Erze darin liegen dann auf der Karte)
-    const neu: P[] = []
-    for (let y = p.y * this.bh; y < (p.y + 1) * this.bh; y++) for (let x = p.x * this.bw; x < (p.x + 1) * this.bw; x++) if (!this.inside({ x, y })) neu.push({ x, y })
+    const vorher: P[] = []
+    for (let y = p.y * this.bh; y < (p.y + 1) * this.bh; y++) for (let x = p.x * this.bw; x < (p.x + 1) * this.bw; x++) if (!this.inside({ x, y })) vorher.push({ x, y })
     this.blocks.push(p)
+    // Unregelmaessige Raender: was an der neuen Nahtstelle verschuettet war, wird frei, der neue Block bekommt eigene
+    const wieder = this.formZufall ? this.randOeffnen(p) : []
     this.baueMaske()
+    if (this.formZufall) {
+      this.randFormen(p)
+      this.baueMaske()
+    }
+    const neu = [...vorher.filter((c) => this.inside(c)), ...wieder]
     this.erzeFrei(neu)
     this.lavaFrei(neu)
     this.expansions++
@@ -1178,7 +1207,14 @@ export class Game {
 
   /** Leuchtende Wand beruehrt: Block in Laufrichtung anbauen. Gibt das Zielfeld (ggf. verschoben) zurueck */
   protected wahlAn(n: P): P | null {
-    const b = { x: Math.floor(n.x / this.bw), y: Math.floor(n.y / this.bh) }
+    let b = { x: Math.floor(n.x / this.bw), y: Math.floor(n.y / this.bh) }
+    // Verschuetteter Rand: die leuchtende Wand liegt an der Blockkante dahinter. Ist sie nah genug, zaehlt das Beruehren
+    if (this.blocks.some((o) => same(o, b))) {
+      const st = STEP[this.dir]
+      const bis = st.x > 0 ? (b.x + 1) * this.bw - 1 - n.x : st.x < 0 ? n.x - b.x * this.bw : st.y > 0 ? (b.y + 1) * this.bh - 1 - n.y : n.y - b.y * this.bh
+      if (bis >= RAND_TIEFE) return null
+      b = { x: b.x + st.x, y: b.y + st.y }
+    }
     const von = { x: b.x - STEP[this.dir].x, y: b.y - STEP[this.dir].y }
     if (this.blocks.some((o) => same(o, b)) || !this.blocks.some((o) => same(o, von))) return null
     const vorher = { ...this.ursprung }
@@ -1313,11 +1349,128 @@ export class Game {
       this.baueMaske()
     }
     const neu = cells.filter((c, i) => !this.inside(c) && cells.findIndex((o) => same(o, c)) === i)
+    // Verschuettete Felder, durch die gegraben wurde, gehoeren wieder zur Karte
+    if (this.aus.length) {
+      const k = new Set(neu.map((c) => key(c.x, c.y)))
+      this.aus = this.aus.filter((c) => !k.has(key(c.x, c.y)))
+    }
     this.extra.push(...neu)
     this.baueMaske()
     this.erzeFrei(neu)
     this.lavaFrei(neu)
     this.emit({ type: 'freigelegt', dx, dy, anzahl: neu.length })
+  }
+
+  /* ================= Unregelmaessige Kartenraender (Endlos) ================= */
+
+  /**
+   * Block b (in Bloecken): an den Seiten, an denen kein Block liegt, Ecken verschuetten und Einkerbungen setzen, bis
+   * etwa RAND_ANTEIL seiner Felder weg sind. Nie auf der Schlange, dem Apfel oder anderem Belegten, nie naeher als
+   * RAND_TIEFE an einer Seite mit Nachbarblock, und die Karte bleibt immer zusammenhaengend.
+   */
+  protected randFormen(b: P) {
+    const z = this.formZufall
+    if (!z) return
+    const da = (dx: number, dy: number) => this.blocks.some((o) => o.x === b.x + dx && o.y === b.y + dy)
+    const offen = { u: !da(0, -1), d: !da(0, 1), l: !da(-1, 0), r: !da(1, 0) }
+    const seiten = (Object.keys(offen) as Dir[]).filter((d) => offen[d])
+    if (!seiten.length) return
+    const x0 = b.x * this.bw
+    const y0 = b.y * this.bh
+    const x1 = x0 + this.bw - 1
+    const y1 = y0 + this.bh - 1
+    const T = RAND_TIEFE
+    const kopf = this.body[0]
+    const tabu = this.hindernisse()
+    for (const c of [this.apple.p, ...this.tunnel, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.gift.map((g) => g.p)]) tabu.add(key(c.x, c.y))
+    const frei = (c: P) => this.inside(c) && !tabu.has(key(c.x, c.y)) && !this.aufSchlange(c) && (!kopf || cheb(c, kopf) > 2)
+    const ziel = Math.round(this.bw * this.bh * RAND_ANTEIL * (0.8 + 0.4 * z.next()))
+    // Ecken, an denen beide Seiten offen sind (sx/sy zeigen nach innen)
+    const ecken: { x: number; y: number; sx: 1 | -1; sy: 1 | -1 }[] = []
+    if (offen.u && offen.l) ecken.push({ x: x0, y: y0, sx: 1, sy: 1 })
+    if (offen.u && offen.r) ecken.push({ x: x1, y: y0, sx: -1, sy: 1 })
+    if (offen.d && offen.l) ecken.push({ x: x0, y: y1, sx: 1, sy: -1 })
+    if (offen.d && offen.r) ecken.push({ x: x1, y: y1, sx: -1, sy: -1 })
+    let weg = 0
+    for (let versuch = 0; versuch < 40 && weg < ziel; versuch++) {
+      const form: P[] = []
+      if (ecken.length && z.next() < 0.4) {
+        // Verschuettete Ecke: schraeg abgerundet, 2 bis 4 Felder
+        const e = ecken.splice(z.int(0, ecken.length - 1), 1)[0]
+        const r = z.int(2, T)
+        for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) if (i + j < r - (i + j === r - 1 && z.next() < 0.4 ? 1 : 0)) form.push({ x: e.x + e.sx * i, y: e.y + e.sy * j })
+      } else {
+        // Einkerbung an einer offenen Seite, weg von den Ecken: 3 bis 7 lang, in der Mitte 1 bis 3 tief
+        const d = z.pick(seiten)
+        const quer = d === 'u' || d === 'd'
+        const lang = quer ? this.bw : this.bh
+        const L = z.int(3, 7)
+        if (lang - 2 * T < L) continue
+        const a = z.int(T, lang - T - L)
+        const tief = z.int(1, T - 1)
+        for (let k = 0; k < L; k++) {
+          const t = Math.max(1, Math.min(T - 1, Math.round(tief * Math.sin((Math.PI * (k + 0.5)) / L) + (z.next() - 0.5) * 0.8)))
+          for (let i = 0; i < t; i++) {
+            const along = a + k
+            form.push(d === 'u' ? { x: x0 + along, y: y0 + i } : d === 'd' ? { x: x0 + along, y: y1 - i } : d === 'l' ? { x: x0 + i, y: y0 + along } : { x: x1 - i, y: y0 + along })
+          }
+        }
+      }
+      if (!form.length || !form.every(frei)) continue
+      for (const c of form) this.mask[c.y * this.w + c.x] = 0
+      if (!this.zusammenhaengend()) {
+        for (const c of form) this.mask[c.y * this.w + c.x] = 1
+        continue
+      }
+      this.aus.push(...form)
+      weg += form.length
+    }
+  }
+
+  /** Neuer Block p: in den Nachbarbloecken wird frei, was an der gemeinsamen Kante verschuettet war. Gibt die Felder zurueck */
+  protected randOeffnen(p: P): P[] {
+    const T = RAND_TIEFE
+    const frei: P[] = []
+    const bleibt: P[] = []
+    for (const c of this.aus) {
+      const b = { x: Math.floor(c.x / this.bw), y: Math.floor(c.y / this.bh) }
+      const dx = p.x - b.x
+      const dy = p.y - b.y
+      const nah =
+        Math.abs(dx) + Math.abs(dy) === 1 &&
+        (dx === 1 ? (b.x + 1) * this.bw - 1 - c.x : dx === -1 ? c.x - b.x * this.bw : dy === 1 ? (b.y + 1) * this.bh - 1 - c.y : c.y - b.y * this.bh) < T
+      ;(nah ? frei : bleibt).push(c)
+    }
+    this.aus = bleibt
+    return frei
+  }
+
+  /** Haengt die ganze Karte zusammen? (Breitensuche ueber die Maske) */
+  protected zusammenhaengend() {
+    const { w, h, mask } = this
+    let start = -1
+    let gesamt = 0
+    for (let i = 0; i < mask.length; i++)
+      if (mask[i]) {
+        gesamt++
+        if (start < 0) start = i
+      }
+    if (start < 0) return true
+    const gesehen = new Uint8Array(mask.length)
+    const q = [start]
+    gesehen[start] = 1
+    let n = 0
+    while (q.length) {
+      const i = q.pop()!
+      n++
+      const x = i % w
+      const y = (i - x) / w
+      if (x > 0 && mask[i - 1] && !gesehen[i - 1]) (gesehen[i - 1] = 1), q.push(i - 1)
+      if (x < w - 1 && mask[i + 1] && !gesehen[i + 1]) (gesehen[i + 1] = 1), q.push(i + 1)
+      if (y > 0 && mask[i - w] && !gesehen[i - w]) (gesehen[i - w] = 1), q.push(i - w)
+      if (y < h - 1 && mask[i + w] && !gesehen[i + w]) (gesehen[i + w] = 1), q.push(i + w)
+    }
+    return n === gesamt
   }
 
   /** Frisch freigelegte Felder: Gold und Diamant darin liegen jetzt als Fund auf der Karte */
@@ -1349,6 +1502,7 @@ export class Game {
     }
     mv(this.ursprung)
     this.extra.forEach(mv)
+    this.aus.forEach(mv)
     this.lavaOffen.forEach(mv)
     this.funde.forEach((f) => mv(f.p))
     this.tunnel.forEach(mv)
