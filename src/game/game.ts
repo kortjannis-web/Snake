@@ -16,7 +16,7 @@
  */
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Baum, Cause, Dir, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Side, Status, Teich, Turm, Wolke } from './types'
+import type { Ameise, Baum, Cause, Dir, Durchzug, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -43,7 +43,21 @@ export type GameOpts = {
    * Nicht in der Sandbox und im Tageslevel (dort ist es nur das Aussehen)
    */
   vulkan?: boolean
+  /** Welt (Id wie in render/welten): eigene Ereignisse und Tiere je Welt (Winterwald ...) */
+  welt?: string
 }
+
+/** Schritt-Takt der Welt-Wesen (ms je Feld) und der Schneebaelle */
+export const WESEN_TAKT: Record<WesenArt, number> = { eisbaer: 760, robbe: 320, schneemann: 1500, yeti: 620, zwerg: 900, golem: 1100 }
+/** Wurf (Schneeball) bzw. beim Zwerg: Erz ablegen, alle so viele ms */
+const WURF_TAKT: Partial<Record<WesenArt, number>> = { yeti: 2600, schneemann: 4200, zwerg: 9000 }
+/** So lange bleibt ein Zwerg, dann geht er (ms) */
+const ZWERG_BLEIBT = 45_000
+/** Durch welchen Einschlag stirbt man woran */
+const EINSCHLAG_TOD: Record<EinschlagArt, Cause> = { eiszapfen: 'eiszapfen', stein: 'stein', explosion: 'tnt' }
+export const GESCHOSS_TAKT = 200
+/** So lange sieht man ein verschwundenes Wesen (ms) */
+export const WESEN_WEG = 600
 /** Feld aus einem Schluessel zurueck */
 const ausKey = (k: number): P => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })
 
@@ -106,6 +120,29 @@ export class Game {
   aus: P[] = []
   /** Vulkan: Krater mitten in den Bloecken (gehoeren nicht zur Karte, tief unten Lava). Bleiben beim Anbauen */
   krater: P[] = []
+  /** Welt-Id ('' = keine eigenen Ereignisse) */
+  readonly weltId: string
+  /** Einschlaege mit Warnung (Eiszapfen ...) */
+  einschlaege: Einschlag[] = []
+  /** Sichtsperre (Schneesturm) */
+  sichtsperre: Sichtsperre | null = null
+  /** Polarnacht (Winterwald): dunkel mit Nordlicht bis `bis` */
+  polarnacht: { t: number; bis: number } | null = null
+  /** Tiere und Gestalten der Welt, verschwundene (Animation), Geschosse */
+  wesen: Wesen[] = []
+  wesenWeg: { w: Wesen; t: number }[] = []
+  geschosse: Geschoss[] = []
+  /** Durchzuege (Lore, Fledermausschwarm) */
+  durchzuege: Durchzug[] = []
+  /** Bergwerk: Schienennetz, Stollen durch den Stein (Kartenfelder), TNT, Erdbeben-Spalten, Netze, abgestellte Loren */
+  schienen: Schiene[] = []
+  stollen: P[] = []
+  zuendschnuere: Zuendschnur[] = []
+  spalten: Spalt[] = []
+  netze: { p: P; t: number }[] = []
+  loren: P[] = []
+  /** Spinnennetz: bis dahin ist die Schlange langsamer */
+  bremseBis = 0
   /** Vulkan-Karte (groessere Bloecke, Krater)? Nicht in Sandbox und Tageslevel */
   readonly vulkan: boolean
   /** Vulkan-Welt: rund um die Karte ist der Lava-Abgrund statt Erde (auch in Sandbox und Tageslevel; kein Maulwurf) */
@@ -225,6 +262,12 @@ export class Game {
 
   constructor(o: GameOpts) {
     this.cfg = { ...R.DEFAULTS, ...(o.cfg ?? {}) }
+    this.weltId = o.welt ?? (o.wueste ? 'wueste' : o.vulkan ? 'vulkan' : '')
+    // Winterwald: Eis kommt so oft wie sonst Giftaepfel (ab deren Level, oft), Giftaepfel so selten wie sonst Eis
+    if (this.weltId === 'winter' && this.cfg.eisTauschAn > 0 && !o.sandbox) {
+      const c = this.cfg
+      this.cfg = { ...c, eisAb: c.giftAb, giftAb: c.eisAb, eisAlle: Math.max(1, Math.round(c.giftAlle / 5)), eisFelder: Math.max(30, Math.round(c.eisFelder / 2)), giftAlle: c.giftAlle * 2, giftMax: Math.max(1, Math.round(c.giftMax / 2)) }
+    }
     this.kreativ = o.kreativ ?? null
     this.tempo = o.tempo ?? 'normal'
     this.wueste = !!o.wueste
@@ -291,6 +334,12 @@ export class Game {
     if (this.vulkan) {
       for (const b of this.blocks) this.kraterFormen(b)
       this.baueMaske()
+    }
+    // Bergwerk: von Anfang an ein Schienennetz (eine waagrechte und eine senkrechte Schiene)
+    if (this.weltId === 'bergwerk' && this.cfg.schienenAn > 0 && !sb) {
+      this.schieneDazu('x', this.blocks[0])
+      this.schieneDazu('y', this.blocks[this.blocks.length - 1])
+      this.schienenAufbauen()
     }
 
     // Mit hoeherem Level starten: die Welt so aufbauen, wie sie bis dahin
@@ -379,6 +428,9 @@ export class Game {
     this.ameisenTakt()
     this.fallenTakt()
     this.sandwurmTakt()
+    this.einschlaegeTakt()
+    this.bergwerkTakt()
+    this.wesenTakt()
     this.regie()
   }
 
@@ -390,7 +442,9 @@ export class Game {
 
   /** Aktueller Takt je Feld (Zeitlupe macht ihn laenger) */
   get takt() {
-    return this.time < this.effekt.zeitlupeBis ? this.tick * R.zeitlupe(this.cfg) : this.tick
+    const t = this.time < this.effekt.zeitlupeBis ? this.tick * R.zeitlupe(this.cfg) : this.tick
+    // Spinnennetz: kurz langsamer
+    return this.time < this.bremseBis ? t * 1.6 : t
   }
 
   /** Geist: durch Hindernisse (Kreativ oder Power-up Geist) */
@@ -556,6 +610,8 @@ export class Game {
       return
     }
     this.halt = false
+    this.eisBetreten(h, n)
+    this.bergwerkBetreten(n)
     this.body.unshift(n)
     this.gegnerUeberrascht(n)
     if (!grows) this.body.pop()
@@ -629,7 +685,7 @@ export class Game {
   protected fressen(n: P) {
     const c = this.cfg
     const stufe = this.apfelStufe()
-    const lohn = (was: 'frosch' | 'ameise' | 'gegner', anzahl: number, art?: 'rot' | 'lila') => {
+    const lohn = (was: 'frosch' | 'ameise' | 'gegner' | 'wesen', anzahl: number, art?: 'rot' | 'lila') => {
       const wert = anzahl * c.apfelWert * stufe
       this.verdient += wert
       this.emit({ type: 'gefressen', was, p: { ...n }, wert, art })
@@ -645,6 +701,12 @@ export class Game {
       const a = this.ameisen.splice(ai, 1)[0]
       this.ameisenWeg.push({ p: { ...a.p }, dir: a.dir, t: this.time })
       lohn('ameise', 1)
+    }
+    const wi = this.wesen.findIndex((w) => same(w.p, n))
+    if (wi >= 0) {
+      const w = this.wesen.splice(wi, 1)[0]
+      this.wesenWeg.push({ w, t: this.time })
+      lohn('wesen', 3)
     }
     const e = this.gegner.find((o) => o.body.some((p) => same(p, n)))
     if (e) {
@@ -741,7 +803,7 @@ export class Game {
   }
 
   /** n Level zurueck: Schlange wird um das kuerzer, was sie in diesen Leveln gewachsen war */
-  setback(n: number, grund: 'wolke' | 'licht' | 'kegel' | 'ameise') {
+  setback(n: number, grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem') {
     if (n <= 0) return
     const von = this.level
     const auf = Math.max(1, von - n)
@@ -778,6 +840,14 @@ export class Game {
     if (this.haeuser.some((h) => h.cells.some((p) => same(p, n)))) return 'haus'
     if (this.tuerme.some((t) => t.cells.some((p) => same(p, n)))) return 'turm'
     if (this.lava.some((l) => l.cells.some((p) => same(p, n)))) return 'lava'
+    const ein = this.einschlaege.find((e) => e.gefallen && e.bleibt && e.cells.some((p) => same(p, n)))
+    if (ein) return EINSCHLAG_TOD[ein.art]
+    if (this.loren.some((p) => same(p, n))) return 'lorenlager'
+    if (this.zuendschnuere.some((z) => same(z.fass, n))) return 'tnt'
+    if (this.spalten.some((s) => this.time >= s.ab && s.cells.some((p) => same(p, n)))) return 'spalt'
+    const w = this.wesen.find((o) => same(o.p, n))
+    if (w) return w.art
+    if (this.eisBricht(n)) return 'eisbruch'
     if (this.aufGegner(n)) return 'gegner'
     if (!this.durchSelbst() && rest.some((p) => same(p, n))) return 'selbst'
     return this.andereTreffen(n)
@@ -870,7 +940,7 @@ export class Game {
     // Lava breitet sich jeden 2. Apfel aus (auch in der festen Sandbox: das ist eine Mechanik)
     if (this.level % Math.max(1, this.cfg.lavaWachsen) === 0) this.lavaWachsen()
     // Wueste: Sandsturm, Flut, Sandwurm (vor dem neuen Apfel, damit er nicht im Wasser landet)
-    this.wuesteNachApfel()
+    this.weltNachApfel()
     this.layout()
     this.tick = R.takt(this.cfg, this.tempo, this.level)
   }
@@ -989,6 +1059,711 @@ export class Game {
       if (z < 0) return a
     }
     return arten[arten.length - 1]
+  }
+
+  /* ================= Welt-Ereignisse und Wesen (je Welt) ================= */
+
+  /** Nach jedem Apfel: Liegengebliebenes (Eisbloecke) verschwindet, dann wuerfelt die Welt ihre Ereignisse und Tiere */
+  protected weltNachApfel() {
+    if (this.aufbau || this.statisch) return
+    this.einschlaege = this.einschlaege.filter((e) => !e.gefallen)
+    // Erdbeben-Spalten schliessen sich wieder
+    this.spalten = []
+    if (this.wueste) this.wuesteNachApfel()
+    if (this.weltId === 'winter') this.winterNachApfel()
+    if (this.weltId === 'bergwerk') this.bergwerkNachApfel()
+  }
+
+  protected winterNachApfel() {
+    const c = this.cfg
+    const laeuft = (x: { bis: number } | null) => !!x && this.time < x.bis
+    this.ereignisWuerfeln([
+      {
+        an: c.eiszapfenAn,
+        chance: c.eiszapfenChance,
+        laeuft: this.einschlaege.some((e) => e.art === 'eiszapfen'),
+        start: () => this.eiszapfen(),
+        stop: () => (this.einschlaege = this.einschlaege.filter((e) => e.art !== 'eiszapfen')),
+      },
+      {
+        an: c.schneesturmAn,
+        chance: c.schneesturmChance,
+        laeuft: laeuft(this.sichtsperre),
+        start: () => this.schneesturm(),
+        stop: () => this.sichtsperre && (this.sichtsperre.bis = Math.min(this.sichtsperre.bis, this.time)),
+      },
+      { an: c.yetiAn, chance: c.yetiChance, laeuft: this.wesen.some((w) => w.art === 'yeti'), start: () => this.wesenNeu('yeti'), stop: () => this.wesenFort('yeti') },
+      {
+        an: c.polarnachtAn,
+        chance: c.polarnachtChance,
+        laeuft: laeuft(this.polarnacht),
+        start: () => this.polarnachtStarten(),
+        stop: () => this.polarnacht && (this.polarnacht.bis = Math.min(this.polarnacht.bis, this.time)),
+      },
+    ])
+    this.wesenWuerfeln([
+      ['robbe', c.robbeAn, c.robbeAb, c.robbeChance, c.robbeMax],
+      ['schneemann', c.schneemannAn, c.schneemannAb, c.schneemannChance, c.schneemannMax],
+      ['eisbaer', c.eisbaerAn, c.eisbaerAb, c.eisbaerChance, c.eisbaerMax],
+    ])
+  }
+
+  /** Tiere der Welt: je Apfel eine Chance (an, ab Level, Prozent, hoechstens gleichzeitig) */
+  protected wesenWuerfeln(liste: [WesenArt, number, number, number, number][]) {
+    for (const [art, an, ab, chance, max] of liste) {
+      if (an <= 0 || this.level < ab || this.wesen.filter((w) => w.art === art).length >= max) continue
+      if (this.r.next() * 100 < chance) this.wesenNeu(art)
+    }
+  }
+
+  /** Was sich in dieser Welt ausloesen laesst (Kreativ-Modus) */
+  weltAuswahl(): string[] {
+    if (this.weltId === 'winter') return ['eiszapfen', 'schneesturm', 'yeti', 'polarnacht', 'robbe', 'schneemann', 'eisbaer']
+    if (this.weltId === 'bergwerk') return ['steinschlag', 'lore', 'tnt', 'erdbeben', 'fledermaus', 'zwerg', 'golem', 'netz']
+    if (this.wueste) return ['sandsturm', 'flut', 'sandwurm']
+    return []
+  }
+
+  /** Kreativ: ein Ereignis oder Tier dieser Welt sofort */
+  weltAusloesen(was: string): boolean {
+    switch (was) {
+      case 'eiszapfen':
+        return this.eiszapfen()
+      case 'schneesturm':
+        this.schneesturm()
+        return true
+      case 'polarnacht':
+        this.polarnachtStarten()
+        return true
+      case 'sandsturm':
+        this.sandsturmStarten()
+        return true
+      case 'flut':
+        this.flutWarnen()
+        return true
+      case 'sandwurm':
+        return this.sandwurmStarten()
+      case 'steinschlag':
+        return this.steinschlag()
+      case 'lore':
+        return this.loreStarten()
+      case 'tnt':
+        return this.tntLegen()
+      case 'erdbeben':
+        return this.erdbeben()
+      case 'fledermaus':
+        return this.fledermaeuse()
+      case 'netz':
+        return this.netzSpannen()
+      case 'yeti':
+      case 'robbe':
+      case 'schneemann':
+      case 'eisbaer':
+      case 'zwerg':
+      case 'golem':
+        return this.wesenNeu(was)
+    }
+    return false
+  }
+
+  /** Eiszapfen: 2 x 2 Felder in der Naehe des Kopfes (3 bis 8 weit), ihr Schatten waechst, dann faellt er und bleibt
+   *  bis zum naechsten Apfel als Eisblock liegen. Nie auf der Schlange, nie so, dass etwas abgeschlossen wird */
+  eiszapfen(): boolean {
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    for (const e of this.einschlaege) e.cells.forEach((c) => wand.add(key(c.x, c.y)))
+    const frei = (c: P) => this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && !same(c, this.apple.p) && !this.powers.some((o) => same(o.p, c))
+    const cand: P[][] = []
+    for (let y = h.y - 8; y <= h.y + 7; y++)
+      for (let x = h.x - 8; x <= h.x + 7; x++) {
+        const cells = [{ x, y }, { x: x + 1, y }, { x, y: y + 1 }, { x: x + 1, y: y + 1 }]
+        const d = Math.min(...cells.map((c) => manhattan(c, h)))
+        if (d < 3 || d > 8 || !cells.every(frei)) continue
+        cand.push(cells)
+      }
+    const vorher = this.erreichbar(wand)
+    for (let v = 0; v < 25 && cand.length; v++) {
+      const cells = cand.splice(this.r.int(0, cand.length - 1), 1)[0]
+      if (!this.keinAbschluss(cells, wand, vorher)) continue
+      this.einschlaege.push({ art: 'eiszapfen', cells, t: this.time, bis: this.time + this.cfg.eiszapfenWarnung * 1000, gefallen: false, bleibt: true })
+      this.emit({ type: 'einschlagWarnung', art: 'eiszapfen' })
+      return true
+    }
+    return false
+  }
+
+  /** Einschlaege: wenn die Warnung um ist, fallen sie. Kopf getroffen = vorbei (Schild rettet), Koerper wird abgetrennt */
+  protected einschlaegeTakt() {
+    for (const e of this.einschlaege) {
+      if (e.gefallen || this.time < e.bis) continue
+      e.gefallen = true
+      this.emit({ type: 'einschlag', art: e.art, p: { ...e.cells[0] } })
+      if (this.geist() || (this.kreativ && this.kreativ.tod !== 'an')) continue
+      const zellen = new Set(e.cells.map((c) => key(c.x, c.y)))
+      const i = this.body.findIndex((p) => zellen.has(key(p.x, p.y)))
+      if (i < 0) continue
+      // Steinschlag trifft auch den Schwanz toedlich, Eis und Explosion trennen ihn nur ab
+      if (i <= 1 || e.art === 'stein') {
+        if (this.schildBrechen()) {
+          this.schutzBis = this.time + this.cfg.schutz * 1000
+          // Der Block bleibt nicht auf der Schlange liegen
+          e.bleibt = false
+          continue
+        }
+        this.die(EINSCHLAG_TOD[e.art])
+        return
+      }
+      const weg = this.body.length - i
+      this.abgeschnitten.push({ cells: this.body.slice(i).map((q) => ({ ...q })), von: i, laenge: this.body.length, t: this.time })
+      this.body = this.body.slice(0, i)
+      this.prev = this.prev.slice(0, i)
+      this.emit({ type: 'abgetrennt', weg })
+    }
+  }
+
+  schneesturm() {
+    const c = this.cfg
+    const ab = this.time + c.schneesturmWarnung * 1000
+    this.sichtsperre = { art: 'schneesturm', t: this.time, ab, bis: ab + c.schneesturmDauer * 1000 }
+    this.emit({ type: 'schneesturm' })
+  }
+
+  polarnachtStarten() {
+    this.polarnacht = { t: this.time, bis: this.time + this.cfg.polarnachtDauer * 1000 }
+    this.emit({ type: 'polarnacht' })
+  }
+
+  /** Winterwald: faehrt der Kopf von aussen auf ein Eisfeld, bekommt es Risse (beim dritten Mal bricht es, siehe eisBricht) */
+  protected eisBetreten(von: P, n: P) {
+    if (this.weltId !== 'winter' || this.cfg.eisRisseAn <= 0) return
+    const e = this.eis.find((f) => f.cells.some((c) => same(c, n)))
+    if (!e || e.cells.some((c) => same(c, von))) return
+    e.tritte = (e.tritte ?? 0) + 1
+    this.emit({ type: 'eisRiss', stufe: e.tritte })
+  }
+
+  /** Bricht das Eis hier ein? (Winterwald: zweimal schon drueber, jetzt das dritte Mal von aussen hinein) */
+  protected eisBricht(n: P) {
+    if (this.weltId !== 'winter' || this.cfg.eisRisseAn <= 0) return false
+    const e = this.eis.find((f) => (f.tritte ?? 0) >= 2 && f.cells.some((c) => same(c, n)))
+    return !!e && !e.cells.some((c) => same(c, this.body[0]))
+  }
+
+  /** Neues Wesen: der Yeti kommt am Kartenrand herein, die anderen irgendwo mit Abstand zur Schlange */
+  wesenNeu(art: WesenArt): boolean {
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    const frei = (c: P) => this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && !same(c, this.apple.p)
+    let p: P | null = null
+    let dir: Dir = 'r'
+    if (art === 'yeti') {
+      // Randfelder, an denen es nach innen weitergeht, weit weg vom Kopf
+      const cand: { p: P; d: Dir }[] = []
+      for (let y = 0; y < this.h; y++)
+        for (let x = 0; x < this.w; x++) {
+          const c = { x, y }
+          if (!frei(c) || manhattan(c, h) < 8) continue
+          for (const d of DIRS) {
+            const aus = { x: x - STEP[d].x, y: y - STEP[d].y }
+            const rein = { x: x + STEP[d].x, y: y + STEP[d].y }
+            if (!this.inside(aus) && frei(rein)) cand.push({ p: c, d })
+          }
+        }
+      if (!cand.length) return false
+      const w = this.r.pick(cand)
+      p = w.p
+      dir = w.d
+    } else {
+      const abstand = art === 'eisbaer' || art === 'golem' ? 9 : 6
+      const cand = this.freieFelder((c) => manhattan(c, h) >= abstand && !this.imWeg(c, 3))
+      if (!cand.length) return false
+      p = this.r.pick(cand)
+      dir = this.r.pick(DIRS)
+    }
+    this.wesen.push({ art, p: { ...p }, from: { ...p }, dir, t: this.time, schrittT: this.time, next: this.time + WESEN_TAKT[art], heim: { ...p }, sattBis: 0, wurfNext: this.time + (WURF_TAKT[art] ?? 0) })
+    this.emit({ type: 'wesen', art })
+    return true
+  }
+
+  /** Alle Wesen einer Art verschwinden */
+  protected wesenFort(art: WesenArt) {
+    for (const w of this.wesen.filter((o) => o.art === art)) this.wesenWeg.push({ w, t: this.time })
+    this.wesen = this.wesen.filter((o) => o.art !== art)
+  }
+
+  protected wesenTakt() {
+    this.wesenWeg = this.wesenWeg.filter((x) => this.time - x.t < WESEN_WEG)
+    this.geschosseTakt()
+    if (!this.wesen.length) return
+    let wand: Set<number> | null = null
+    for (const w of [...this.wesen]) {
+      if (this.status !== 'play') return
+      const wt = WURF_TAKT[w.art]
+      if (wt && this.time >= w.wurfNext) {
+        w.wurfNext = this.time + wt
+        this.werfen(w)
+      }
+      if (this.time < w.next) continue
+      w.next = this.time + WESEN_TAKT[w.art]
+      wand ??= this.hindernisse()
+      if (w.art === 'zwerg' && this.time - w.t > ZWERG_BLEIBT) {
+        this.wesen = this.wesen.filter((o) => o !== w)
+        this.wesenWeg.push({ w, t: this.time })
+        continue
+      }
+      if (w.art === 'eisbaer') this.baerTakt(w, wand, this.cfg.eisbaerZurueck, 'eisbaer')
+      else if (w.art === 'golem') this.baerTakt(w, wand, this.cfg.golemZurueck, 'golem')
+      else if (w.art === 'robbe') this.wesenGeradeaus(w, wand, true)
+      else if (w.art === 'yeti') this.wesenGeradeaus(w, wand, false)
+      else this.wesenBummeln(w, wand)
+    }
+  }
+
+  /** Darf ein Wesen dorthin? (frei, nicht in die Schlange, nicht auf den Apfel) */
+  protected wesenFrei(p: P, wand: Set<number>) {
+    return this.inside(p) && !wand.has(key(p.x, p.y)) && !this.aufSchlange(p) && !same(p, this.apple.p)
+  }
+
+  protected wesenSchritt(w: Wesen, d: Dir, wand: Set<number>) {
+    const p = { x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }
+    wand.delete(key(w.p.x, w.p.y))
+    wand.add(key(p.x, p.y))
+    w.from = { ...w.p }
+    w.p = p
+    w.dir = d
+    w.schrittT = this.time
+  }
+
+  /** Geradeaus, bis etwas im Weg ist, dann abbiegen. umkehren = Robbe (prallt ab); sonst (Yeti) verlaesst es die Karte am Rand */
+  protected wesenGeradeaus(w: Wesen, wand: Set<number>, umkehren: boolean) {
+    const vor = { x: w.p.x + STEP[w.dir].x, y: w.p.y + STEP[w.dir].y }
+    if (!umkehren && !this.inside(vor)) {
+      this.wesen = this.wesen.filter((o) => o !== w)
+      this.wesenWeg.push({ w, t: this.time })
+      return
+    }
+    if (this.wesenFrei(vor, wand)) return this.wesenSchritt(w, w.dir, wand)
+    const seiten = this.r.shuffle(DIRS.filter((d) => d !== w.dir && d !== OPP[w.dir]))
+    for (const d of [...seiten, OPP[w.dir]]) if (this.wesenFrei({ x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }, wand)) return this.wesenSchritt(w, d, wand)
+  }
+
+  /** Bummeln (Schneemann): meist weiter in dieselbe Richtung, manchmal anders */
+  protected wesenBummeln(w: Wesen, wand: Set<number>) {
+    const dirs = this.r.next() < 0.6 ? [w.dir, ...this.r.shuffle(DIRS.filter((d) => d !== w.dir))] : this.r.shuffle(DIRS.slice())
+    for (const d of dirs) if (this.wesenFrei({ x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }, wand)) return this.wesenSchritt(w, d, wand)
+  }
+
+  /** Eisbaer: tappt langsam zum Kopf. Steht er direkt daneben, haut er zu (kostet Level), dann ist er satt und geht heim */
+  protected baerTakt(w: Wesen, wand: Set<number>, zurueck: number, grund: 'eisbaer' | 'golem') {
+    const h = this.body[0]
+    const satt = this.time < w.sattBis
+    if (!satt && manhattan(w.p, h) === 1) {
+      w.sattBis = this.time + 6000
+      if (this.time < this.schutzBis || this.geist() || (this.kreativ && !this.kreativ.rueckschlag)) return
+      if (this.schildBrechen()) {
+        this.schutzBis = this.time + this.cfg.schutz * 1000
+        return
+      }
+      this.setback(zurueck, grund)
+      return
+    }
+    const ziel = satt ? w.heim : h
+    const hier = manhattan(w.p, ziel)
+    const opts = this.r
+      .shuffle(DIRS.slice())
+      .filter((d) => this.wesenFrei({ x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }, wand))
+      .sort((a, b) => manhattan({ x: w.p.x + STEP[a].x, y: w.p.y + STEP[a].y }, ziel) - manhattan({ x: w.p.x + STEP[b].x, y: w.p.y + STEP[b].y }, ziel))
+    const d = opts[0]
+    if (!d) return
+    if (manhattan({ x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }, ziel) > hier) return
+    this.wesenSchritt(w, d, wand)
+  }
+
+  /** Schneeball werfen: der Yeti quer zu seinem Weg Richtung Kopf, der Schneemann nur, wenn der Kopf in seiner Reihe ist */
+  protected werfen(w: Wesen) {
+    if (w.art === 'zwerg') return this.erzAblegen(w)
+    const h = this.body[0]
+    const dx = h.x - w.p.x
+    const dy = h.y - w.p.y
+    let d: Dir | null = null
+    if (w.art === 'schneemann') {
+      if (dx === 0 && Math.abs(dy) <= 9 && dy !== 0) d = dy > 0 ? 'd' : 'u'
+      else if (dy === 0 && Math.abs(dx) <= 9 && dx !== 0) d = dx > 0 ? 'r' : 'l'
+    } else {
+      const quer = w.dir === 'l' || w.dir === 'r' ? 'y' : 'x'
+      d = quer === 'y' ? (dy >= 0 ? 'd' : 'u') : dx >= 0 ? 'r' : 'l'
+      if (Math.abs(quer === 'y' ? dy : dx) > 12) d = null
+    }
+    if (!d) return
+    const p = { x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }
+    if (!this.inside(p) || this.hindernisse().has(key(p.x, p.y))) return
+    this.geschosse.push({ art: 'schneeball', p, from: { ...w.p }, dir: d, schrittT: this.time, next: this.time + GESCHOSS_TAKT })
+    this.emit({ type: 'wurf', p: { ...p } })
+    this.geschossTrifft(this.geschosse[this.geschosse.length - 1])
+  }
+
+  /** Schneebaelle fliegen geradeaus; an Hindernissen und am Rand zerplatzen sie */
+  protected geschosseTakt() {
+    if (!this.geschosse.length) return
+    let wand: Set<number> | null = null
+    for (const g of [...this.geschosse]) {
+      if (this.geschossTrifft(g)) continue
+      if (this.time < g.next) continue
+      g.next = this.time + GESCHOSS_TAKT
+      wand ??= this.hindernisse()
+      const p = { x: g.p.x + STEP[g.dir].x, y: g.p.y + STEP[g.dir].y }
+      if (!this.inside(p) || wand.has(key(p.x, p.y))) {
+        this.geschosse = this.geschosse.filter((o) => o !== g)
+        this.emit({ type: 'platsch', p: { ...g.p } })
+        continue
+      }
+      g.from = { ...g.p }
+      g.p = p
+      g.schrittT = this.time
+      this.geschossTrifft(g)
+    }
+  }
+
+  /** Trifft der Schneeball die Schlange? Kopf: kostet Level (Schild faengt ab), Koerper: zerplatzt nur */
+  protected geschossTrifft(g: Geschoss) {
+    const i = this.body.findIndex((p) => same(p, g.p))
+    if (i < 0) return false
+    this.geschosse = this.geschosse.filter((o) => o !== g)
+    this.emit({ type: 'platsch', p: { ...g.p } })
+    if (i > 1 || this.time < this.schutzBis || this.geist() || (this.kreativ && !this.kreativ.rueckschlag)) return true
+    if (this.schildBrechen()) {
+      this.schutzBis = this.time + this.cfg.schutz * 1000
+      return true
+    }
+    this.setback(this.cfg.schneeballZurueck, 'schneeball')
+    return true
+  }
+
+  /* ================= Bergwerk: Schienen, Lore, Steinschlag, TNT, Erdbeben, Fledermaeuse ================= */
+
+  protected bergwerkNachApfel() {
+    const c = this.cfg
+    const laeuft = (art: Durchzug['art']) => this.durchzuege.some((d) => d.art === art)
+    this.ereignisWuerfeln([
+      {
+        an: c.steinschlagAn,
+        chance: c.steinschlagChance,
+        laeuft: this.einschlaege.some((e) => e.art === 'stein'),
+        start: () => this.steinschlag(),
+        stop: () => (this.einschlaege = this.einschlaege.filter((e) => e.art !== 'stein')),
+      },
+      { an: c.loreAn * c.schienenAn, chance: c.loreChance, laeuft: laeuft('lore'), start: () => this.loreStarten(), stop: () => (this.durchzuege = this.durchzuege.filter((d) => d.art !== 'lore')) },
+      { an: c.tntAn, chance: c.tntChance, laeuft: this.zuendschnuere.length > 0, start: () => this.tntLegen(), stop: () => (this.zuendschnuere = []) },
+      { an: c.erdbebenAn, chance: c.erdbebenChance, laeuft: this.spalten.length > 0, start: () => this.erdbeben(), stop: () => (this.spalten = []) },
+      { an: c.fledermausAn, chance: c.fledermausChance, laeuft: laeuft('fledermaus'), start: () => this.fledermaeuse(), stop: () => (this.durchzuege = this.durchzuege.filter((d) => d.art !== 'fledermaus')) },
+    ])
+    this.wesenWuerfeln([
+      ['zwerg', c.zwergAn, c.zwergAb, c.zwergChance, c.zwergMax],
+      ['golem', c.golemAn, c.golemAb, c.golemChance, c.golemMax],
+    ])
+    if (c.netzAn > 0 && this.level >= c.netzAb && this.netze.length < c.netzMax && this.r.next() * 100 < c.netzChance) this.netzSpannen()
+  }
+
+  /** Neue Schiene durch Block b (waagrecht: achse x), nicht zu nah an einer anderen; manchmal abgestellte Loren daneben */
+  protected schieneDazu(achse: 'x' | 'y', b: P) {
+    const lang = achse === 'x' ? this.bh : this.bw
+    const start = achse === 'x' ? b.y * this.bh : b.x * this.bw
+    const cand: number[] = []
+    for (let i = 3; i < lang - 3; i++) {
+      const l = start + i
+      if (this.schienen.some((o) => o.achse === achse && Math.abs(o.linie - l) < 4)) continue
+      cand.push(l)
+    }
+    if (!cand.length) return
+    const linie = this.r.pick(cand)
+    this.schienen.push({ achse, linie })
+    if (this.cfg.lorenlagerAn > 0) this.lorenAbstellen({ achse, linie }, b)
+  }
+
+  /** Felder einer Schiene zwischen dem ersten und letzten Kartenfeld (laengs), und dieser Bereich */
+  schieneFelder(s: Schiene): { von: number; bis: number; cells: P[] } | null {
+    const n = s.achse === 'x' ? this.w : this.h
+    const feld = (i: number) => (s.achse === 'x' ? { x: i, y: s.linie } : { x: s.linie, y: i })
+    let von = -1
+    let bis = -1
+    for (let i = 0; i < n; i++)
+      if (this.inside(feld(i))) {
+        if (von < 0) von = i
+        bis = i
+      }
+    if (von < 0 || bis - von < 3) return null
+    const cells: P[] = []
+    for (let i = von; i <= bis; i++) cells.push(feld(i))
+    return { von, bis, cells }
+  }
+
+  /** Wo eine Schiene zwischen zwei Kartenteilen durch Stein fuehrt, wird daraus ein Stollen (befahrbar, oft mit Erz) */
+  protected schienenAufbauen() {
+    // Kreuzt ein neuer Stollen eine andere Schiene, wird deren Bereich laenger: so oft wiederholen, bis alles passt
+    const dazu: P[] = []
+    for (let runde = 0; runde < 6; runde++) {
+      const neu: P[] = []
+      for (const s of this.schienen) {
+        const f = this.schieneFelder(s)
+        if (!f) continue
+        for (const c of f.cells) if (!this.inside(c) && !neu.some((o) => same(o, c))) neu.push(c)
+      }
+      if (!neu.length) break
+      dazu.push(...(this.zellenDazu(neu, true) ?? []))
+    }
+    if (!dazu.length) return
+    this.stollen.push(...dazu.map((c) => ({ ...c })))
+    // In den Stollen liegt oefter Erz
+    if (!this.aufbau)
+      for (const c of dazu)
+        if (this.r.next() * 100 < this.cfg.stollenErz && !this.funde.some((f) => same(f.p, c)) && !this.aufSchlange(c))
+          this.funde.push({ p: { ...c }, art: this.r.next() < 0.8 ? 'gold' : 'dia', t: this.time })
+  }
+
+  /** Zwei abgestellte Loren neben einer neuen Schiene (Hindernis), nur wenn dort Platz ist */
+  protected lorenAbstellen(s: Schiene, b: P) {
+    const wand = this.hindernisse()
+    const h = this.body[0]
+    const x0 = b.x * this.bw
+    const y0 = b.y * this.bh
+    for (let v = 0; v < 12; v++) {
+      const i = this.r.int(2, (s.achse === 'x' ? this.bw : this.bh) - 4)
+      const seite = this.r.next() < 0.5 ? -1 : 1
+      const cells = [0, 1].map((k) => (s.achse === 'x' ? { x: x0 + i + k, y: s.linie + seite } : { x: s.linie + seite, y: y0 + i + k }))
+      if (!cells.every((c) => this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && !same(c, this.apple.p) && (!h || manhattan(c, h) > 3))) continue
+      if (!this.keinAbschluss(cells, wand)) continue
+      this.loren.push(...cells)
+      return
+    }
+  }
+
+  /** Lore: auf einer Schiene laeutet die Glocke, dann rast sie aus dem Stolleneingang einmal ganz durch */
+  loreStarten(): boolean {
+    const kand = this.schienen.map((s) => ({ s, f: this.schieneFelder(s) })).filter((x) => x.f && x.f.bis - x.f.von >= 8)
+    if (!kand.length) return false
+    const { s, f } = this.r.pick(kand)
+    const c = this.cfg
+    this.durchzuege.push({ art: 'lore', achse: s.achse, linie: s.linie, breite: 1, laenge: 3, von: f!.von, bis: f!.bis, dir: this.r.next() < 0.5 ? 1 : -1, t: this.time, los: this.time + c.loreWarnung * 1000, takt: 60, raus: false, verschont: false })
+    this.emit({ type: 'loreWarnung' })
+    return true
+  }
+
+  /** Fledermausschwarm: zwei Reihen 3 bis 7 Felder neben dem Kopf, kurz Warnung, dann flattert er durch (kostet Level) */
+  fledermaeuse(): boolean {
+    const h = this.body[0]
+    const achse: 'x' | 'y' = this.r.next() < 0.5 ? 'x' : 'y'
+    const kopf = achse === 'x' ? h.y : h.x
+    const kand: number[] = []
+    for (let d = 3; d <= 7; d++) for (const l of [kopf + d, kopf - d - 1]) if (this.reiheBereich(achse, l, 2)) kand.push(l)
+    if (!kand.length) return false
+    const linie = this.r.pick(kand)
+    const b = this.reiheBereich(achse, linie, 2)!
+    this.durchzuege.push({ art: 'fledermaus', achse, linie, breite: 2, laenge: 6, von: b[0], bis: b[1], dir: this.r.next() < 0.5 ? 1 : -1, t: this.time, los: this.time + this.cfg.fledermausWarnung * 1000, takt: 55, raus: false, verschont: false })
+    this.emit({ type: 'fledermaeuse' })
+    return true
+  }
+
+  /** Bereich (laengs) der Reihen linie .. linie + breite - 1, in dem Kartenfelder liegen */
+  protected reiheBereich(achse: 'x' | 'y', linie: number, breite: number): [number, number] | null {
+    let von = Infinity
+    let bis = -Infinity
+    const n = achse === 'x' ? this.w : this.h
+    for (let b = 0; b < breite; b++)
+      for (let i = 0; i < n; i++) {
+        if (!this.inside(achse === 'x' ? { x: i, y: linie + b } : { x: linie + b, y: i })) continue
+        von = Math.min(von, i)
+        bis = Math.max(bis, i)
+      }
+    return von <= bis ? [von, bis] : null
+  }
+
+  /** Wie weit der Kopf eines Durchzugs ist (laengs, mit Nachkommastellen). Vor dem Losfahren null */
+  durchzugKopf(d: Durchzug): number | null {
+    if (this.time < d.los) return null
+    const weg = (this.time - d.los) / d.takt
+    return d.dir === 1 ? d.von - 1 + weg : d.bis + 1 - weg
+  }
+
+  /** Felder, die ein Durchzug gerade bedeckt */
+  durchzugFelder(d: Durchzug): P[] {
+    const k = this.durchzugKopf(d)
+    if (k === null) return []
+    const kopf = d.dir === 1 ? Math.floor(k) : Math.ceil(k)
+    const out: P[] = []
+    for (let i = 0; i < d.laenge; i++) {
+      const v = kopf - d.dir * i
+      if (v < d.von || v > d.bis) continue
+      for (let b = 0; b < d.breite; b++) out.push(d.achse === 'x' ? { x: v, y: d.linie + b } : { x: d.linie + b, y: v })
+    }
+    return out
+  }
+
+  /** Bergwerk je Takt: Durchzuege, Zuendschnuere, aufgehende Spalten */
+  protected bergwerkTakt() {
+    for (const d of [...this.durchzuege]) {
+      if (this.time < d.los) continue
+      if (!d.raus) {
+        d.raus = true
+        this.emit({ type: d.art === 'lore' ? 'lore' : 'fledermaeuse' })
+      }
+      if ((this.time - d.los) / d.takt > d.bis - d.von + 1 + d.laenge) {
+        this.durchzuege = this.durchzuege.filter((o) => o !== d)
+        continue
+      }
+      if (d.verschont || this.geist() || (this.kreativ && this.kreativ.tod !== 'an' && d.art === 'lore')) continue
+      const felder = new Set(this.durchzugFelder(d).map((p) => key(p.x, p.y)))
+      const i = this.body.findIndex((p) => felder.has(key(p.x, p.y)))
+      if (i < 0) continue
+      if (d.art === 'fledermaus') {
+        // Nur der Kopf zaehlt, einmal je Schwarm
+        if (i > 1) continue
+        d.verschont = true
+        if (this.time < this.schutzBis || (this.kreativ && !this.kreativ.rueckschlag)) continue
+        if (this.schildBrechen()) this.schutzBis = this.time + this.cfg.schutz * 1000
+        else this.setback(this.cfg.fledermausZurueck, 'fledermaus')
+        continue
+      }
+      if (i <= 1) {
+        if (this.schildBrechen()) {
+          d.verschont = true
+          this.schutzBis = this.time + this.cfg.schutz * 1000
+          continue
+        }
+        this.die('lore')
+        return
+      }
+      const weg = this.body.length - i
+      this.abgeschnitten.push({ cells: this.body.slice(i).map((q) => ({ ...q })), von: i, laenge: this.body.length, t: this.time })
+      this.body = this.body.slice(0, i)
+      this.prev = this.prev.slice(0, i)
+      this.emit({ type: 'abgetrennt', weg })
+    }
+    // TNT: ist der Funke am Fass, explodiert es 3 x 3
+    for (const z of [...this.zuendschnuere]) {
+      if (Math.floor((this.time - z.t) / z.takt) < z.weg.length) continue
+      this.zuendschnuere = this.zuendschnuere.filter((o) => o !== z)
+      const cells: P[] = []
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.inside({ x: z.fass.x + dx, y: z.fass.y + dy })) cells.push({ x: z.fass.x + dx, y: z.fass.y + dy })
+      this.einschlaege.push({ art: 'explosion', cells, t: this.time, bis: this.time, gefallen: false, bleibt: false })
+      this.emit({ type: 'explosion', p: { ...z.fass } })
+    }
+    // Erdbeben: wenn der Spalt aufgeht und die Schlange liegt darauf
+    for (const sp of this.spalten) {
+      if (this.time < sp.ab || this.time - this.tick > sp.ab) continue
+      if (this.geist() || (this.kreativ && this.kreativ.tod !== 'an')) continue
+      const zellen = new Set(sp.cells.map((c) => key(c.x, c.y)))
+      const i = this.body.findIndex((p) => zellen.has(key(p.x, p.y)))
+      if (i < 0) continue
+      if (i <= 1) {
+        if (this.schildBrechen()) {
+          this.schutzBis = this.time + this.cfg.schutz * 1000
+          continue
+        }
+        this.die('spalt')
+        return
+      }
+      this.abgeschnitten.push({ cells: this.body.slice(i).map((q) => ({ ...q })), von: i, laenge: this.body.length, t: this.time })
+      this.body = this.body.slice(0, i)
+      this.prev = this.prev.slice(0, i)
+      this.emit({ type: 'abgetrennt', weg: this.abgeschnitten[this.abgeschnitten.length - 1].cells.length })
+    }
+  }
+
+  /** Bergwerk: der Kopf faehrt ins Netz (bremst) oder tritt den Funken der Zuendschnur aus */
+  protected bergwerkBetreten(n: P) {
+    const ni = this.netze.findIndex((o) => same(o.p, n))
+    if (ni >= 0) {
+      this.netze.splice(ni, 1)
+      this.bremseBis = this.time + this.cfg.netzBremse * 1000
+      this.emit({ type: 'netz', p: { ...n } })
+    }
+    for (const z of [...this.zuendschnuere]) {
+      const i = Math.floor((this.time - z.t) / z.takt)
+      if (z.weg[i] && same(z.weg[i], n)) this.zuendschnuere = this.zuendschnuere.filter((o) => o !== z)
+    }
+  }
+
+  /** Steinschlag: 2 bis 4 einzelne Felder in der Naehe (nie auf der Schlange), Staub rieselt, dann fallen Felsen und bleiben bis zum Apfel */
+  steinschlag(): boolean {
+    const c = this.cfg
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    for (const e of this.einschlaege) e.cells.forEach((p) => wand.add(key(p.x, p.y)))
+    const lo = Math.max(1, Math.min(c.steinschlagMin, c.steinschlagMax))
+    const n = this.r.int(lo, Math.max(lo, c.steinschlagMax))
+    const cand = this.r.shuffle(this.freieFelder((p) => manhattan(p, h) >= 2 && manhattan(p, h) <= 9 && !wand.has(key(p.x, p.y))))
+    const gewaehlt: P[] = []
+    for (const p of cand) {
+      if (gewaehlt.length >= n) break
+      if (gewaehlt.some((o) => cheb(o, p) < 2)) continue
+      if (!this.keinAbschluss([...gewaehlt, p], wand)) continue
+      gewaehlt.push(p)
+    }
+    if (!gewaehlt.length) return false
+    gewaehlt.forEach((p, i) => this.einschlaege.push({ art: 'stein', cells: [p], t: this.time, bis: this.time + c.steinschlagWarnung * 1000 + i * 180, gefallen: false, bleibt: true }))
+    this.emit({ type: 'einschlagWarnung', art: 'stein' })
+    return true
+  }
+
+  /** TNT: Fass 4 bis 9 Felder weg, die Zuendschnur fuehrt 5 Felder darauf zu; der Funke laeuft, dann explodiert es */
+  tntLegen(): boolean {
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    const frei = (p: P) => this.inside(p) && !wand.has(key(p.x, p.y)) && !this.aufSchlange(p) && !same(p, this.apple.p)
+    const cand = this.r.shuffle(this.freieFelder((p) => manhattan(p, h) >= 4 && manhattan(p, h) <= 9))
+    for (const fass of cand.slice(0, 40)) {
+      for (const d of this.r.shuffle(DIRS.slice())) {
+        const weg: P[] = []
+        for (let i = 5; i >= 1; i--) weg.push({ x: fass.x + STEP[d].x * i, y: fass.y + STEP[d].y * i })
+        if (!weg.every(frei) || !this.keinAbschluss([fass], wand)) continue
+        this.zuendschnuere.push({ weg, fass, t: this.time, takt: this.cfg.tntSchnur * 1000 })
+        this.emit({ type: 'zuendschnur' })
+        return true
+      }
+    }
+    return false
+  }
+
+  /** Erdbeben: ein Spalt (5 bis 8 Felder) 3 bis 8 Felder neben dem Kopf reisst nach dem Beben auf, bis zum naechsten Apfel */
+  erdbeben(): boolean {
+    const h = this.body[0]
+    const wand = this.hindernisse()
+    const frei = (p: P) => this.inside(p) && !wand.has(key(p.x, p.y)) && !this.aufSchlange(p) && !same(p, this.apple.p)
+    const vorher = this.erreichbar(wand)
+    for (let v = 0; v < 40; v++) {
+      const achse = this.r.next() < 0.5 ? 'x' : 'y'
+      const L = this.r.int(5, 8)
+      const quer = this.r.int(3, 8) * (this.r.next() < 0.5 ? -1 : 1)
+      const laengs = this.r.int(-L, 1)
+      const cells: P[] = []
+      for (let i = 0; i < L; i++) cells.push(achse === 'x' ? { x: h.x + laengs + i, y: h.y + quer } : { x: h.x + quer, y: h.y + laengs + i })
+      if (!cells.every(frei) || !this.keinAbschluss(cells, wand, vorher)) continue
+      this.spalten.push({ cells, t: this.time, ab: this.time + this.cfg.erdbebenWarnung * 1000 })
+      this.emit({ type: 'erdbeben' })
+      return true
+    }
+    return false
+  }
+
+  /** Spinnennetz auf einem freien Feld (bremst, wer hindurchfaehrt) */
+  netzSpannen(): boolean {
+    const h = this.body[0]
+    const cand = this.freieFelder((p) => manhattan(p, h) >= 4 && !this.netze.some((o) => same(o.p, p)))
+    if (!cand.length) return false
+    this.netze.push({ p: { ...this.r.pick(cand) }, t: this.time })
+    return true
+  }
+
+  /** Grubenzwerg legt Erz neben sich ab (Gold, selten Diamant) */
+  protected erzAblegen(w: Wesen) {
+    const wand = this.hindernisse()
+    for (const d of this.r.shuffle(DIRS.slice())) {
+      const p = { x: w.p.x + STEP[d].x, y: w.p.y + STEP[d].y }
+      if (!this.inside(p) || wand.has(key(p.x, p.y)) || this.aufSchlange(p) || same(p, this.apple.p) || this.funde.some((f) => same(f.p, p))) continue
+      this.funde.push({ p, art: this.r.next() < 0.8 ? 'gold' : 'dia', t: this.time })
+      this.emit({ type: 'erzAbgelegt', p: { ...p } })
+      return
+    }
   }
 
   /* ================= Wueste: Sandsturm, Flut, Sandwurm ================= */
@@ -1277,6 +2052,11 @@ export class Game {
     const side = SIDE[d]
     this.gebiet = { side, t: this.time, x: p.x * this.bw, y: p.y * this.bh, w: this.bw, h: this.bh }
     this.emit({ type: 'expand', side, add: this.bw * this.bh, dx, dy, block: { ...p }, d })
+    // Bergwerk: manchmal eine neue Schiene durch den neuen Block; Luecken im Stein werden zu Stollen
+    if (this.weltId === 'bergwerk' && this.cfg.schienenAn > 0) {
+      if (this.schienen.length < 7 && this.r.next() * 100 < this.cfg.schienenNeu) this.schieneDazu(this.r.next() < 0.5 ? 'x' : 'y', p)
+      this.schienenAufbauen()
+    }
   }
 
   /** Leuchtende Wand beruehrt: Block in Laufrichtung anbauen. Gibt das Zielfeld (ggf. verschoben) zurueck */
@@ -1407,7 +2187,8 @@ export class Game {
   }
 
   /** Einzelne Felder zur Karte hinzufuegen (links/oben: Karte um ganze Bloecke verschieben) */
-  protected zellenDazu(cells: P[]) {
+  /** Felder ausserhalb der Karte dazunehmen (Maulwurf, Stollen). still = kein Freilegen-Klang, zaehlt nicht */
+  protected zellenDazu(cells: P[], still = false) {
     if (!cells.length) return
     const minX = Math.min(...cells.map((c) => c.x))
     const minY = Math.min(...cells.map((c) => c.y))
@@ -1434,7 +2215,8 @@ export class Game {
     this.baueMaske()
     this.erzeFrei(neu)
     this.lavaFrei(neu)
-    this.emit({ type: 'freigelegt', dx, dy, anzahl: neu.length })
+    this.emit({ type: 'freigelegt', dx, dy, anzahl: still ? 0 : neu.length })
+    return neu
   }
 
   /* ================= Unregelmaessige Kartenraender (Endlos) ================= */
@@ -1675,6 +2457,31 @@ export class Game {
     })
     this.ameisenWeg.forEach((a) => mv(a.p))
     this.abgeschnitten.forEach((a) => a.cells.forEach(mv))
+    this.einschlaege.forEach((e) => e.cells.forEach(mv))
+    for (const w of [...this.wesen, ...this.wesenWeg.map((x) => x.w)]) {
+      mv(w.p)
+      mv(w.from)
+      mv(w.heim)
+    }
+    this.geschosse.forEach((g) => {
+      mv(g.p)
+      mv(g.from)
+    })
+    for (const d of this.durchzuege) {
+      const [quer, laengs] = d.achse === 'x' ? [dy, dx] : [dx, dy]
+      d.linie += quer
+      d.von += laengs
+      d.bis += laengs
+    }
+    for (const s of this.schienen) s.linie += s.achse === 'x' ? dy : dx
+    this.stollen.forEach(mv)
+    this.zuendschnuere.forEach((z) => {
+      z.weg.forEach(mv)
+      mv(z.fass)
+    })
+    this.spalten.forEach((s) => s.cells.forEach(mv))
+    this.netze.forEach((n) => mv(n.p))
+    this.loren.forEach(mv)
     // Flut bleibt auf denselben Feldern (neue Bloecke stehen nicht unter Wasser), der Sandwurm in seiner Reihe
     if (this.flut) this.flut.zellen = new Set([...this.flut.zellen].map((k) => ausKey(k)).map((p) => key(p.x + dx, p.y + dy)))
     const sw = this.sandwurm
@@ -1716,6 +2523,11 @@ export class Game {
     this.tuerme.forEach((t) => t.cells.forEach(add))
     this.lava.forEach((l) => l.cells.forEach(add))
     this.ameisen.forEach((a) => add(a.p))
+    this.wesen.forEach((w) => add(w.p))
+    this.einschlaege.forEach((e) => e.gefallen && e.bleibt && e.cells.forEach(add))
+    this.loren.forEach(add)
+    this.zuendschnuere.forEach((z) => add(z.fass))
+    this.spalten.forEach((s) => this.time >= s.ab && s.cells.forEach(add))
     if (mitGegnern) this.gegner.forEach((e) => e.body.forEach(add))
     return s
   }

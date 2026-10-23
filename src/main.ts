@@ -43,7 +43,7 @@ import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELT_STUFE, WELTEN, weltFrei, weltFreiAlt, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
-import { CAUSE, help, OBJEKT_NAME } from './ui/texts'
+import { CAUSE, help, OBJEKT_NAME, WELT_EREIGNIS_NAME } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over' | 'mehr'
 type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'shopteil' | 'liste' | 'mehr' | 'hall' | 'chat' | 'kampagne'
@@ -265,6 +265,7 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       cfg: !istKreativ && settings.zufall ? zufallsReihenfolge(config) : { ...config },
       wueste: renderer.welt.id === 'wueste',
       vulkan: renderer.welt.id === 'vulkan',
+      welt: renderer.welt.id,
       startLevel: istKreativ ? start : startLevel,
       kreativ: istKreativ ? { ...k } : null,
       sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
@@ -1995,6 +1996,24 @@ function renderKreativ() {
   if (lv && game) {
     $('k-level').textContent = String(game.level)
     kInput('k-ziel').value = String(game.level)
+    // Welt-Ereignisse und Tiere dieser Welt sofort ausloesen
+    const box = $('k-welt-ereignisse')
+    box.replaceChildren()
+    const g = game
+    const liste = g.weltAuswahl()
+    $('k-welt-ereignisse-kopf').hidden = !liste.length
+    box.hidden = !liste.length
+    for (const was of liste) {
+      const b = document.createElement('button')
+      b.textContent = WELT_EREIGNIS_NAME[was] ?? was
+      b.addEventListener('click', () => {
+        audio.click()
+        const ok = g.weltAusloesen(was)
+        for (const e of g.drain()) handle(e)
+        if (!ok) toast('gebiet', 'Kein Platz', 'Gerade passt das nicht auf die Karte.')
+      })
+      box.append(b)
+    }
   }
   // Welt: jede (Admin). Im laufenden Kreativ-Spiel startet die Runde in der neuen Welt neu
   const wb = $('k-welt')
