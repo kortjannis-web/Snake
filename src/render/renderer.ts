@@ -150,7 +150,9 @@ export class Renderer {
   /** Tageslevel: der letzte Apfel leuchtet pink (bringt 10 Aepfel) */
   sonderApfel = false
   /** Meer um die Insel (Wueste) in Kacheln: 'n|kx,ky' normal, 'f|kx,ky' bei Flut (Land ohne die Flutfelder) */
-  private meer = new Map<string, { m: MeerKachel; benutzt: number }>()
+  private meer = new Map<string, { m: MeerKachel | null; benutzt: number }>()
+  /** Stuecke vom vorigen Kartenstand: stehen noch da, bis die neuen fertig sind (die Neuberechnung ist auf mehrere Bilder verteilt) */
+  private meerAlt = new Map<string, MeerKachel | null>()
   private meerStand = ''
   private meerFlut: Set<number> | null = null
   /** Spuren hinter den Schlangen (Teilchen in Feldkoordinaten) */
@@ -901,25 +903,39 @@ export class Renderer {
    */
   /** Meer um die Insel (Wueste): Kacheln wie der Boden, einmal berechnet, dann nur noch bewegte Oberflaeche und Wellen */
   private meerZeichnen(g: Game, cell: number, now: number, ex0: number, ey0: number, ex1: number, ey1: number) {
+    // Karte geaendert (neuer Block, neue Feldgroesse ...): die alten Stuecke bleiben stehen, bis die neuen fertig sind
     if (this.meerStand !== this.grundStand) {
+      this.meerAlt.clear()
+      for (const [k, e] of this.meer) this.meerAlt.set(k, e.m)
       this.meer.clear()
       this.meerStand = this.grundStand
     }
     const flut = g.flut
     if (flut && flut.zellen !== this.meerFlut) {
-      for (const k of [...this.meer.keys()]) if (k.startsWith('f|')) this.meer.delete(k)
+      for (const [k, e] of [...this.meer]) {
+        if (!k.startsWith('f|')) continue
+        this.meerAlt.set(k, e.m)
+        this.meer.delete(k)
+      }
       this.meerFlut = flut.zellen
     }
     const px = 12
     const bild = this.grundBild
+    // Neue Stuecke berechnen kostet: je Bild nur so viel, wie in gut 6 ms passt (mindestens eins), der Rest folgt
+    // in den naechsten Bildern; bis dahin steht das alte Stueck da (oder das tiefe Wasser des Hintergrunds)
+    const t0 = performance.now()
+    let neu = 0
     const holen = (art: 'n' | 'f', kx: number, ky: number) => {
       const k = `${art}|${kx},${ky}`
       let e = this.meer.get(k)
       if (!e) {
+        if (neu > 0 && performance.now() - t0 > 6) return this.meerAlt.get(k) ?? null
+        neu++
         const z = flut?.zellen
         const land = art === 'f' && z ? (x: number, y: number) => g.inside({ x, y }) && !z.has(key(x, y)) : (x: number, y: number) => g.inside({ x, y })
         e = { m: meerKachel(land, kx * GRUND, ky * GRUND, GRUND, px, g.ursprung), benutzt: bild }
         this.meer.set(k, e)
+        this.meerAlt.delete(k)
       }
       e.benutzt = bild
       return e.m
@@ -929,8 +945,11 @@ export class Renderer {
     const ueber = !flut ? 0 : flut.phase === 'aktiv' ? clamp01((now - flut.t) / 700) : 0.45 * Math.pow(Math.max(0, Math.sin(now / 480)), 2) * Math.min(1, 0.5 + (now - flut.t) / 8000)
     for (let ky = Math.floor(ey0 / GRUND); ky <= Math.floor(ey1 / GRUND); ky++)
       for (let kx = Math.floor(ex0 / GRUND); kx <= Math.floor(ex1 / GRUND); kx++) {
-        drawMeer(this.ctx, holen('n', kx, ky), cell, now, 1, warnung ? 1.8 : 1, this.reduce)
-        if (ueber > 0.01) drawMeer(this.ctx, holen('f', kx, ky), cell, now, ueber, warnung ? 1.8 : 1, this.reduce)
+        // Stuecke ganz aus Land (null) haben kein Meer: nichts zu zeichnen
+        const m = holen('n', kx, ky)
+        if (m) drawMeer(this.ctx, m, cell, now, 1, warnung ? 1.8 : 1, this.reduce)
+        const mf = ueber > 0.01 ? holen('f', kx, ky) : null
+        if (mf) drawMeer(this.ctx, mf, cell, now, ueber, warnung ? 1.8 : 1, this.reduce)
       }
     if (this.meer.size > 90) {
       const alt = [...this.meer.entries()].sort((a, b) => a[1].benutzt - b[1].benutzt)

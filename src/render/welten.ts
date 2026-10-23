@@ -1415,7 +1415,7 @@ export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite:
     const k = `${cols}|${cell}`
     let m = vorschauMeer.get(k)
     if (!m) {
-      m = meerKachel((x, y) => x >= 1 && y >= 1, 0, 0, cols + 1, 16, { x: 0, y: 0 })
+      m = meerKachel((x, y) => x >= 1 && y >= 1, 0, 0, cols + 1, 16, { x: 0, y: 0 })!
       vorschauMeer.set(k, m)
     }
     drawMeer(ctx, m, cell, now)
