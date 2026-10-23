@@ -1029,7 +1029,9 @@ function handle(e: GameEvent) {
     case 'sandwurmWarnung':
       audio.gegner()
       haptic.medium()
-      toast('gegner', 'Sandwurm!', 'Eine Reihe brodelt: In 8 Sekunden bricht er durch. Weg da!')
+      // Im Vulkan kommt statt des Sandwurms der Magmawurm aus dem Abgrund
+      if (game?.weltId === 'vulkan') toast('gegner', 'Magmawurm!', 'Die Lava brodelt: In 8 Sekunden bricht er durch. Weg da!')
+      else toast('gegner', 'Sandwurm!', 'Eine Reihe brodelt: In 8 Sekunden bricht er durch. Weg da!')
       break
     case 'sandwurm':
       audio.lava(true)
@@ -1038,7 +1040,7 @@ function handle(e: GameEvent) {
     case 'sandwurmBiss':
       audio.zertreten()
       haptic.heavy()
-      toast('gegner', 'Erwischt!', `Der Sandwurm hat ${e.weg} Glieder abgebissen.`, { minus: true })
+      toast('gegner', 'Erwischt!', `Der ${game?.weltId === 'vulkan' ? 'Magmawurm' : 'Sandwurm'} hat ${e.weg} Glieder abgebissen.`, { minus: true })
       break
     case 'geld':
       // Aepfel sind die Waehrung; im Kreativ-Modus wird nichts gesammelt, in Missionen gibt es nur die Belohnung am Ende

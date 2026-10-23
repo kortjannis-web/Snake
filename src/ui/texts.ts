@@ -45,6 +45,21 @@ export const CAUSE: Record<Cause, string> = {
   skelett: 'Dem Skelett in die Arme gelaufen',
   werwolf: 'Dem Werwolf in die Arme gelaufen',
   riesenspinne: 'Gegen die Riesenspinne gelaufen',
+  abbruch: 'Mit der Kante in den Abgrund gestürzt',
+  lavabombe: 'Von einer Lavabombe getroffen',
+  meteor: 'Vom Feuerregen getroffen',
+  lavastrom: 'In den Lavastrom gefahren',
+  magmawurm: 'Vom Magmawurm verschlungen',
+  lavafisch: 'Vom Lavafisch erwischt',
+  glutgolem: 'Gegen den Glutgolem gelaufen',
+  glut: 'In die Glutspur gefahren',
+  obsidian: 'Am Obsidian-Kristall zerschellt',
+  bienenstock: 'Gegen den Bienenstock gefahren',
+  igel: 'In den Igel gefahren',
+  huegel: 'Gegen einen Maulwurfshügel gefahren',
+  karawane: 'Von der Kamelkarawane überrannt',
+  geier: 'Vom Geier gepackt',
+  klapperschlange: 'Gegen die Klapperschlange gelaufen',
 }
 
 /** Welt-Ereignisse und Tiere (Kreativ: sofort ausloesen) */
@@ -83,6 +98,21 @@ export const WELT_EREIGNIS_NAME: Record<string, string> = {
   gespenst: 'Gespenst',
   riesenspinne: 'Riesenspinne',
   kraehe: 'Krähe',
+  abbruch: 'Abbruchkante',
+  ausbruch: 'Ausbruch',
+  lavastrom: 'Lavastrom',
+  magmawurm: 'Magmawurm',
+  feuerregen: 'Feuerregen',
+  lavafisch: 'Lavafisch',
+  glutgolem: 'Glutgolem',
+  bruecke: 'Lavabrücke',
+  obsidian: 'Obsidian',
+  bienenstock: 'Bienenstock',
+  igel: 'Igel',
+  huegel: 'Maulwurfshügel',
+  karawane: 'Karawane',
+  geier: 'Geier',
+  klapperschlange: 'Klapperschlange',
 }
 
 export const OBJEKT_NAME: Record<SandboxObjekt, string> = {

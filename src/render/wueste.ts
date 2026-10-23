@@ -10,24 +10,29 @@ const hash = (n: number) => {
 }
 
 /** Sandwurm kuendigt sich an: die Reihe brodelt (Sandblasen platzen, Staub steigt), immer heftiger */
-export function drawSandwurmWarnung(ctx: CanvasRenderingContext2D, felder: P[], cell: number, now: number, fortschritt: number) {
+/** Farben: Sandwurm (Wueste) oder Magmawurm (Vulkan) */
+const SAND = { boden: '150, 105, 50', blase: '110, 72, 30', staub: '235, 205, 150', wall: 'rgba(160, 112, 58, 0.45)', krater: 'rgba(120, 78, 34, 0.55)', kraterRand: 'rgba(235, 205, 150, 0.6)', spritzer: '220, 186, 126', ring: [120, 78, 36], leib: [200, 148, 86], glanz: '245, 214, 160', schlund: '#3A1A0C', zahn: '#F4EAD2', gischt: '214, 178, 118' }
+const MAGMA = { boden: '160, 50, 15', blase: '255, 120, 30', staub: '255, 210, 140', wall: 'rgba(120, 40, 15, 0.5)', krater: 'rgba(60, 20, 8, 0.7)', kraterRand: 'rgba(255, 140, 40, 0.7)', spritzer: '255, 150, 50', ring: [255, 110, 30], leib: [78, 62, 56], glanz: '255, 170, 80', schlund: '#FF6A1A', zahn: '#2A221E', gischt: '255, 160, 60' }
+
+export function drawSandwurmWarnung(ctx: CanvasRenderingContext2D, felder: P[], cell: number, now: number, fortschritt: number, magma = false) {
+  const F = magma ? MAGMA : SAND
   const st = 0.35 + 0.65 * fortschritt
   for (const c of felder) {
     const x = (c.x + 0.5) * cell
     const y = (c.y + 0.5) * cell
     const z = hash(c.x * 3.3 + c.y * 7.7)
     // dunkler, aufgewuehlter Sand
-    ctx.fillStyle = `rgba(150, 105, 50, ${0.22 * st})`
+    ctx.fillStyle = `rgba(${F.boden}, ${0.22 * st})`
     ctx.fillRect(c.x * cell - 0.3, c.y * cell - 0.3, cell + 0.6, cell + 0.6)
     for (let i = 0; i < 2; i++) {
       const t = ((now / (700 - 300 * fortschritt) + z + i * 0.5) % 1 + 1) % 1
       const bx = x + (hash(z * 13 + i) - 0.5) * cell * 0.7
       const by = y + (hash(z * 17 + i) - 0.5) * cell * 0.6
-      ctx.fillStyle = `rgba(110, 72, 30, ${0.6 * st * (1 - t)})`
+      ctx.fillStyle = `rgba(${F.blase}, ${0.6 * st * (1 - t)})`
       ctx.beginPath()
       ctx.arc(bx, by, cell * (0.05 + 0.13 * t), 0, TAU)
       ctx.fill()
-      ctx.fillStyle = `rgba(235, 205, 150, ${0.5 * st * (1 - t)})`
+      ctx.fillStyle = `rgba(${F.staub}, ${0.5 * st * (1 - t)})`
       ctx.beginPath()
       ctx.arc(bx, by - t * cell * 0.35, cell * 0.04 * (1 + t), 0, TAU)
       ctx.fill()
@@ -44,7 +49,8 @@ const BOGEN_HALB = 1.7
  * der Koerper gleitet hindurch), dazwischen wuehlt er unter dem Sand. Vorne immer der Kopf mit rundem Schlund.
  * mitte = Mitte quer (in Feldern, zwischen den beiden Reihen), kopf = laengs (Felder), dir = Laufrichtung
  */
-export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mitte: number, kopf: number, dir: 1 | -1, laenge: number, von: number, bis: number, cell: number, now: number) {
+export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mitte: number, kopf: number, dir: 1 | -1, laenge: number, von: number, bis: number, cell: number, now: number, magma = false) {
+  const F = magma ? MAGMA : SAND
   const pt = (v: number, q = 0) => (achse === 'x' ? { x: (v + 0.5) * cell, y: (mitte + q) * cell } : { x: (mitte + q) * cell, y: (v + 0.5) * cell })
   const r0 = cell * 0.95
   // Hoehe ueber dem Sand (0 = darunter, 1 = ganz oben), vorne ist der Kopf immer draussen
@@ -64,7 +70,7 @@ export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mi
     if (hoehe(v) > 0.15) continue
     const p = pt(v)
     const w = Math.sin(v * 7.3) * cell * 0.08
-    ctx.fillStyle = 'rgba(160, 112, 58, 0.45)'
+    ctx.fillStyle = F.wall
     ctx.beginPath()
     ctx.ellipse(p.x + (achse === 'y' ? w : 0), p.y + (achse === 'x' ? w : 0), cell * 0.55, cell * 0.55, 0, 0, TAU)
     ctx.fill()
@@ -74,11 +80,11 @@ export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mi
     for (const e of [n - BOGEN_HALB * 0.85, n + BOGEN_HALB * 0.85]) {
       if (e < lo || e > hi) continue
       const p = pt(e)
-      ctx.fillStyle = 'rgba(120, 78, 34, 0.55)'
+      ctx.fillStyle = F.krater
       ctx.beginPath()
       ctx.ellipse(p.x, p.y, cell * (achse === 'x' ? 0.75 : 1.15), cell * (achse === 'x' ? 1.15 : 0.75), 0, 0, TAU)
       ctx.fill()
-      ctx.strokeStyle = 'rgba(235, 205, 150, 0.6)'
+      ctx.strokeStyle = F.kraterRand
       ctx.lineWidth = Math.max(1, cell * 0.06)
       ctx.stroke()
     }
@@ -95,7 +101,7 @@ export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mi
       if (h > 0.02 && Math.floor(v / schritt) % 3 === 0) {
         const p = pt(v)
         const t = ((now / 260 + v) % 1 + 1) % 1
-        ctx.fillStyle = `rgba(220, 186, 126, ${0.7 * (1 - t)})`
+        ctx.fillStyle = `rgba(${F.spritzer}, ${0.7 * (1 - t)})`
         ctx.beginPath()
         ctx.arc(p.x + (hash(v) - 0.5) * cell * 1.4, p.y + (hash(v + 3) - 0.5) * cell * 1.4 - t * cell * 0.4, cell * 0.08, 0, TAU)
         ctx.fill()
@@ -113,12 +119,13 @@ export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mi
     const u = Math.abs(kopf - v)
     const ring = u % 0.6 < 0.13
     const hell = 0.55 + 0.45 * h
-    ctx.fillStyle = ring ? `rgb(${120 * hell}, ${78 * hell}, ${36 * hell})` : `rgb(${200 * hell}, ${148 * hell}, ${86 * hell})`
+    const c = ring ? F.ring : F.leib
+    ctx.fillStyle = `rgb(${c[0] * hell}, ${c[1] * hell}, ${c[2] * hell})`
     ctx.beginPath()
     ctx.arc(p.x, p.y, r, 0, TAU)
     ctx.fill()
     if (!ring) {
-      ctx.fillStyle = `rgba(245, 214, 160, ${0.35 * h})`
+      ctx.fillStyle = `rgba(${F.glanz}, ${0.35 * h})`
       ctx.beginPath()
       ctx.arc(p.x - r * 0.25, p.y - r * 0.3, r * 0.45, 0, TAU)
       ctx.fill()
@@ -129,11 +136,11 @@ export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mi
   const dx = achse === 'x' ? dir : 0
   const dy = achse === 'y' ? dir : 0
   const auf = 0.8 + 0.2 * Math.sin(now / 70)
-  ctx.fillStyle = '#3A1A0C'
+  ctx.fillStyle = F.schlund
   ctx.beginPath()
   ctx.arc(k.x, k.y, cell * 0.72 * auf, 0, TAU)
   ctx.fill()
-  ctx.fillStyle = '#F4EAD2'
+  ctx.fillStyle = F.zahn
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * TAU + now / 500
     const r1 = cell * 0.72 * auf
@@ -148,7 +155,7 @@ export function drawSandwurm(ctx: CanvasRenderingContext2D, achse: 'x' | 'y', mi
     const a = (hash(i) - 0.5) * 2.4
     const vx = dx * Math.cos(a) - dy * Math.sin(a)
     const vy = dy * Math.cos(a) + dx * Math.sin(a)
-    ctx.fillStyle = `rgba(214, 178, 118, ${0.85 * (1 - t)})`
+    ctx.fillStyle = `rgba(${F.gischt}, ${0.85 * (1 - t)})`
     ctx.beginPath()
     ctx.arc(k.x + vx * t * cell * 1.6, k.y + vy * t * cell * 1.6, cell * 0.1 * (1 - t * 0.5), 0, TAU)
     ctx.fill()

@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange'
 
 export type Status = 'play' | 'over'
 
@@ -121,12 +121,13 @@ export type Eis = { cells: P[]; t: number; tritte?: number }
 
 /** Welt-Gefahr mit Warnung, die auf Felder einschlaegt: bis `bis` waechst der Schatten, dann schlaegt sie ein.
  *  bleibt = danach liegt sie als Hindernis bis zum naechsten Apfel */
-export type EinschlagArt = 'eiszapfen' | 'stein' | 'explosion' | 'zombiehand'
-export type Einschlag = { art: EinschlagArt; cells: P[]; t: number; bis: number; gefallen: boolean; bleibt: boolean; weg?: number }
+export type EinschlagArt = 'eiszapfen' | 'stein' | 'explosion' | 'zombiehand' | 'abbruch' | 'lavabombe' | 'meteor' | 'huegel' | 'geier'
+/** von = woher es kommt (Lavabombe: der Krater) */
+export type Einschlag = { art: EinschlagArt; cells: P[]; t: number; bis: number; gefallen: boolean; bleibt: boolean; weg?: number; von?: P }
 /** Sichtsperre (Schneesturm): kuendigt sich bis `ab` an, dann ist die Sicht bis `bis` fast weg */
 export type Sichtsperre = { art: 'schneesturm'; t: number; ab: number; bis: number }
 /** Tiere und Gestalten je Welt */
-export type WesenArt = 'eisbaer' | 'robbe' | 'schneemann' | 'yeti' | 'zwerg' | 'golem' | 'irrlicht' | 'einhorn' | 'fee' | 'ent' | 'skelett' | 'werwolf' | 'gespenst' | 'riesenspinne' | 'kraehe'
+export type WesenArt = 'eisbaer' | 'robbe' | 'schneemann' | 'yeti' | 'zwerg' | 'golem' | 'irrlicht' | 'einhorn' | 'fee' | 'ent' | 'skelett' | 'werwolf' | 'gespenst' | 'riesenspinne' | 'kraehe' | 'glutgolem' | 'bienen' | 'igel' | 'klapperschlange'
 export type Wesen = {
   art: WesenArt
   p: P
@@ -141,10 +142,13 @@ export type Wesen = {
   sattBis: number
   /** Naechster Wurf (Schneeball) */
   wurfNext: number
+  /** Igel: bis dahin eingerollt (Stachelkugel), Klapperschlange: seit wann sie rasselt (-1 = ruhig) */
+  kugelBis?: number
+  rassel?: number
 }
 /** Durchzug quer ueber die Karte (Lore auf Schienen, Fledermausschwarm): Reihe(n) `linie` (achse x = waagrecht),
  *  warnt bis `los`, dann zieht er mit `takt` ms je Feld von `von` bis `bis` durch (Kopf zuerst, `laenge` lang) */
-export type Durchzug = { art: 'lore' | 'fledermaus' | 'kraehen'; achse: 'x' | 'y'; linie: number; breite: number; laenge: number; von: number; bis: number; dir: 1 | -1; t: number; los: number; takt: number; raus: boolean; verschont: boolean }
+export type Durchzug = { art: 'lore' | 'fledermaus' | 'kraehen' | 'karawane'; achse: 'x' | 'y'; linie: number; breite: number; laenge: number; von: number; bis: number; dir: 1 | -1; t: number; los: number; takt: number; raus: boolean; verschont: boolean }
 /** Schiene (Bergwerk): eine ganze Reihe oder Spalte der Karte; wo sie durch Stein zwischen zwei Kartenteilen fuehrt, ist ein Stollen */
 export type Schiene = { achse: 'x' | 'y'; linie: number }
 /** TNT mit Zuendschnur: der Funke laeuft die Schnur entlang (weg, Fass am Ende), dann explodiert es 3 x 3 */
@@ -157,6 +161,16 @@ export type Ranke = { cells: P[]; grown: number; t: number; next: number; aepfel
 export type Sporen = { cells: P[]; t: number; bis: number }
 /** Pilzringe (Zauberwald): wer in den einen faehrt, kommt aus dem anderen */
 export type Pilzringe = { a: P; b: P; t: number; bis: number }
+/** Lavastrom (Vulkan): fliesst vom Krater Feld fuer Feld uebers Feld, erkaltet nach ein paar Aepfeln (kalt = seit wann, 0 = heiss) */
+export type Lavastrom = { cells: P[]; grown: number; t: number; next: number; aepfel: number; kalt: number }
+/** Lavafisch (Vulkan): springt von Abgrund zu Abgrund ueber die Felder `cells` (Warnung bis `los`, dann `takt` ms je Feld) */
+export type Lavafisch = { cells: P[]; von: P; nach: P; t: number; los: number; takt: number; bis: number }
+/** Lavabruecke (Vulkan): ueber einen Krater, bricht nach `ueberMax` Ueberquerungen */
+export type Bruecke = { cells: P[]; t: number; ueber: number }
+/** Obsidian-Kristall (Vulkan): viele Aepfel, nur von der offenen Seite einsammelbar */
+export type Obsidian = { p: P; offen: Dir; t: number; bis: number }
+/** Bienenstock (Wiese): wer zu nah kommt, wird vom Schwarm verfolgt (ruhig bis `ruhe`) */
+export type Bienenstock = { p: P; t: number; bis: number; ruhe: number }
 /** Geschoss (Schneeball): fliegt geradeaus, ein Feld je Takt */
 export type Geschoss = { art: 'schneeball'; p: P; from: P; dir: Dir; schrittT: number; next: number }
 /** Freigelegtes Erz auf der Karte (Gold oder Diamant), einsammeln wie einen Apfel */
@@ -199,7 +213,7 @@ export type GameEvent =
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }
-  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem' | 'skelett' | 'werwolf' | 'gespenst'; wer?: number }
+  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem' | 'skelett' | 'werwolf' | 'gespenst' | 'bienen' | 'klapperschlange'; wer?: number }
   | { type: 'tree'; p: P }
   | { type: 'house' }
   | { type: 'light' }
@@ -241,6 +255,14 @@ export type GameEvent =
   | { type: 'einschlagWarnung'; art: EinschlagArt }
   | { type: 'einschlag'; art: EinschlagArt; p: P }
   | { type: 'abgetrennt'; weg: number }
+  /* Vulkan, Wiese, Wueste: Tiere und Dinge */
+  | { type: 'lavastrom' }
+  | { type: 'lavafisch'; p: P }
+  | { type: 'brueckeBricht'; cells: P[] }
+  | { type: 'obsidian'; p: P; wert: number }
+  | { type: 'bienen' }
+  | { type: 'rassel' }
+  | { type: 'karawane' }
   | { type: 'schneesturm' }
   | { type: 'polarnacht' }
   | { type: 'eisRiss'; stufe: number }

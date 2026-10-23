@@ -215,7 +215,8 @@ export function drawAbgrund(ctx: CanvasRenderingContext2D, m: AbgrundKachel, cel
 
 let schein: HTMLCanvasElement | null = null
 /** Heller Glutschein (einmal gezeichnet, dann nur kopiert) */
-function glutSchein() {
+/** Weicher Glutschein (einmal vorgerechnet, 64 x 64) */
+export function glutSchein() {
   if (!schein) {
     schein = document.createElement('canvas')
     schein.width = schein.height = 64
