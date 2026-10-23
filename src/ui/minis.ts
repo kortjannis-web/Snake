@@ -263,4 +263,10 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   flut: 'teich',
   sandwurm: 'gegner',
   abgrund: 'lava',
+  eiszapfen: 'eis',
+  eisbruch: 'eis',
+  yeti: 'gegner',
+  eisbaer: 'gegner',
+  robbe: 'frosch',
+  schneemann: 'mauer',
 }
