@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager'
 
 export type Status = 'play' | 'over'
 
@@ -121,12 +121,12 @@ export type Eis = { cells: P[]; t: number; tritte?: number }
 
 /** Welt-Gefahr mit Warnung, die auf Felder einschlaegt: bis `bis` waechst der Schatten, dann schlaegt sie ein.
  *  bleibt = danach liegt sie als Hindernis bis zum naechsten Apfel */
-export type EinschlagArt = 'eiszapfen'
+export type EinschlagArt = 'eiszapfen' | 'stein' | 'explosion'
 export type Einschlag = { art: EinschlagArt; cells: P[]; t: number; bis: number; gefallen: boolean; bleibt: boolean }
 /** Sichtsperre (Schneesturm): kuendigt sich bis `ab` an, dann ist die Sicht bis `bis` fast weg */
 export type Sichtsperre = { art: 'schneesturm'; t: number; ab: number; bis: number }
 /** Tiere und Gestalten je Welt */
-export type WesenArt = 'eisbaer' | 'robbe' | 'schneemann' | 'yeti'
+export type WesenArt = 'eisbaer' | 'robbe' | 'schneemann' | 'yeti' | 'zwerg' | 'golem'
 export type Wesen = {
   art: WesenArt
   p: P
@@ -142,6 +142,15 @@ export type Wesen = {
   /** Naechster Wurf (Schneeball) */
   wurfNext: number
 }
+/** Durchzug quer ueber die Karte (Lore auf Schienen, Fledermausschwarm): Reihe(n) `linie` (achse x = waagrecht),
+ *  warnt bis `los`, dann zieht er mit `takt` ms je Feld von `von` bis `bis` durch (Kopf zuerst, `laenge` lang) */
+export type Durchzug = { art: 'lore' | 'fledermaus'; achse: 'x' | 'y'; linie: number; breite: number; laenge: number; von: number; bis: number; dir: 1 | -1; t: number; los: number; takt: number; raus: boolean; verschont: boolean }
+/** Schiene (Bergwerk): eine ganze Reihe oder Spalte der Karte; wo sie durch Stein zwischen zwei Kartenteilen fuehrt, ist ein Stollen */
+export type Schiene = { achse: 'x' | 'y'; linie: number }
+/** TNT mit Zuendschnur: der Funke laeuft die Schnur entlang (weg, Fass am Ende), dann explodiert es 3 x 3 */
+export type Zuendschnur = { weg: P[]; fass: P; t: number; takt: number }
+/** Erdbeben-Spalt: kuendigt sich bis `ab` an, dann offen (toedlich) bis zum naechsten Apfel */
+export type Spalt = { cells: P[]; t: number; ab: number }
 /** Geschoss (Schneeball): fliegt geradeaus, ein Feld je Takt */
 export type Geschoss = { art: 'schneeball'; p: P; from: P; dir: Dir; schrittT: number; next: number }
 /** Freigelegtes Erz auf der Karte (Gold oder Diamant), einsammeln wie einen Apfel */
@@ -184,7 +193,7 @@ export type GameEvent =
   | { type: 'stolen' }
   | { type: 'wall' }
   | { type: 'pond' }
-  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer'; wer?: number }
+  | { type: 'setback'; von: number; auf: number; grund: 'wolke' | 'licht' | 'kegel' | 'ameise' | 'schneeball' | 'eisbaer' | 'fledermaus' | 'golem'; wer?: number }
   | { type: 'tree'; p: P }
   | { type: 'house' }
   | { type: 'light' }
@@ -232,6 +241,14 @@ export type GameEvent =
   | { type: 'wesen'; art: WesenArt }
   | { type: 'wurf'; p: P }
   | { type: 'platsch'; p: P }
+  | { type: 'loreWarnung' }
+  | { type: 'lore' }
+  | { type: 'fledermaeuse' }
+  | { type: 'zuendschnur' }
+  | { type: 'explosion'; p: P }
+  | { type: 'erdbeben' }
+  | { type: 'netz'; p: P }
+  | { type: 'erzAbgelegt'; p: P }
   /** Duell-Power-up: von trifft an */
   | { type: 'duell'; art: 'schere' | 'zeitlupe'; von: number; an: number; weg: number }
 
