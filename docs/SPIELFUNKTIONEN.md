@@ -322,6 +322,20 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Schwierigkeitsrechner:** Jede Gefahr hat ein Gewicht (Mauer 1, Teich 1, Giftapfel 1,2, Frosch 1,2, Baum 1,5, Eis 1,5, Haus 2, Falle 2, Ameise 2,5, Turm 3, Wolke 3, Gegner 4, Lava 4, lila Gegner 6). Wert = Gefahr je Block × 8 + (Länge − 3) × 0,6 + (Äpfel − 3) × 1,1. Der Generator stellt nach, bis der Wert im Band des Wochentags liegt: **Montag 22 bis 38, jeden Tag 6 mehr, Sonntag 58 bis 74**.
 - Beliebig oft spielbar. **Tab „Täglich“ in der Hall of Snakes:** wer alle Äpfel holt, steht nach Zeit vorn, dahinter nach geholten Äpfeln. Tageslevel zählen nicht für Rekord und Tagesrekord.
 
+## 16-0a. Kampagne (Startmenü → Kampagne, seit 1.36.0)
+
+- Neben dem freien Spiel (Spielen) gibt es **feste Missionen**, je Welt 10. Den Anfang macht die **Wiese**; die anderen Welten folgen.
+- **Karte der Kampagne:** eine weite Wiese mit Hügeln, Bäumen, Blumen und einem Teich, die nur **nach oben und unten** scrollt (links und rechts läuft sie aus dem Bild). Darauf 10 runde Missionsfelder auf einem geschwungenen Weg: **Mission 5 ist das Schatz-Level** (Schatztruhe), **Mission 10 das Boss-Level** (Totenschädel), darüber Nebel und „Coming Soon“.
+- **Die eigene Schlange als Weg:** Anfangs liegt nur ihr Kopf kurz vor Mission 1. Tippt man eine Mission an, **wächst die Schlange weich gebogen bis zu diesem Feld**, danach startet die Mission. So wird sie mit jeder neuen Mission länger. Sie trägt das gewählte Aussehen; Effekte und Spur sind auf der Karte etwas schwächer (75 %).
+- **Bisher spielbar: Mission 1** („Erste Schritte“). Die anderen sind ausgegraut („Mission x kommt bald“). Gespielt wird eine Mission erst, wenn die davor geschafft ist; geschaffte Missionen werden grün mit Stern und lassen sich beliebig wiederholen.
+- **Missionen sind fest:** die Karte ist von Hand gebaut und bei jedem Spielen gleich (Start, Äpfel, Mauern, Teiche, Giftäpfel, Frösche). Statt Erde liegen **Berge** um die Täler (Fuß mit Bäumen, Fels, oben Schnee); dagegen = vorbei („Gegen den Berg gefahren“).
+- **Mission 1:** 4 Täler übereinander, getrennt von Bergrücken mit Pässen links und rechts. Start unten nach oben, Länge 3. **10 Äpfel**, 3 Giftäpfel, 5 Frösche, 3 Teiche, 3 Mauern.
+- **Äpfel:** alle liegen von Anfang an da, die Reihenfolge ist egal. **Der zuletzt übrige leuchtet.** Oben rechts steht „x / 10“, oben in der Leiste die Nummer der Mission. Der Pfeil am Bildrand zeigt zum nächsten Apfel. Alle geholt: „Mission geschafft!“.
+- **Regeln:** wie im freien Spiel (jedes Hindernis tödlich, 10 ms Reaktionszeit, wachsen alle 2 Äpfel), aber **nichts kommt dazu**: keine neuen Mauern, keine Power-ups, keine Ereignisse. Frösche hüpfen nicht in die Berge. Tod = „Nochmal“ startet die Mission neu. Immer mit den Standardwerten (Master-Einstellungen gelten hier nicht).
+- **Belohnung: 6 Äpfel beim ersten Abschluss**, Wiederholen bringt nichts extra. Die in der Mission gegessenen Äpfel zählen nicht als Währung. Missionen zählen nicht für Rekord, Tagesrekord und Online-Bestenliste.
+- Gespeichert im Gerät (`snake-kampagne`: geschaffte Missionen, wie weit die Schlange auf der Karte reicht).
+- **Technik:** `src/game/missionen.ts` (Missionen, Karten als Text), `src/game/mission.ts` (MissionGame auf Basis des Endlos-Spiels), `src/render/berge.ts` (Berge als vorgezeichnete Kacheln), `src/render/kampagne.ts` (Karte: Hintergrund einmal als Bild, Felder als kleine Bilder, je Bild nur Ausschnitt und Schlange), `src/kampagne.ts` (Fortschritt).
+
 ## 16-1. Tagesrekord und Erfolge
 
 - **Tagesrekord:** In der Leiste neben dem Rekord steht „heute N“ (der laufende Versuch zählt schon mit), im Startmenü „Heute: N · Rekord: M“, in der Statistik eine eigene Kachel. Auf dem Spielende-Bildschirm gibt es das Abzeichen „Neuer Tagesrekord“, wenn es kein neuer Rekord aller Zeiten ist. Der Tag wechselt um Mitternacht (Gerätezeit).

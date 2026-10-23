@@ -29,6 +29,8 @@ fügt man per Code hinzu; alle Online-Spieler sehen sich und können sich einlad
 Jeden Spieler kann man in der Hall of Snakes antippen und zum Gefecht einladen (online sofort, sonst als Benachrichtigung), im Ergebnis gibt es eine Revanche-Abstimmung. Ein Handy rechnet, ein kleiner Cloudflare-Server (`server/`) verteilt und übernimmt, wenn es ausfällt. Einrichtung:
 [`docs/MEHRSPIELER-EINRICHTEN.md`](docs/MEHRSPIELER-EINRICHTEN.md). Hintergrund: [`docs/MULTIPLAYER-PLAN.md`](docs/MULTIPLAYER-PLAN.md).
 
+**Kampagne** (Startmenü → Kampagne): feste Missionen je Welt auf einer eigenen Karte, auf der die eigene Schlange von Mission zu Mission wächst. Die Wiese hat 10 Missionen (5 = Schatz-Level, 10 = Boss), bisher ist Mission 1 spielbar: von Bergen getrennte Täler, 10 Äpfel liegen von Anfang an da, der letzte leuchtet; 6 Äpfel Belohnung beim ersten Abschluss. Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md) 16-0a.
+
 Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dasselbe Level, eigener Tab in der Hall of Snakes), drei **Spielmodi** (Abenteuer: 25 % langsamer und 25 % weniger Äpfel, Normal, Speedrun: 25 % schneller mit Zeitlimit je Apfel und 25 % mehr Äpfel, ab Orange 50 % mehr; nur volle Äpfel zählen, der Rest wird zwischengespeichert), **Effekte** (Auren, freigeschaltet mit Silber- und Gold-Trophäen) und die
 **Hall of Snakes** (alle Spieler mit Schlange, Rekord, Gold und Silber; zugleich die Bestenliste) mit Freundschaftsanfragen und einem **Chat unter
 Freunden** (Nachrichten 30 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md) 16c.
