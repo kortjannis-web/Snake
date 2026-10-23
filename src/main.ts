@@ -597,8 +597,16 @@ function karteOeffnen(z: HallZeile) {
   // Offline: Einladung als Nachricht aufs Handy (wenn der andere sie eingeschaltet hat)
   $('karte-einladen').lastChild!.textContent = da ? 'Zum Gefecht einladen' : 'Einladung aufs Handy schicken'
   drawSchlangeGerade($<HTMLCanvasElement>('karte-skin'), skinVon(z.skin ?? 'klassik'), 0)
+  // Admin (Passwort schon eingegeben): andere Spieler direkt hier loeschen
+  $('karte-loeschen').hidden = !(master.frei && master.code && z.user_id !== hallIch)
   show('spieler-karte', true)
 }
+$('karte-loeschen').addEventListener('click', async () => {
+  const z = karteSpieler
+  if (!z || !(await spielerLoeschen(z))) return
+  show('spieler-karte', false)
+  if (page() === 'hall') void ladeHallAnzeige()
+})
 $('karte-zu').addEventListener('click', () => {
   audio.click()
   show('spieler-karte', false)
@@ -2161,6 +2169,20 @@ $('btn-admin').addEventListener('click', async () => {
 
 /** Admin: alle Spieler (aus der Hall of Snakes) mit Loeschen-Knopf, nach Namen filterbar */
 let adminZeilen: HallZeile[] = []
+
+/** Admin: Spieler mit Rueckfrage loeschen (Profil, Ergebnisse, Freunde, Nachrichten). true = geloescht */
+async function spielerLoeschen(z: HallZeile) {
+  if (!confirm(`${z.name} wirklich löschen? Profil, Ergebnisse, Freunde und Nachrichten sind dann weg.`)) return false
+  try {
+    await adminLoeschen(master.code, z.user_id)
+    adminZeilen = adminZeilen.filter((x) => x.user_id !== z.user_id)
+    toast('schlange', 'Gelöscht', z.name)
+    return true
+  } catch (e) {
+    alert(e instanceof Error ? e.message : 'Das hat nicht geklappt.')
+    return false
+  }
+}
 async function adminListe(neu = true) {
   const box = $('admin-liste')
   const info = $('admin-info')
@@ -2194,15 +2216,7 @@ async function adminListe(neu = true) {
     weg.setAttribute('aria-label', `${z.name} löschen`)
     setIcon(weg, 'Trash2')
     weg.addEventListener('click', async () => {
-      if (!confirm(`${z.name} wirklich löschen? Profil, Ergebnisse, Freunde und Nachrichten sind dann weg.`)) return
-      try {
-        await adminLoeschen(master.code, z.user_id)
-        adminZeilen = adminZeilen.filter((x) => x.user_id !== z.user_id)
-        void adminListe(false)
-        toast('schlange', 'Gelöscht', z.name)
-      } catch (e) {
-        alert(e instanceof Error ? e.message : 'Das hat nicht geklappt.')
-      }
+      if (await spielerLoeschen(z)) void adminListe(false)
     })
     el.append(name, rekord, weg)
     box.append(el)
