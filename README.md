@@ -39,14 +39,15 @@ Freunden** (Nachrichten 30 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIE
 
 Level = gegessene Äpfel + 1. Alle Werte stehen in `src/game/rules.ts`.
 
-**Stufen (seit 1.38):** Alles außer den Welt-Gefahren kommt in Stufen: **häufig** (etwa alle 3 Level), **mittel** (etwa alle 8), **selten** (etwa alle 20) oder **aus**. Mauern sind immer häufig. Wiese: Wasser und Frösche häufig, alles andere mittel. Wüste: Palmen, Springmäuse und Feuerameisen häufig. In den anderen Welten ist nur die Mauer häufig. Alles kommt **ab Level 5**, gestaffelt (nicht alles im selben Level), nichts erst im späten Spiel. Feste Zeiten: **Jägertürme ab Level 50**, **ab Level 75 der lila Gegner** (immer nur einer). Die Gefahren der Welten sind je Welt klar von häufig nach selten abgestuft. Alles im Admin einstellbar (Stufen je Welt und Ding, wie oft die Stufen sind), im Kreativ-Modus mit Übersicht der gewählten Welt.
+**Stufen (seit 1.38, Reihenfolge seit 1.41):** Alles außer den Welt-Gefahren kommt in Stufen: **häufig** (etwa alle 3 Level), **mittel** (etwa alle 8), **selten** (etwa alle 20) oder **aus**. Mauern sind immer häufig. Wiese: Wasser und Frösche häufig, alles andere mittel. Wüste: Palmen, Springmäuse und Feuerameisen häufig. In den anderen Welten ist nur die Mauer häufig. **Neues kommt nacheinander:** das erste ab **Level 8**, danach **eins alle 6 Level** (erst das Häufige, dann das Mittlere, zuletzt das Seltene; die Tiere der Welt verteilt dazwischen). In der Wiese also Wasser 8, Frösche 14, Giftäpfel 20, Igel 26, Bäume 32 … Gegner-Schlangen 80. Feste Zeiten: **Jägertürme ab Level 50**, **ab Level 75 der lila Gegner** (immer nur einer). Die Gefahren der Welten sind je Welt klar von häufig nach selten abgestuft. Im Admin stehen nur noch die Wahrscheinlichkeiten (wann Neues kommt, Stufen je Welt und Ding mit „ab Level“, Gefahren mit Chance je Apfel).
 
-Standardwerte (alle in den **Master-Einstellungen** im Spiel änderbar, nur mit Master-Code, siehe `docs/SPIELFUNKTIONEN.md` 16b):
+Standardwerte (in `src/game/rules.ts`; die Wahrscheinlichkeiten im Admin änderbar, nur mit Master-Code, siehe `docs/SPIELFUNKTIONEN.md` 16b):
 
 | Ab Level | Was passiert |
 |---|---|
 | 1 | Zwei Kartenblöcke (je ein halber Bildschirm plus ein Feld in jede Richtung, die Karte ist also etwas größer als der Bildschirm), das **Bild steht still**, bis das erste neue Gebiet dazukommt. **Endlos:** Jede Runde liegt die Welt woanders (Wurzeln, Steine, Erze und Lava im Stein sind neu verteilt), und die Ränder sind nie ganz gerade. Die Schlange wächst **alle 2 Äpfel** ein Glied (ab 50 alle 4, ab 300 alle 6). **Lava im Stein:** In 30 % der Blöcke rund um die Karte steckt ein einzelnes Lavafeld. |
-| 5 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. Ab hier kommt nach und nach alles andere in seiner Stufe: Teiche, Frösche, Giftäpfel, Bäume, Bärenfallen, Hütten (große Häuser 50 Level später), Eis, Giftwolken, Ameisen, rote Gegner-Schlangen und die Tiere der Welt. |
+| 5 | **Mauern:** 2 Felder, alle 8 Level eins mehr bis 6, dann eine neue mit 2. Nach jedem Apfel woanders. |
+| 8 | Das erste Neue der Welt, danach alle 6 Level das nächste in seiner Stufe: Teiche, Frösche, Giftäpfel, Bäume, Bärenfallen, Hütten (große Häuser 50 Level später), Eis, Giftwolken, Ameisen, rote Gegner-Schlangen und die Tiere der Welt. |
 | 10 | **Power-ups** (Schild, Zeitlupe, Geist, Schere, Füttern, Magnet, Spitzhacke). |
 | 20 | **Neues Gebiet** alle 20 Level, ab 300 alle 30, ab 500 alle 50: die Wände glühen 30 s, wo ein Block passt; dagegenfahren baut ihn genau dort an, sonst kommt er zufällig. |
 | 50 | **Jägertürme** (feste Zeit, danach mittel), **Goldene Schere** (selten), Äpfel ×2 wert. |
@@ -70,15 +71,14 @@ Schere (schneidet dauerhaft ab, was in 3 Leveln gewachsen ist, das Stück liegt 
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
-**Kreativ-Modus** (nur im Admin-Zugang: Stift oben rechts im Startmenü oder Admin → Kreativ-Modus; dort ist auch jede Welt spielbar): Startlevel (Welt wird passend aufgebaut), Hindernisse tödlich / anhalten / Geist,
-Rückschläge an/aus, durch die eigene Schlange, Wachsen oder feste Länge, im Spiel Level springen und
-jedes Objekt dazutun. **Sandbox:** Kartengröße, Länge und Objekte selbst wählen, Welt bleibt so oder geht
-normal weiter. Zählt nicht für den Rekord und die Online-Bestenliste, Äpfel gibt es dort keine.
+**Kreativ-Modus** (nur im Admin-Zugang: Stift oben rechts im Startmenü oder Admin → Kreativ-Modus): Welt wählen (jede, auch ohne Freischaltung),
+Level einstellen (die Welt wird passend aufgebaut), an- und abschalten, was kommen kann (Mauern, Power-ups, alle Dinge und Tiere der Welt,
+lila Gegner, die Gefahren der Welt), dann „Spielen“. Zählt nicht für den Rekord und die Online-Bestenliste, Äpfel gibt es dort keine.
 
 **Kamera** (es gibt nur noch eine): Bis zum ersten neuen Gebiet steht das Bild still. **Bereich** hat einen festen Ausschnitt, lehnt sich ab der Mittellinie zu
 Öffnungen hinüber (je näher, desto mehr, an der Schwelle halb im neuen Bereich, auch um die Ecke und hinter Erde),
 zieht wie ein Gummiseil in die Laufrichtung und hält zu jeder Seite mit Karte mindestens 5 ganze Felder Abstand zum
-Bildrand. Die Kamera zeigt je Richtung 2 Felder mehr als ein Bildschirm. **Master-Einstellungen:** oben eine Zeitleiste, was bei welchem Level kommt (aus den aktuellen Zahlen).
+Bildrand. Die Kamera zeigt je Richtung 2 Felder mehr als ein Bildschirm.
 
 Genauer Bericht über alle Funktionen: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md).
 

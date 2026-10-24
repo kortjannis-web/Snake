@@ -37,7 +37,9 @@ describe('Winterwald', () => {
     const g = winter()
     expect(g.cfg.eisAlle).toBe(R.DEFAULTS.mittelAlle)
     expect(g.cfg.giftAlle).toBe(R.DEFAULTS.mittelAlle * 8)
-    expect(g.cfg.eisAb).toBeLessThan(R.DEFAULTS.stufenAb + R.DEFAULTS.mittelAlle)
+    // Eis kommt in der Reihe des Neuen, nicht gleich am Anfang
+    expect(g.cfg.eisAb).toBe(R.dingAb(R.DEFAULTS, 'winter', 'eis'))
+    expect(g.cfg.eisAb).toBeGreaterThan(R.DEFAULTS.stufenAb)
   })
 
   it('Eiszapfen: 2 × 2 in der Nähe, Schatten erst, dann fällt er; Kopf getroffen = vorbei', () => {

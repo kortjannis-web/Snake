@@ -212,8 +212,9 @@ describe('Spiel', () => {
       for (const p of g.body) expect(g.inside(p)).toBe(true)
       expect(g.inside(g.apple.p)).toBe(true)
     }
-    expect(maxLevel).toBeGreaterThanOrEqual(150)
-    for (const t of ['eat', 'expand', 'wall', 'pond', 'tree', 'unlock:gift', 'unlock:falle', 'trap']) expect(seen).toContain(t)
+    // Bis Level 100 ist in der Wiese alles einmal neu gekommen (eins alle paar Level)
+    expect(maxLevel).toBeGreaterThanOrEqual(100)
+    for (const t of ['eat', 'expand', 'wall', 'pond', 'unlock:baum', 'unlock:gift', 'unlock:falle', 'trap']) expect(seen).toContain(t)
   }, 180_000)
 })
 
@@ -765,9 +766,9 @@ describe('Gegner-Schlangen', () => {
   })
   const schritt = (g: Game) => (g as unknown as { gegnerTakt: () => void }).gegnerTakt()
 
-  it('mittlere Stufe ab dem Start der Stufen, hoechstens 1, spaeter 2', () => {
+  it('kommt in der Reihe des Neuen (zuletzt in der Wiese), hoechstens 1, spaeter 2', () => {
     const a = W.gegnerAb
-    expect(a).toBeLessThan(C.stufenAb + C.mittelAlle)
+    expect(a).toBe(C.stufenAb + (R.neuReihenfolge(C, 'wiese').length - 1) * C.neuAlle)
     expect([a - 1, a, a + 99, a + 100, 900].map((l) => R.gegnerMax(W, l))).toEqual([0, 1, 1, 2, 2])
     expect(R.pause(W, 'gegner', a)).toEqual([6, 10])
     const g = new Game({ screenW: SW, screenH: SH, seed: 1, startLevel: a - 1 })
@@ -777,7 +778,7 @@ describe('Gegner-Schlangen', () => {
   it('erscheint rot, 3 bis 4 lang, weit weg vom Kopf, zusammenhaengend', () => {
     const laengen = new Set<number>()
     for (let s = 1; s < 25; s++) {
-      const g = welt(s, 60)
+      const g = welt(s, W.gegnerAb + 5)
       expect(g.neuerGegner('rot')).toBe(true)
       expect(g.gegner[0].art).toBe('rot')
       const e = g.gegner[0]
@@ -789,7 +790,7 @@ describe('Gegner-Schlangen', () => {
       }
       const h = g.body[0]
       expect(Math.abs(e.body[0].x - h.x) + Math.abs(e.body[0].y - h.y)).toBeGreaterThanOrEqual(6)
-      // Zweiter auf Level 60 nicht erlaubt
+      // Zweiter in den ersten 100 Leveln nicht erlaubt
       expect(g.neuerGegner('rot')).toBe(false)
     }
     expect([...laengen].sort()).toEqual([3, 4])
@@ -928,7 +929,7 @@ describe('Gegner-Schlangen', () => {
   })
 
   it('wird mit der Zeit laenger, hoechstens bis zur Hoechstlaenge', () => {
-    const g = welt(6, 60)
+    const g = welt(6, W.gegnerAb + 5)
     g.neuerGegner('rot')
     const e = g.gegner[0]
     const start = e.body.length
@@ -985,7 +986,7 @@ describe('Gegner-Schlangen', () => {
     // Vor Level 75 nie lila
     for (let s = 1; s <= 20; s++) {
       const g = welt(s, 70)
-      g.neuerGegner()
+      g.neuerGegner(undefined, true)
       expect(g.gegner[0].art).toBe('rot')
     }
   })

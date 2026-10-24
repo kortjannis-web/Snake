@@ -17,8 +17,10 @@ export const TEMPO = { langsam: 154 / 0.75, normal: 154, schnell: 123 } as const
 export type Tempo = keyof typeof TEMPO
 
 const BASIS = {
-  // Stufen fuer alles ausser den Gefahren (siehe WELT_STUFEN): ab Level, neu alle so viele Level
-  stufenAb: 5,
+  // Stufen fuer alles ausser den Gefahren (siehe WELT_STUFEN): das erste Neue ab Level, danach eins alle neuAlle Level;
+  // wie oft es dann kommt, haengt an seiner Stufe
+  stufenAb: 8,
+  neuAlle: 6,
   haeufigAlle: 3,
   mittelAlle: 8,
   seltenAlle: 20,
@@ -393,8 +395,9 @@ const BASIS = {
 
 /* ---------------- Stufen ----------------
  * Alles ausser den Gefahren kommt in Stufen: haeufig (3), mittel (2), selten (1) oder aus (0). Mauern sind immer haeufig
- * (sie kommen nach jedem Apfel neu), der Apfel ist immer da. Alles startet ab stufenAb, gestaffelt, damit nicht alles
- * auf einmal kommt. Feste Zeiten: Jaegertuerme ab turmAb (50), der lila Gegner ab lilaAb (75, immer nur einer).
+ * (sie kommen nach jedem Apfel neu), der Apfel ist immer da. Neues kommt nacheinander: das erste ab stufenAb, dann eins
+ * alle neuAlle Level (erst das Haeufige, dann das Mittlere, zuletzt das Seltene). Feste Zeiten: Jaegertuerme ab turmAb
+ * (50), der lila Gegner ab lilaAb (75, immer nur einer).
  * Je Welt ist eingestellt, was haeufig ist (Wiese: Wasser und Froesche; Wueste: Palmen, Springmaeuse, Feuerameisen). */
 export const GRUND_ARTEN = ['teich', 'frosch', 'gift', 'baum', 'falle', 'haus', 'eis', 'wolke', 'ameise', 'gegner', 'turm'] as const
 export type GrundArt = (typeof GRUND_ARTEN)[number]
@@ -419,7 +422,7 @@ export type Config = typeof DEFAULTS
 export type ConfigKey = keyof Config
 export const STUFE_NAME = ['aus', 'selten', 'mittel', 'häufig'] as const
 /** Nie (Stufe aus) */
-const NIE = 1_000_000_000
+export const NIE = 1_000_000_000
 
 /** Gefahren je Welt, von haeufig nach selten (Schluessel-Anfang: xAn, xChance). Fallen zwei zusammen, kommt die seltenere */
 export const WELT_GEFAHREN: Record<WeltId, string[]> = {
@@ -445,7 +448,28 @@ export const ABGELEITET = new Set<string>([
 ])
 
 /**
- * Stufen anwenden: berechnet Start-Level und Abstaende aller Dinge dieser Welt aus ihren Stufen. Was ausdruecklich
+ * Reihenfolge, in der die Dinge einer Welt neu dazukommen (ohne Jaegertuerme, die haben eine feste Zeit, und ohne
+ * Abgeschaltetes): erst alles Haeufige, dann das Mittlere, dann das Seltene. Innerhalb einer Stufe wechseln sich die
+ * Grund-Dinge (von leicht nach schwer) und die Tiere der Welt gleichmaessig ab.
+ */
+export function neuReihenfolge(c: Config, welt: WeltId): string[] {
+  const arten = Object.keys(WELT_STUFEN[welt]).filter((a) => a !== 'turm')
+  const stufe = (a: string) => c[stufeKey(welt, a)] ?? 2
+  const out: string[] = []
+  for (const s of [3, 2, 1]) {
+    const grundArten = arten.filter((a) => stufe(a) === s && (GRUND_ARTEN as readonly string[]).includes(a))
+    const tiere = arten.filter((a) => stufe(a) === s && !(GRUND_ARTEN as readonly string[]).includes(a))
+    // Gleichmaessig verteilt: jedes bekommt seinen Platz nach seinem Anteil an der Liste
+    const platz = (i: number, n: number) => (i + 0.5) / n
+    const gemischt = [...grundArten.map((a, i) => ({ a, p: platz(i, grundArten.length) })), ...tiere.map((a, i) => ({ a, p: platz(i, tiere.length) + 1e-9 }))]
+    out.push(...gemischt.sort((x, y) => x.p - y.p).map((x) => x.a))
+  }
+  return out
+}
+
+/**
+ * Stufen anwenden: berechnet Start-Level und Abstaende aller Dinge dieser Welt aus ihren Stufen. Neues kommt
+ * nacheinander (siehe neuReihenfolge): das erste ab stufenAb, dann eins alle neuAlle Level. Was ausdruecklich
  * eingestellt ist (anders als der Standard), bleibt. Unbekannte Welt (Sandbox, Tageslevel) = Wiese.
  */
 export function mitStufen(c: Config, welt: string): Config {
@@ -456,12 +480,13 @@ export function mitStufen(c: Config, welt: string): Config {
     if (c[key] === DEFAULTS[key]) (out as Record<string, number>)[k] = v
   }
   const start = Math.max(1, Math.round(c.stufenAb))
-  let i = 0
+  const abstand = Math.max(1, Math.round(c.neuAlle))
+  const reihe = neuReihenfolge(c, w)
   for (const art of Object.keys(WELT_STUFEN[w])) {
     const stufe = c[stufeKey(w, art)] ?? 2
     const n = stufeAlle(c, stufe)
-    // Gestaffelt: die Dinge einer Stufe kommen nacheinander, nicht alle im selben Level
-    const ab = stufe <= 0 ? NIE : start + (i++ % n)
+    const platz = reihe.indexOf(art)
+    const ab = stufe <= 0 || platz < 0 ? NIE : start + platz * abstand
     const pause = [Math.max(1, Math.round(n * 0.75)), Math.max(1, Math.round(n * 1.25))]
     switch (art) {
       case 'teich':
@@ -499,6 +524,12 @@ export function mitStufen(c: Config, welt: string): Config {
   return out
 }
 
+/** Ab welchem Level ein Ding dieser Welt kommt (nach den Stufen; NIE = gar nicht) */
+export const dingAb = (c: Config, welt: WeltId, art: string) => {
+  const m = mitStufen(c, welt) as Record<string, number>
+  return m[`${art}Ab`] ?? NIE
+}
+
 /** Beschreibung jeder Zahl fuer die Master-Einstellungen */
 /** schalter: an/aus (1/0) statt Zahl */
 /** Feld der Master-Einstellungen. schalter: an/aus (1/0), stufe: haeufig/mittel/selten/aus (3..0) */
@@ -522,12 +553,42 @@ const WELT_NAME_DING: Partial<Record<WeltId, Partial<Record<string, string>>>> =
 export const dingName = (welt: WeltId, art: string) => WELT_NAME_DING[welt]?.[art] ?? GRUND_NAME[art as GrundArt] ?? art
 export const WELT_TITEL: Record<WeltId, string> = { wiese: 'Wiese', wueste: 'Wüstenoase', winter: 'Winterwald', bergwerk: 'Bergwerk', zauberwald: 'Zauberwald', gruselwald: 'Gruselwald', vulkan: 'Vulkan' }
 
+/** Kreativ: was in einer Welt kommen kann (zum An- und Abschalten), in der Reihenfolge der Liste */
+export function kreativDinge(welt: WeltId): { key: string; name: string }[] {
+  const gefahrName = (k: string) => SCHEMA_ROH.flatMap((g) => g.felder).find((f) => f.key === `${k}An`)?.label ?? k
+  return [
+    { key: 'mauer', name: 'Mauern' },
+    { key: 'power', name: 'Power-ups' },
+    ...Object.keys(WELT_STUFEN[welt]).map((a) => ({ key: a, name: dingName(welt, a) })),
+    { key: 'lila', name: 'Lila Gegner (ab Level 75)' },
+    ...WELT_GEFAHREN[welt].map((k) => ({ key: k, name: gefahrName(k) })),
+    ...(welt === 'gruselwald' ? [{ key: 'werwolf', name: gefahrName('werwolf') }] : []),
+  ]
+}
+
+/** Kreativ: Einstellungen, mit denen die abgeschalteten Dinge dieser Welt nie kommen */
+export function kreativAus(welt: WeltId, aus: readonly string[]): Partial<Config> {
+  const o: Record<string, number> = {}
+  const stufen = WELT_STUFEN[welt] as Record<string, number>
+  for (const k of aus) {
+    if (k === 'mauer') o.mauerAb = NIE
+    else if (k === 'power') o.powerAb = NIE
+    else if (k === 'lila') {
+      o.lilaAb = NIE
+      o.lilaChance = 0
+    } else if (k in stufen) o[stufeKey(welt, k)] = 0
+    else if (WELT_GEFAHREN[welt].includes(k) || k === 'werwolf') o[`${k}An`] = 0
+  }
+  return o as Partial<Config>
+}
+
 /** Stufen-Gruppen: wie oft die Stufen sind, dann je Welt, was in welcher Stufe ist */
 export const STUFEN_SCHEMA: SchemaGruppe[] = [
   {
     gruppe: 'Stufen: wie oft (gilt für alle Welten)',
     felder: [
-      { key: 'stufenAb', label: 'Alles kommt ab Level', min: 1, max: 1000 },
+      { key: 'stufenAb', label: 'Das erste Neue ab Level', min: 1, max: 1000 },
+      { key: 'neuAlle', label: 'Danach etwas Neues alle', min: 1, max: 100, einheit: 'Level' },
       { key: 'haeufigAlle', label: 'Häufig: neu etwa alle', min: 1, max: 100, einheit: 'Level' },
       { key: 'mittelAlle', label: 'Mittel: neu etwa alle', min: 1, max: 200, einheit: 'Level' },
       { key: 'seltenAlle', label: 'Selten: neu etwa alle', min: 1, max: 500, einheit: 'Level' },
