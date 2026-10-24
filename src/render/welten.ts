@@ -155,7 +155,7 @@ export const WELTEN: Welt[] = [
     neu: '#65645B',
     kante: 'rgba(10, 12, 10, 0.8)',
     erde: { nah: [26, 40, 30], mitte: [20, 32, 24], tief: [14, 22, 18], kruemelNah: 'rgba(40, 70, 50, 0.6)', kruemel: 'rgba(0, 0, 0, 0.3)', grund: '#0E1612' },
-    baeume: ['totbaum', 'totbaum', 'tanne'],
+    baeume: ['gruselbaum', 'gruselbaum', 'tanne'],
     wasser: ['sumpf'],
     futter: 'kuerbis',
     falle: 'knochenhand',
@@ -349,21 +349,50 @@ export function drawWaldBoden(ctx: CanvasRenderingContext2D, x: number, y: numbe
   }
 }
 
-/** Zauberwald und Gruselwald: Baumkronen vom Waldrand ragen hier und da ein Stueck ins Spielfeld (nur Optik).
- *  x, y = Erdfeld am Rand, drin = Kartenfelder */
+/**
+ * Zauberwald und Gruselwald: Baumkronen vom Waldrand ragen ins Spielfeld (nur Optik). Dicht (bis zu zwei Kronen je
+ * Feldkante, verschieden gross), aber nie tiefer als ein halbes Feld (samt Schatten), damit man sieht, wo man fahren kann.
+ * x, y = Waldfeld am Rand, drin = Felder, in die die Kronen ragen (Karte, oder eine Lichtung)
+ */
 export function drawWaldRand(ctx: CanvasRenderingContext2D, w: Welt, x: number, y: number, cell: number, z: number, drin: (x: number, y: number) => boolean) {
   const art = w.id === 'zauberwald' ? 'zauber' : 'grusel'
   for (const [dx, dy, k] of [[0, 1, 0], [0, -1, 1], [1, 0, 2], [-1, 0, 3]] as const) {
     if (!drin(x + dx, y + dy)) continue
-    const h = (z * 7.13 + k * 0.37) % 1
-    if (h > 0.62) continue
-    // Mitte auf der Kante, nur ein kleines Stueck ins Feld geschoben
-    const t = 0.2 + ((z * 3.7 + k) % 1) * 0.6
-    const ein = 0.09 + h * 0.3
-    const cx = (x + 0.5 + dx * (0.5 + ein) + (dy ? t - 0.5 : 0)) * cell
-    const cy = (y + 0.5 + dy * (0.5 + ein) + (dx ? t - 0.5 : 0)) * cell
-    waldKrone(ctx, cx, cy, cell * (0.35 + h * 0.26), (z * 40 + k * 5) % 22, art)
+    for (let slot = 0; slot < 2; slot++) {
+      const h = (z * 7.13 + k * 0.37 + slot * 0.53) % 1
+      if (h > 0.8) continue
+      const r = 0.24 + h * 0.2
+      // Wie weit die Krone (mit Schatten, der 0,18 r weiter reicht) ins Feld ragt: 0,32 bis 0,5 Felder
+      const tief = 0.5 - ((z * 5.31 + k * 0.71 + slot * 0.29) % 1) * 0.18
+      const ein = tief - r * 1.18
+      const t = (slot ? 0.58 : 0.08) + ((z * 3.7 + k + slot * 0.41) % 1) * 0.34
+      const cx = (x + 0.5 + dx * (0.5 + ein) + (dy ? t - 0.5 : 0)) * cell
+      const cy = (y + 0.5 + dy * (0.5 + ein) + (dx ? t - 0.5 : 0)) * cell
+      waldKrone(ctx, cx, cy, cell * r, (z * 40 + k * 5 + slot * 9) % 22, art)
+    }
   }
+}
+
+/**
+ * Lichtung im Wald, die man nicht erreichen kann (nur zu sehen): Waldboden statt Kronen, darin etwas Kleines
+ * (Zauberwald: Leuchtpilze, Gruselwald: ein alter Grabstein oder welkes Laub). x, y = linke obere Ecke des Felds
+ */
+export function drawLichtungFeld(ctx: CanvasRenderingContext2D, w: Welt, x: number, y: number, cell: number, z: number, mitte: boolean) {
+  const zauber = w.id === 'zauberwald'
+  ctx.fillStyle = zauber ? '#24463C' : '#47483F'
+  ctx.fillRect(x - 0.3, y - 0.3, cell + 0.6, cell + 0.6)
+  ctx.fillStyle = zauber ? 'rgba(90, 200, 160, 0.16)' : 'rgba(150, 140, 110, 0.18)'
+  for (let i = 0; i < 4; i++) {
+    const a = (z * 977 + i * 331) % 1
+    const b = (z * 613 + i * 197) % 1
+    ctx.beginPath()
+    ctx.ellipse(x + (0.1 + a * 0.8) * cell, y + (0.1 + b * 0.8) * cell, cell * 0.09, cell * 0.05, a * 6, 0, TAU)
+    ctx.fill()
+  }
+  if (!mitte) return
+  if (zauber) {
+    for (const [dx, dy, r] of [[0.4, 0.45, 0.13], [0.62, 0.58, 0.09], [0.5, 0.7, 0.07]] as const) leuchtPilz(ctx, x + dx * cell, y + dy * cell, cell * r, (z * 3 + dx) % 1)
+  } else if (z < 0.6) drawMauerWelt(ctx, w, x + cell * 0.12, y + cell * 0.12, cell * 0.76, 1)
 }
 
 /* ================= Futter ================= */

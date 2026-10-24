@@ -19,7 +19,7 @@ import type { Dir, Funke, GameEvent, Gegner, P, Wesen } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
 import { drawFlaeche, drawMeer, flaechenAufraeumen, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
-import { drawAmeiseWelt, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, vulkanWelt, waldWelt, WELTEN, type Licht, type Welt } from './welten'
+import { drawAmeiseWelt, drawLichtungFeld, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, vulkanWelt, waldWelt, WELTEN, type Licht, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   apfelFarbe,
@@ -1316,7 +1316,7 @@ export class Renderer {
   }
 
   private grundKacheln(g: Game, cell: number, ox: number, oy: number, ex0: number, ey0: number, ex1: number, ey1: number) {
-    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}|${g.aus.length}|${g.krater.length}|${g.schienen.length}|${g.stollen.length}`
+    const stand = `${this.welt.id}|${nummer(g)}|${cell}|${this.dpr}|${g.w}x${g.h}|${g.ursprung.x},${g.ursprung.y}|${g.blocks.map((b) => `${b.x},${b.y}`).join(';')}|${g.extra.length}|${g.lichtungDeko.length}|${g.aus.length}|${g.krater.length}|${g.schienen.length}|${g.stollen.length}`
     if (stand !== this.grundStand) {
       this.grund.clear()
       this.grundStand = stand
@@ -1406,6 +1406,22 @@ export class Renderer {
         const deko = erdeBei(g.cfg, wx, wy)
         if (deko === 'stein' || deko === 'kohle' || deko === 'skelett') drawErdDeko(c, x * cell, y * cell, cell, deko, z, 0)
       }
+    // Zauber- und Gruselwald: Lichtungen, die man nur sieht (Waldboden, Kronen ragen vom Rand hinein)
+    if (waldWelt(welt) && g.lichtungDeko.length) {
+      const deko = new Set<number>()
+      const mitten = new Set<number>()
+      for (const l of g.lichtungDeko) {
+        const frei = l.filter((p) => !drin(p.x, p.y))
+        frei.forEach((p) => deko.add(key(p.x, p.y)))
+        const m = frei[frei.length >> 1]
+        if (m) mitten.add(key(m.x, m.y))
+      }
+      const inDeko = (x: number, y: number) => deko.has(key(x, y))
+      for (let y = ya; y <= yb; y++)
+        for (let x = xa; x <= xb; x++) if (inDeko(x, y)) drawLichtungFeld(c, welt, x * cell, y * cell, cell, feldZufall(x - g.ursprung.x + 2, y - g.ursprung.y + 7), mitten.has(key(x, y)))
+      for (let y = ya; y <= yb; y++)
+        for (let x = xa; x <= xb; x++) if (!drin(x, y) && !inDeko(x, y)) drawWaldRand(c, welt, x, y, cell, feldZufall(x - g.ursprung.x, y - g.ursprung.y), inDeko)
+    }
     // Grosse Details ueber mehrere Felder (Schichten, Wurzeln, Felsen, Skelette ...), nicht ueber Erz oder Lava
     const erz = new Set(['gold', 'dia', 'rubin', 'opal'])
     drawGrosseErde(c, welt, { drin, belegt: (wx, wy) => g.lavaImStein(wx, wy) || erz.has(erdeBei(g.cfg, wx, wy) ?? ''), ursprung: g.ursprung }, cell, xa, ya, xb, yb)
