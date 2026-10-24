@@ -177,6 +177,10 @@ export class Game {
   extra: P[] = []
   /** Felder innerhalb der Bloecke, die nicht zur Karte gehoeren (abgeschnittene Ecken der Tageslevel) */
   aus: P[] = []
+  /** Zauber- und Gruselwald: Lichtungen im Wald. erreichbar = Felder der Karte (stehen auch in extra), ein Weg von
+   *  mindestens 2 Feldern Breite fuehrt hinein; deko = sichtbare Lichtungen ohne Weg (nur Optik), je Lichtung eine Liste */
+  lichtungen: P[] = []
+  lichtungDeko: P[][] = []
   /** Vulkan: Krater mitten in den Bloecken (gehoeren nicht zur Karte, tief unten Lava). Bleiben beim Anbauen */
   krater: P[] = []
   /** Welt-Id ('' = keine eigenen Ereignisse) */
@@ -410,6 +414,7 @@ export class Game {
     if (this.formZufall) {
       for (const b of this.blocks) this.randFormen(b)
       this.baueMaske()
+      for (const b of this.blocks) this.lichtungenFormen(b)
     }
     if (this.vulkan) {
       for (const b of this.blocks) this.kraterFormen(b)
@@ -1124,7 +1129,9 @@ export class Game {
     this.ohnePower++
     if (this.ohnePower < c.powerGarantie && this.r.next() * 100 >= c.powerChance) return
     const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3))
-    const p = cand.length ? this.r.pick(cand) : null
+    // Lichtungen im Wald: dort liegt eher etwas (gut 40 % der Power-ups, wenn eine frei und in Reichweite ist)
+    const inLichtung = this.lichtungen.length ? cand.filter((c) => this.lichtungen.some((l) => same(l, c))) : []
+    const p = inLichtung.length && this.r.next() < 0.42 ? this.r.pick(inLichtung) : cand.length ? this.r.pick(cand) : null
     if (!p) return
     this.powers.push({ p, t: this.time, until: this.time + c.powerDauer * 1000, art: this.powerWahl() })
     this.ohnePower = 0
@@ -3134,6 +3141,7 @@ export class Game {
     if (this.formZufall) {
       this.randFormen(p)
       this.baueMaske()
+      this.lichtungenFormen(p)
     }
     if (this.vulkan) {
       this.kraterFormen(p)
@@ -3336,9 +3344,11 @@ export class Game {
     const tabu = this.hindernisse()
     for (const c of [this.apple.p, ...this.tunnel, ...this.powers.map((o) => o.p), ...this.funde.map((f) => f.p), ...this.gift.map((g) => g.p)]) tabu.add(key(c.x, c.y))
     const frei = (c: P) => this.inside(c) && !tabu.has(key(c.x, c.y)) && !this.aufSchlange(c) && (!kopf || cheb(c, kopf) > 2)
-    // Jeder Block anders: etwa jeder vierte bleibt ganz gerade, die anderen bekommen mal weniger, mal mehr (im Schnitt RAND_ANTEIL)
-    if (z.next() < 0.25) return
-    const ziel = Math.round(this.bw * this.bh * RAND_ANTEIL * (0.6 + 1.4 * z.next()))
+    // Wueste (Insel): ein Prozent mehr weg, fast nur an den Ecken, und die Ecken rund statt schraeg
+    const insel = this.weltId === 'wueste'
+    // Jeder Block anders: etwa jeder vierte bleibt ganz gerade (Insel: jeder zehnte), die anderen bekommen mal weniger, mal mehr
+    if (z.next() < (insel ? 0.1 : 0.25)) return
+    const ziel = Math.round(this.bw * this.bh * (RAND_ANTEIL + (insel ? 0.01 : 0)) * (0.6 + 1.4 * z.next()))
     // Ecken, an denen beide Seiten offen sind (sx/sy zeigen nach innen)
     const ecken: { x: number; y: number; sx: 1 | -1; sy: 1 | -1 }[] = []
     if (offen.u && offen.l) ecken.push({ x: x0, y: y0, sx: 1, sy: 1 })
@@ -3348,14 +3358,20 @@ export class Game {
     let weg = 0
     for (let versuch = 0; versuch < 40 && weg < ziel; versuch++) {
       const form: P[] = []
-      if (ecken.length && z.next() < 0.85) {
+      if (ecken.length && insel) {
+        // Runde Ecke (Viertelkreis mit Radius 4 bis 7): weg ist, was ausserhalb des Kreises liegt
+        const e = ecken.splice(z.int(0, ecken.length - 1), 1)[0]
+        const R = z.int(4, 7)
+        for (let j = 0; j < R; j++) for (let i = 0; i < R; i++) if ((R - i - 0.5) ** 2 + (R - j - 0.5) ** 2 > R * R) form.push({ x: e.x + e.sx * i, y: e.y + e.sy * j })
+      } else if (ecken.length && z.next() < 0.85) {
         // Verschuettete Ecke: schraeg, meist 2 Felder tief, mal nur 1, selten 3
         const e = ecken.splice(z.int(0, ecken.length - 1), 1)[0]
         const w = z.next()
         const r = w < 0.25 ? 2 : w < 0.85 ? 3 : T
         for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) if (i + j < r - (i + j === r - 1 && z.next() < 0.4 ? 1 : 0)) form.push({ x: e.x + e.sx * i, y: e.y + e.sy * j })
       } else {
-        // Minimale Einkerbung an einer offenen Seite, weg von den Ecken: 2 bis 4 breit, 1 tief
+        // Minimale Einkerbung an einer offenen Seite, weg von den Ecken: 2 bis 4 breit, 1 tief (Insel: selten)
+        if (insel && z.next() < 0.8) continue
         const d = z.pick(seiten)
         const quer = d === 'u' || d === 'd'
         const lang = quer ? this.bw : this.bh
@@ -3374,6 +3390,98 @@ export class Game {
       this.aus.push(...form)
       weg += form.length
     }
+  }
+
+  /**
+   * Zauber- und Gruselwald: Lichtungen am Block b (nur an Seiten ohne Nachbarblock).
+   * - Erreichbar (etwa jeder zweite Block): ein Weg von 2 bis 3 Feldern Breite fuehrt 1 bis 3 Felder in den Wald, oft am Ende
+   *   eine kleine Lichtung (3 bis 5 breit). Nirgends schmaler als 2 Felder. Die Felder gehoeren zur Karte (wie extra); in der
+   *   Lichtung liegt oft ein Erz, und Power-ups landen dort lieber.
+   * - Nicht erreichbar (etwa jeder dritte Block): eine Lichtung tiefer im Wald, mindestens 2 Felder von der Karte weg; man sieht
+   *   sie nur. Waechst die Karte bis an sie heran, verschwindet sie wieder im Wald.
+   * Auch an den Startbloecken. Nur nach rechts/unten, wenn die Karte links/oben am Rand liegt (keine negativen Felder).
+   */
+  protected lichtungenFormen(b: P) {
+    const z = this.formZufall
+    if (!z || (this.weltId !== 'zauberwald' && this.weltId !== 'gruselwald')) return
+    // Deko-Lichtungen, an die die Karte inzwischen herangewachsen ist, verschwinden (sonst saehen sie erreichbar aus)
+    const nahKarte = (c: P, r: number) => {
+      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (this.inside({ x: c.x + i, y: c.y + j })) return true
+      return false
+    }
+    this.lichtungDeko = this.lichtungDeko.filter((l) => !l.some((c) => nahKarte(c, 1)))
+    const blockDa = (c: P) => this.blocks.some((o) => o.x === Math.floor(c.x / this.bw) && o.y === Math.floor(c.y / this.bh))
+    const offen = DIRS.filter((d) => !this.blocks.some((o) => o.x === b.x + STEP[d].x && o.y === b.y + STEP[d].y))
+    if (!offen.length) return
+    const x0 = b.x * this.bw
+    const y0 = b.y * this.bh
+    const belegt = new Set([...this.extra, ...this.lichtungDeko.flat()].map((c) => key(c.x, c.y)))
+    /** Feld am Rand des Blocks: k entlang der Seite, t nach aussen (0 = Randfeld der Karte, 1 = erstes Waldfeld) */
+    const feld = (d: Dir, k: number, t: number): P => {
+      const s = STEP[d]
+      if (d === 'u' || d === 'd') return { x: x0 + k, y: (d === 'u' ? y0 : y0 + this.bh - 1) + s.y * t }
+      return { x: (d === 'l' ? x0 : x0 + this.bw - 1) + s.x * t, y: y0 + k }
+    }
+    const laenge = (d: Dir) => (d === 'u' || d === 'd' ? this.bw : this.bh)
+    const wald = (c: P) => c.x >= 0 && c.y >= 0 && !this.inside(c) && !blockDa(c) && !belegt.has(key(c.x, c.y))
+
+    // Erreichbare Lichtung
+    if (z.next() < 0.55)
+      for (let versuch = 0; versuch < 10; versuch++) {
+        const d = z.pick(offen)
+        const W = z.next() < 0.7 ? 2 : 3
+        const L = z.int(1, 3)
+        const mitTasche = z.next() < 0.65
+        const TB = mitTasche ? z.int(Math.max(3, W), 5) : 0
+        const TT = mitTasche ? z.int(2, 3) : 0
+        const lang = laenge(d)
+        const rand = Math.max(2, Math.ceil((TB - W) / 2) + 1)
+        if (lang - 2 * rand < W) continue
+        const a = z.int(rand, lang - rand - W)
+        // Anschluss: die Randfelder der Karte, an denen der Weg beginnt, muessen zur Karte gehoeren
+        const anschluss = Array.from({ length: W }, (_, i) => feld(d, a + i, 0))
+        if (!anschluss.every((c) => this.inside(c))) continue
+        const weg: P[] = []
+        for (let t = 1; t <= L; t++) for (let i = 0; i < W; i++) weg.push(feld(d, a + i, t))
+        const tasche: P[] = []
+        const ta = a + Math.floor((W - TB) / 2)
+        // Rechteckig, damit jede Stelle mindestens 2 x 2 frei ist (rund wirkt sie durch die Kronen am Rand)
+        for (let t = L + 1; t <= L + TT; t++) for (let i = 0; i < TB; i++) tasche.push(feld(d, ta + i, t))
+        const neu = [...weg, ...tasche]
+        if (!neu.every(wald)) continue
+        this.extra.push(...neu)
+        // Kopien: extra und lichtungen werden beim Verschieben der Karte je fuer sich bewegt
+        this.lichtungen.push(...(tasche.length ? tasche : weg.slice(-W)).map((c) => ({ ...c })))
+        this.baueMaske()
+        // In der Lichtung liegt oft ein Erz (meist Gold)
+        if (tasche.length && z.next() < 0.55) {
+          const p = z.pick(tasche)
+          const w = z.next()
+          this.funde.push({ p: { ...p }, art: w < 0.7 ? 'gold' : w < 0.92 ? 'dia' : w < 0.985 ? 'rubin' : 'opal', t: this.time })
+        }
+        break
+      }
+
+    // Nicht erreichbare Lichtung tiefer im Wald
+    if (z.next() < 0.4)
+      for (let versuch = 0; versuch < 12; versuch++) {
+        const d = z.pick(offen)
+        const lang = laenge(d)
+        const k = z.int(1, lang - 2)
+        const t = z.int(4, 6)
+        const m = feld(d, k, t)
+        const r = 1.5 + z.next() * 0.9
+        const blob: P[] = []
+        for (let j = -3; j <= 3; j++)
+          for (let i = -3; i <= 3; i++) {
+            const dx = i + (z.next() - 0.5) * 0.6
+            const dy = j + (z.next() - 0.5) * 0.6
+            if (dx * dx + dy * dy <= r * r + 0.3) blob.push({ x: m.x + i, y: m.y + j })
+          }
+        if (blob.length < 6 || !blob.every((c) => wald(c) && !nahKarte(c, 2))) continue
+        this.lichtungDeko.push(blob)
+        break
+      }
   }
 
   /** Neuer Block p: in den Nachbarbloecken wird frei, was an der gemeinsamen Kante verschuettet war. Gibt die Felder zurueck */
@@ -3500,6 +3608,8 @@ export class Game {
     }
     mv(this.ursprung)
     this.extra.forEach(mv)
+    this.lichtungen.forEach(mv)
+    this.lichtungDeko.forEach((l) => l.forEach(mv))
     this.aus.forEach(mv)
     this.krater.forEach(mv)
     this.lavaOffen.forEach(mv)

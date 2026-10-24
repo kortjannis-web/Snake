@@ -627,7 +627,7 @@ export const MEER_WELLEN = [0.85, 0.5, 0.2]
  */
 export function meerKachel(land: (x: number, y: number) => boolean, x0: number, y0: number, n: number, px: number, o: P): MeerKachel | null {
   const R = 3
-  const rund = 0.32
+  const rund = 0.42
   // Land in der Naehe einmal einsammeln (Kachel plus Rand)
   const nah: P[] = []
   for (let y = y0 - R; y < y0 + n + R; y++) for (let x = x0 - R; x < x0 + n + R; x++) if (land(x, y)) nah.push({ x, y })
@@ -649,8 +649,10 @@ export function meerKachel(land: (x: number, y: number) => boolean, x0: number, 
   }
   const abst = (x: number, y: number) => {
     let d = R + 1
-    for (const c of nachbarn(Math.floor(x), Math.floor(y))) d = smin(d, sdBox(x - c.x, y - c.y, 0.5 - rund) - rund, 0.7)
-    return d + (rauschen((x - o.x) * 2.1, (y - o.y) * 2.1) - 0.5) * 0.16
+    // Innenecken stark geglaettet (k 1,3): die Stufen einer runden Ecke werden ein weicher Bogen; gerade Kuesten
+    // bleiben gerade (wenig Rauschen)
+    for (const c of nachbarn(Math.floor(x), Math.floor(y))) d = smin(d, sdBox(x - c.x, y - c.y, 0.5 - rund) - rund, 1.3)
+    return d + (rauschen((x - o.x) * 2.1, (y - o.y) * 2.1) - 0.5) * 0.07
   }
   const w = Math.ceil(n * px)
   const mk = () => {
