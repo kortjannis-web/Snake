@@ -249,6 +249,7 @@
               <div class="mehr-code mehr-code--klein">
                 <small>Dein Freundes-Code</small>
                 <b id="freund-code">------</b>
+                <small class="mehr-code__fehlt" id="freund-code-fehlt" hidden>Du bist noch nicht online eingetragen. <button class="link-btn" type="button" id="freund-reparieren">Neu verbinden</button></small>
                 <button class="btn btn--ghost btn--klein" id="freund-teilen"><span data-icon="Share2"></span>Code teilen</button>
               </div>
               <form class="opt opt--col liste-name" id="freund-form" autocomplete="off">
@@ -574,6 +575,10 @@
               <div class="liste-name__row">
                 <input type="text" id="liste-name" maxlength="16" minlength="2" placeholder="2 bis 16 Zeichen" autocomplete="nickname" autocapitalize="words" spellcheck="false" />
                 <button class="btn btn--play btn--klein" type="submit" id="liste-speichern">Speichern</button>
+              </div>
+              <div class="konto-status" id="konto-status" hidden>
+                <p><b id="konto-status-text"></b><small id="konto-status-technisch"></small></p>
+                <button class="btn btn--ghost btn--klein" type="button" id="konto-reparieren"><span data-icon="RefreshCw"></span>Neu verbinden</button>
               </div>
             </form>
             <div class="seg seg--3" id="hall-tabs" role="radiogroup">

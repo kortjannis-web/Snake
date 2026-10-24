@@ -34,12 +34,12 @@ import { Renderer } from './render/renderer'
 import { BergKacheln } from './render/berge'
 import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, adminLoeschen, kontoLoeschen, kontoSichern, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abonniere, abonniereSozial, adminLoeschen, beiZustand, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
-import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELT_STUFE, WELTEN, weltFrei, weltFreiAlt, weltVon, type Welt } from './render/welten'
+import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help, OBJEKT_NAME, WELT_EREIGNIS_NAME } from './ui/texts'
@@ -70,6 +70,15 @@ if (wallet.verdient === undefined) {
 if (!wallet.welten) {
   wallet.welten = WELTEN.filter((w) => weltFreiAlt(w, stats.best)).map((w) => w.id)
   saveWallet()
+}
+// 1.39: jede Welt hat ihre eigene Schwelle (Wiese 60, Wueste 80, ...). Wer sie schon geschafft hat, bekommt die naechste Welt
+for (const w of WELTEN) {
+  const nw = naechsteWelt(w)
+  const frei: string[] = wallet.welten ?? []
+  if (nw && (stats.weltBest?.[w.id] ?? 0) >= weltStufe(w) && !frei.includes(nw.id)) {
+    wallet.welten = [...frei, nw.id]
+    saveWallet()
+  }
 }
 /** Grosse Zahlen kurz: 9.480, 12,5k, 125k, 1,3 Mio. */
 const kurzZahl = (n: number) => {
@@ -539,6 +548,7 @@ async function ladeHallAnzeige() {
     hallIch = ich
     if (tages) tagesZeilen = tages.zeilen
     hallZeichnen()
+    eintragPruefen()
   } catch {
     if (nr !== hallNr) return
     $('hall-zeilen').replaceChildren()
@@ -600,6 +610,80 @@ function hallZeichnen() {
     `${treffer.length} Snakes. Tippe einen Spieler an, um ihn zum Gefecht einzuladen. Gold: Trophäen aus Mehrspieler-Siegen. Silber: alle je verdienten Äpfel. „–“ heißt: noch nichts.` +
     (profil.name ? '' : ' Für Freundschaftsanfragen brauchst du oben einen Namen.')
 }
+
+/* ================= Eigener Eintrag: fehlt er, wird repariert ================= */
+
+/** Hinweis unter dem Namen, wenn dieses Geraet online nicht eingetragen ist (mit "Neu verbinden") */
+function kontoStatusZeigen(z: OnlineZustand | null) {
+  const box = $('konto-status')
+  box.hidden = !z || z.ok || !z.text
+  if (!z || box.hidden) return
+  $('konto-status-text').textContent = z.text
+  $('konto-status-technisch').textContent = z.technisch ?? ''
+}
+beiZustand((z) => {
+  if (page() === 'hall' && (!z.ok || $('konto-status').hidden === false)) kontoStatusZeigen(z.ok ? null : z)
+  if (z.ok) $('freund-code-fehlt').hidden = true
+})
+
+let reparaturVersucht = false
+/**
+ * Nach dem Laden der Hall: Steht der Spieler selbst darin? Nein (kein Profil in der Datenbank, falsche Sitzung):
+ * einmal von selbst neu verbinden. Ja, aber der Rekord dort ist kleiner als auf dem Geraet (Ergebnisse gingen frueher
+ * verloren): den Rekord einmal nachtragen
+ */
+function eintragPruefen() {
+  if (!profil.name) return kontoStatusZeigen(null)
+  const ich = hallIch ? hallZeilen.find((z) => z.user_id === hallIch) : undefined
+  if (ich) {
+    kontoStatusZeigen(null)
+    rekordNachtragen(ich)
+    return
+  }
+  const z = onlineZustand()
+  kontoStatusZeigen(z.ok || !z.text ? { ok: false, text: `Du („${profil.name}“) fehlst noch in der Hall of Snakes.`, technisch: z.technisch } : z)
+  if (reparaturVersucht) return
+  reparaturVersucht = true
+  void kontoReparieren().then((r) => {
+    if (r.ok) void ladeHallAnzeige()
+    else kontoStatusZeigen(r)
+  })
+}
+
+const RKEY = 'snake.rekord.nachgetragen.v1'
+function rekordNachtragen(ich: HallZeile) {
+  if (!zaehltOnline() || stats.best < 2 || ich.rekord >= stats.best) return
+  try {
+    if (Number(localStorage.getItem(RKEY)) >= stats.best) return
+    localStorage.setItem(RKEY, String(stats.best))
+  } catch {
+    return
+  }
+  // Dauer grosszuegig (die Datenbank prueft: hoechstens ein Level je 0,2 s)
+  melde({ level: stats.best, dauer: Math.max(10_000, stats.best * 400), tempo: 'normal' })
+}
+
+$('konto-reparieren').addEventListener('click', async () => {
+  const k = $<HTMLButtonElement>('konto-reparieren')
+  k.disabled = true
+  audio.click()
+  const r = await kontoReparieren()
+  k.disabled = false
+  kontoStatusZeigen(r)
+  if (r.ok) {
+    void ladeHallAnzeige()
+    void freundeLaden()
+    void online?.start()
+    sozialStarten()
+    toast('baum', 'Verbunden', r.text)
+  }
+})
+$('freund-reparieren').addEventListener('click', async () => {
+  audio.click()
+  const r = await kontoReparieren()
+  if (r.ok) void freundeLaden()
+  else toast('baum', 'Noch nicht verbunden', r.text)
+})
 
 /* ================= Spieler antippen: zum Gefecht einladen ================= */
 
@@ -1789,7 +1873,7 @@ function renderTeil() {
     box.className = 'skins skins--welten'
     const p = document.createElement('p')
     p.className = 'hinweis'
-    p.textContent = `Erreichst du in einer Welt Level ${WELT_STUFE}, geht die nächste auf. Jede Welt hat eigene Belohnungen: bei Level 100 ein Skin, bei 150 ein Accessoire, bei 200 ein epischer Skin mit Spur.`
+    p.textContent = `Erreichst du in einer Welt ihr Ziel-Level, geht die nächste auf: Wiese 60, Wüstenoase 80, Winterwald 100, Bergwerk 110, Zauberwald 120, Gruselwald 130. Jede Welt hat eigene Belohnungen: bei Level 100 ein Skin, bei 150 ein Accessoire, bei 200 ein epischer Skin mit Spur.`
     kopf.append(p)
     for (const w of WELTEN) {
       const frei = weltOffen(w)
@@ -1811,6 +1895,7 @@ function renderTeil() {
       const best = stats.weltBest?.[w.id] ?? 0
       lohn.textContent = [
         `Rekord hier: ${best || '–'}`,
+        ...(naechsteWelt(w) ? [`Nächste Welt ab Level ${weltStufe(w)}${best >= weltStufe(w) ? ' ✓' : ''}`] : []),
         ...WELT_LOHN.filter((l) => l.welt === w.id).map((l) => `${l.level}: ${nameVon(l.id)}${hatSkin(wallet.skins, l.id) ? ' ✓' : ''}`),
       ].join(' · ')
       text.append(lohn)
@@ -1823,7 +1908,8 @@ function renderTeil() {
       else {
         st.innerHTML = '<span></span>'
         setIcon(st.querySelector('span')!, 'Lock')
-        st.append(`Level ${WELT_STUFE} in ${vorherigeWelt(w)?.name ?? 'der Welt davor'}`)
+        const vw = vorherigeWelt(w)
+        st.append(vw ? `Level ${weltStufe(vw)} in ${vw.name}` : 'Level in der Welt davor')
         st.classList.add('zu-teuer')
       }
       card.append(name, text, st)
@@ -2554,7 +2640,7 @@ $('btn-master-reset').addEventListener('click', () => {
 /* ================= Fortschritt je Welt ================= */
 
 /**
- * Neuer bester Level in der aktuellen Welt: Bei Level 100 geht die naechste Welt auf, bei 100, 150 und 200 gibt
+ * Neuer bester Level in der aktuellen Welt: Beim Ziel-Level der Welt (weltStufe) geht die naechste Welt auf, bei 100, 150 und 200 gibt
  * es die Belohnungen der Welt (Skin, Accessoire, epischer Skin mit Spur). Zaehlt nicht im Kreativ- und Tagesmodus.
  */
 function weltFortschritt(level: number) {
@@ -2574,9 +2660,9 @@ function weltFortschritt(level: number) {
     haptic.success()
     toast('aepfel', `Neu: ${nameVon(l.id)}`, `${art} für Level ${l.level} in der Welt ${w.name}. Im Aussehen anlegen.`)
   }
-  // Level 100: die naechste Welt geht auf
+  // Ziel-Level der Welt (Wiese 60, Wueste 80, ...): die naechste Welt geht auf
   const nw = naechsteWelt(w)
-  if (vorher < WELT_STUFE && level >= WELT_STUFE && nw && !(wallet.welten ?? []).includes(nw.id)) {
+  if (vorher < weltStufe(w) && level >= weltStufe(w) && nw && !(wallet.welten ?? []).includes(nw.id)) {
     wallet.welten = [...(wallet.welten ?? []), nw.id]
     neu = true
     toast('baum', `${nw.name} freigeschaltet`, 'Im Aussehen unter Welten wählbar.')
@@ -3210,7 +3296,9 @@ async function freundeLaden() {
   sperrenZeichnen(sp)
   badgeZeichnen()
   const code = await meinCode()
-  if (code) $('freund-code').textContent = code
+  $('freund-code').textContent = code ?? '------'
+  // Ohne Code steht der Spieler nicht in der Datenbank: sagen und "Neu verbinden" anbieten
+  $('freund-code-fehlt').hidden = !!code || !profil.name
 }
 
 /** Zaehler am Knopf "Online": offene Anfragen an mich und ungelesene Nachrichten */
@@ -3625,7 +3713,8 @@ if (!gesperrt) {
     sozialStarten()
     void pushAuffrischen()
   }
-  setzeSkin(wallet.skin, true)
+  // Den Skin dieses Geraets immer melden (frueher nur, wenn online noch keiner stand: dann blieb ein alter Skin fuer immer)
+  setzeSkin(wallet.skin)
   setzeSilber(wallet.verdient ?? 0)
   requestAnimationFrame(frame)
 }

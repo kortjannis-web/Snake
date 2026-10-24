@@ -1,4 +1,4 @@
-# Spieler löschen und Anmelde-Grenzen (Anleitung fürs Handy)
+# Spieler löschen, fehlende Spieler und Anmelde-Grenzen (Anleitung fürs Handy)
 
 Alles geht am Handy im Browser (Chrome oder Safari). Du brauchst dein Supabase-Login und das Admin-Passwort der App.
 
@@ -8,10 +8,49 @@ Alles geht am Handy im Browser (Chrome oder Safari). Du brauchst dein Supabase-L
 
 ---
 
+## Teil 0: Ein Spieler fehlt in der Hall of Snakes (kein Freundes-Code, Skin oder Rekord kommen nicht an)
+
+Seit Version 1.39 merkt die App das selbst: In der **Hall of Snakes** steht dann unter dem Namen ein roter Hinweis
+(„… fehlst noch in der Hall of Snakes“, darunter der genaue Fehler) mit dem Knopf **Neu verbinden**; bei den Freunden
+steht unter dem leeren Code „Du bist noch nicht online eingetragen. Neu verbinden“. Die App versucht es beim Öffnen der
+Hall auch einmal von selbst. Fehlt nur der Rekord (früher gingen Ergebnisse verloren), trägt die App den Rekord vom Gerät einmal nach.
+
+1. Zuerst **Teil 1** machen (die Datei `NACHHOLEN.sql` enthält jetzt auch die neue Funktion `profil_speichern`).
+2. Auf dem Handy des fehlenden Spielers: App **ganz schließen und neu öffnen** (Web-App holt so die neue Version;
+   die Android-APK muss neu installiert werden, siehe Startbildschirm „Neue Version“).
+3. **Hall of Snakes** öffnen. Kommt der rote Hinweis: **Neu verbinden** tippen. Steht dort „Supabase bremst gerade“,
+   ein paar Minuten warten (Teil 4 prüfen) und noch einmal tippen.
+4. Klappt es immer noch nicht: Die kleine graue Zeile unter dem Hinweis (z. B. `invalid_credentials · 400 · …`) abfotografieren
+   und mir schicken, damit sieht man die genaue Ursache.
+
+**Wer fehlt? (im SQL Editor, nur lesen, verändert nichts)**
+```sql
+-- Alle in der Hall: Name, Skin, Rekord, Freundes-Code, wann zuletzt aktualisiert
+select p.name, p.skin, p.code, p.updated_at,
+       (select max(s.level) from public.score s where s.user_id = p.id) as rekord
+from public.profile p
+order by p.updated_at desc;
+
+-- Konten ohne Hall-Eintrag ("Unsichtbare"): angemeldet, aber nie eingetragen
+select u.id, u.email, u.is_anonymous, u.created_at, u.last_sign_in_at
+from auth.users u
+left join public.profile p on p.id = u.id
+where p.id is null
+order by u.last_sign_in_at desc nulls last;
+```
+
+**Doppelter Eintrag (z. B. „Jannko“ und „Jannko 57“):** Konnte die App den Namen nicht übernehmen, weil er schon einem
+anderen Konto gehört, trägt sie den Spieler mit einer Nummer ein. Den alten Eintrag löschen (Teil 2 oder 3), dann in der
+Hall den Namen ohne Nummer eingeben und **Ändern** tippen.
+
+---
+
 ## Teil 1: Einmalig die Datenbank auf den neuen Stand bringen
 
-Ohne diesen Schritt kann die App niemanden löschen (die Löschfunktion fehlt in der Datenbank). Danach nie wieder nötig,
-außer die App meldet es.
+Ohne diesen Schritt kann die App niemanden löschen (die Löschfunktion fehlt in der Datenbank), und ab 1.39 fehlt die
+Funktion, mit der die App Spieler zuverlässig in die Hall of Snakes einträgt (die App geht dann den alten Weg). Die Datei
+enthält alles seit Version 1.27 und lässt sich gefahrlos mehrmals ausführen. Nach jeder neuen Version mit Datenbank-Änderung
+einmal wiederholen (oder Teil 5 einrichten).
 
 1. Im Browser **github.com/kortjannis-web/Snake** öffnen.
 2. Den Ordner **supabase** antippen, dann die Datei **NACHHOLEN.sql**.
@@ -90,7 +129,9 @@ Was bremst, sind die Anmelde-Grenzen **pro Internetanschluss** (viele Spieler im
 3. Ändern:
    - **Rate limit for anonymous users**: auf **200** (pro Stunde)
    - **Rate limit for sign ups and sign ins**: auf **150** (pro 5 Minuten)
-   - **Rate limit for token refreshes**: mindestens **300**
+   - **Rate limit for token refreshes**: mindestens **300** (pro 5 Minuten)
+   - Zusätzlich unter **Authentication → Sign In / Providers → Email**: **Confirm email** aus, und falls vorhanden
+     **Secure password change** aus (sonst scheitert das Umbenennen nach 24 Stunden)
    - E-Mail-Grenze nicht anfassen (die App schickt keine E-Mails)
 4. Unten **Save changes**. Gilt sofort.
 

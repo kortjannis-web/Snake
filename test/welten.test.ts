@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { ACCS, hatSkin, lohnVon, MUSTER, skinVon, SPUREN, WELT_LOHN, baueSkin } from '../src/render/skins'
-import { naechsteWelt, WELTEN, weltFrei, weltFreiAlt, weltVon } from '../src/render/welten'
+import { naechsteWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon } from '../src/render/welten'
 
 describe('Welten: Reihenfolge und Freischaltung', () => {
+  it('naechste Welt: Wiese 60, Wueste 80, Winter 100, Bergwerk 110, Zauberwald 120, Gruselwald 130', () => {
+    expect(WELTEN.filter((w) => naechsteWelt(w)).map((w) => weltStufe(w))).toEqual([60, 80, 100, 110, 120, 130])
+  })
+
   it('Wiese, dann Wüste, Winter, Bergwerk, Zauberwald, Gruselwald, Vulkan', () => {
     expect(WELTEN.map((w) => w.id)).toEqual(['wiese', 'wueste', 'winter', 'bergwerk', 'zauberwald', 'gruselwald', 'vulkan'])
     expect(naechsteWelt(weltVon('wiese'))?.id).toBe('wueste')

@@ -40,9 +40,50 @@ function schreib(k: string, v: unknown) {
  * `offen`: Name, Skin oder Silber stehen noch nicht in der Datenbank (z. B. beim ersten Start ohne Netz).
  * `umbenennen`: der Name wurde geaendert und der Account muss noch auf den neuen Namen umgestellt werden.
  */
-type Profil = { name: string; offen?: boolean; umbenennen?: boolean; skin?: string; silber?: number }
+type Profil = { name: string; offen?: boolean; umbenennen?: boolean; skin?: string; silber?: number; /** Freundes-Code, sobald das Profil sicher in der Datenbank steht */ code?: string }
 export const profil: Profil = { name: '', ...lies<Partial<Profil>>(PKEY, {}) }
-const speichereProfil = () => schreib(PKEY, { name: profil.name, offen: profil.offen, umbenennen: profil.umbenennen, skin: profil.skin, silber: profil.silber })
+const speichereProfil = () => schreib(PKEY, { name: profil.name, offen: profil.offen, umbenennen: profil.umbenennen, skin: profil.skin, silber: profil.silber, code: profil.code })
+/** Zaehlt jede Aenderung an Name, Skin oder Silber: ein Speichern, das waehrenddessen lief, laesst `offen` dann stehen */
+let profilStand = 0
+const profilGeaendert = () => {
+  profilStand++
+  profil.offen = true
+  speichereProfil()
+}
+
+/**
+ * Wie steht es online um dieses Geraet? Fuer die Anzeige in der Hall of Snakes und bei den Freunden:
+ * ok = das Profil steht in der Datenbank, sonst der letzte Fehler in Worten (und technisch, zum Weitergeben)
+ */
+export type OnlineZustand = { ok: boolean; text: string; technisch?: string }
+let zustand: OnlineZustand = { ok: false, text: '' }
+const zustandHoerer = new Set<(z: OnlineZustand) => void>()
+function setzeZustand(z: OnlineZustand) {
+  zustand = z
+  for (const f of zustandHoerer) f(z)
+}
+export const onlineZustand = () => zustand
+export function beiZustand(f: (z: OnlineZustand) => void) {
+  zustandHoerer.add(f)
+  return () => zustandHoerer.delete(f)
+}
+/** Fehler (Supabase, Netz, eigene) in Worten fuer den Spieler */
+function fehlerWorte(e: unknown): OnlineZustand {
+  const f = (e ?? {}) as { code?: string; status?: number; message?: string; name?: string }
+  const technisch = [f.code, f.status, f.message].filter(Boolean).join(' · ') || String(e)
+  const m = `${f.message ?? ''} ${f.code ?? ''}`
+  const text =
+    f.status === 429 || /rate limit|over_request|too many/i.test(m)
+      ? 'Supabase bremst gerade die Anmeldungen (zu viele auf einmal). In ein paar Minuten klappt es.'
+      : /abort|timeout|Zeit/i.test(m) || f.name === 'AbortError'
+        ? 'Der Server antwortet nicht (Netz zu langsam). Gleich noch einmal versuchen.'
+        : /fetch|network|Failed|Load failed|offline/i.test(m)
+          ? 'Keine Verbindung zum Server. Bist du online?'
+          : e instanceof NamenFehler
+            ? f.message ?? 'Mit diesem Namen geht es nicht.'
+            : 'Noch nicht in der Hall of Snakes eingetragen.'
+  return { ok: false, text, technisch }
+}
 const warteschlange: Ergebnis[] = lies<Ergebnis[]>(QKEY, [])
 
 /** Wie in der Datenbank (name_pruefen): ohne Schimpfwoerter, auch mit Ziffern statt Buchstaben */
@@ -65,19 +106,32 @@ class EinrichtungsFehler extends Error {}
 const namensFehler = (e: { code?: string; message?: string } | null) =>
   !e ? null : e.code === '23505' ? new NameVergeben('Diesen Namen gibt es schon.') : e.code === 'P0001' && /Name/.test(e.message ?? '') ? new NamenFehler('Dieser Name ist nicht erlaubt.') : null
 
+/**
+ * Jede Anfrage an Supabase hoechstens 15 s. Ohne Grenze bleibt eine Anfrage im schlechten Mobilnetz (WLAN-Wechsel,
+ * Funkloch) manchmal ewig haengen, und alles, was danach kommt (Profil, Skin, Ergebnisse), wartet bis zum Neustart der App
+ */
+const FRIST = 15_000
+const fetchMitFrist: typeof fetch = (input, init) => {
+  const ab = new AbortController()
+  const t = setTimeout(() => ab.abort(), FRIST)
+  init?.signal?.addEventListener('abort', () => ab.abort())
+  return fetch(input, { ...init, signal: ab.signal }).finally(() => clearTimeout(t))
+}
+
 let clientP: Promise<SupabaseClient> | null = null
 function client(): Promise<SupabaseClient> {
   clientP ??= import('@supabase/supabase-js').then(({ createClient }) =>
-    createClient(URL!, KEY!, { auth: { persistSession: true, autoRefreshToken: true }, realtime: { params: { eventsPerSecond: 5 } } }),
+    createClient(URL!, KEY!, { auth: { persistSession: true, autoRefreshToken: true }, global: { fetch: fetchMitFrist }, realtime: { params: { eventsPerSecond: 5 } } }),
   )
   return clientP
 }
 
-/** Account-Schritte nie gleichzeitig (Start, Namensaenderung und Senden kommen sich sonst in die Quere) */
+/** Account-Schritte nie gleichzeitig (Start, Namensaenderung und Senden kommen sich sonst in die Quere).
+ *  Haengt ein Schritt trotzdem, geht es nach 40 s mit dem naechsten weiter, statt fuer immer zu warten */
 let kontoKette: Promise<unknown> = Promise.resolve()
 function nacheinander<T>(f: () => Promise<T>): Promise<T> {
   const p = kontoKette.then(f)
-  kontoKette = p.catch(() => undefined)
+  kontoKette = Promise.race([p.catch(() => undefined), new Promise((r) => setTimeout(r, 40_000))])
   return p
 }
 
@@ -224,23 +278,41 @@ async function kontoBereit(modus: 'sichern' | 'umbenennen' | 'wechseln'): Promis
 }
 
 /** Profil (Name) in die Datenbank schreiben. Wirft ohne Netz */
+/** Fehler: Funktion gibt es (noch) nicht (SQL-Datei nicht ausgefuehrt) */
+const funktionFehlt = (e: { code?: string } | null) => !!e && (e.code === 'PGRST202' || e.code === '42883')
+
 async function syncProfil(modus: 'sichern' | 'umbenennen' | 'wechseln' = 'sichern'): Promise<Konto['status']> {
   return nacheinander(async () => {
     const { id, status } = await kontoBereit(modus)
     const sb = await client()
-    // Eingeloggt in einen bestehenden Account: dort stehen Skin und Silber schon, nichts ueberschreiben
-    const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}), ...(profil.silber ? { silber: Math.floor(profil.silber) } : {}) }
-    let { error } = await sb.from('profile').upsert(daten)
-    // Spalte fehlt (SQL-Datei noch nicht ausgefuehrt): erst ohne Silber, dann nur mit Namen
-    if (spalteFehlt(error) && 'silber' in daten) {
-      const { silber: _s, ...ohne } = daten
-      ;({ error } = await sb.from('profile').upsert(ohne))
+    const stand = profilStand
+    // Erst ueber die Funktion profil_speichern (legt an oder aendert in einem Schritt, gibt den Freundes-Code zurueck)
+    const { data: code, error: fe } = await sb.rpc('profil_speichern', { p_name: profil.name, p_skin: profil.skin ?? null, p_silber: profil.silber ? Math.floor(profil.silber) : null })
+    if (!fe) profil.code = (code as string | null) ?? profil.code
+    else if (fe.code === 'P0002') {
+      // Der Account wurde geloescht, die Sitzung auf dem Geraet lebt aber noch: abmelden, beim naechsten Mal neu
+      await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      idP = null
+      throw fe
+    } else if (!funktionFehlt(fe)) throw namensFehler(fe) ?? fe
+    else {
+      // Aeltere Datenbank ohne profil_speichern: wie bisher direkt in die Tabelle
+      // Eingeloggt in einen bestehenden Account: dort stehen Skin und Silber schon, nichts ueberschreiben
+      const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}), ...(profil.silber ? { silber: Math.floor(profil.silber) } : {}) }
+      let { error } = await sb.from('profile').upsert(daten)
+      // Spalte fehlt (SQL-Datei noch nicht ausgefuehrt): erst ohne Silber, dann nur mit Namen
+      if (spalteFehlt(error) && 'silber' in daten) {
+        const { silber: _s, ...ohne } = daten
+        ;({ error } = await sb.from('profile').upsert(ohne))
+      }
+      if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
+      if (error) throw namensFehler(error) ?? error
     }
-    if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
-    if (error) throw namensFehler(error) ?? error
-    profil.offen = false
+    // Waehrend des Speicherns geaendert (z. B. neuer Skin): offen lassen, das naechste Senden nimmt es mit
+    if (profilStand === stand) profil.offen = false
     profil.umbenennen = false
     speichereProfil()
+    setzeZustand({ ok: true, text: `Online eingetragen als ${profil.name}.` })
     return status
   })
 }
@@ -250,8 +322,7 @@ export function setzeSilber(n: number) {
   if ((profil.silber ?? 0) >= n) return
   profil.silber = n
   if (!onlineAktiv || !profil.name) return speichereProfil()
-  profil.offen = true
-  speichereProfil()
+  profilGeaendert()
   void sende()
 }
 
@@ -263,8 +334,7 @@ export function setzeSkin(skin: string, nurNachtragen = false) {
   if (profil.skin === skin || (nurNachtragen && profil.skin)) return
   profil.skin = skin
   if (!onlineAktiv || !profil.name) return speichereProfil()
-  profil.offen = true
-  speichereProfil()
+  profilGeaendert()
   void sende()
 }
 
@@ -286,9 +356,8 @@ export async function setzeName(name: string, wechseln = false): Promise<NameErg
   const hatteName = !!profil.name
   const gleich = hatteName && kontoSchluessel(vorher.name) === kontoSchluessel(n)
   profil.name = n
-  profil.offen = true
   profil.umbenennen = hatteName && !gleich && !wechseln
-  speichereProfil()
+  profilGeaendert()
   if (!onlineAktiv) return 'spaeter'
   try {
     const status = await syncProfil(wechseln ? 'wechseln' : profil.umbenennen ? 'umbenennen' : 'sichern')
@@ -301,6 +370,7 @@ export async function setzeName(name: string, wechseln = false): Promise<NameErg
       speichereProfil()
       throw e
     }
+    setzeZustand(fehlerWorte(e))
     return 'spaeter'
   }
 }
@@ -341,51 +411,120 @@ export function kontoSichern() {
       const { id, status } = await kontoBereit(profil.umbenennen ? 'umbenennen' : 'sichern')
       const { data, error } = await sb.from('profile').select('id').eq('id', id).maybeSingle()
       // Frisch angelegt oder der Eintrag fehlt: das Profil muss (wieder) in die Datenbank
-      if (status === 'neu' || (!error && !data)) {
-        profil.offen = true
-        speichereProfil()
-      }
-    } catch {
+      if (status === 'neu' || (!error && !data)) profilGeaendert()
+      else if (!error && data && !profil.offen) setzeZustand({ ok: true, text: `Online eingetragen als ${profil.name}.` })
+    } catch (e) {
       /* kein Netz oder Name belegt: beim naechsten Mal wieder */
       zuletztGesichert = 0
+      setzeZustand(fehlerWorte(e))
     }
   }).then(() => void sende())
 }
 
-let sendet = false
-/** Name und wartende Ergebnisse senden. Ohne Netz bleibt alles liegen und kommt beim naechsten Mal dran */
-export async function sende() {
-  if (!onlineAktiv || !profil.name || sendet || (!profil.offen && !warteschlange.length)) return
-  sendet = true
+let sendeP: Promise<void> | null = null
+let nochmalSenden = false
+let sendeTimer = 0
+/**
+ * Name, Skin, Silber und wartende Ergebnisse senden. Ohne Netz bleibt alles liegen und kommt beim naechsten Mal dran.
+ * Kommt waehrend des Sendens etwas Neues dazu (neuer Skin, neues Ergebnis), wird gleich danach noch einmal gesendet:
+ * frueher ging das verloren, bis zufaellig wieder etwas gesendet wurde
+ */
+export function sende(): Promise<void> {
+  if (!onlineAktiv || !profil.name || (!profil.offen && !warteschlange.length)) return sendeP ?? Promise.resolve()
+  if (sendeP) {
+    nochmalSenden = true
+    return sendeP
+  }
+  sendeP = (async () => {
+    let runden = 0
+    do {
+      nochmalSenden = false
+      await sendeEinmal()
+    } while (nochmalSenden && ++runden < 5)
+  })().finally(() => (sendeP = null))
+  return sendeP
+}
+
+/** Spaeter noch einmal senden (z. B. nach "zu schnell hintereinander") */
+function spaeterSenden(ms: number) {
+  clearTimeout(sendeTimer)
+  sendeTimer = window.setTimeout(() => void sende(), ms)
+}
+
+async function sendeEinmal() {
   try {
     if (profil.offen) {
       try {
         await syncProfil(profil.umbenennen ? 'umbenennen' : 'sichern')
       } catch (e) {
         if (!(e instanceof NamenFehler)) throw e
+        // Name gehoert schon einem anderen Account (und laesst sich hier nicht anmelden): mit Nummer eintragen,
+        // damit der Spieler wenigstens sichtbar ist. Er kann den Namen jederzeit in der Hall of Snakes aendern
         profil.name = `${profil.name.slice(0, 12)} ${Math.floor(10 + Math.random() * 90)}`
         profil.umbenennen = false
+        profilStand++
         await syncProfil()
       }
     }
     const sb = await client()
     const id = await nutzerId()
+    // Das beste Ergebnis zuerst: kommt etwas dazwischen, ist wenigstens der Rekord angekommen
+    warteschlange.sort((a, b) => b.level - a.level)
     while (warteschlange.length) {
       const e = warteschlange[0]
       const zeile: Record<string, unknown> = { user_id: id, level: e.level, dauer_ms: e.dauer, tempo: e.tempo, version: __APP_VERSION__ }
       let { error } = await sb.from('score').insert(e.tages ? { ...zeile, tages: true } : zeile)
       // Tages-Spalte fehlt noch (SQL-Datei 5 nicht ausgefuehrt): als normales Ergebnis eintragen
       if (e.tages && spalteFehlt(error)) ({ error } = await sb.from('score').insert(zeile))
+      // Zu schnell hintereinander: nicht wegwerfen, sondern gleich noch einmal
+      if (error && /zu schnell/.test(error.message ?? '')) {
+        spaeterSenden(4000)
+        break
+      }
+      // Profil fehlt in der Datenbank (Fremdschluessel): erst das Profil, dann die Ergebnisse
+      if (error?.code === '23503') {
+        profilGeaendert()
+        spaeterSenden(2000)
+        break
+      }
       // Dauerhaft abgelehnt (Regel verletzt): wegwerfen. Netzfehler und Anmeldung: spaeter nochmal
-      if (error && error.code !== '23514' && error.code !== 'P0001') break
+      if (error && error.code !== '23514' && error.code !== 'P0001') throw error
       warteschlange.shift()
       schreib(QKEY, warteschlange)
     }
-  } catch {
-    /* kein Netz */
-  } finally {
-    sendet = false
+  } catch (e) {
+    /* kein Netz: beim naechsten Mal */
+    setzeZustand(fehlerWorte(e))
   }
+}
+
+/**
+ * "Neu verbinden" (Knopf in der Hall of Snakes): Sitzung beim Server pruefen, kaputte Sitzung verwerfen, ueber den Namen
+ * neu anmelden und Profil samt allem Wartenden neu eintragen. Gibt den Zustand danach zurueck
+ */
+export async function kontoReparieren(): Promise<OnlineZustand> {
+  if (!onlineAktiv || !profil.name) return zustand
+  setzeZustand({ ok: false, text: 'Verbinde …' })
+  try {
+    await nacheinander(async () => {
+      const sb = await client()
+      const { data: s } = await sb.auth.getSession()
+      if (!s.session) return
+      const { error } = await sb.auth.getUser()
+      if (sitzungUngueltig(error)) {
+        await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
+        idP = null
+      } else if (error) throw error
+    })
+  } catch (e) {
+    setzeZustand(fehlerWorte(e))
+    return zustand
+  }
+  zuletztGesichert = 0
+  profilGeaendert()
+  await sende()
+  if (!profil.offen) setzeZustand({ ok: true, text: `Online eingetragen als ${profil.name}.` })
+  return zustand
 }
 
 /** Ergebnis einer echten Runde melden (kommt in die Warteschlange und wird gesendet) */
@@ -470,8 +609,18 @@ export async function meinCode(): Promise<string | null> {
     await nutzerId()
     const sb = await client()
     const { data, error } = await sb.rpc('mein_code')
-    if (error) return null
-    return (data as string | null) ?? null
+    if (error) return profil.code ?? null
+    const code = (data as string | null) ?? null
+    if (code !== (profil.code ?? null)) {
+      profil.code = code ?? undefined
+      speichereProfil()
+    }
+    // Kein Code = kein Profil in der Datenbank: der Spieler ist fuer alle unsichtbar. Gleich neu eintragen
+    if (!code) {
+      profilGeaendert()
+      void sende()
+    }
+    return code
   } catch {
     return null
   }
