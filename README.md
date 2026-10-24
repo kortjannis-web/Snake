@@ -15,7 +15,7 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 
 ## Online-Bestenliste und Updates
 
-Mit Supabase (kostenlos) gibt es die Hall of Snakes (der **Name ist zugleich der Account**: derselbe Name auf einem anderen Gerät = derselbe Account, ohne Passwort; Einrichtung Schritt 2b): alle Spieler nach Rekord, Gold oder Silber sortiert, dazu Freunde und das Tageslevel.
+Mit Supabase (kostenlos) gibt es die Hall of Snakes (fehlt ein Spieler oder kommen Skin und Rekord nicht an: [`docs/SPIELER-LOESCHEN.md`](docs/SPIELER-LOESCHEN.md), Teil 0) (der **Name ist zugleich der Account**: derselbe Name auf einem anderen Gerät = derselbe Account, ohne Passwort; Einrichtung Schritt 2b): alle Spieler nach Rekord, Gold oder Silber sortiert, dazu Freunde und das Tageslevel.
 Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). Ohne Einrichtung läuft das
 Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge von selbst, die Android-App
 weist auf dem Startbildschirm auf eine neuere APK hin.
@@ -61,7 +61,7 @@ Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 
 **Äpfel als Währung und Aussehen:** Jeder Apfel kommt in den Vorrat, ab Level 50 doppelt so viel wert, ab 100 dreifach usw.
 Die Farbe zeigt den Wert: Rot, Orange (×2), Gelb, Grün, Türkis, Blau, Lila, Rosa, Blau→Rosa, Lila→Rosa.
-Aussehen mit Farben (auch zwei- und dreifarbig), 45 Skins, 32 Accessoires und 12 Spuren, dazu sieben Welten: Level 100 in einer Welt schaltet die nächste frei (Wiese → Wüstenoase → Winterwald → Bergwerk → Zauberwald → Gruselwald → Vulkan), und jede Welt belohnt mit einem Skin (100), einem Accessoire (150) und einem epischen Skin mit Spur (200). Die Wüste ist eine Insel mit Sandsturm, Flut und Sandwurm. Der Vulkan ist eine Plattform über dem Lava-Abgrund: größere Blöcke, Krater überall, Lava sprudelt hoch. Außerhalb der Karte ist Erde mit Steinen, Kohle,
+Aussehen mit Farben (auch zwei- und dreifarbig), 45 Skins, 32 Accessoires und 12 Spuren, dazu sieben Welten: das Ziel-Level einer Welt schaltet die nächste frei (Wiese 60 → Wüstenoase 80 → Winterwald 100 → Bergwerk 110 → Zauberwald 120 → Gruselwald 130 → Vulkan), und jede Welt belohnt mit einem Skin (100), einem Accessoire (150) und einem epischen Skin mit Spur (200). Die Wüste ist eine Insel mit Sandsturm, Flut und Sandwurm. Der Vulkan ist eine Plattform über dem Lava-Abgrund: größere Blöcke, Krater überall, Lava sprudelt hoch. Außerhalb der Karte ist Erde mit Steinen, Kohle,
 Skeletten, Lavafeldern, **Golderz (3 ×)**, **Diamant (6 ×)**, **Rubin (10 ×)** und leuchtendem **Opal (20 ×)**. Spätestens nach 8 Äpfeln kommt ein Power-up;
 die **Spitzhacke** legt ein zufälliges Erz auf die Karte. **Tagesrekord** und **Erfolge** (Statistik). **Power-ups** ab Level 10: Schild (ein Leben mehr,
 läuft nicht ab, bis zu 3, oben rechts angezeigt), Zeitlupe (30 s, −30 %), Geist,

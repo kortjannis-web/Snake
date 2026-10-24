@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /* Kleines Fake-Supabase: Nutzer mit E-Mail/Passwort, Gaeste, Tabelle "profile" mit eindeutigem Namen */
 type Nutzer = { id: string; email?: string; password?: string; is_anonymous: boolean; unbestaetigt?: boolean }
-const db = { nutzer: [] as Nutzer[], profile: [] as { id: string; name: string; skin?: string; silber?: number }[], n: 0, bestaetigung: false, sitzungVon: '', alteSitzung: null as Nutzer | null }
+const db = { nutzer: [] as Nutzer[], profile: [] as { id: string; name: string; skin?: string; silber?: number }[], score: [] as { user_id: string; level: number }[], scoreSperre: 0, n: 0, bestaetigung: false, sitzungVon: '', alteSitzung: null as Nutzer | null }
 
 function neuerClient() {
   // alteSitzung: im Geraet gespeichert, den Nutzer gibt es auf dem Server vielleicht nicht mehr
@@ -65,6 +65,16 @@ function neuerClient() {
       limit: () => q,
       maybeSingle: async () => ({ data: ausfuehren().data?.[0] ?? null, error: null }),
       update: (w: Record<string, unknown>) => ((aktion = 'update'), (werte = w), q),
+      // Ergebnisse (Tabelle score): Fremdschluessel aufs Profil, "zu schnell hintereinander" wie der Trigger
+      insert: async (z: { user_id: string; level: number }) => {
+        if (!db.profile.some((p) => p.id === z.user_id)) return { error: fehler('23503') }
+        if (db.scoreSperre > 0) {
+          db.scoreSperre--
+          return { error: fehler('P0001', 'zu schnell hintereinander') }
+        }
+        db.score.push({ user_id: z.user_id, level: z.level })
+        return { error: null }
+      },
       upsert: async (d: { id: string; name: string }) => {
         const vorhanden = db.profile.find((p) => p.id === d.id)
         if (db.profile.some((p) => p.id !== d.id && p.name.toLowerCase() === d.name.toLowerCase())) return { error: fehler('23505') }
@@ -76,7 +86,20 @@ function neuerClient() {
     }
     return q
   }
-  return { auth, from: tabelle, channel: vi.fn(), removeChannel: vi.fn(), rpc: vi.fn() }
+  // profil_speichern wie in der Datenbank (20261025000000_profil_reparatur.sql), sonst: Funktion fehlt
+  const rpc = async (fn: string, a: Record<string, unknown>) => {
+    if (fn !== 'profil_speichern') return { data: null, error: fehler('PGRST202') }
+    if (!sitzung) return { data: null, error: fehler('P0001', 'Nicht angemeldet.') }
+    if (!db.nutzer.includes(sitzung)) return { data: null, error: fehler('P0002', 'Konto gibt es nicht mehr.') }
+    const name = String(a.p_name)
+    if (db.profile.some((p) => p.id !== sitzung!.id && p.name.toLowerCase() === name.toLowerCase())) return { data: null, error: fehler('23505') }
+    const d = { id: sitzung.id, name, ...(a.p_skin ? { skin: String(a.p_skin) } : {}), ...(a.p_silber ? { silber: Number(a.p_silber) } : {}) }
+    const vorhanden = db.profile.find((p) => p.id === d.id)
+    if (vorhanden) Object.assign(vorhanden, d)
+    else db.profile.push(d)
+    return { data: `C${d.id}`, error: null }
+  }
+  return { auth, from: tabelle, channel: vi.fn(), removeChannel: vi.fn(), rpc }
 }
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => neuerClient() }))
@@ -96,6 +119,8 @@ async function geraet() {
 beforeEach(() => {
   db.nutzer = []
   db.profile = []
+  db.score = []
+  db.scoreSperre = 0
   db.n = 0
   db.bestaetigung = false
   db.sitzungVon = ''
@@ -213,6 +238,43 @@ describe('Account aus dem Namen (online)', () => {
     expect(await a.setzeName('Jannis')).toBe('neu')
     expect(db.profile).toHaveLength(1)
     expect(db.nutzer.some((n) => n.is_anonymous)).toBe(true)
+  })
+
+  it('neuer Skin waehrend eines laufenden Speicherns geht nicht verloren', async () => {
+    const a = await geraet()
+    await a.setzeName('Mila')
+    a.setzeSkin('rosa')
+    a.setzeSkin('gold') // kommt, waehrend "rosa" noch gespeichert wird
+    await a.sende()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(db.profile[0].skin).toBe('gold')
+    expect(a.profil.offen).toBe(false)
+  })
+
+  it('"zu schnell hintereinander": Ergebnisse werden nicht weggeworfen, das beste kommt zuerst', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const a = await geraet()
+      await a.setzeName('Mila')
+      db.scoreSperre = 1
+      a.melde({ level: 12, dauer: 60_000, tempo: 'normal' })
+      a.melde({ level: 81, dauer: 600_000, tempo: 'normal' })
+      await vi.advanceTimersByTimeAsync(10)
+      await vi.advanceTimersByTimeAsync(5000)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(db.score.map((x) => x.level).sort((x, y) => y - x)).toEqual([81, 12])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('"Neu verbinden": fehlt das Profil, steht der Spieler danach wieder in der Hall', async () => {
+    const a = await geraet()
+    await a.setzeName('HaJa')
+    db.profile = []
+    const z = await a.kontoReparieren()
+    expect(z.ok).toBe(true)
+    expect(db.profile).toEqual([expect.objectContaining({ name: 'HaJa' })])
   })
 
   it('Name hat 2 bis 16 Zeichen und keine Schimpfwoerter', async () => {

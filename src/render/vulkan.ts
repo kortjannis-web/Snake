@@ -65,12 +65,50 @@ export function abgrundKachel(land: (x: number, y: number) => boolean, x0: numbe
     }
     return l
   }
-  const abst = (x: number, y: number) => {
+  const glatterAbst = (x: number, y: number) => {
     let d = R + 1
     for (const c of nachbarn(Math.floor(x), Math.floor(y))) d = smin(d, sdBox(x - c.x, y - c.y, 0.5 - rund) - rund, 0.8)
-    // Felsiger, unregelmaessiger Rand (grob und fein)
-    return d + (rauschen((x - o.x) * 1.7, (y - o.y) * 1.7) - 0.5) * 0.22 + (rauschen((x - o.x) * 6, (y - o.y) * 6) - 0.5) * 0.08
+    return d
   }
+  // Der glatte Abstand (teuer: alle Felder im Umkreis) nur auf einem Raster von einem Viertelfeld, dazwischen weich
+  // gemischt; das Rauschen fuer den felsigen Rand kommt je Pixel dazu. So kostet eine feine Aufloesung kaum mehr
+  const Q = 4
+  const G = n * Q + 1
+  const raster = new Float32Array(G * G)
+  for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) raster[j * G + i] = glatterAbst(x0 + i / Q, y0 + j / Q)
+  const lies = (r: Float32Array, q: number, x: number, y: number) => {
+    const g = n * q + 1
+    const gx = Math.min(g - 1.001, Math.max(0, (x - x0) * q))
+    const gy = Math.min(g - 1.001, Math.max(0, (y - y0) * q))
+    const i = Math.floor(gx)
+    const j = Math.floor(gy)
+    const fx = gx - i
+    const fy = gy - j
+    const a = r[j * g + i]
+    const b = r[j * g + i + 1]
+    const c = r[(j + 1) * g + i]
+    const e = r[(j + 1) * g + i + 1]
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + e) * fx * fy
+  }
+  // Das weiche Rauschen (Rand, Rauch, Lava, Kruste) ebenso auf einem Raster von einem Achtelfeld
+  const Q8 = 8
+  const G8 = n * Q8 + 1
+  const rand = new Float32Array(G8 * G8)
+  const nLava = new Float32Array(G8 * G8)
+  const nKruste = new Float32Array(G8 * G8)
+  const nRauch = new Float32Array(G8 * G8)
+  for (let j = 0; j < G8; j++)
+    for (let i = 0; i < G8; i++) {
+      const wx = x0 + i / Q8 - o.x
+      const wy = y0 + j / Q8 - o.y
+      const k = j * G8 + i
+      rand[k] = (rauschen(wx * 1.7, wy * 1.7) - 0.5) * 0.22
+      nLava[k] = fbm(wx * 0.6, wy * 0.6, 3)
+      nKruste[k] = fbm(wx * 1.3 + 9, wy * 1.3, 3)
+      nRauch[k] = fbm(wx * 1.4, wy * 1.4, 2)
+    }
+  // Felsiger, unregelmaessiger Rand (grob vom Raster, fein je Pixel)
+  const abst = (x: number, y: number) => lies(raster, Q, x, y) + lies(rand, Q8, x, y) + (rauschen((x - o.x) * 6, (y - o.y) * 6) - 0.5) * 0.08
   const w = Math.ceil(n * px)
   const mk = () => {
     const cv = document.createElement('canvas')
@@ -106,7 +144,9 @@ export function abgrundKachel(land: (x: number, y: number) => boolean, x0: numbe
       } else if (d < KANTE) {
         // Basaltkante, hier und da eine feine Glutfuge
         f = mix(kante, fels, (d - LIPPE) / (KANTE - LIPPE))
-        if (rauschen(wx * 4, wy * 4) > 0.72) f = mix(f, [255, 120, 40], 0.55)
+        // weich ein- und ausgeblendet (eine harte Schwelle gibt bei der Vergroesserung treppige Pixel)
+        const fuge = rauschen(wx * 4, wy * 4)
+        if (fuge > 0.66) f = mix(f, [255, 120, 40], cl((fuge - 0.66) / 0.12) * 0.55)
       } else if (d < WAND) {
         // Felswand: Saeulen (Streifen quer zur Kante), nach unten dunkler und von der Lava rot angestrahlt
         const t = (d - KANTE) / (WAND - KANTE)
@@ -118,14 +158,17 @@ export function abgrundKachel(land: (x: number, y: number) => boolean, x0: numbe
         // Rauch und Hitze ueber der Lava
         const t = (d - WAND) / (LAVA_AB - WAND)
         f = mix(mix(glut, rauch, 0.5), lavaTief, t * t)
-        f = mix(f, [40, 20, 18], (fbm(wx * 1.4, wy * 1.4, 2) - 0.5) * 0.6 * (1 - t))
+        f = mix(f, [40, 20, 18], (lies(nRauch, Q8, x, y) - 0.5) * 0.6 * (1 - t))
       } else {
         // Lava ganz unten: Kruste, dazwischen heisse Adern; weiter draussen heller
         // Abstand nur bis 2,4 Felder genau (Land wird im Umkreis von R gesucht): darueber gleich hell, sonst Kanten
-        const t = cl((Math.min(d, 2.4) - LAVA_AB) / 2.6 + (fbm(wx * 0.6, wy * 0.6, 3) - 0.5) * 0.5)
+        const t = cl((Math.min(d, 2.4) - LAVA_AB) / 2.6 + (lies(nLava, Q8, x, y) - 0.5) * 0.5)
         f = t < 0.55 ? mix(lavaTief, lava, t / 0.55) : mix(lava, lavaHeiss, (t - 0.55) / 0.45)
-        const k = fbm(wx * 1.3 + 9, wy * 1.3, 3)
-        if (k < 0.43) f = mix(f, kruste, cl((0.43 - k) / 0.08) * 0.7)
+        // Kruste: dunkle Schollen, an ihren Raendern leuchtende Adern (jetzt fein genug aufgeloest, um sie zu sehen)
+        const k = lies(nKruste, Q8, x, y)
+        if (k < 0.44) f = mix(f, kruste, cl((0.44 - k) / 0.06) * 0.8)
+        const ader = 1 - Math.abs(k - 0.455) / 0.022
+        if (ader > 0) f = mix(f, lavaHeiss, ader * ader * 0.75)
         f = mix(f, lavaTief, cl((LAVA_AB + 0.25 - d) / 0.25) * 0.5)
       }
       const i = (py * w + pxx) * 4
@@ -193,8 +236,10 @@ function abgrundAuffrischen(m: AbgrundKachel, now: number) {
   c.setTransform(1, 0, 0, 1, -ox, -oy)
   // Versatz = Lage des Stuecks in der Welt (sonst sieht man die Kachelgrenzen), dazu langsames Fliessen. Kein Pulsieren:
   // die Stuecke werden zu leicht verschiedenen Zeiten aufgefrischt, das saehe man an den Kanten
-  fuellung(c, maske, tex('lava'), ppc, ox + now / 90, oy + now / 160, 0.5)
-  fuellung(c, maske, tex('lava'), ppc, ox - now / 130, oy + now / 210, 0.25, 1.5)
+  // Feinere Stuecke (mehr Pixel je Feld): Textur und Tempo mitskalieren, damit die Lava gleich gross und schnell fliesst
+  const s = ppc / 12
+  fuellung(c, maske, tex('lava'), ppc, ox + (now / 90) * s, oy + (now / 160) * s, 0.5, s)
+  fuellung(c, maske, tex('lava'), ppc, ox - (now / 130) * s, oy + (now / 210) * s, 0.25, 1.5 * s)
   c.setTransform(1, 0, 0, 1, 0, 0)
   m.zeit = now
 }
@@ -293,7 +338,7 @@ export function drawSprudeln(ctx: CanvasRenderingContext2D, drin: (x: number, y:
         continue
       }
       // Blase: waechst, platzt, Spritzer
-      const z = (now / (1600 + h * 2600) + h2(wx, wy, 14)) % 1
+      const z = (((now / (1600 + h * 2600) + h2(wx, wy, 14)) % 1) + 1) % 1
       if (z < 0.7) {
         const r = cell * 0.2 * (z / 0.7)
         ctx.fillStyle = `rgba(255, 200, 110, ${0.35 + 0.4 * z})`

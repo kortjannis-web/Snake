@@ -4,7 +4,7 @@
  */
 import type { P } from '../game/types'
 import { drawBaumStehend, drawBaumStehendSchnee, type BaumArt } from './baeume'
-import { drawMeer, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
+import { drawFlaeche, drawMeer, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
 import { drawSchlange, type Skin } from './skins'
 import { abgrundKachel, drawAbgrund, drawVulkanStimmung, type AbgrundKachel } from './vulkan'
 import { apfelFarben, drawAmeise, drawApfel, drawFalle, drawFrosch, drawStein, FROSCH_WUESTE, rund, type FroschFarben } from './sprites'
@@ -196,8 +196,9 @@ export const vulkanWelt = (w: Welt) => w.id === 'vulkan'
 /** Welten, in denen rund um die Karte keine Erde mit Steinen, Kohle und Gesteinsschichten ist */
 export const ohneErde = (w: Welt) => waldWelt(w) || inselWelt(w) || vulkanWelt(w)
 export const weltVon = (id: string | undefined) => WELTEN.find((w) => w.id === id) ?? WELTEN[0]
-/** Wer in einer Welt Level 100 erreicht, schaltet die naechste frei (Reihenfolge wie WELTEN) */
-export const WELT_STUFE = 100
+/** Wer in einer Welt diesen Level erreicht, schaltet die naechste frei (Reihenfolge wie WELTEN): Wiese 60, Wueste 80, Winter 100, Bergwerk 110, Zauberwald 120, Gruselwald 130 */
+const WELT_STUFEN_FREI: Partial<Record<WeltId, number>> = { wiese: 60, wueste: 80, winter: 100, bergwerk: 110, zauberwald: 120, gruselwald: 130 }
+export const weltStufe = (w: Welt) => WELT_STUFEN_FREI[w.id] ?? 100
 export const naechsteWelt = (w: Welt): Welt | null => WELTEN[WELTEN.indexOf(w) + 1] ?? null
 export const vorherigeWelt = (w: Welt): Welt | null => WELTEN[WELTEN.indexOf(w) - 1] ?? null
 /** Freigeschaltet? (die Wiese immer) */
@@ -1679,7 +1680,11 @@ export function drawFackel(ctx: CanvasRenderingContext2D, x: number, y: number, 
 const vorschauMeer = new Map<string, MeerKachel>()
 const vorschauAbgrund = new Map<string, AbgrundKachel>()
 
-/** Kleines Vorschaubild einer Welt (fuer die Auswahl im Aussehen): Brett, Erde, ein Baum, Futter, Schlange */
+/**
+ * Vorschaubild einer Welt (Auswahl im Aussehen): zeigt, was die Welt ausmacht. Brett mit Rand (Erde, Meer oder
+ * Abgrund), die Schlange, das Futter der Welt, ein Baum, und ist Platz (breite Karte): Wasser, Mauerstein, das
+ * Tier der Welt (Frosch, Springmaus, Pinguin ...), der Krabbler und die Falle
+ */
 export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite: number, hoehe: number, now: number, skin: Skin) {
   const cell = hoehe / 4
   const cols = Math.ceil(breite / cell) + 1
@@ -1707,7 +1712,7 @@ export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite:
     const k = `${cols}|${cell}`
     let m = vorschauAbgrund.get(k)
     if (!m) {
-      m = abgrundKachel((x, y) => x >= 1 && y >= 1, 0, 0, cols + 1, 16, { x: 0, y: 0 })!
+      m = abgrundKachel((x, y) => x >= 1 && y >= 1, 0, 0, cols + 1, 24, { x: 0, y: 0 })!
       vorschauAbgrund.set(k, m)
     }
     drawAbgrund(ctx, m, cell, now)
@@ -1715,11 +1720,28 @@ export function drawWeltVorschau(ctx: CanvasRenderingContext2D, w: Welt, breite:
   ctx.fillStyle = w.kante
   ctx.fillRect(cell, cell, cols * cell, Math.max(2, cell * 0.1))
   ctx.fillRect(cell, cell, Math.max(2, cell * 0.1), hoehe)
+  const mitte = (x: number) => (x + 0.5) * cell
+  // Breite Karte (Liste der Welten): die ganze Welt im Kleinen. Schmal (Kachel im Aussehen): nur Baum, Futter, Schlange
+  const breit = cols >= 13
+  if (breit) {
+    // Wasser der Welt (Teich, Oase, zugefrorener See, Schwefelquelle ...) neben dem Baum, oben ein Mauerstein
+    drawFlaeche(ctx, [{ x: cols - 6, y: 3 }, { x: cols - 5, y: 3 }, { x: cols - 6, y: 2 }], w.wasser[0], cell, now, { x: 0, y: 0 })
+    drawMauerWelt(ctx, w, (cols - 5) * cell, cell, cell, 1)
+    // Falle, das Tier der Welt (huepft ab und zu) und der Krabbler (laeuft hin und her)
+    drawFalleWelt(ctx, w, mitte(5), mitte(1), cell, 1, 0, 0, now)
+    const sprung = (now / 2600) % 1
+    drawFroschWelt(ctx, w, mitte(6), mitte(2), cell, Math.PI, 0, sprung < 0.25 ? sprung / 0.25 : -1, 0.9, 1, now)
+    const lauf = Math.sin(now / 900)
+    drawAmeiseWelt(ctx, w, mitte(6) + lauf * cell * 0.4, mitte(3), cell, lauf > 0 ? 0 : Math.PI, now / 120, 1.1, 0, 1, now)
+  }
   const art = w.baeume[0]
-  if (w.schnee) drawBaumStehendSchnee(ctx, true, { x: cols - 3, y: 2 }, cell, 0.8, now)
-  else drawBaumStehend(ctx, art, { x: cols - 3, y: 2 }, cell, 0.8, now)
-  drawFutter(ctx, w, (cols - 5.5) * cell, 1.6 * cell, cell, 1, 0, undefined, 1, now)
+  const baum = { x: cols - 3, y: 2 }
+  if (w.schnee) drawBaumStehendSchnee(ctx, true, baum, cell, 0.8, now)
+  else drawBaumStehend(ctx, art, baum, cell, 0.8, now)
+  drawFutter(ctx, w, breit ? 7 * cell : (cols - 5.5) * cell, (breit ? 1 : 1.6) * cell, cell, 1, 0, undefined, 1, now)
   drawSchlange(ctx, [{ x: 4, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 3 }, { x: 1, y: 3 }], cell, 'r', skin, now)
+  // Dunkle Welten: Fackel im Bergwerk, damit man das Halbdunkel sieht
+  if (breit && w.id === 'bergwerk') drawFackel(ctx, mitte(cols - 1), mitte(1), cell, now)
   if (w.finster > 0) {
     ctx.fillStyle = `rgba(${w.nacht[0]}, ${w.nacht[1]}, ${w.nacht[2]}, ${w.finster * 0.5})`
     ctx.fillRect(0, 0, breite, hoehe)

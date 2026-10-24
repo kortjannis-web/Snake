@@ -92,6 +92,10 @@ function schreibStufe(v: number) {
 }
 
 const GRUND = 8
+/** Pixel je Feld fuer den Lava-Abgrund: nach der echten Feldgroesse auf dem Bildschirm (mit festen 12 wurde er gut
+ *  fuenffach vergroessert und sah verwaschen und treppig aus), hoechstens 24: so kostet ein Stueck dank der Raster in
+ *  abgrundKachel nicht mehr Rechenzeit als frueher mit 12 */
+const abgrundPx = (cell: number, dpr: number) => Math.max(12, Math.min(24, Math.round((cell * dpr) / 2.5 / 4) * 4))
 const GRUND_MAX = 48
 /** Jedes Spiel bekommt eine Nummer (der Boden haengt an Welt und Einstellungen) */
 const spielNr = new WeakMap<Game, number>()
@@ -1235,7 +1239,7 @@ export class Renderer {
         } else if (neu > 0 && performance.now() - t0 > 6) m = this.abgrundAlt.get(k) ?? null
         else {
           neu++
-          e = { m: abgrundKachel((x, y) => g.inside({ x, y }), kx * GRUND, ky * GRUND, GRUND, 12, g.ursprung), benutzt: bild }
+          e = { m: abgrundKachel((x, y) => g.inside({ x, y }), kx * GRUND, ky * GRUND, GRUND, abgrundPx(cell, this.dpr), g.ursprung), benutzt: bild }
           this.abgrund.set(k, e)
           this.abgrundAlt.delete(k)
           m = e.m
@@ -1247,9 +1251,11 @@ export class Renderer {
         if (gk && !gk.abgrund && e?.m === m) this.grund.delete(k)
         drawAbgrund(this.ctx, m, cell, now, this.reduce, gebacken)
       }
-    if (this.abgrund.size > 90) {
+    // Feinere Stuecke brauchen mehr Speicher: dann weniger aufheben (sichtbar sind ohnehin nur rund ein Dutzend)
+    const max = abgrundPx(cell, this.dpr) > 16 ? 40 : 90
+    if (this.abgrund.size > max) {
       const alt = [...this.abgrund.entries()].sort((a, b) => a[1].benutzt - b[1].benutzt)
-      for (const [k] of alt.slice(0, this.abgrund.size - 90)) this.abgrund.delete(k)
+      for (const [k] of alt.slice(0, this.abgrund.size - max)) this.abgrund.delete(k)
     }
   }
 
