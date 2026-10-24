@@ -129,7 +129,6 @@
           <h2 class="card__title">Pause</h2>
           <p class="card__sub" id="pause-info"></p>
           <button class="btn btn--play" id="btn-resume"><span data-icon="Play"></span>Weiter</button>
-          <button class="btn btn--kreativ" id="btn-kreativ-live" data-go="kreativ" hidden><span data-icon="Wand"></span>Kreativ-Optionen</button>
           <button class="btn btn--ghost" id="btn-restart"><span data-icon="RotateCcw"></span>Neu starten</button>
           <div class="card__row">
             <button class="tile-btn" data-go="help"><span data-icon="CircleHelp"></span>Anleitung</button>
@@ -410,7 +409,7 @@
         </div>
       </section>
 
-      <!-- Kreativ-Modus: vor dem Start und waehrend des Spiels (Pause) -->
+      <!-- Kreativ-Modus: Welt, Level und was kommen kann, dann spielen -->
       <section class="screen screen--page" id="kreativ">
         <div class="page">
           <header class="page__head">
@@ -419,84 +418,25 @@
           </header>
           <div class="page__body">
             <div class="opt opt--col">
-              <div class="opt__row"><span data-icon="Globe"></span><span class="opt__t">Welt<small>Als Admin spielst du jede Welt, auch ohne Freischaltung. Gilt auch im normalen Spiel.</small></span></div>
+              <div class="opt__row"><span data-icon="Globe"></span><span class="opt__t">Welt<small>Als Admin spielst du jede Welt, auch ohne Freischaltung.</small></span></div>
               <div class="seg seg--welten" id="k-welt" role="radiogroup" aria-label="Welt"></div>
             </div>
-            <div class="opt opt--col" id="k-uebersicht-box">
-              <div class="opt__row"><span data-icon="ListOrdered"></span><span class="opt__t">Was es in dieser Welt gibt<small>Gefahren von häufig bis selten (Chance je Apfel, fallen zwei zusammen, kommt die seltenere), dann alles andere in Stufen. Gilt nur für dich als Admin, ab der nächsten Runde.</small></span></div>
-              <div id="k-uebersicht" class="uebersicht"></div>
-            </div>
-            <div class="opt opt--col" id="k-start-box">
-              <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Startlevel<small id="k-start-info">Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.</small></span></div>
+            <div class="opt opt--col">
+              <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Level<small>Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.</small></span></div>
               <div class="zahl">
                 <input type="range" id="k-start-range" min="1" max="600" step="1" />
                 <input type="number" id="k-start" min="1" max="5000" step="1" inputmode="numeric" />
               </div>
             </div>
-            <label class="opt" id="k-sandbox-box"><span data-icon="Box"></span><span class="opt__t">Sandbox<small>Eigene Welt: Kartengröße, Länge und Objekte selbst wählen</small></span><input type="checkbox" id="k-sandbox" class="switch" /></label>
-            <div class="opt opt--col" id="k-sb">
-              <div class="sb-grid">
-                <label class="sb-zahl"><span>Breite<small>Blöcke</small></span><input type="number" id="k-sb-breite" min="1" max="8" step="1" inputmode="numeric" /></label>
-                <label class="sb-zahl"><span>Höhe<small>Blöcke</small></span><input type="number" id="k-sb-hoehe" min="1" max="8" step="1" inputmode="numeric" /></label>
-                <label class="sb-zahl"><span>Länge<small>Glieder</small></span><input type="number" id="k-sb-laenge" min="1" max="300" step="1" inputmode="numeric" /></label>
-              </div>
-              <div class="opt__row"><span data-icon="Zap"></span><span class="opt__t">Objekte auf der Karte<small>So viele, wie Platz haben</small></span></div>
-              <div class="sb-grid" id="k-sb-objekte"></div>
-              <div class="opt__row"><span data-icon="TrendingUp"></span><span class="opt__t">Danach<small>Bleibt so: nur der Apfel wandert. Normal weiter: ab dem Startlevel wie im echten Spiel.</small></span></div>
-              <div class="seg" id="k-sb-weiter" role="radiogroup">
-                <button data-v="fest" role="radio">Bleibt so</button>
-                <button data-v="weiter" role="radio">Normal weiter</button>
-              </div>
-            </div>
-            <div class="opt opt--col live" id="k-live" hidden>
-              <div class="opt__row"><span data-icon="Flag"></span><span class="opt__t">Level <b id="k-level"></b><small>Springen baut die Welt mit auf.</small></span></div>
-              <div class="seg seg--4">
-                <button id="k-minus10">−10</button>
-                <button id="k-minus1">−1</button>
-                <button id="k-plus1">+1</button>
-                <button id="k-plus10">+10</button>
-              </div>
-              <div class="zahl">
-                <input type="number" id="k-ziel" min="1" max="5000" step="1" inputmode="numeric" />
-                <button class="btn btn--ghost btn--klein" id="k-springen">Springen</button>
-              </div>
-              <div class="opt__row"><span data-icon="Zap"></span><span class="opt__t">Objekt jetzt dazu</span></div>
-              <div class="seg seg--4" id="k-objekte"></div>
-              <button class="btn btn--ghost btn--klein" id="k-leeren"><span data-icon="Eraser"></span>Alles von der Karte</button>
-              <div class="opt__row" id="k-welt-ereignisse-kopf"><span data-icon="Globe"></span><span class="opt__t">Welt-Ereignis jetzt<small>Gefahren und Tiere dieser Welt sofort auslösen</small></span></div>
-              <div class="seg seg--4" id="k-welt-ereignisse"></div>
-              <div class="opt__row"><span data-icon="Shield"></span><span class="opt__t">Power-up sofort</span></div>
-              <div class="seg seg--4">
-                <button data-power="schild">Schild</button>
-                <button data-power="zeitlupe">Zeit</button>
-                <button data-power="geist">Geist</button>
-                <button data-power="schere">Schere</button>
-                <button data-power="goldschere">Goldschere</button>
-                <button data-power="fuettern">Füttern</button>
-                <button data-power="magnet">Magnet</button>
-                <button data-power="maulwurf">Maulwurf</button>
-                <button data-power="spitzhacke">Spitzhacke</button>
-              </div>
-            </div>
             <div class="opt opt--col">
-              <div class="opt__row"><span data-icon="Skull"></span><span class="opt__t">Hindernisse<small>Tödlich, nur anhalten oder als Geist durch alles hindurch</small></span></div>
-              <div class="seg" id="k-tod" role="radiogroup">
-                <button data-v="an" role="radio">Tödlich</button>
-                <button data-v="anhalten" role="radio">Anhalten</button>
-                <button data-v="geist" role="radio">Geist</button>
+              <div class="opt__row"><span data-icon="SlidersHorizontal"></span><span class="opt__t">Was kommen kann<small>Abgeschaltetes kommt in dieser Runde nie.</small></span></div>
+              <div class="k-dinge" id="k-dinge"></div>
+              <div class="seg">
+                <button id="k-alle-an">Alle an</button>
+                <button id="k-alle-aus">Alle aus</button>
               </div>
             </div>
-            <label class="opt"><span data-icon="Undo2"></span><span class="opt__t">Rückschläge<small>Wolke, Fensterlicht und Lichtkegel kosten Level</small></span><input type="checkbox" id="k-rueckschlag" class="switch" /></label>
-            <label class="opt"><span data-icon="Ghost"></span><span class="opt__t">Durch die eigene Schlange</span><input type="checkbox" id="k-durch" class="switch" /></label>
-            <label class="opt"><span data-icon="TrendingUp"></span><span class="opt__t">Schlange wächst<small>Aus: feste Länge</small></span><input type="checkbox" id="k-wachsen" class="switch" /></label>
-            <div class="opt opt--col" id="k-laenge-box">
-              <div class="opt__row"><span data-icon="Ruler"></span><span class="opt__t">Feste Länge</span></div>
-              <div class="zahl">
-                <input type="range" id="k-laenge-range" min="1" max="60" step="1" />
-                <input type="number" id="k-laenge" min="1" max="500" step="1" inputmode="numeric" />
-              </div>
-            </div>
-            <button class="btn btn--play" id="btn-kreativ-start"><span data-icon="Play"></span>Kreativ starten</button>
+            <button class="btn btn--play" id="btn-kreativ-start"><span data-icon="Play"></span>Spielen</button>
             <p class="fine">Kreativ-Runden zählen nicht für Rekord und Statistik.</p>
           </div>
         </div>
@@ -549,14 +489,13 @@
               <div class="liste" id="admin-liste"></div>
               <p class="fine" id="admin-info"></p>
             </details>
-            <p class="hinweis">Master-Einstellungen: alle Häufigkeiten, Wahrscheinlichkeiten und Grenzen des Spiels. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
-            <details class="master zeitleiste" id="zeitleiste">
-              <summary><span data-icon="ListOrdered"></span>Zeitleiste: was kommt wann</summary>
-              <p class="hinweis">Berechnet aus den Zahlen unten, ändert sich also mit jeder Einstellung. Bauten (Bäume, Hütten, Türme, Lava) nur, wenn Platz ist; Kartengröße wie am Handy hochkant.</p>
-              <ul class="zl-dauer" id="zeitleiste-dauer"></ul>
-              <div id="zeitleiste-list"></div>
-            </details>
+            <p class="hinweis">Wahrscheinlichkeiten: wie oft etwas kommt, je Welt. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
             <div id="master-list"></div>
+            <div class="master">
+              <h3>Welt</h3>
+              <div class="seg seg--welten" id="master-welt" role="radiogroup" aria-label="Welt"></div>
+              <div id="master-welt-list" class="uebersicht"></div>
+            </div>
             <button class="btn btn--danger" id="btn-master-reset"><span data-icon="RotateCcw"></span>Alles auf Standard</button>
           </div>
         </div>

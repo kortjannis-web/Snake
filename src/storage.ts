@@ -1,6 +1,5 @@
 /** Einstellungen und Statistik, nur auf dem Geraet (localStorage) */
 import { ABGELEITET, DEFAULTS, type Config, type Tempo } from './game/rules'
-import type { Kreativ, Sandbox } from './game/types'
 import { gutschrift, SPIEL_MODI, type SpielModus } from './modus'
 import type { KameraArt } from './render/renderer'
 
@@ -147,11 +146,11 @@ export function resetConfig() {
 
 /* ---------------- Kreativ-Modus ---------------- */
 const KKEY = 'snake.kreativ.v1'
-export type SandboxEinst = Sandbox & { an: boolean }
-export type KreativEinst = Kreativ & { start: number; sandbox: SandboxEinst }
-const defaultSandbox = (): SandboxEinst => ({ an: false, breite: 2, hoehe: 2, laenge: 6, weiter: false, objekte: { mauer: 2, gegner: 1, ameise: 1 } })
-export const kreativ: KreativEinst = read(KKEY, { start: 100, tod: 'anhalten', rueckschlag: true, durchSelbst: false, wachsen: true, laenge: 3, sandbox: defaultSandbox() } as KreativEinst)
-kreativ.sandbox = { ...defaultSandbox(), ...kreativ.sandbox, objekte: { ...(kreativ.sandbox?.objekte ?? defaultSandbox().objekte) } }
+/** Kreativ: Startlevel und je Welt, was abgeschaltet ist (kommt nie) */
+export type KreativEinst = { start: number; aus: Partial<Record<string, string[]>> }
+export const kreativ: KreativEinst = read(KKEY, { start: 100, aus: {} } as KreativEinst)
+kreativ.start = Number.isFinite(kreativ.start) ? kreativ.start : 100
+kreativ.aus = { ...(kreativ.aus ?? {}) }
 export const saveKreativ = () => write(KKEY, kreativ)
 
 /* ---------------- Aepfel (Waehrung) und Skins ---------------- */

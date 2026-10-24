@@ -28,20 +28,51 @@ const welt = (id: string, cfg: Partial<R.Config> = {}, seed = 3, startLevel = 1)
 const takt = (g: Game, name: string) => (g as unknown as Record<string, () => void>)[name].call(g)
 
 describe('Stufen', () => {
-  it('Wiese: Wasser und Frösche häufig, alles andere mittel, alles ab Level 5', () => {
+  it('Wiese: Wasser und Frösche häufig, alles andere mittel', () => {
     const w = R.mitStufen(C, 'wiese')
     expect(w.teichAlle).toBe(C.haeufigAlle)
     expect(w.froschMax).toBeLessThanOrEqual(4)
     expect(w.baumAlle).toBe(C.mittelAlle)
     expect(w.hausAlle).toBe(C.mittelAlle)
     expect(w.eisAlle).toBe(C.mittelAlle)
-    for (const k of ['teichAb', 'froschAb', 'giftAb', 'baumAb', 'falleAb', 'hausAb', 'eisAb', 'wolkeAb', 'ameiseAb', 'gegnerAb', 'igelAb', 'bienenstockAb'] as const) {
-      expect(w[k], k).toBeGreaterThanOrEqual(C.stufenAb)
-      expect(w[k], k).toBeLessThan(C.stufenAb + C.mittelAlle)
-    }
     // Feste Zeiten
     expect(w.turmAb).toBe(50)
     expect(w.lilaAb).toBe(75)
+  })
+
+  it('Neues kommt selten: Mauern ab 5, dann etwa alle 15 Level eins, nie kurz hintereinander', () => {
+    for (const welt of R.WELT_IDS) {
+      const w = R.mitStufen(C, welt) as Record<string, number>
+      const reihe = R.neuReihenfolge(C, welt)
+      // Alles ausser den Jaegertuermen (feste Zeit) ist in der Reihe
+      expect(reihe.length, welt).toBe(Object.keys(R.WELT_STUFEN[welt]).length - 1)
+      expect(w.mauerAb).toBe(5)
+      const ab = reihe.map((a) => w[`${a}Ab`])
+      expect(ab[0], welt).toBe(C.stufenAb)
+      // Zusammen mit den festen Zeiten (Mauern, Jaegertuerme, lila Gegner) mindestens 10 Level Abstand
+      const alle = [...ab, w.mauerAb, w.turmAb, w.lilaAb].sort((a, b) => a - b)
+      for (let i = 1; i < alle.length; i++) expect(alle[i] - alle[i - 1], `${welt} ${alle[i]}`).toBeGreaterThanOrEqual(10)
+      for (let i = 1; i < ab.length; i++) expect(ab[i] - ab[i - 1], `${welt} ${reihe[i]}`).toBeGreaterThanOrEqual(C.neuAlle)
+      // Bis Level 50 hoechstens zwei Dinge aus der Reihe
+      expect(ab.filter((l) => l <= 50).length, welt).toBeLessThanOrEqual(2)
+    }
+  })
+
+  it('Plätze nahe einer festen Zeit rücken dahinter', () => {
+    expect(R.neuLevels({ ...C, stufenAb: 15, neuAlle: 15 }, 6, [5, 50, 75])).toEqual([15, 30, 65, 90, 105, 120])
+    expect(R.neuLevels({ ...C, stufenAb: 5, neuAlle: 15 }, 2, [5])).toEqual([20, 35])
+    expect(R.neuLevels({ ...C, stufenAb: 10, neuAlle: 10 }, 3, [])).toEqual([10, 20, 30])
+  })
+
+  it('erst das Häufige, dann das Mittlere, dann das Seltene', () => {
+    const r = R.neuReihenfolge(C, 'wiese')
+    expect(r.slice(0, 2)).toEqual(['teich', 'frosch'])
+    const selten = R.neuReihenfolge({ ...C, stufe_wiese_teich: 1, stufe_wiese_igel: 0 }, 'wiese')
+    expect(selten[selten.length - 1]).toBe('teich')
+    expect(selten).not.toContain('igel')
+    // Die Tiere der Welt sind über die Reihe verteilt, nicht alle am Ende
+    const w = R.neuReihenfolge(C, 'winter')
+    expect(w.indexOf('robbe')).toBeLessThan(w.length / 2)
   })
 
   it('Wüste: Palmen, Springmäuse und Feuerameisen häufig, Wasser mittel', () => {
@@ -87,6 +118,37 @@ describe('Stufen', () => {
       expect(R.ABGELEITET.has(k), k).toBe(false)
       expect(k in C, k).toBe(true)
     }
+  })
+})
+
+describe('Kreativ: was kommen kann', () => {
+  it('jede Welt listet Mauern, Power-ups, ihre Dinge und Gefahren', () => {
+    for (const w of R.WELT_IDS) {
+      const keys = R.kreativDinge(w).map((d) => d.key)
+      expect(keys, w).toContain('mauer')
+      expect(keys, w).toContain('power')
+      for (const a of Object.keys(R.WELT_STUFEN[w])) expect(keys, w).toContain(a)
+      for (const k of R.WELT_GEFAHREN[w]) expect(keys, w).toContain(k)
+      expect(new Set(keys).size, w).toBe(keys.length)
+    }
+  })
+
+  it('Abgeschaltetes kommt nie', () => {
+    const aus = R.kreativAus('bergwerk', ['mauer', 'power', 'teich', 'zwerg', 'steinschlag', 'lila', 'turm'])
+    const c = R.mitStufen({ ...C, ...aus }, 'bergwerk')
+    expect(c.mauerAb).toBeGreaterThan(1e6)
+    expect(c.powerAb).toBeGreaterThan(1e6)
+    expect(c.teichAb).toBeGreaterThan(1e6)
+    expect(c.zwergAn).toBe(0)
+    expect(c.steinschlagAn).toBe(0)
+    expect(c.lilaAb).toBeGreaterThan(1e6)
+    expect(c.turmAb).toBeGreaterThan(1e6)
+    // Der Rest rueckt in der Reihe nach vorn
+    expect(c.froschAb).toBe(C.stufenAb)
+    const g = new Game({ screenW: SW, screenH: SH, seed: 2, welt: 'bergwerk', cfg: aus, startLevel: 120 })
+    expect(g.mauern.length).toBe(0)
+    expect(g.teiche.length).toBe(0)
+    expect(g.tuerme.length).toBe(0)
   })
 })
 

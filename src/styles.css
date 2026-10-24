@@ -1062,15 +1062,6 @@ svg {
   background: var(--mokka-hoch);
 }
 
-.live {
-  background: var(--tanne);
-}
-
-.live b {
-  font-family: var(--serif);
-  font-size: 1.3rem;
-}
-
 .hinweis {
   margin: 0 0 4px;
   font: 500 0.88rem/1.45 var(--sans);
@@ -1141,7 +1132,7 @@ svg {
   color: var(--creme-leise);
 }
 
-/* Entwickler-Übersicht im Kreativ-Menü: Gefahren mit Stufe, dann Dinge in Stufen */
+/* Admin je Welt: Gefahren mit Stufe, dann Dinge in Stufen */
 .uebersicht h4 {
   margin: 14px 0 4px;
   font: 700 0.8rem/1.2 var(--sans);
@@ -1191,45 +1182,43 @@ svg {
   justify-self: start;
 }
 
-/* Sandbox */
-.sb-grid {
+/* Kreativ: was kommen kann (an/aus je Ding) */
+.k-dinge {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
 }
 
-.sb-zahl {
-  display: grid;
-  gap: 6px;
-  padding: 8px;
+.k-ding {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 8px 6px 10px;
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.18);
   font: 600 0.8rem/1.2 var(--sans);
 }
 
-.sb-zahl small {
+.k-ding small {
   display: block;
   font: 500 0.68rem/1.2 var(--sans);
   color: var(--creme-leise);
 }
 
-.sb-zahl input {
-  width: 100%;
-  min-height: 40px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.3);
-  color: var(--creme);
-  font: 600 1rem/1 var(--sans);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  user-select: text;
-  -webkit-user-select: text;
+.k-ding input.switch {
+  flex: none;
 }
 
-#k-objekte button {
-  font-size: 0.78rem;
+.k-ding:has(input:not(:checked)) {
+  color: var(--creme-leise);
+}
+
+/* Ab welchem Level ein Ding kommt (Admin, je Welt) */
+.master__row span small {
+  display: block;
+  margin-top: 2px;
 }
 
 /* Zeitleiste in den Master-Einstellungen */

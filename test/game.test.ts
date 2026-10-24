@@ -201,7 +201,8 @@ describe('Spiel', () => {
     const seen = new Set<string>()
     let maxLevel = 0
     for (let s = 1; s <= 6; s++) {
-      const g = new Game({ screenW: SW, screenH: SH, seed: s * 7919 })
+      // Neues kommt hier alle 5 Level, damit der Autopilot alles erlebt
+      const g = new Game({ screenW: SW, screenH: SH, seed: s * 7919, cfg: { neuAlle: 5 } })
       const ev = play(g, 340)
       ev.forEach((e) => seen.add(e.type === 'unlock' ? 'unlock:' + e.what : e.type))
       maxLevel = Math.max(maxLevel, g.level)
@@ -212,8 +213,9 @@ describe('Spiel', () => {
       for (const p of g.body) expect(g.inside(p)).toBe(true)
       expect(g.inside(g.apple.p)).toBe(true)
     }
-    expect(maxLevel).toBeGreaterThanOrEqual(150)
-    for (const t of ['eat', 'expand', 'wall', 'pond', 'tree', 'unlock:gift', 'unlock:falle', 'trap']) expect(seen).toContain(t)
+    // Bis Level 100 ist in der Wiese alles einmal neu gekommen (eins alle paar Level)
+    expect(maxLevel).toBeGreaterThanOrEqual(100)
+    for (const t of ['eat', 'expand', 'wall', 'pond', 'unlock:baum', 'unlock:gift', 'unlock:falle', 'trap']) expect(seen).toContain(t)
   }, 180_000)
 })
 
@@ -765,11 +767,13 @@ describe('Gegner-Schlangen', () => {
   })
   const schritt = (g: Game) => (g as unknown as { gegnerTakt: () => void }).gegnerTakt()
 
-  it('mittlere Stufe ab dem Start der Stufen, hoechstens 1, spaeter 2', () => {
+  it('kommt in der Reihe des Neuen (zuletzt in der Wiese), hoechstens 1, spaeter 2', () => {
     const a = W.gegnerAb
-    expect(a).toBeLessThan(C.stufenAb + C.mittelAlle)
+    const reihe = R.neuReihenfolge(C, 'wiese')
+    expect(reihe[reihe.length - 1]).toBe('gegner')
+    expect(a).toBe(R.neuLevels(C, reihe.length)[reihe.length - 1])
     expect([a - 1, a, a + 99, a + 100, 900].map((l) => R.gegnerMax(W, l))).toEqual([0, 1, 1, 2, 2])
-    expect(R.pause(W, 'gegner', a)).toEqual([6, 10])
+    expect(R.pause(W, 'gegner', C.haeufigerAb - 1)).toEqual([6, 10])
     const g = new Game({ screenW: SW, screenH: SH, seed: 1, startLevel: a - 1 })
     expect(g.neuerGegner()).toBe(false)
   })
@@ -777,7 +781,7 @@ describe('Gegner-Schlangen', () => {
   it('erscheint rot, 3 bis 4 lang, weit weg vom Kopf, zusammenhaengend', () => {
     const laengen = new Set<number>()
     for (let s = 1; s < 25; s++) {
-      const g = welt(s, 60)
+      const g = welt(s, W.gegnerAb + 5)
       expect(g.neuerGegner('rot')).toBe(true)
       expect(g.gegner[0].art).toBe('rot')
       const e = g.gegner[0]
@@ -789,7 +793,7 @@ describe('Gegner-Schlangen', () => {
       }
       const h = g.body[0]
       expect(Math.abs(e.body[0].x - h.x) + Math.abs(e.body[0].y - h.y)).toBeGreaterThanOrEqual(6)
-      // Zweiter auf Level 60 nicht erlaubt
+      // Zweiter in den ersten 100 Leveln nicht erlaubt
       expect(g.neuerGegner('rot')).toBe(false)
     }
     expect([...laengen].sort()).toEqual([3, 4])
@@ -797,7 +801,7 @@ describe('Gegner-Schlangen', () => {
 
   it('ist halb so schnell wie die Schlange', () => {
     const g = welt(2, 120)
-    g.neuerGegner()
+    g.neuerGegner(undefined, true)
     const e = g.gegner[0]
     e.last = g.time
     let schritte = 0
@@ -834,7 +838,7 @@ describe('Gegner-Schlangen', () => {
 
   it('laeuft nie in die Schlange, Hindernisse oder ueber den Rand', () => {
     for (let s = 1; s <= 8; s++) {
-      const g = new Game({ screenW: SW, screenH: SH, seed: s * 31, startLevel: 160 })
+      const g = new Game({ screenW: SW, screenH: SH, seed: s * 31, startLevel: W.gegnerAb + 10 })
       g.wachsRest = 0
       for (let i = 0; i < 3; i++) g.neuerGegner()
       expect(g.gegner.length).toBeGreaterThan(0)
@@ -928,7 +932,7 @@ describe('Gegner-Schlangen', () => {
   })
 
   it('wird mit der Zeit laenger, hoechstens bis zur Hoechstlaenge', () => {
-    const g = welt(6, 60)
+    const g = welt(6, W.gegnerAb + 5)
     g.neuerGegner('rot')
     const e = g.gegner[0]
     const start = e.body.length
@@ -970,7 +974,7 @@ describe('Gegner-Schlangen', () => {
     let lila = 0
     let rot = 0
     for (let s = 1; s <= 60; s++) {
-      const g = welt(s, 160)
+      const g = welt(s, W.gegnerAb + 10)
       g.neuerGegner()
       if (g.gegner[0]?.art === 'lila') {
         lila++
@@ -985,7 +989,7 @@ describe('Gegner-Schlangen', () => {
     // Vor Level 75 nie lila
     for (let s = 1; s <= 20; s++) {
       const g = welt(s, 70)
-      g.neuerGegner()
+      g.neuerGegner(undefined, true)
       expect(g.gegner[0].art).toBe('rot')
     }
   })
@@ -1674,7 +1678,9 @@ describe('Eis', () => {
   it('ab Level 120 alle 30 Level, 12 bis 24 Felder', () => {
     expect([119, 120, 150, 151].map((l) => R.neuesEis(C, l))).toEqual([false, true, true, false])
     for (let s = 1; s <= 15; s++) {
-      const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 120 })
+      // Nur Eis an (sonst ist die Karte so spaet zu voll), dann kommt es als Erstes der Reihe
+      const nurEis = R.kreativAus('wiese', R.kreativDinge('wiese').map((d) => d.key).filter((k) => k !== 'eis'))
+      const g = new Game({ screenW: SW, screenH: SH, seed: s, startLevel: 120, cfg: nurEis })
       expect(g.eis.length).toBeGreaterThanOrEqual(1)
       const e = g.eis[0]
       expect(e.cells.length).toBeGreaterThanOrEqual(12)

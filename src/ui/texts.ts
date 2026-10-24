@@ -1,5 +1,5 @@
 import type { Config } from '../game/rules'
-import type { Cause, SandboxObjekt } from '../game/types'
+import type { Cause } from '../game/types'
 import type { Mini } from './minis'
 
 export const CAUSE: Record<Cause, string> = {
@@ -66,81 +66,6 @@ export const CAUSE: Record<Cause, string> = {
   mumie: 'Der Mumie in die Arme gelaufen',
   sarkophag: 'Gegen den Sarkophag gefahren',
   fata: 'Auf die Fata Morgana hereingefallen',
-}
-
-/** Welt-Ereignisse und Tiere (Kreativ: sofort ausloesen) */
-export const WELT_EREIGNIS_NAME: Record<string, string> = {
-  sandsturm: 'Sandsturm',
-  flut: 'Flut',
-  sandwurm: 'Sandwurm',
-  eiszapfen: 'Eiszapfen',
-  schneesturm: 'Schneesturm',
-  yeti: 'Yeti',
-  polarnacht: 'Polarnacht',
-  robbe: 'Robbe',
-  schneemann: 'Schneemann',
-  eisbaer: 'Eisbär',
-  steinschlag: 'Steinschlag',
-  lore: 'Lore',
-  tnt: 'TNT',
-  erdbeben: 'Erdbeben',
-  fledermaus: 'Fledermäuse',
-  zwerg: 'Zwerg',
-  golem: 'Golem',
-  netz: 'Netz',
-  spiegel: 'Spiegelfluch',
-  ranken: 'Ranken',
-  wanderbaum: 'Wandernder Baum',
-  sporen: 'Sporenwolke',
-  irrlicht: 'Irrlicht-Apfel',
-  einhorn: 'Einhorn',
-  fee: 'Fee',
-  ent: 'Ent',
-  pilzring: 'Pilzringe',
-  zombiehand: 'Zombiehände',
-  grab: 'Offenes Grab',
-  kraehenschwarm: 'Krähenschwarm',
-  vollmond: 'Vollmond',
-  gespenst: 'Gespenst',
-  riesenspinne: 'Riesenspinne',
-  kraehe: 'Krähe',
-  abbruch: 'Abbruchkante',
-  ausbruch: 'Ausbruch',
-  lavastrom: 'Lavastrom',
-  magmawurm: 'Magmawurm',
-  feuerregen: 'Feuerregen',
-  lavafisch: 'Lavafisch',
-  glutgolem: 'Glutgolem',
-  bruecke: 'Lavabrücke',
-  obsidian: 'Obsidian',
-  bienenstock: 'Bienenstock',
-  igel: 'Igel',
-  huegel: 'Maulwurfshügel',
-  karawane: 'Karawane',
-  geier: 'Geier',
-  klapperschlange: 'Klapperschlange',
-  riesenskorpion: 'Riesenskorpion',
-  sandkrabbe: 'Sandkrabbe',
-  erdmaennchen: 'Erdmännchen',
-  mumie: 'Mumie',
-  fata: 'Fata Morgana',
-}
-
-export const OBJEKT_NAME: Record<SandboxObjekt, string> = {
-  mauer: 'Mauer',
-  teich: 'Teich',
-  gift: 'Giftapfel',
-  baum: 'Baum',
-  haus: 'Haus',
-  turm: 'Turm',
-  falle: 'Falle',
-  wolke: 'Wolke',
-  frosch: 'Frosch',
-  gegner: 'Gegner rot',
-  lila: 'Gegner lila',
-  ameise: 'Ameise',
-  lava: 'Lava',
-  eis: 'Eis',
 }
 
 export const help = (c: Config): { mini: Mini; title: string; ab?: string; text: string }[] => [

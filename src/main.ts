@@ -17,11 +17,10 @@ import { Game } from './game/game'
 import { karteVon, MissionGame } from './game/mission'
 import { spielbar, WIESE_MISSIONEN, type MissionDef } from './game/missionen'
 import { erreicht, geschafft, missionGeschafft, offen, setzeErreicht } from './kampagne'
-import { apfelFaktor, DEFAULTS, gebietFortschritt, gefahrStufe, mitStufen, SCHEMA, STUFE_NAME, STUFEN_SCHEMA, stufeKey, WELT_GEFAHREN, WELT_STUFEN, type SchemaFeld, type Tempo, type WeltId } from './game/rules'
+import { apfelFaktor, DEFAULTS, gebietFortschritt, gefahrStufe, kreativAus, kreativDinge, mitStufen, NIE, SCHEMA, STUFE_NAME, STUFEN_SCHEMA, stufeKey, WELT_GEFAHREN, WELT_STUFEN, type SchemaFeld, type Tempo, type WeltId } from './game/rules'
 import { modusProzent, SPIELMODUS_NAME, type SpielModus } from './modus'
 import { ERFOLGE, erfolgePruefen, stand, zaehle } from './erfolge'
-import { SANDBOX_OBJEKTE, type Dir, type GameEvent, type SandboxObjekt, type Side } from './game/types'
-import { dauerhaft, zeitleiste } from './game/zeitleiste'
+import type { Dir, GameEvent, Side } from './game/types'
 import { haptic } from './haptics'
 import { installPflicht, zeigeInstallation } from './install'
 import { tagBerlin, tagesSeed } from './tages'
@@ -42,7 +41,7 @@ import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
-import { CAUSE, help, OBJEKT_NAME, WELT_EREIGNIS_NAME } from './ui/texts'
+import { CAUSE, help } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over' | 'mehr'
 type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'shopteil' | 'liste' | 'mehr' | 'hall' | 'chat' | 'kampagne'
@@ -231,8 +230,6 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
   frist = null
   app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
-  const { start, sandbox, ...k } = kreativ
-  const { an, ...sb } = sandbox
   if (laufMission) {
     // Kampagne: feste Karte, immer gleich (Berge rundherum, alle Aepfel liegen schon da)
     const mg = new MissionGame(laufMission)
@@ -269,14 +266,12 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
       screenW: sc.w,
       screenH: sc.h,
       tempo: tempoVon(laufModus),
-      // Zufaellige Reihenfolge der Gefahren (nicht im Kreativ-Modus: dort soll der Aufbau planbar sein)
-      cfg: { ...config },
+      // Kreativ: was abgeschaltet ist, kommt nie
+      cfg: istKreativ ? { ...config, ...kreativAus(kreativWelt(), kreativ.aus[kreativWelt()] ?? []) } : { ...config },
       wueste: renderer.welt.id === 'wueste',
       vulkan: renderer.welt.id === 'vulkan',
       welt: renderer.welt.id,
-      startLevel: istKreativ ? start : startLevel,
-      kreativ: istKreativ ? { ...k } : null,
-      sandbox: istKreativ && an ? { ...sb, objekte: { ...sb.objekte } } : null,
+      startLevel: istKreativ ? kreativ.start : startLevel,
       // Jede Runde eine andere Welt mit unregelmaessigen Raendern (Sandbox hat ihre eigene Karte)
       zufallsWelt: true,
     })
@@ -324,7 +319,6 @@ function pause() {
   if (mode !== 'play' || !game) return
   setMode('paused')
   $('pause-info').textContent = `${istKreativ ? 'Kreativ · ' : ''}Level ${game.level} · Länge ${game.body.length}`
-  $('btn-kreativ-live').hidden = !istKreativ
 }
 function resume() {
   if (mode !== 'paused') return
@@ -2170,63 +2164,13 @@ function applySettings() {
 /* ================= Kreativ ================= */
 
 const kInput = (id: string) => $<HTMLInputElement>(id)
-const live = () => !!game && istKreativ && (mode === 'paused' || mode === 'ready')
+/** Welt der Kreativ-Runde (unbekannte = Wiese) */
+const kreativWelt = (): WeltId => (renderer.welt.id in WELT_STUFEN ? renderer.welt.id : 'wiese') as WeltId
 
+/** Kreativ: Welt, Level und was kommen kann, dann spielen */
 function renderKreativ() {
-  const lv = live()
-  const sb = kreativ.sandbox
-  $('k-start-box').hidden = lv
-  $('k-sandbox-box').hidden = lv
-  $('k-sb').hidden = lv || !sb.an
-  kInput('k-sandbox').checked = sb.an
-  $('k-start-info').textContent = sb.an
-    ? 'Bestimmt Tempo, Apfelwert und was kommt, wenn es normal weitergeht.'
-    : 'Die Karte wird so aufgebaut, wie sie bis dahin ungefähr entstanden wäre.'
-  kInput('k-sb-breite').value = String(sb.breite)
-  kInput('k-sb-hoehe').value = String(sb.hoehe)
-  kInput('k-sb-laenge').value = String(sb.laenge)
-  for (const art of SANDBOX_OBJEKTE) {
-    const el = document.getElementById(`k-sb-${art}`) as HTMLInputElement | null
-    if (el) el.value = String(sb.objekte[art] ?? 0)
-  }
-  $('k-sb-weiter')
-    .querySelectorAll<HTMLButtonElement>('button')
-    .forEach((b) => b.setAttribute('aria-checked', String((b.dataset.v === 'weiter') === sb.weiter)))
-  $('k-live').hidden = !lv
-  $('btn-kreativ-start').hidden = lv
   kInput('k-start').value = kInput('k-start-range').value = String(kreativ.start)
-  kInput('k-laenge').value = kInput('k-laenge-range').value = String(kreativ.laenge)
-  kInput('k-rueckschlag').checked = kreativ.rueckschlag
-  kInput('k-durch').checked = kreativ.durchSelbst
-  kInput('k-wachsen').checked = kreativ.wachsen
-  $('k-laenge-box').hidden = kreativ.wachsen
-  $('k-tod')
-    .querySelectorAll<HTMLButtonElement>('button')
-    .forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === kreativ.tod)))
-  if (lv && game) {
-    $('k-level').textContent = String(game.level)
-    kInput('k-ziel').value = String(game.level)
-    // Welt-Ereignisse und Tiere dieser Welt sofort ausloesen
-    const box = $('k-welt-ereignisse')
-    box.replaceChildren()
-    const g = game
-    const liste = g.weltAuswahl()
-    $('k-welt-ereignisse-kopf').hidden = !liste.length
-    box.hidden = !liste.length
-    for (const was of liste) {
-      const b = document.createElement('button')
-      b.textContent = WELT_EREIGNIS_NAME[was] ?? was
-      b.addEventListener('click', () => {
-        audio.click()
-        const ok = g.weltAusloesen(was)
-        for (const e of g.drain()) handle(e)
-        if (!ok) toast('gebiet', 'Kein Platz', 'Gerade passt das nicht auf die Karte.')
-      })
-      box.append(b)
-    }
-  }
-  renderWeltUebersicht()
-  // Welt: jede (Admin). Im laufenden Kreativ-Spiel startet die Runde in der neuen Welt neu
+  // Welt: jede (Admin), gilt auch im normalen Spiel
   const wb = $('k-welt')
   wb.replaceChildren()
   for (const w of WELTEN) {
@@ -2240,148 +2184,55 @@ function renderKreativ() {
       wallet.welt = w.id
       saveWallet()
       renderer.welt = w
-      if (live()) {
-        closeAllPages()
-        newGame(true)
-      } else renderKreativ()
+      renderKreativ()
     })
     wb.append(b)
   }
-}
-
-/** Einstellungen sofort ins laufende Spiel uebernehmen */
-function kreativAnwenden() {
-  saveKreativ()
-  if (game && istKreativ) {
-    const { start, sandbox, ...k } = kreativ
-    void start
-    void sandbox
-    game.kreativ = { ...k }
-  }
-  renderKreativ()
-}
-
-function kreativZahl(range: string, zahl: string, setzen: (v: number) => void) {
-  const sync = (v: number, quelle: HTMLInputElement) => {
-    if (!Number.isFinite(v)) return
-    setzen(v)
-    if (quelle !== kInput(range)) kInput(range).value = String(v)
-    if (quelle !== kInput(zahl)) kInput(zahl).value = String(v)
-    saveKreativ()
-    kreativAnwenden()
-  }
-  kInput(range).addEventListener('input', (e) => sync(Number((e.target as HTMLInputElement).value), e.target as HTMLInputElement))
-  kInput(zahl).addEventListener('change', (e) => sync(Number((e.target as HTMLInputElement).value), e.target as HTMLInputElement))
-}
-kreativZahl('k-start-range', 'k-start', (v) => (kreativ.start = Math.max(1, Math.min(5000, Math.round(v)))))
-kreativZahl('k-laenge-range', 'k-laenge', (v) => (kreativ.laenge = Math.max(1, Math.min(500, Math.round(v)))))
-kInput('k-rueckschlag').addEventListener('change', (e) => {
-  kreativ.rueckschlag = (e.target as HTMLInputElement).checked
-  audio.click()
-  kreativAnwenden()
-})
-kInput('k-durch').addEventListener('change', (e) => {
-  kreativ.durchSelbst = (e.target as HTMLInputElement).checked
-  audio.click()
-  kreativAnwenden()
-})
-kInput('k-wachsen').addEventListener('change', (e) => {
-  kreativ.wachsen = (e.target as HTMLInputElement).checked
-  // Beim Ausschalten die aktuelle Laenge als feste Laenge nehmen
-  if (!kreativ.wachsen && game && istKreativ) kreativ.laenge = game.body.length
-  audio.click()
-  kreativAnwenden()
-})
-$('k-tod')
-  .querySelectorAll<HTMLButtonElement>('button')
-  .forEach((b) =>
-    b.addEventListener('click', () => {
-      kreativ.tod = b.dataset.v as typeof kreativ.tod
+  // Was kommen kann: je Ding an/aus (gilt je Welt)
+  const welt = kreativWelt()
+  const aus = new Set(kreativ.aus[welt] ?? [])
+  const box = $('k-dinge')
+  box.replaceChildren()
+  for (const d of kreativDinge(welt)) {
+    const lab = document.createElement('label')
+    lab.className = 'k-ding'
+    const name = document.createElement('span')
+    name.textContent = d.name
+    const sw = document.createElement('input')
+    sw.type = 'checkbox'
+    sw.className = 'switch'
+    sw.checked = !aus.has(d.key)
+    sw.addEventListener('change', () => {
       audio.click()
-      kreativAnwenden()
-    }),
-  )
-
-function springe(ziel: number) {
-  if (!game || !istKreativ) return
-  audio.click()
-  game.springeZu(ziel)
-  for (const e of game.drain()) handle(e)
-  updateHud(true)
-  renderKreativ()
-  $('pause-info').textContent = `Kreativ · Level ${game.level} · Länge ${game.body.length}`
-}
-$('k-minus10').addEventListener('click', () => game && springe(game.level - 10))
-$('k-minus1').addEventListener('click', () => game && springe(game.level - 1))
-$('k-plus1').addEventListener('click', () => game && springe(game.level + 1))
-$('k-plus10').addEventListener('click', () => game && springe(game.level + 10))
-$('k-springen').addEventListener('click', () => springe(Number(kInput('k-ziel').value) || 1))
-/* ---- Sandbox: Kartengroesse, Laenge, Objekte, bleibt so / normal weiter ---- */
-kInput('k-sandbox').addEventListener('change', (e) => {
-  kreativ.sandbox.an = (e.target as HTMLInputElement).checked
-  audio.click()
-  saveKreativ()
-  renderKreativ()
-})
-const sbZahl = (id: string, min: number, max: number, setzen: (v: number) => void) =>
-  kInput(id).addEventListener('change', (e) => {
-    const el = e.target as HTMLInputElement
-    let v = Math.round(Number(el.value))
-    if (!Number.isFinite(v)) v = min
-    v = Math.max(min, Math.min(max, v))
-    el.value = String(v)
-    setzen(v)
-    saveKreativ()
-  })
-sbZahl('k-sb-breite', 1, 8, (v) => (kreativ.sandbox.breite = v))
-sbZahl('k-sb-hoehe', 1, 8, (v) => (kreativ.sandbox.hoehe = v))
-sbZahl('k-sb-laenge', 1, 300, (v) => (kreativ.sandbox.laenge = v))
-for (const art of SANDBOX_OBJEKTE) {
-  const lab = document.createElement('label')
-  lab.className = 'sb-zahl'
-  lab.innerHTML = `<span></span><input type="number" min="0" max="50" step="1" inputmode="numeric" />`
-  lab.querySelector('span')!.textContent = OBJEKT_NAME[art]
-  const inp = lab.querySelector('input')!
-  inp.id = `k-sb-${art}`
-  $('k-sb-objekte').append(lab)
-  sbZahl(inp.id, 0, 50, (v) => (kreativ.sandbox.objekte[art] = v))
-}
-$('k-sb-weiter')
-  .querySelectorAll<HTMLButtonElement>('button')
-  .forEach((b) =>
-    b.addEventListener('click', () => {
-      kreativ.sandbox.weiter = b.dataset.v === 'weiter'
-      audio.click()
+      if (sw.checked) aus.delete(d.key)
+      else aus.add(d.key)
+      kreativ.aus[welt] = [...aus]
       saveKreativ()
-      renderKreativ()
-    }),
-  )
-
-/* ---- Im Spiel: jedes Objekt sofort dazu, alles wegraeumen ---- */
-for (const art of SANDBOX_OBJEKTE) {
-  const b = document.createElement('button')
-  b.textContent = OBJEKT_NAME[art]
-  b.addEventListener('click', () => {
-    if (!game) return
-    audio.click()
-    const ok = game.objektDazu(art as SandboxObjekt)
-    for (const e of game.drain()) handle(e)
-    if (!ok) toast(art, 'Kein Platz', 'Gerade passt das nicht auf die Karte.')
-  })
-  $('k-objekte').append(b)
+    })
+    lab.append(name, sw)
+    box.append(lab)
+  }
 }
-$('k-leeren').addEventListener('click', () => {
-  if (!game) return
+
+function kreativAlle(an: boolean) {
   audio.click()
-  game.allesWeg()
-})
-document.querySelectorAll<HTMLButtonElement>('[data-power]').forEach((b) =>
-  b.addEventListener('click', () => {
-    if (!game) return
-    game.powerAn(b.dataset.power as Parameters<Game['powerAn']>[0])
-    for (const e of game.drain()) handle(e)
-  }),
-)
+  const welt = kreativWelt()
+  kreativ.aus[welt] = an ? [] : kreativDinge(welt).map((d) => d.key)
+  saveKreativ()
+  renderKreativ()
+}
+$('k-alle-an').addEventListener('click', () => kreativAlle(true))
+$('k-alle-aus').addEventListener('click', () => kreativAlle(false))
+
+function kreativStart(v: number, quelle: HTMLInputElement) {
+  if (!Number.isFinite(v)) return
+  kreativ.start = Math.max(1, Math.min(5000, Math.round(v)))
+  if (quelle !== kInput('k-start-range')) kInput('k-start-range').value = String(kreativ.start)
+  if (quelle !== kInput('k-start')) kInput('k-start').value = String(kreativ.start)
+  saveKreativ()
+}
+kInput('k-start-range').addEventListener('input', (e) => kreativStart(Number((e.target as HTMLInputElement).value), e.target as HTMLInputElement))
+kInput('k-start').addEventListener('change', (e) => kreativStart(Number((e.target as HTMLInputElement).value), e.target as HTMLInputElement))
 $('btn-kreativ-start').addEventListener('click', () => {
   audio.unlock()
   audio.click()
@@ -2390,33 +2241,6 @@ $('btn-kreativ-start').addEventListener('click', () => {
 })
 
 /* ================= Master-Einstellungen ================= */
-
-/** Zeitleiste: was kommt wann (aus den aktuellen Zahlen) */
-function renderZeitleiste() {
-  $('zeitleiste-dauer').innerHTML = ''
-  for (const t of dauerhaft(config)) {
-    const li = document.createElement('li')
-    li.textContent = t
-    $('zeitleiste-dauer').append(li)
-  }
-  const box = $('zeitleiste-list')
-  box.innerHTML = ''
-  for (const e of zeitleiste(mitStufen(config, 'wiese'), 500)) {
-    const row = document.createElement('div')
-    row.className = 'zl'
-    const b = document.createElement('b')
-    b.textContent = `Level ${e.level}`
-    const ul = document.createElement('ul')
-    for (const t of e.teile) {
-      const li = document.createElement('li')
-      li.className = `zl--${t.art}`
-      li.textContent = t.text
-      ul.append(li)
-    }
-    row.append(b, ul)
-    box.append(row)
-  }
-}
 
 /** Eine Zeile der Master-Einstellungen: Schalter, Stufe (häufig … aus) oder Zahl. `geaendert` nach jeder Änderung */
 function configZeile(f: SchemaFeld, geaendert: () => void): HTMLElement {
@@ -2486,14 +2310,32 @@ function configZeile(f: SchemaFeld, geaendert: () => void): HTMLElement {
 /** Feld der Master-Einstellungen zu einem Schluessel */
 const schemaFeld = (key: string) => SCHEMA.flatMap((g) => g.felder).find((f) => f.key === key)
 
+/** Welt, deren Wahrscheinlichkeiten im Admin gerade zu sehen sind */
+let masterWelt: WeltId = 'wiese'
+
 /**
- * Entwickler-Übersicht (Kreativ-Menü, nur Admin): was es in der gewählten Welt gibt. Gefahren von häufig bis selten mit
- * Schalter und Chance je Apfel, feste Zeiten, dann alle anderen Dinge mit ihrer Stufe und wie oft die Stufen kommen.
+ * Admin je Welt: Gefahren von häufig bis selten mit Schalter und Chance je Apfel, dann alle anderen Dinge mit ihrer
+ * Stufe und ab welchem Level sie kommen.
  */
-function renderWeltUebersicht() {
-  const box = $('k-uebersicht')
+function renderMasterWelt() {
+  const wb = $('master-welt')
+  wb.replaceChildren()
+  for (const w of WELTEN) {
+    if (!(w.id in WELT_STUFEN)) continue
+    const b = document.createElement('button')
+    b.setAttribute('role', 'radio')
+    b.setAttribute('aria-checked', String(masterWelt === w.id))
+    b.textContent = w.name
+    b.addEventListener('click', () => {
+      audio.click()
+      masterWelt = w.id as WeltId
+      renderMasterWelt()
+    })
+    wb.append(b)
+  }
+  const box = $('master-welt-list')
   box.replaceChildren()
-  const w = (renderer.welt.id in WELT_STUFEN ? renderer.welt.id : 'wiese') as WeltId
+  const w = masterWelt
   const kopf = (text: string) => {
     const h = document.createElement('h4')
     h.textContent = text
@@ -2532,28 +2374,34 @@ function renderWeltUebersicht() {
     const f = schemaFeld('werwolfAlle')
     if (f) box.append(configZeile(f, () => {}))
   }
-  kopf('Feste Zeiten')
-  hinweis(`Jägertürme ab Level ${config.turmAb}, der lila Gegner ab Level ${config.lilaAb} (immer nur einer).`)
   kopf('Alles andere (Mauern sind immer häufig)')
   const gruppe = STUFEN_SCHEMA.find((g) => g.felder.some((f) => f.key === stufeKey(w, 'teich')))
-  for (const f of gruppe?.felder ?? []) box.append(configZeile(f, () => {}))
-  kopf('Wie oft die Stufen kommen (alle Welten)')
-  for (const f of STUFEN_SCHEMA[0].felder) box.append(configZeile(f, renderWeltUebersicht))
+  // In der Reihenfolge, in der sie kommen
+  const c = mitStufen(config, w) as Record<string, number>
+  const dinge = (gruppe?.felder ?? []).map((f) => ({ f, ab: c[`${f.key.slice(`stufe_${w}_`.length)}Ab`] ?? NIE }))
+  for (const { f, ab } of dinge.sort((a, b) => a.ab - b.ab)) {
+    const row = configZeile(f, renderMasterWelt)
+    const klein = document.createElement('small')
+    klein.textContent = ab >= NIE ? 'kommt nicht' : `ab Level ${ab}`
+    row.querySelector('span')?.append(klein)
+    box.append(row)
+  }
 }
 
+/** Admin: nur die Wahrscheinlichkeiten (wann Neues kommt, wie oft die Stufen sind, je Welt Gefahren und Dinge) */
 function renderMaster() {
-  renderZeitleiste()
+  masterWelt = kreativWelt()
   const list = $('master-list')
   list.innerHTML = ''
-  for (const g of SCHEMA) {
-    const box = document.createElement('div')
-    box.className = 'master'
-    const h = document.createElement('h3')
-    h.textContent = g.gruppe
-    box.append(h)
-    for (const f of g.felder) box.append(configZeile(f, renderZeitleiste))
-    list.append(box)
-  }
+  const box = document.createElement('div')
+  box.className = 'master'
+  const h = document.createElement('h3')
+  h.textContent = 'Wann Neues kommt (alle Welten)'
+  box.append(h)
+  const felder = [...STUFEN_SCHEMA[0].felder, schemaFeld('powerChance')].filter((f): f is SchemaFeld => !!f)
+  for (const f of felder) box.append(configZeile(f, renderMasterWelt))
+  list.append(box)
+  renderMasterWelt()
 }
 /** Admin (Optionen): einmal das Admin-Passwort eingeben, dann Master-Einstellungen und Spieler verwalten */
 $('btn-admin').addEventListener('click', async () => {
