@@ -1,6 +1,7 @@
 # Spieler löschen, fehlende Spieler und Anmelde-Grenzen (Anleitung fürs Handy)
 
 Alles geht am Handy im Browser (Chrome oder Safari). Du brauchst dein Supabase-Login und das Admin-Passwort der App.
+Alle Einstellungen und der Selbsttest der Datenbank: [SUPABASE-KOMPLETT.md](SUPABASE-KOMPLETT.md).
 
 > **Sperren ist nicht Löschen.** Der Knopf mit dem durchgestrichenen Kreis (in Anfragen und im Chat) **sperrt** nur:
 > Ihr könnt euch dann keine Anfragen und Nachrichten mehr schicken, der Spieler bleibt aber da.

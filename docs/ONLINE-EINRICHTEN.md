@@ -1,5 +1,7 @@
 # Online-Bestenliste einrichten (Schritt für Schritt)
 
+> Läuft schon? Dann lieber [SUPABASE-KOMPLETT.md](SUPABASE-KOMPLETT.md): alle Schalter, Selbsttest, automatische Updates und Fehlersuche an einem Ort.
+
 Ziel: Freunde installieren das Spiel **einmal**, es aktualisiert sich bei jedem Merge von selbst, und alle sehen
 **live** eine gemeinsame Bestenliste („Heute“ und „Für immer“). Alles kostenlos.
 
