@@ -16,7 +16,7 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 ## Online-Bestenliste und Updates
 
 Mit Supabase (kostenlos) gibt es die Hall of Snakes (fehlt ein Spieler oder kommen Skin und Rekord nicht an: [`docs/SPIELER-LOESCHEN.md`](docs/SPIELER-LOESCHEN.md), Teil 0) (der **Name ist zugleich der Account**: derselbe Name auf einem anderen Gerät = derselbe Account, ohne Passwort; Einrichtung Schritt 2b): alle Spieler nach Rekord, Gold oder Silber sortiert, dazu Freunde und das Tageslevel.
-Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). Ohne Einrichtung läuft das
+Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). **Alle Supabase-Einstellungen, Selbsttest, automatische Updates, Fehlersuche und Ideen fürs Online-Erlebnis:** [`docs/SUPABASE-KOMPLETT.md`](docs/SUPABASE-KOMPLETT.md). Ohne Einrichtung läuft das
 Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge von selbst, die Android-App
 weist auf dem Startbildschirm auf eine neuere APK hin.
 
