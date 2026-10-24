@@ -40,18 +40,28 @@ describe('Stufen', () => {
     expect(w.lilaAb).toBe(75)
   })
 
-  it('Neues kommt nacheinander: eins alle paar Level, nie zwei im selben Level', () => {
+  it('Neues kommt selten: Mauern ab 5, dann etwa alle 15 Level eins, nie kurz hintereinander', () => {
     for (const welt of R.WELT_IDS) {
       const w = R.mitStufen(C, welt) as Record<string, number>
       const reihe = R.neuReihenfolge(C, welt)
       // Alles ausser den Jaegertuermen (feste Zeit) ist in der Reihe
       expect(reihe.length, welt).toBe(Object.keys(R.WELT_STUFEN[welt]).length - 1)
+      expect(w.mauerAb).toBe(5)
       const ab = reihe.map((a) => w[`${a}Ab`])
       expect(ab[0], welt).toBe(C.stufenAb)
-      for (let i = 1; i < ab.length; i++) expect(ab[i] - ab[i - 1], `${welt} ${reihe[i]}`).toBe(C.neuAlle)
-      // Bis Level 20 hoechstens drei neue Dinge
-      expect(ab.filter((l) => l <= 20).length, welt).toBeLessThanOrEqual(3)
+      // Zusammen mit den festen Zeiten (Mauern, Jaegertuerme, lila Gegner) mindestens 10 Level Abstand
+      const alle = [...ab, w.mauerAb, w.turmAb, w.lilaAb].sort((a, b) => a - b)
+      for (let i = 1; i < alle.length; i++) expect(alle[i] - alle[i - 1], `${welt} ${alle[i]}`).toBeGreaterThanOrEqual(10)
+      for (let i = 1; i < ab.length; i++) expect(ab[i] - ab[i - 1], `${welt} ${reihe[i]}`).toBeGreaterThanOrEqual(C.neuAlle)
+      // Bis Level 50 hoechstens zwei Dinge aus der Reihe
+      expect(ab.filter((l) => l <= 50).length, welt).toBeLessThanOrEqual(2)
     }
+  })
+
+  it('Plätze nahe einer festen Zeit rücken dahinter', () => {
+    expect(R.neuLevels({ ...C, stufenAb: 15, neuAlle: 15 }, 6, [5, 50, 75])).toEqual([15, 30, 65, 90, 105, 120])
+    expect(R.neuLevels({ ...C, stufenAb: 5, neuAlle: 15 }, 2, [5])).toEqual([20, 35])
+    expect(R.neuLevels({ ...C, stufenAb: 10, neuAlle: 10 }, 3, [])).toEqual([10, 20, 30])
   })
 
   it('erst das Häufige, dann das Mittlere, dann das Seltene', () => {

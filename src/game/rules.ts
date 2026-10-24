@@ -17,10 +17,10 @@ export const TEMPO = { langsam: 154 / 0.75, normal: 154, schnell: 123 } as const
 export type Tempo = keyof typeof TEMPO
 
 const BASIS = {
-  // Stufen fuer alles ausser den Gefahren (siehe WELT_STUFEN): das erste Neue ab Level, danach eins alle neuAlle Level;
-  // wie oft es dann kommt, haengt an seiner Stufe
-  stufenAb: 8,
-  neuAlle: 6,
+  // Stufen fuer alles ausser den Gefahren (siehe WELT_STUFEN): nach den Mauern (mauerAb) das erste Neue ab stufenAb,
+  // danach eins alle neuAlle Level; wie oft es dann kommt, haengt an seiner Stufe
+  stufenAb: 15,
+  neuAlle: 15,
   haeufigAlle: 3,
   mittelAlle: 8,
   seltenAlle: 20,
@@ -395,9 +395,10 @@ const BASIS = {
 
 /* ---------------- Stufen ----------------
  * Alles ausser den Gefahren kommt in Stufen: haeufig (3), mittel (2), selten (1) oder aus (0). Mauern sind immer haeufig
- * (sie kommen nach jedem Apfel neu), der Apfel ist immer da. Neues kommt nacheinander: das erste ab stufenAb, dann eins
- * alle neuAlle Level (erst das Haeufige, dann das Mittlere, zuletzt das Seltene). Feste Zeiten: Jaegertuerme ab turmAb
- * (50), der lila Gegner ab lilaAb (75, immer nur einer).
+ * (sie kommen nach jedem Apfel neu, als Erstes ab mauerAb), der Apfel ist immer da. Neues kommt selten und nacheinander:
+ * das erste ab stufenAb, dann eins alle neuAlle Level (erst das Haeufige, dann das Mittlere, zuletzt das Seltene), damit
+ * der Spieler nicht ueberhaeuft wird. Feste Zeiten: Mauern ab mauerAb (5), Jaegertuerme ab turmAb (50), der lila Gegner
+ * ab lilaAb (75, immer nur einer); was zu nah daran laege, rueckt dahinter.
  * Je Welt ist eingestellt, was haeufig ist (Wiese: Wasser und Froesche; Wueste: Palmen, Springmaeuse, Feuerameisen). */
 export const GRUND_ARTEN = ['teich', 'frosch', 'gift', 'baum', 'falle', 'haus', 'eis', 'wolke', 'ameise', 'gegner', 'turm'] as const
 export type GrundArt = (typeof GRUND_ARTEN)[number]
@@ -468,8 +469,30 @@ export function neuReihenfolge(c: Config, welt: WeltId): string[] {
 }
 
 /**
+ * Level, an denen die ersten `n` Dinge der Reihe kommen: ab stufenAb alle neuAlle Level. Liegt ein Platz naeher als einen
+ * halben Abstand an einer festen Zeit (Mauern, Jaegertuerme, lila Gegner), rueckt er einen ganzen Abstand dahinter,
+ * damit nie zwei neue Sachen kurz hintereinander kommen.
+ */
+export function neuLevels(c: Config, n: number, fest: number[] = [c.mauerAb, c.turmAb, c.lilaAb]): number[] {
+  const abstand = Math.max(1, Math.round(c.neuAlle))
+  const feste = fest.filter((f) => f < NIE).sort((a, b) => a - b)
+  const out: number[] = []
+  let l = Math.max(1, Math.round(c.stufenAb))
+  while (out.length < n) {
+    const nah = feste.find((f) => Math.abs(f - l) < abstand / 2)
+    if (nah !== undefined) {
+      l = nah + abstand
+      continue
+    }
+    out.push(l)
+    l += abstand
+  }
+  return out
+}
+
+/**
  * Stufen anwenden: berechnet Start-Level und Abstaende aller Dinge dieser Welt aus ihren Stufen. Neues kommt
- * nacheinander (siehe neuReihenfolge): das erste ab stufenAb, dann eins alle neuAlle Level. Was ausdruecklich
+ * nacheinander (siehe neuReihenfolge und neuLevels): das erste ab stufenAb, dann eins alle neuAlle Level. Was ausdruecklich
  * eingestellt ist (anders als der Standard), bleibt. Unbekannte Welt (Sandbox, Tageslevel) = Wiese.
  */
 export function mitStufen(c: Config, welt: string): Config {
@@ -479,14 +502,15 @@ export function mitStufen(c: Config, welt: string): Config {
     const key = k as ConfigKey
     if (c[key] === DEFAULTS[key]) (out as Record<string, number>)[k] = v
   }
-  const start = Math.max(1, Math.round(c.stufenAb))
-  const abstand = Math.max(1, Math.round(c.neuAlle))
   const reihe = neuReihenfolge(c, w)
+  // Jaegertuerme zaehlen nur als feste Zeit, wenn sie kommen
+  const turm = (c[stufeKey(w, 'turm')] ?? 2) > 0 ? c.turmAb : NIE
+  const level = neuLevels(c, reihe.length, [c.mauerAb, turm, c.lilaAb])
   for (const art of Object.keys(WELT_STUFEN[w])) {
     const stufe = c[stufeKey(w, art)] ?? 2
     const n = stufeAlle(c, stufe)
     const platz = reihe.indexOf(art)
-    const ab = stufe <= 0 || platz < 0 ? NIE : start + platz * abstand
+    const ab = stufe <= 0 || platz < 0 ? NIE : level[platz]
     const pause = [Math.max(1, Math.round(n * 0.75)), Math.max(1, Math.round(n * 1.25))]
     switch (art) {
       case 'teich':
@@ -587,7 +611,8 @@ export const STUFEN_SCHEMA: SchemaGruppe[] = [
   {
     gruppe: 'Stufen: wie oft (gilt für alle Welten)',
     felder: [
-      { key: 'stufenAb', label: 'Das erste Neue ab Level', min: 1, max: 1000 },
+      { key: 'stufenAb', label: 'Nach den Mauern das erste Neue ab Level', min: 1, max: 1000 },
+      { key: 'mauerAb', label: 'Mauern ab Level (das allererste)', min: 1, max: 10000 },
       { key: 'neuAlle', label: 'Danach etwas Neues alle', min: 1, max: 100, einheit: 'Level' },
       { key: 'haeufigAlle', label: 'Häufig: neu etwa alle', min: 1, max: 100, einheit: 'Level' },
       { key: 'mittelAlle', label: 'Mittel: neu etwa alle', min: 1, max: 200, einheit: 'Level' },
