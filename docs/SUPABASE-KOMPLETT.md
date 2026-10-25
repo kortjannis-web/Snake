@@ -23,10 +23,13 @@ Danach musst du bei neuen Versionen nichts mehr von Hand machen.
 | Snake-Server | Cloudflare Workers | Mehrspieler-Räume, Push-Einladungen (fragt Supabase nach dem Push-Abo) |
 | GitHub Variablen/Secrets | GitHub → Settings → Secrets and variables → Actions | Zugangsdaten für Bauen, Server und Datenbank-Updates |
 
-**Wie ein Spieler online kommt (seit 1.39):** Name eingeben → die App meldet sich mit dem Konto zum Namen an (gibt es
-keins, legt sie es an) → `profil_speichern` trägt Name, Skin und Silber ein und gibt den Freundes-Code zurück → der Spieler
-steht in der Hall of Snakes. Klappt etwas nicht, zeigt die Hall unter dem Namen einen roten Hinweis mit dem Fehler und
-**Neu verbinden**. Jede Anfrage hat ein Zeitlimit von 15 s, nichts hängt mehr bis zum Neustart.
+**Wie ein Spieler online kommt (seit 1.42):** Anmelden ist Pflicht, Gäste gibt es nicht mehr. Beim Start fragt die App
+nach **Name und Passwort**. Ein Knopf für alles: Gibt es den Namen mit diesem Passwort, ist man drin. Gibt es den Namen von
+früher (ohne Passwort) oder ist das Gerät noch als alter Gast drin, wird das eingegebene Passwort festgelegt und alles bleibt.
+Gibt es den Namen noch nicht, legt die App den Account an. Danach trägt `profil_speichern` Name, Skin und Silber ein → der
+Spieler steht in der Hall of Snakes (live für alle über `hall_signal`). Der **Spielstand** (Äpfel, Skins, Welten, Rekorde,
+Statistik) liegt in der Tabelle `spielstand` und kommt auf jedem Gerät mit, auf dem man sich anmeldet. Supabase bekommt nur
+einen Hash des Passworts. Abmelden: Hall of Snakes → **Abmelden**. Die App weicht nie mehr auf „Name 57“ aus.
 
 ---
 
@@ -39,9 +42,9 @@ Die Namen der Menüpunkte ändern sich bei Supabase manchmal leicht; gemeint ist
 
 | Einstellung | Wert | Warum |
 |---|---|---|
-| **Allow anonymous sign-ins** | **an** | Notnagel für Geräte ohne Konto und für alte Gäste |
+| **Allow anonymous sign-ins** | an lassen | Die App legt seit 1.42 keine Gäste mehr an; alte Gäste brauchen es noch, um ihr Passwort festzulegen |
 | **Email** (Provider) | **an** | Das Konto zum Namen ist ein E-Mail-Konto (es geht nie eine E-Mail raus) |
-| **Confirm email** | **aus** | Sonst kann sich niemand per Name anmelden (Konto wartet auf Bestätigung) |
+| **Confirm email** | **aus** (wichtigster Schalter) | An = Supabase will bei jeder Anmeldung eine Mail an eine Fantasie-Adresse schicken, stößt nach 2 Mails pro Stunde an die Grenze (`over_email_send_rate_limit`), und niemand kommt mehr rein |
 | **Secure email change** | **aus** | Sonst klappt Umbenennen nicht (die Adresse hängt am Namen) |
 | **Secure password change** | **aus** | Sonst scheitert Umbenennen, wenn die Anmeldung älter als 24 h ist |
 | **Allow manual linking** | **an** (schadet nicht) | Nötig, wenn später „Konto sichern“ mit Google/Apple kommt (Teil 7) |
@@ -257,15 +260,16 @@ Nichts davon ist schon eingebaut. Sag Bescheid, was ich bauen soll.
 |---|---|---|---|
 | 1 | **Wachhalten:** GitHub fragt täglich einmal die Hall ab | Projekt wird nie mehr pausiert | klein |
 | 2 | **Wöchentliches Backup** per GitHub Action (Datenbank-Abzug als Datei) | Nichts geht verloren, Wiederherstellen möglich | klein |
-| 3 | **Spielstand online:** Äpfel, Skins, Welten, Rekorde und Statistik im Profil | Neues Handy oder Neuinstallation: alles wieder da | groß |
-| 4 | **„Konto sichern“:** E-Mail und Passwort oder Google/Apple an das bestehende Konto hängen (gleiche Nutzer-Id, Spielstand bleibt) | Echte Accounts, ohne dass jemand neu anfangen muss; Name allein bleibt möglich | mittel |
-| 5 | **Name schützen:** Wer seinen Namen auf einem fremden Gerät eingibt, braucht einen 4-stelligen PIN (beim ersten Mal selbst gewählt) | Niemand kann sich als jemand anderes anmelden | mittel |
+| 3 | ~~Spielstand online~~ | **erledigt in 1.42** (Tabelle `spielstand`) | |
+| 4 | ~~„Konto sichern“~~ | **erledigt in 1.42** als Pflicht-Anmeldung mit Name und Passwort | |
+| 5 | ~~Name schützen~~ | **erledigt in 1.42** (Passwort statt PIN) | |
 | 6 | **Verbindungs-Punkt im Startmenü:** grün = eingetragen, gelb = verbindet, rot = Fehler (antippen = Neu verbinden) | Man sieht sofort, ob man online zählt | klein |
 | 7 | **Admin-Übersicht in der App:** unsichtbare Konten, doppelte Namen, letzte Fehler, Knopf „aufräumen“ | Kein SQL mehr nötig | mittel |
 | 8 | **Push bei Chat und Freundschaftsanfragen** (nicht nur bei Einladungen) | Freunde merken es, auch wenn die App zu ist | mittel |
 | 9 | **Wochen-Bestenliste** und kleine Saisons (z. B. je Welt) | Neue Spieler haben eine Chance, mehr Gründe zum Spielen | klein |
 | 10 | **Schummelschutz für Rekorde** strenger (Runde mit Prüfsumme, Plausibilität je Welt) | Faire Hall of Snakes | mittel |
 
-**Zu „echte Accounts“:** Empfehlung ist Punkt 3 + 4 zusammen (oder 3 + 5): Der Name bleibt der einfache Einstieg, wer will,
-sichert sein Konto. Weil die Nutzer-Id dabei gleich bleibt, behalten alle Hall-Eintrag, Freunde, Chat und (mit Punkt 3) den
-ganzen Spielstand. Ein harter Wechsel auf Pflicht-Accounts würde dagegen viele Spieler beim nächsten Start verlieren.
+**Zu „echte Accounts“ (seit 1.42):** Bestehende Spieler verlieren nichts: Beim ersten Start nach dem Update fragt die App
+nach einem Passwort und hängt es an das bestehende Konto (gleiche Nutzer-Id, Hall-Eintrag, Freunde, Chat bleiben).
+Übergangslücke: Bis ein Spieler sein Passwort festgelegt hat, kann jemand anderes mit seinem Namen das Passwort festlegen.
+Deshalb allen sagen, die App nach dem Update gleich einmal zu öffnen.
