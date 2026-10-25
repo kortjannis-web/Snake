@@ -274,6 +274,67 @@ describe('Boss: Steingolem', () => {
   })
 })
 
+describe('Boss quer (PC)', () => {
+  /** Feld (x, y) der hochkant gespielten Arena, quer gedreht */
+  const dreh = (p: P) => ({ x: 3 * RAUM_H - 1 - p.y, y: p.x })
+
+  it('drei Raeume nebeneinander von links nach rechts, die Tore stehen senkrecht, ein Raum passt ganz ins Bild', () => {
+    const h = new BossGame(boss)
+    const q = missionSpiel(boss, true) as BossGame
+    expect(q).toBeInstanceOf(BossGame)
+    expect([q.w, q.h]).toEqual([3 * RAUM_H, 17])
+    expect(q.screenW + 2).toBeGreaterThanOrEqual(RAUM_H)
+    expect(q.screenH + 2).toBeGreaterThanOrEqual(q.h)
+    expect(q.raeume.map((r) => [r.x0, r.x1])).toEqual([[0, 31], [32, 63], [64, 95]])
+    expect(q.raeume.map((r) => r.sockel.length)).toEqual([3, 4, 6])
+    q.raeume.forEach((r, i) => {
+      expect(r.sockel.map((s) => s.p)).toEqual(h.raeume[i].sockel.map((s) => dreh(s.p)))
+      expect(r.kreis.p).toEqual(dreh(h.raeume[i].kreis.p))
+      expect(r.golem).toEqual(dreh(h.raeume[i].golem))
+      const menge = (ps: P[]) => ps.map((p) => `${p.x},${p.y}`).sort()
+      expect(menge(r.plaetze)).toEqual(menge(h.raeume[i].plaetze.map(dreh)))
+      expect(r.tor?.cells.map((c) => [c.x, c.y]).sort()).toEqual(h.raeume[i].tor?.cells.map((c) => dreh(c)).map((c) => [c.x, c.y]).sort())
+    })
+    for (let y = 0; y < h.h; y++) for (let x = 0; x < h.w; x++) for (const r of [0, 1, 2]) expect(q.imRaum(dreh({ x, y }), r)).toBe(h.imRaum({ x, y }, r))
+    // Startet links, faehrt nach rechts, der Golem schaut ihr entgegen
+    expect(q.body).toEqual(h.body.map(dreh))
+    expect(q.dir).toBe('r')
+    expect(q.golem.winkel).toBe(Math.PI)
+    for (const c of q.body) expect(q.imRaum(c)).toBe(true)
+    for (const c of q.golemFelder()) expect(q.imRaum(c)).toBe(true)
+    // Die Kamera zeigt den Raum, in dem der Kopf ist
+    expect(q.kameraZiel(dreh({ x: 8, y: 80 }))).toEqual({ x: RAUM_H / 2, y: 17 / 2 })
+    expect(q.kameraZiel(dreh({ x: 8, y: 40 }))).toEqual({ x: RAUM_H * 1.5, y: 17 / 2 })
+  })
+
+  it('nach dem Treffer: Golem springt nach rechts in Raum 2, das Tor geht auf, hinter der Schlange wieder zu', () => {
+    const g = new BossGame(boss, true)
+    g.tick = 1e12
+    const schlange = (kopf: P) => {
+      g.body = [kopf, { x: kopf.x - 1, y: kopf.y }, { x: kopf.x - 2, y: kopf.y }]
+      g.prev = g.body.map((p) => ({ ...p }))
+    }
+    schlange({ x: g.aktuell.x1 - 27, y: 8 })
+    bannen(g)
+    sammle(g, { x: Math.round(g.golem.x), y: Math.round(g.golem.y) })
+    lauf(g, GOLEM.getroffen + 60)
+    expect(g.golem.zustand).toBe('wechsel')
+    expect(g.raumNr).toBe(1)
+    expect(g.raeume[0].tor!.offen).toBe(true)
+    lauf(g, GOLEM.sprungDuck + GOLEM.wechselAuf + GOLEM.wechselFlug + GOLEM.sprungFall + 200)
+    expect(g.golem.zustand).toBe('wartet')
+    expect(g.golem.winkel).toBe(Math.PI)
+    for (const c of g.golemFelder()) expect(g.imRaum(c, 1)).toBe(true)
+    schlange({ x: g.aktuell.x0 + 5, y: 8 })
+    lauf(g, 40)
+    expect(g.golem.zustand).toBe('zorn')
+    expect(g.raeume[0].tor!.offen).toBe(false)
+    lauf(g, GOLEM.zorn + GOLEM.kristallPause + 200)
+    expect(g.kristalle.length).toBeGreaterThan(0)
+    for (const k of g.kristalle) expect(g.imRaum(k.p, 1)).toBe(true)
+  })
+})
+
 describe('Boss: ein Bot kann ihn besiegen', () => {
   it('weicht aus, bringt Kristalle, lockt den Golem in den Kreis, folgt ihm durch die Tore: drei Raeume in ein paar Minuten', async () => {
     const { botZug } = await import('./boss-bot')

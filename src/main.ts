@@ -240,13 +240,15 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
   app.toggleAttribute('data-kreativ', istKreativ)
   const sc = screenCells()
   if (laufMission) {
-    // Kampagne: feste Karte, immer gleich (Berge rundherum, alle Aepfel liegen schon da)
-    const mg = missionSpiel(laufMission)
+    // Kampagne: feste Karte, immer gleich (Berge rundherum, alle Aepfel liegen schon da).
+    // Im Querformat (PC) ist sie um 90 Grad gedreht: man spielt von links nach rechts und die Felder sind groesser
+    const mg = missionSpiel(laufMission, stage.clientWidth > stage.clientHeight)
     game = mg
-    let b = bergeJe.get(laufMission.id)
+    const id = mg.quer ? `${laufMission.id}:quer` : laufMission.id
+    let b = bergeJe.get(id)
     if (!b) {
       b = new BergKacheln(mg)
-      bergeJe.set(laufMission.id, b)
+      bergeJe.set(id, b)
     }
     renderer.berge = b
   } else if (istTages) {

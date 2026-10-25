@@ -716,7 +716,7 @@ const BAU: Bau[] = [
   { karte: WIESE_2, richtung: 'u', laenge: 3, seed: 0x5eed02, hinweis: 'Durch die Bäche kommst du nur an den Furten.' },
   { karte: WIESE_3, richtung: 'u', laenge: 4, seed: 0x5eed03, hinweis: 'Pass auf die vielen Frösche auf.' },
   { karte: WIESE_4, richtung: 'u', laenge: 4, seed: 0x5eed04, hinweis: 'Die Mauern ziehen sich von Rand zu Rand.' },
-  { karte: WIESE_5, richtung: 'u', laenge: 4, seed: 0x5eed05, hinweis: 'Oben hinter dem Tor liegt der Schatz: Edelsteine bringen Äpfel extra.' },
+  { karte: WIESE_5, richtung: 'u', laenge: 4, seed: 0x5eed05, hinweis: 'Ganz am Ende hinter dem Tor liegt der Schatz: Edelsteine bringen Äpfel extra.' },
   { karte: WIESE_6, richtung: 'u', laenge: 4, seed: 0x5eed06, tempoProApfel: 0.3, hinweis: 'Fast so viele Giftäpfel wie Äpfel: genau hinsehen.' },
   { karte: WIESE_7, richtung: 'u', laenge: 5, seed: 0x5eed07, tempoProApfel: 0.45, hinweis: 'Auf dem Eis lässt sich nicht lenken, dazu eine Gegner-Schlange.' },
   { karte: WIESE_8, richtung: 'u', laenge: 5, seed: 0x5eed08, tempoProApfel: 0.6, hinweis: 'Enge Pässe und Gassen, zwei Gegner-Schlangen.' },
