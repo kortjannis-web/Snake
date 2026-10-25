@@ -64,8 +64,9 @@ export type Brocken = { p: P; t: number; bis: number; fertig: boolean }
 export type Welle = { x: number; y: number; t: number; r: number; art: 'stampfen' | 'landung' | 'aufprall' | 'treffer' | 'zorn' }
 /** Steintor zwischen zwei Raeumen: zu (toedlich), geht nach dem Treffer auf und hinter der Schlange wieder zu */
 export type Tor = { cells: P[]; offen: boolean; t: number }
-/** Ein Raum der Arena: Zeilen y0 bis y1, Bannkreis, Sockel, Start des Golems, feste Kristallplaetze, Tor nach oben */
-export type Raum = { nr: number; y0: number; y1: number; kreis: { p: P; r: number }; sockel: Sockel[]; golem: P; plaetze: P[]; tor: Tor | null }
+/** Ein Raum der Arena: zwischen den Randzeilen y0 und y1 (quer: Randspalten x0 und x1; die andere Achse liegt ausserhalb
+ *  der Karte), Bannkreis, Sockel, Start des Golems, feste Kristallplaetze, Tor nach oben (quer: nach rechts) */
+export type Raum = { nr: number; x0: number; x1: number; y0: number; y1: number; kreis: { p: P; r: number }; sockel: Sockel[]; golem: P; plaetze: P[]; tor: Tor | null }
 
 /** So hoch ist ein Raum (zwei Bloecke der Boss-Bildgroesse) */
 export const RAUM_H = 32
@@ -132,7 +133,7 @@ export class BossGame extends MissionGame {
   kristalle: Kristall[] = []
   /** Getragene Kristalle (Farben) */
   traegt: number[] = []
-  /** Die Raeume von unten (0, Start) nach oben; `raumNr` = in welchem der Golem gerade kaempft */
+  /** Die Raeume von unten (0, Start) nach oben, quer von links nach rechts; `raumNr` = in welchem der Golem gerade kaempft */
   raeume: Raum[]
   raumNr = 0
   /** Felder, auf die der Golem nicht tritt */
@@ -144,32 +145,33 @@ export class BossGame extends MissionGame {
   /** Naechste Kristalle fruehestens ab */
   protected kristallAb = 0
 
-  constructor(m: MissionDef) {
-    super(m)
+  constructor(m: MissionDef, quer = false) {
+    super(m, quer)
     const k = this.karte
-    // Raeume: je RAUM_H Zeilen, Raum 0 ganz unten
-    const n = Math.max(1, Math.round(k.h / RAUM_H))
-    const imBand = (p: P, y0: number) => p.y >= y0 && p.y < y0 + RAUM_H
+    // Raeume: je RAUM_H Zeilen, Raum 0 ganz unten (quer: je RAUM_H Spalten, Raum 0 ganz links)
+    const n = Math.max(1, Math.round((quer ? k.w : k.h) / RAUM_H))
     this.raeume = Array.from({ length: n }, (_, nr) => {
-      const y0 = k.h - RAUM_H * (nr + 1)
-      const kreis = k.kreise.find((p) => imBand(p, y0)) ?? { x: Math.floor(k.w / 2), y: y0 + RAUM_H / 2 }
-      const golem = k.golems.find((p) => imBand(p, y0)) ?? { x: Math.floor(k.w / 2), y: y0 + 5 }
-      // Tor nach oben: liegt auf den beiden Randzeilen zwischen diesem und dem naechsten Raum
-      const tor = k.tore.filter((p) => p.y === y0 || p.y === y0 - 1)
+      // a0 = erste Zeile (quer: Spalte) des Raums
+      const a0 = quer ? RAUM_H * nr : k.h - RAUM_H * (nr + 1)
+      const imBand = (p: P) => (quer ? p.x : p.y) >= a0 && (quer ? p.x : p.y) < a0 + RAUM_H
+      const mitte = quer ? { x: a0 + RAUM_H / 2, y: Math.floor(k.h / 2) } : { x: Math.floor(k.w / 2), y: a0 + RAUM_H / 2 }
+      const kreis = k.kreise.find(imBand) ?? mitte
+      const golem = k.golems.find(imBand) ?? (quer ? { x: a0 + RAUM_H - 6, y: mitte.y } : { x: mitte.x, y: a0 + 5 })
+      // Tor nach oben (quer: nach rechts): liegt auf den beiden Randzeilen zwischen diesem und dem naechsten Raum
+      const tor = quer ? k.tore.filter((p) => p.x === a0 + RAUM_H - 1 || p.x === a0 + RAUM_H) : k.tore.filter((p) => p.y === a0 || p.y === a0 - 1)
       return {
         nr,
-        y0,
-        y1: y0 + RAUM_H - 1,
+        ...(quer ? { x0: a0, x1: a0 + RAUM_H - 1, y0: -1, y1: k.h } : { x0: -1, x1: k.w, y0: a0, y1: a0 + RAUM_H - 1 }),
         kreis: { p: { ...kreis }, r: GOLEM.bannR },
-        sockel: k.sockel.filter((s) => imBand(s.p, y0)).sort((a, b) => a.i - b.i).map((s) => ({ p: { ...s.p }, farbe: s.i, an: false, t: -1e9 })),
+        sockel: k.sockel.filter((s) => imBand(s.p)).sort((a, b) => a.i - b.i).map((s) => ({ p: { ...s.p }, farbe: s.i, an: false, t: -1e9 })),
         golem: { ...golem },
-        plaetze: k.plaetze.filter((p) => imBand(p, y0)).map((p) => ({ ...p })),
+        plaetze: k.plaetze.filter(imBand).map((p) => ({ ...p })),
         tor: tor.length ? { cells: tor.map((p) => ({ ...p })), offen: false, t: -1e9 } : null,
       }
     })
     this.sperre = new Set(k.sperre.map((p) => key(p.x, p.y)))
     const g = this.raeume[0].golem
-    this.golem = { x: g.x, y: g.y, winkel: Math.PI / 2, zustand: 'schlaf', seit: 0, bis: 0, phase: 0, hp: GOLEM.leben, angriff: null, letzter: null, weg: 0, trefferT: -1e9, kreisPause: 0 }
+    this.golem = { x: g.x, y: g.y, winkel: this.rueckwaerts, zustand: 'schlaf', seit: 0, bis: 0, phase: 0, hp: GOLEM.leben, angriff: null, letzter: null, weg: 0, trefferT: -1e9, kreisPause: 0 }
     this.kristallAb = 700
   }
 
@@ -184,14 +186,22 @@ export class BossGame extends MissionGame {
   get kreis() {
     return this.aktuell.kreis
   }
-  /** In welchem Raum liegt diese Zeile? (-1 = auf einem Tor zwischen zwei Raeumen) */
-  raumBei(y: number) {
-    return this.raeume.findIndex((r) => y > r.y0 && y < r.y1)
+  /** Blickrichtung zum naechsten Raum (nach oben, quer nach rechts) */
+  get vorwaerts() {
+    return this.quer ? 0 : -Math.PI / 2
+  }
+  /** Blickrichtung zurueck, dorthin, wo die Schlange herkommt */
+  get rueckwaerts() {
+    return this.quer ? Math.PI : Math.PI / 2
+  }
+  /** In welchem Raum liegt dieses Feld? (-1 = auf einem Tor zwischen zwei Raeumen) */
+  raumBei(c: Pf) {
+    return this.raeume.findIndex((r) => c.x > r.x0 && c.x < r.x1 && c.y > r.y0 && c.y < r.y1)
   }
   /** Liegt das Feld im aktuellen Raum (nicht auf den Randzeilen, nicht im Tor)? */
   imRaum(c: P, r = this.raumNr) {
     const ra = this.raeume[r]
-    return !!ra && c.y > ra.y0 && c.y < ra.y1 && this.inside(c)
+    return !!ra && c.x > ra.x0 && c.x < ra.x1 && c.y > ra.y0 && c.y < ra.y1 && this.inside(c)
   }
   /** Ist hier ein geschlossenes Tor? */
   torZu(c: P) {
@@ -206,10 +216,10 @@ export class BossGame extends MissionGame {
 
   /** Mitte des Raums, den die Kamera zeigen soll (der, in dem der Kopf ist; auf dem Tor der, aus dem er kommt) */
   kameraZiel(kopf: Pf): Pf {
-    let r = this.raumBei(Math.round(kopf.y))
-    if (r < 0) r = this.raeume.findIndex((ra) => kopf.y >= ra.y0 - 1 && kopf.y <= ra.y1 + 1)
+    let r = this.raumBei({ x: Math.round(kopf.x), y: Math.round(kopf.y) })
+    if (r < 0) r = this.raeume.findIndex((ra) => kopf.x >= ra.x0 - 1 && kopf.x <= ra.x1 + 1 && kopf.y >= ra.y0 - 1 && kopf.y <= ra.y1 + 1)
     const ra = this.raeume[Math.max(0, r)]
-    return { x: this.w / 2, y: (ra.y0 + ra.y1 + 1) / 2 }
+    return { x: (ra.x0 + ra.x1 + 1) / 2, y: (ra.y0 + ra.y1 + 1) / 2 }
   }
 
   /** Boss-Level: es gibt keine Aepfel, gezaehlt werden die Treffer am Golem */
@@ -605,7 +615,7 @@ export class BossGame extends MissionGame {
     const a = g.angriff
     if (a?.art !== 'sprung') return this.laufenLos()
     const t = this.time
-    if (t < a.ab) return this.drehen(a.wechsel ? -Math.PI / 2 : winkelVon(g, this.kopf), dt, 2)
+    if (t < a.ab) return this.drehen(a.wechsel ? this.vorwaerts : winkelVon(g, this.kopf), dt, 2)
     if (g.seit < a.ab) {
       g.seit = a.ab
       this.ereignis('sprung')
@@ -630,7 +640,7 @@ export class BossGame extends MissionGame {
       this.wellen.push({ x: a.ziel.x, y: a.ziel.y, t, r: a.r, art: 'landung' })
       if (a.wechsel) {
         // Im neuen Raum angekommen: dort wartet er auf die Schlange
-        g.winkel = Math.PI / 2
+        g.winkel = this.rueckwaerts
         g.angriff = null
         this.setze('wartet', 1e9)
         return
@@ -753,8 +763,8 @@ export class BossGame extends MissionGame {
       ? feste.filter((c) => !zu.has(key(c.x, c.y)))
       : []
     if (!feste.length)
-      for (let y = this.aktuell.y0 + 1; y < this.aktuell.y1; y++)
-        for (let x = 0; x < this.w; x++) {
+      for (let y = Math.max(0, this.aktuell.y0 + 1); y < Math.min(this.h, this.aktuell.y1); y++)
+        for (let x = Math.max(0, this.aktuell.x0 + 1); x < Math.min(this.w, this.aktuell.x1); x++) {
           const c = { x, y }
           if (!this.imRaum(c) || zu.has(key(x, y))) continue
           // Nicht direkt an der Wand, nicht im Bannkreis, nicht gleich vor dem Kopf
@@ -774,4 +784,4 @@ export class BossGame extends MissionGame {
 }
 
 /** Das passende Spiel zur Mission: Boss-Level mit Golem, sonst die normale Mission */
-export const missionSpiel = (m: MissionDef): MissionGame => (m.art === 'boss' ? new BossGame(m) : new MissionGame(m))
+export const missionSpiel = (m: MissionDef, quer = false): MissionGame => (m.art === 'boss' ? new BossGame(m, quer) : new MissionGame(m, quer))

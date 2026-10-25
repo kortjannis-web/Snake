@@ -69,10 +69,13 @@ function drawTor(ctx: CanvasRenderingContext2D, tor: { cells: { x: number; y: nu
   const k = reduce ? 1 : clamp01((now - tor.t) / GOLEM.tor)
   // Hoehe der Platte: 1 = ganz oben (zu), 0 = im Boden (offen)
   const hoch = tor.offen ? 1 - easeOut(k) : easeOut(k)
+  // Quer gespielt steht das Tor senkrecht (Rille und Fugen drehen sich mit)
+  const senkrecht = h > w
   ctx.save()
   // Rille im Boden bleibt sichtbar
   ctx.fillStyle = 'rgba(40, 34, 30, 0.35)'
-  ctx.fillRect(x0, y0 + h * 0.4, w, h * 0.2)
+  if (senkrecht) ctx.fillRect(x0 + w * 0.4, y0, w * 0.2, h)
+  else ctx.fillRect(x0, y0 + h * 0.4, w, h * 0.2)
   if (hoch > 0.02) {
     const off = (1 - hoch) * h * 0.35
     ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * hoch})`
@@ -88,10 +91,17 @@ function drawTor(ctx: CanvasRenderingContext2D, tor: { cells: { x: number; y: nu
     ctx.strokeRect(x0 - cell * 0.1, y0 + off, w + cell * 0.2, h - off)
     // Fugen und eine Rune in der Mitte, die gluehend pulsiert
     ctx.beginPath()
-    ctx.moveTo(x0 + w / 3, y0 + off)
-    ctx.lineTo(x0 + w / 3, y0 + h)
-    ctx.moveTo(x0 + (2 * w) / 3, y0 + off)
-    ctx.lineTo(x0 + (2 * w) / 3, y0 + h)
+    if (senkrecht)
+      for (const t of [1 / 3, 2 / 3]) {
+        const fy = y0 + off + (h - off) * t
+        ctx.moveTo(x0 - cell * 0.1, fy)
+        ctx.lineTo(x0 + w + cell * 0.1, fy)
+      }
+    else
+      for (const t of [1 / 3, 2 / 3]) {
+        ctx.moveTo(x0 + w * t, y0 + off)
+        ctx.lineTo(x0 + w * t, y0 + h)
+      }
     ctx.stroke()
     const puls = reduce ? 0.7 : 0.55 + 0.45 * Math.sin(now / 300)
     ctx.strokeStyle = `rgba(255, 170, 70, ${0.55 * puls * hoch})`

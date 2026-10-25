@@ -349,6 +349,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Die eigene Schlange als Weg:** Anfangs liegt nur ihr Kopf kurz vor Mission 1. Tippt man eine Mission an, **wächst die Schlange weich gebogen bis zu diesem Feld**, danach startet die Mission. So wird sie mit jeder neuen Mission länger. Sie trägt das gewählte Aussehen; Effekte und Spur sind auf der Karte etwas schwächer (75 %).
 - **Alle 10 Missionen sind spielbar (seit 1.43).** Gespielt wird eine Mission erst, wenn die davor geschafft ist; geschaffte Missionen werden grün mit Stern und lassen sich beliebig wiederholen.
 - **Missionen sind fest:** die Karte ist von Hand gebaut und bei jedem Spielen gleich (Start, Äpfel, Mauern, Teiche, Giftäpfel, Frösche, Eis, Gegner, Edelsteine). Statt Erde liegen **Berge** um die Täler (Fuß mit Bäumen, Fels, oben Schnee); dagegen = vorbei („Gegen den Berg gefahren“). Auch mitten in der Wiese können Berge stehen (Hügel).
+- **Querformat (PC, seit 1.45.0):** ist das Spielfeld breiter als hoch, ist die Mission **um 90 Grad gedreht**: aus unten wird links, man startet links und spielt nach rechts. Das Bild ist dann breit statt hoch (23 × 12 statt 12 × 23 Felder), die Felder werden deutlich größer (Full HD: etwa 72 statt 41 Pixel). Alles liegt an derselben Stelle, nur gedreht; die Steuerung bleibt wie sie ist (Pfeil rechts = nach rechts). Am Handy hochkant bleibt alles wie bisher.
 - **Schwierigkeit steigt:** mehr Äpfel, längere Schlange am Start, mehr Gefahren. Bis Mission 7 ist jeder Pass und jede Gasse mindestens 3 Felder breit (so muss man nicht hin und her tippen, im Test geprüft), erst **ab Mission 8 wird es eng** (2 Felder). Ab Mission 6 wird die Schlange je Apfel etwas schneller (6: 0,3 %, 7: 0,45 %, 8: 0,6 %, 9: 0,75 % je Apfel statt 0,12 %).
 
 | Nr. | Name | Karte | Äpfel | Start | Belohnung |
@@ -357,7 +358,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 | 2 | Am Bach | drei Bäche quer durchs Tal, je eine Furt; 4 Giftäpfel, 3 Frösche | 12 | 3 | 8 |
 | 3 | Froschteich | zwei große Teiche, 11 Frösche, 3 Giftäpfel | 12 | 4 | 10 |
 | 4 | Steinmauern | Mauern in Schlangenlinie von Rand zu Rand, Winkel und Haken; 5 Giftäpfel | 15 | 4 | 12 |
-| 5 | Schatztor (Schatz) | oben die Schatzkammer hinter einem Tor im Berg: 4 Gold, 2 Diamanten, 1 Rubin | 16 | 4 | 20 + Edelsteine |
+| 5 | Schatztor (Schatz) | oben (quer: rechts) die Schatzkammer hinter einem Tor im Berg: 4 Gold, 2 Diamanten, 1 Rubin | 16 | 4 | 20 + Edelsteine |
 | 6 | Giftige Wiese | 15 Giftäpfel zwischen 16 Äpfeln, drei Felder hinter Pässen | 16 | 4 | 14 |
 | 7 | Hügelland | Hügel (Berge) in der Wiese, 4 Eisflächen, 1 Gegner-Schlange | 16 | 5 | 16 |
 | 8 | Enge Pässe | Rücken mit 2er-Pässen, Mauergassen, 2 Gegner-Schlangen | 16 | 5 | 18 |
@@ -372,7 +373,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ### 16-0b. Boss: der Steingolem (Mission 10)
 
-- **Drei Räume** übereinander (je 17 × 32 Felder), verbunden durch **Steintore**. Jeder Raum **passt ganz ins Bild** (kleinere Felder), die Kamera zeigt immer den Raum, in dem die Schlange ist, und gleitet beim Durchfahren des Tors weich in den nächsten. Geschlossene Tore sind wie Wand („Gegen das Steintor gefahren“).
+- **Drei Räume** übereinander (je 17 × 32 Felder; im Querformat nebeneinander, 32 × 17, die Tore stehen dann senkrecht), verbunden durch **Steintore**. Jeder Raum **passt ganz ins Bild** (kleinere Felder), die Kamera zeigt immer den Raum, in dem die Schlange ist, und gleitet beim Durchfahren des Tors weich in den nächsten. Geschlossene Tore sind wie Wand („Gegen das Steintor gefahren“).
   - **Raum 1** (unten, Start): offen, **3 Sockel** (Rot, Orange, Gelb) im Dreieck um den Bannkreis.
   - **Raum 2**: vier Felssäulen, **4 Sockel** (dazu Grün) als Raute.
   - **Raum 3** (oben): schwieriger, mit mehr Wegen: oben und unten je eine **Kammer** hinter einem Rücken, links und rechts **Gassen** hinter Felswänden, **6 Sockel** im Sechseck (dazu Blau und Lila). Die Kristalle liegen hier an **festen Plätzen** (Kristalladern am Boden) in den Kammern und Gassen, man muss sie dort holen. In die Kammern kommt der Golem nicht hinein (der Durchgang ist für ihn zu eng gebannt).

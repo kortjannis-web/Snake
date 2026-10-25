@@ -154,19 +154,34 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
   return k
 }
 
-/** Zwischenspeicher: jede Karte wird nur einmal gelesen (sie aendert sich nie) */
+/** Querformat (PC): die Karte um 90 Grad im Uhrzeigersinn gedreht, aus unten wird links und aus oben rechts.
+ *  Man spielt dann von links nach rechts, das Bild ist breit statt hoch und die Felder werden groesser */
+export function querKarte(zeilen: readonly string[]): string[] {
+  const h = zeilen.length
+  const w = zeilen[0]?.length ?? 0
+  return Array.from({ length: w }, (_, y) => Array.from({ length: h }, (_, x) => zeilen[h - 1 - x][y]).join(''))
+}
+/** Richtung nach der Drehung im Uhrzeigersinn */
+export const QUER_DIR: Record<Dir, Dir> = { u: 'r', r: 'd', d: 'l', l: 'u' }
+
+/** Zwischenspeicher: jede Karte wird nur einmal gelesen (sie aendert sich nie), hochkant und quer getrennt */
 const gelesen = new Map<string, MissionKarte>()
-export function karteVon(m: MissionDef): MissionKarte {
-  let k = gelesen.get(m.id)
+export function karteVon(m: MissionDef, quer = false): MissionKarte {
+  const id = quer ? `${m.id}:quer` : m.id
+  let k = gelesen.get(id)
   if (!k) {
-    k = leseKarte(m.karte ?? [])
-    gelesen.set(m.id, k)
+    const zeilen = m.karte ?? []
+    k = leseKarte(quer ? querKarte(zeilen) : zeilen)
+    gelesen.set(id, k)
   }
   return k
 }
 
-/** Blockgroesse der Missionen (haengt nur am festen Bild, hochkant) */
-const blockVon = (bild: { w: number; h: number }) => ({ w: bild.w + BLOCK_PLUS, h: Math.max(4, Math.floor(bild.h / 2)) + BLOCK_PLUS })
+/** Blockgroesse der Missionen (haengt nur am festen Bild, wie im Spiel: hochkant halb so hoch, quer halb so breit) */
+const blockVon = (bild: { w: number; h: number }) =>
+  bild.h >= bild.w
+    ? { w: bild.w + BLOCK_PLUS, h: Math.max(4, Math.floor(bild.h / 2)) + BLOCK_PLUS }
+    : { w: Math.max(4, Math.floor(bild.w / 2)) + BLOCK_PLUS, h: bild.h + BLOCK_PLUS }
 
 export class MissionGame extends Game {
   readonly mission: MissionDef
@@ -179,10 +194,13 @@ export class MissionGame extends Game {
   readonly bergSet: Set<number>
   /** Wert der eingesammelten Edelsteine (Aepfel, gibt es beim ersten Abschluss dazu) */
   schatz = 0
+  /** Quer gedreht (Querformat, PC): man spielt von links nach rechts */
+  readonly quer: boolean
 
-  constructor(m: MissionDef) {
-    const k = karteVon(m)
-    const bild = m.bild ?? MISSION_BILD
+  constructor(m: MissionDef, quer = false) {
+    const k = karteVon(m, quer)
+    const hoch = m.bild ?? MISSION_BILD
+    const bild = quer ? { w: hoch.h, h: hoch.w } : hoch
     const b = blockVon(bild)
     const bloecke: P[] = []
     for (let by = 0; by * b.h < k.h; by++) for (let bx = 0; bx * b.w < k.w; bx++) bloecke.push({ x: bx, y: by })
@@ -197,12 +215,13 @@ export class MissionGame extends Game {
       sandbox: { breite: 0, hoehe: 0, laenge: m.laenge ?? 3, objekte: {}, weiter: false, bloecke, aus: k.berge },
     })
     this.mission = m
+    this.quer = quer
     this.karte = k
     this.ziel = k.aepfel.length
     this.bergSet = new Set(k.berge.map((p) => key(p.x, p.y)))
 
     // Schlange: Kopf auf S, der Koerper liegt entgegen der Startrichtung dahinter
-    const dir: Dir = m.richtung ?? 'u'
+    const dir: Dir = quer ? QUER_DIR[m.richtung ?? 'u'] : (m.richtung ?? 'u')
     const zurueck = STEP[OPP[dir]]
     const laenge = Math.max(3, m.laenge ?? 3)
     this.body = Array.from({ length: 3 }, (_, i) => ({ x: k.start.x + zurueck.x * i, y: k.start.y + zurueck.y * i }))

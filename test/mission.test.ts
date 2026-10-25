@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { key } from '../src/game/game'
-import { MissionGame } from '../src/game/mission'
+import { MissionGame, querKarte } from '../src/game/mission'
 import { MISSION_BLOCK, MISSION_LOHN, missionSkinVorgemerkt, spielbar, WIESE_MISSIONEN } from '../src/game/missionen'
 import { DIRS, STEP } from '../src/game/rules'
 import type { Dir, P } from '../src/game/types'
@@ -205,5 +205,49 @@ describe('Kampagne', () => {
     }
     expect(g.froesche.filter((f) => f.gone === undefined)).toHaveLength(5)
     for (const f of g.froesche) expect(g.inside(f.p)).toBe(true)
+  })
+
+  it('Querformat (PC): die Karte ist um 90 Grad gedreht, unten wird links, man startet nach rechts', () => {
+    expect(querKarte(['ab', 'cd', 'ef'])).toEqual(['eca', 'fdb'])
+    for (const m of WIESE_MISSIONEN) {
+      const h = new MissionGame(m)
+      const q = new MissionGame(m, true)
+      // Feld (x, y) hochkant liegt quer bei (h - 1 - y, x)
+      const dreh = (p: P) => ({ x: h.h - 1 - p.y, y: p.x })
+      // Gelesen wird zeilenweise: die Reihenfolge aendert sich, die Felder nicht
+      const menge = (ps: P[]) => ps.map((p) => key(p.x, p.y)).sort((a, b) => a - b)
+      expect(q.quer, m.id).toBe(true)
+      expect([q.w, q.h], m.id).toEqual([h.h, h.w])
+      // Breites Bild: ein Block ist so gross wie hochkant, nur gedreht, die Karte bleibt aus ganzen Bloecken
+      expect(q.screenW, m.id).toBeGreaterThan(q.screenH)
+      expect([q.bw, q.bh], m.id).toEqual([h.bh, h.bw])
+      expect(q.w % q.bw, m.id).toBe(0)
+      expect(q.h % q.bh, m.id).toBe(0)
+      expect(q.blocks.length, m.id).toBe(h.blocks.length)
+      for (let y = 0; y < h.h; y++) for (let x = 0; x < h.w; x++) expect(q.inside(dreh({ x, y })), m.id).toBe(h.inside({ x, y }))
+      expect(q.body, m.id).toEqual(h.body.map(dreh))
+      expect(q.dir, m.id).toBe('r')
+      expect(menge(q.aepfel.map((a) => a.p)), m.id).toEqual(menge(h.aepfel.map((a) => dreh(a.p))))
+      expect(q.ziel, m.id).toBe(h.ziel)
+      expect(menge(q.gift.map((g) => g.p)), m.id).toEqual(menge(h.gift.map((g) => dreh(g.p))))
+      expect(menge(q.funde.map((f) => f.p)), m.id).toEqual(menge(h.funde.map((f) => dreh(f.p))))
+      expect(q.gegner.length, m.id).toBe(h.gegner.length)
+    }
+  })
+
+  it('Querformat: Missionen 1 bis 9 lassen sich genauso schaffen (ohne Froesche und Gegner)', () => {
+    for (const m of WIESE_MISSIONEN.slice(0, 9)) {
+      const g = new MissionGame(m, true)
+      g.froesche = []
+      g.gegner = []
+      let schritte = 0
+      while (g.status === 'play' && schritte++ < 9000) {
+        const d = weg(g)
+        if (d && !g.queue.length) g.turn(d, false)
+        g.update(g.tick)
+      }
+      expect(g.cause, m.id).toBe('ziel')
+      expect(g.gegessen, m.id).toBe(g.ziel)
+    }
   })
 })
