@@ -131,8 +131,9 @@ export const MUSTER: Muster[] = [
   { ...mu(55, 'amethyst', 'Amethyst', 0, 'facetten', [184, 120, 240], [84, 40, 150], true), glimmer: [230, 190, 255] },
   { ...mu(56, 'feenzauber', 'Feenzauber', 0, 'leuchten', [120, 230, 220], [160, 90, 230], true, [[255, 255, 255], [255, 170, 240], [170, 255, 240]]), glimmer: [255, 200, 250] },
   { ...mu(57, 'nachtmahr', 'Nachtmahr', 0, 'schemen', [70, 36, 96], [14, 8, 24], true, [[150, 255, 170]]), glimmer: [190, 150, 255] },
-  // Belohnungen der Kampagne (nicht kaufbar): Schatz-Level (Mission 5) und Boss (Mission 10) der Wiese
-  mu(58, 'schatzhueter', 'Schatzhüter', 0, 'schatz', [246, 196, 70], [176, 116, 26], true, [[230, 40, 80], [40, 200, 120], [60, 140, 255]]),
+  // Belohnungen der Kampagne (nicht kaufbar): Boss der Wiese (Mission 10); der Schatzhueter ist fuer Mission 20 vorgemerkt
+  // und bis dahin im Shop versteckt (wer ihn schon hat, behaelt ihn)
+  mu(58, 'schatzhueter', 'Schatzhüter', 0, 'schatz', [246, 196, 70], [176, 116, 26], true, [[230, 40, 80], [40, 200, 120], [60, 140, 255]], true),
   { ...mu(59, 'steingolem', 'Steingolem', 0, 'golem', [150, 142, 132], [78, 72, 66], true, [[255, 150, 50], [92, 136, 66]]), glimmer: [255, 190, 110] },
 ]
 
@@ -229,7 +230,7 @@ const LOHN = new Map(WELT_LOHN.map((l) => [l.id, l]))
 /** Ist das eine Belohnung einer Welt? (dann nicht kaufbar) */
 export const lohnVon = (id: string) => LOHN.get(id)
 /** Belohnungen der Kampagne: Skin fuer eine Mission (nicht kaufbar), siehe game/missionen.ts MISSION_SKINS */
-export const MISSION_LOHN: { welt: string; mission: number; id: string }[] = Object.entries(MISSION_SKINS).map(([nr, id]) => ({ welt: 'wiese', mission: Number(nr), id }))
+export const MISSION_LOHN: { welt: string; mission: number; id: string }[] = Object.entries(MISSION_SKINS).map(([nr, id]) => ({ welt: Number(nr) <= 10 ? 'wiese' : 'wueste', mission: Number(nr), id }))
 const MLOHN = new Map(MISSION_LOHN.map((l) => [l.id, l]))
 export const missionLohnVon = (id: string) => MLOHN.get(id)
 /** Name einer Sache (Skin, Accessoire, Spur) nach Id */

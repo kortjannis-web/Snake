@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { key } from '../src/game/game'
 import { MissionGame } from '../src/game/mission'
-import { MISSION_BLOCK, MISSION_LOHN, spielbar, WIESE_MISSIONEN } from '../src/game/missionen'
+import { MISSION_BLOCK, MISSION_LOHN, missionSkinVorgemerkt, spielbar, WIESE_MISSIONEN } from '../src/game/missionen'
 import { DIRS, STEP } from '../src/game/rules'
 import type { Dir, P } from '../src/game/types'
 
@@ -35,14 +35,17 @@ function weg(g: MissionGame): Dir | null {
 }
 
 describe('Kampagne', () => {
-  it('Wiese: 10 Missionen, 5 Schatz, 10 Boss, alle spielbar, Belohnung steigt, Skins bei 5 und 10', () => {
+  it('Wiese: 10 Missionen, 5 Schatz, 10 Boss, alle spielbar, Belohnung steigt, Skin beim Boss', () => {
     expect(WIESE_MISSIONEN).toHaveLength(10)
     expect(WIESE_MISSIONEN[4].art).toBe('schatz')
     expect(WIESE_MISSIONEN[9].art).toBe('boss')
     expect(WIESE_MISSIONEN.filter(spielbar).map((m) => m.nr)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     expect(WIESE_MISSIONEN.map((m) => m.lohn)).toEqual(MISSION_LOHN)
     expect(WIESE_MISSIONEN[0].lohn).toBe(6)
-    expect(WIESE_MISSIONEN.filter((m) => m.skin).map((m) => m.nr)).toEqual([5, 10])
+    // Nur der Boss bringt einen Skin; der zweite ist fuer Mission 20 vorgemerkt
+    expect(WIESE_MISSIONEN.filter((m) => m.skin).map((m) => m.nr)).toEqual([10])
+    expect(missionSkinVorgemerkt('schatzhueter')).toBe(true)
+    expect(missionSkinVorgemerkt('steingolem')).toBe(false)
   })
 
   it('jede Karte: gleich breite Zeilen, ganze Bloecke, Berg rundherum', () => {

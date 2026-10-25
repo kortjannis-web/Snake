@@ -705,8 +705,10 @@ const WIESE_BOSS = [
 
 /** Belohnung je Mission (beim ersten Abschluss), steigt mit der Schwierigkeit */
 export const MISSION_LOHN = [6, 8, 10, 12, 20, 14, 16, 18, 22, 40]
-/** Skins der Kampagne: Schatz-Level und Boss */
-export const MISSION_SKINS: Record<number, string> = { 5: 'schatzhueter', 10: 'steingolem' }
+/** Skins der Kampagne: der Boss der Wiese (Mission 10); der Schatzhueter ist fuer Mission 20 (Boss der naechsten Welt) vorgemerkt */
+export const MISSION_SKINS: Record<number, string> = { 10: 'steingolem', 20: 'schatzhueter' }
+/** Skins, deren Mission es noch nicht gibt (vorgemerkt, im Shop versteckt, ausser man hat ihn schon) */
+export const missionSkinVorgemerkt = (id: string) => Object.entries(MISSION_SKINS).some(([nr, s]) => s === id && Number(nr) > WIESE_MISSIONEN.length)
 
 type Bau = Pick<MissionDef, 'karte' | 'richtung' | 'laenge' | 'seed' | 'tempoProApfel' | 'bild' | 'hinweis'>
 const BAU: Bau[] = [

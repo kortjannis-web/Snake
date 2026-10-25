@@ -1,6 +1,6 @@
 /**
  * Effekte: Auren um die Schlange (Funken, Wolken, Blitze, Flammen ...). Nicht kaufbar, sondern freigeschaltet:
- * 20 mit Silber-Trophaeen (alle je verdienten Aepfel), 10 mit Gold-Trophaeen (aus Mehrspieler-Siegen).
+ * 20 mit Silber-Trophaeen (alle je verdienten Aepfel; seit 1.44 rund 20 % frueher), 10 mit Gold-Trophaeen (aus Mehrspieler-Siegen).
  * Gezeichnet in zwei Schichten: hinter der Schlange (Leuchten, Boden) und davor (Teilchen, Wolken).
  */
 import type { P } from '../game/types'
@@ -10,26 +10,26 @@ const s = (nr: number, id: string, name: string, ab: number, text: string): Effe
 const g = (nr: number, id: string, name: string, ab: number, text: string): Effekt => ({ id: `fx-${id}`, nr, name, art: 'gold', ab, text })
 
 export const EFFEKTE: Effekt[] = [
-  s(1, 'glimmer', 'Glimmer', 1_000, 'Funkeln um die ganze Schlange'),
-  s(2, 'staub', 'Staubwolke', 2_500, 'Staub wirbelt um den Körper'),
-  s(3, 'gluehen', 'Glühen', 5_000, 'Weicher Schein um die ganze Schlange'),
-  s(4, 'blaetter', 'Blätterwirbel', 8_000, 'Blätter wirbeln um die Schlange'),
-  s(5, 'schnee', 'Schneegestöber', 12_000, 'Schneeflocken wirbeln herum'),
-  s(6, 'funkenring', 'Funkenring', 18_000, 'Funken sprühen um den Körper'),
-  s(7, 'herzschlag', 'Herzschlag', 25_000, 'Herzen schweben um den Körper'),
-  s(8, 'noten', 'Notenwirbel', 35_000, 'Musiknoten tanzen'),
-  s(9, 'blasen', 'Blubberblasen', 50_000, 'Blasen steigen auf'),
-  s(10, 'rauch', 'Rauchschwaden', 70_000, 'Rauch steigt vom Körper'),
-  s(11, 'sternenkranz', 'Sternenkranz', 100_000, 'Sterne funkeln entlang der Schlange'),
-  s(12, 'gluehwuermchen', 'Glühwürmchen', 140_000, 'Ein kleiner Schwarm folgt dir'),
-  s(13, 'regenwolke', 'Regenwolke', 200_000, 'Regen fällt auf die ganze Schlange'),
-  s(14, 'wirbelwind', 'Wirbelwind', 280_000, 'Wind wirbelt um den ganzen Körper'),
-  s(15, 'frost', 'Frostaura', 400_000, 'Eisiger Schein mit Kristallen'),
-  s(16, 'flammen', 'Flammenaura', 550_000, 'Flammen lodern am Körper'),
-  s(17, 'elektro', 'Elektroaura', 750_000, 'Funkende Stromschläge'),
-  s(18, 'gewitter', 'Gewitterwolke', 1_000_000, 'Eine Gewitterwolke schlägt Blitze'),
-  s(19, 'polarlicht', 'Polarlicht', 1_400_000, 'Leuchtende Bänder über dem Körper'),
-  s(20, 'regenbogen', 'Regenbogenaura', 2_000_000, 'Pulsierende Regenbogenringe'),
+  s(1, 'glimmer', 'Glimmer', 800, 'Funkeln um die ganze Schlange'),
+  s(2, 'staub', 'Staubwolke', 2_000, 'Staub wirbelt um den Körper'),
+  s(3, 'gluehen', 'Glühen', 4_000, 'Weicher Schein um die ganze Schlange'),
+  s(4, 'blaetter', 'Blätterwirbel', 6_500, 'Blätter wirbeln um die Schlange'),
+  s(5, 'schnee', 'Schneegestöber', 9_500, 'Schneeflocken wirbeln herum'),
+  s(6, 'funkenring', 'Funkenring', 14_500, 'Funken sprühen um den Körper'),
+  s(7, 'herzschlag', 'Herzschlag', 20_000, 'Herzen schweben um den Körper'),
+  s(8, 'noten', 'Notenwirbel', 28_000, 'Musiknoten tanzen'),
+  s(9, 'blasen', 'Blubberblasen', 40_000, 'Blasen steigen auf'),
+  s(10, 'rauch', 'Rauchschwaden', 56_000, 'Rauch steigt vom Körper'),
+  s(11, 'sternenkranz', 'Sternenkranz', 80_000, 'Sterne funkeln entlang der Schlange'),
+  s(12, 'gluehwuermchen', 'Glühwürmchen', 112_000, 'Ein kleiner Schwarm folgt dir'),
+  s(13, 'regenwolke', 'Regenwolke', 160_000, 'Regen fällt auf die ganze Schlange'),
+  s(14, 'wirbelwind', 'Wirbelwind', 225_000, 'Wind wirbelt um den ganzen Körper'),
+  s(15, 'frost', 'Frostaura', 320_000, 'Eisiger Schein mit Kristallen'),
+  s(16, 'flammen', 'Flammenaura', 440_000, 'Flammen lodern am Körper'),
+  s(17, 'elektro', 'Elektroaura', 600_000, 'Funkende Stromschläge'),
+  s(18, 'gewitter', 'Gewitterwolke', 800_000, 'Eine Gewitterwolke schlägt Blitze'),
+  s(19, 'polarlicht', 'Polarlicht', 1_100_000, 'Leuchtende Bänder über dem Körper'),
+  s(20, 'regenbogen', 'Regenbogenaura', 1_600_000, 'Pulsierende Regenbogenringe'),
   g(21, 'goldstaub', 'Goldstaub', 3, 'Glitzernder Goldstaub'),
   g(22, 'schatten', 'Schattenaura', 8, 'Dunkle Schwaden mit violettem Glimmen'),
   g(23, 'feuerkreis', 'Feuerkreis', 15, 'Feuer lodert um die Schlange'),
