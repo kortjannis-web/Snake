@@ -64,8 +64,19 @@ const DOMAIN = (import.meta.env.VITE_KONTO_DOMAIN as string | undefined) || 'top
 /** Wie die Datenbank Namen vergleicht (eindeutig ohne Gross-/Kleinschreibung) */
 export const kontoSchluessel = (name: string) => name.trim().normalize('NFC').toLowerCase()
 
-/** E-Mail-Adresse und Passwort fuer den Account dieses Namens */
+/** E-Mail-Adresse und (altes, nur aus dem Namen abgeleitetes) Passwort fuer den Account dieses Namens */
 export function kontoZugang(name: string): { email: string; password: string } {
   const k = kontoSchluessel(name)
   return { email: `snake-${sha256(`snake-konto-id:${k}`).slice(0, 24)}@${DOMAIN}`, password: sha256(`snake-konto-pw:${k}`) }
+}
+
+/** Mindestlaenge des selbst gewaehlten Passworts */
+export const PASSWORT_MIN = 4
+
+/**
+ * Zugang mit selbst gewaehltem Passwort (seit 1.42). Supabase bekommt nur einen Hash davon (immer 64 Zeichen, erfuellt
+ * jede Passwort-Regel). Der Hash haengt nicht vom Namen ab, damit Umbenennen nur die Adresse aendert
+ */
+export function passwortZugang(name: string, passwort: string): { email: string; password: string } {
+  return { email: kontoZugang(name).email, password: sha256(`snake-passwort:${passwort}`) }
 }

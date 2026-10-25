@@ -2110,6 +2110,20 @@ svg {
   color: #ff8a73;
 }
 
+.konto-abmelden {
+  align-self: flex-start;
+}
+
+/* Nur fuer Screenreader (Feld-Beschriftungen, die sichtbar schon im Platzhalter stehen) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------------- Installationsanleitung ---------------- */
 html[data-install],
 html[data-install] body {

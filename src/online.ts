@@ -4,7 +4,7 @@
  * Der Supabase-Client wird erst bei Bedarf nachgeladen.
  */
 import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { kontoSchluessel, kontoZugang } from './konto'
+import { kontoSchluessel, kontoZugang, PASSWORT_MIN, passwortZugang } from './konto'
 import type { Tempo } from './game/rules'
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -39,10 +39,13 @@ function schreib(k: string, v: unknown) {
 /**
  * `offen`: Name, Skin oder Silber stehen noch nicht in der Datenbank (z. B. beim ersten Start ohne Netz).
  * `umbenennen`: der Name wurde geaendert und der Account muss noch auf den neuen Namen umgestellt werden.
+ * `pw`: dieses Geraet ist mit Name und Passwort angemeldet (seit 1.42). Fehlt es, kommt beim Start die Anmeldung.
  */
-type Profil = { name: string; offen?: boolean; umbenennen?: boolean; skin?: string; silber?: number; /** Freundes-Code, sobald das Profil sicher in der Datenbank steht */ code?: string }
+type Profil = { name: string; offen?: boolean; umbenennen?: boolean; skin?: string; silber?: number; /** Freundes-Code, sobald das Profil sicher in der Datenbank steht */ code?: string; pw?: boolean }
 export const profil: Profil = { name: '', ...lies<Partial<Profil>>(PKEY, {}) }
-const speichereProfil = () => schreib(PKEY, { name: profil.name, offen: profil.offen, umbenennen: profil.umbenennen, skin: profil.skin, silber: profil.silber, code: profil.code })
+const speichereProfil = () => schreib(PKEY, { name: profil.name, offen: profil.offen, umbenennen: profil.umbenennen, skin: profil.skin, silber: profil.silber, code: profil.code, pw: profil.pw })
+/** Ohne Anmeldung (Name und Passwort) gibt es online nichts: keine Gaeste mehr */
+export const angemeldet = () => !!profil.name && !!profil.pw
 /** Zaehlt jede Aenderung an Name, Skin oder Silber: ein Speichern, das waehrenddessen lief, laesst `offen` dann stehen */
 let profilStand = 0
 const profilGeaendert = () => {
@@ -55,7 +58,7 @@ const profilGeaendert = () => {
  * Wie steht es online um dieses Geraet? Fuer die Anzeige in der Hall of Snakes und bei den Freunden:
  * ok = das Profil steht in der Datenbank, sonst der letzte Fehler in Worten (und technisch, zum Weitergeben)
  */
-export type OnlineZustand = { ok: boolean; text: string; technisch?: string }
+export type OnlineZustand = { ok: boolean; text: string; technisch?: string; /** abgemeldet: die App zeigt die Anmeldung */ anmelden?: boolean }
 let zustand: OnlineZustand = { ok: false, text: '' }
 const zustandHoerer = new Set<(z: OnlineZustand) => void>()
 function setzeZustand(z: OnlineZustand) {
@@ -73,16 +76,20 @@ function fehlerWorte(e: unknown): OnlineZustand {
   const technisch = [f.code, f.status, f.message].filter(Boolean).join(' · ') || String(e)
   const m = `${f.message ?? ''} ${f.code ?? ''}`
   const text =
-    f.status === 429 || /rate limit|over_request|too many/i.test(m)
+    /email_send_rate|email rate/i.test(m)
+      ? 'Supabase will E-Mails verschicken und ist an der Grenze. In Supabase muss „Confirm email“ aus sein (docs/SUPABASE-KOMPLETT.md, Teil 1.1).'
+      : f.status === 429 || /rate limit|over_request|too many/i.test(m)
       ? 'Supabase bremst gerade die Anmeldungen (zu viele auf einmal). In ein paar Minuten klappt es.'
       : /abort|timeout|Zeit/i.test(m) || f.name === 'AbortError'
         ? 'Der Server antwortet nicht (Netz zu langsam). Gleich noch einmal versuchen.'
         : /fetch|network|Failed|Load failed|offline/i.test(m)
           ? 'Keine Verbindung zum Server. Bist du online?'
-          : e instanceof NamenFehler
-            ? f.message ?? 'Mit diesem Namen geht es nicht.'
-            : 'Noch nicht in der Hall of Snakes eingetragen.'
-  return { ok: false, text, technisch }
+          : e instanceof NichtAngemeldet
+            ? 'Bitte melde dich mit Name und Passwort an.'
+            : e instanceof NamenFehler
+              ? f.message ?? 'Mit diesem Namen geht es nicht.'
+              : 'Noch nicht in der Hall of Snakes eingetragen.'
+  return { ok: false, text, technisch, anmelden: e instanceof NichtAngemeldet || undefined }
 }
 const warteschlange: Ergebnis[] = lies<Ergebnis[]>(QKEY, [])
 
@@ -98,10 +105,16 @@ export const nameGueltig = (n: string) => n.trim().length >= 2 && n.trim().lengt
 export class NamenFehler extends Error {}
 /** Der Name gehoert schon zu einem anderen Account (beim Umbenennen: anmelden statt umbenennen ist moeglich) */
 export class NameVergeben extends NamenFehler {}
-/** Der Name gehoert zu einem alten Gast-Account, der noch nicht auf Name umgestellt ist */
-export class NameAlterGast extends NamenFehler {}
-/** In Supabase ist die Anmeldung per E-Mail aus oder verlangt eine Bestaetigung (docs/ONLINE-EINRICHTEN.md, Schritt 2b) */
-class EinrichtungsFehler extends Error {}
+/** Name und Passwort passen nicht zusammen */
+export class PasswortFalsch extends NamenFehler {}
+/** In Supabase ist die Anmeldung per E-Mail aus oder verlangt eine Bestaetigung (docs/SUPABASE-KOMPLETT.md, Teil 1.1) */
+class EinrichtungsFehler extends NamenFehler {
+  constructor() {
+    super('Die Anmeldung ist in Supabase noch nicht fertig eingerichtet (E-Mail-Anmeldung aus oder Bestätigung an).')
+  }
+}
+/** Auf diesem Geraet ist niemand (mehr) angemeldet: die App zeigt die Anmeldung */
+class NichtAngemeldet extends Error {}
 
 const namensFehler = (e: { code?: string; message?: string } | null) =>
   !e ? null : e.code === '23505' ? new NameVergeben('Diesen Namen gibt es schon.') : e.code === 'P0001' && /Name/.test(e.message ?? '') ? new NamenFehler('Dieser Name ist nicht erlaubt.') : null
@@ -140,36 +153,35 @@ const falscheDaten = (e: AuthFehler) => !!e && (e.code === 'invalid_credentials'
 const einrichtungFehlt = (e: AuthFehler) => !!e && ['email_provider_disabled', 'signup_disabled', 'provider_disabled', 'email_not_confirmed', 'reauthentication_needed', 'weak_password'].includes(e.code ?? '')
 const emailVergeben = (e: AuthFehler) => !!e && (e.code === 'email_exists' || e.code === 'user_already_exists' || /already (been )?registered/i.test(e.message ?? ''))
 
-/** Mit dem Account dieses Namens anmelden. null: den Account gibt es (so) nicht */
-async function anmeldenMitName(sb: SupabaseClient, name: string): Promise<User | null> {
-  const { data, error } = await sb.auth.signInWithPassword(kontoZugang(name))
+/** Mit diesen Zugangsdaten anmelden. null: Name und Passwort passen nicht */
+async function versucheAnmeldung(sb: SupabaseClient, zugang: { email: string; password: string }): Promise<User | null> {
+  const { data, error } = await sb.auth.signInWithPassword(zugang)
   if (!error && data.user) return data.user
   if (falscheDaten(error)) return null
   if (einrichtungFehlt(error)) throw new EinrichtungsFehler()
   throw error ?? new Error('Anmeldung fehlgeschlagen')
 }
 
-/** Gast-Anmeldung: Notnagel, wenn es keinen Account gibt (Nutzer-Id bleibt im Geraet). Laeuft hoechstens einmal gleichzeitig */
-let idP: Promise<string> | null = null
-function nutzerId(): Promise<string> {
-  if (!idP) {
-    const p = (async () => {
-      const sb = await client()
-      const { data } = await sb.auth.getSession()
-      if (data.session) return data.session.user.id
-      // Sitzung weg, aber der Name ist noch da: ueber den Namen wieder in den eigenen Account
-      if (profil.name) {
-        const u = await anmeldenMitName(sb, profil.name).catch((e) => (e instanceof EinrichtungsFehler ? null : Promise.reject(e)))
-        if (u) return u.id
-      }
-      const { data: neu, error } = await sb.auth.signInAnonymously()
-      if (error || !neu.user) throw error ?? new Error('Anmeldung fehlgeschlagen')
-      return neu.user.id
-    })()
-    idP = p
-    void p.then(() => undefined, () => undefined).then(() => (idP = idP === p ? null : idP))
-  }
-  return idP
+/** Selbst gewaehltes Passwort am eingeloggten Account festlegen (pw: 1 merkt sich, dass es eins gibt) */
+async function passwortSetzen(sb: SupabaseClient, hash: string) {
+  const { error } = await sb.auth.updateUser({ password: hash, data: { pw: 1 } })
+  if (einrichtungFehlt(error)) throw new EinrichtungsFehler()
+  if (error && error.code !== 'same_password') throw error
+}
+
+/** Auf diesem Geraet abgemeldet (Sitzung weg oder ungueltig): Name bleibt zum Vorausfuellen, die App zeigt die Anmeldung */
+function abgemeldet() {
+  profil.pw = false
+  speichereProfil()
+  setzeZustand({ ok: false, text: 'Bitte melde dich mit Name und Passwort an.', anmelden: true })
+}
+
+/** Nutzer-Id der Anmeldung. Ohne Anmeldung gibt es keine (keine Gaeste mehr): dann wirft sie */
+async function nutzerId(): Promise<string> {
+  const sb = await client()
+  const { data } = await sb.auth.getSession()
+  if (data.session?.user.email) return data.session.user.id
+  throw new NichtAngemeldet()
 }
 
 /** Fehler: Spalte gibt es (noch) nicht (die SQL-Datei fuer den Skin wurde noch nicht ausgefuehrt) */
@@ -193,11 +205,10 @@ async function profilMitName(sb: SupabaseClient, name: string): Promise<string |
   return (data as { id: string }[] | null)?.[0]?.id ?? null
 }
 
-/** Account mit den Zugangsdaten des Namens versehen: Gast-Account umwandeln (Id und alles dran bleibt) oder neu anlegen */
-async function kontoAnlegen(sb: SupabaseClient, gast: User | null): Promise<string> {
-  const z = kontoZugang(profil.name)
+/** Account mit Name und Passwort versehen: Gast-Account umwandeln (Id und alles dran bleibt) oder neu anlegen */
+async function kontoAnlegen(sb: SupabaseClient, gast: User | null, z: { email: string; password: string }): Promise<string> {
   if (gast) {
-    const { data, error } = await sb.auth.updateUser(z)
+    const { data, error } = await sb.auth.updateUser({ ...z, data: { pw: 1 } })
     if (emailVergeben(error)) throw new NameVergeben('Diesen Namen gibt es schon.')
     if (einrichtungFehlt(error)) throw new EinrichtungsFehler()
     if (error) throw error
@@ -205,7 +216,7 @@ async function kontoAnlegen(sb: SupabaseClient, gast: User | null): Promise<stri
     if (data.user?.email !== z.email) throw new EinrichtungsFehler()
     return gast.id
   }
-  const { data, error } = await sb.auth.signUp(z)
+  const { data, error } = await sb.auth.signUp({ ...z, options: { data: { pw: 1 } } })
   if (emailVergeben(error)) throw new NameVergeben('Diesen Namen gibt es schon.')
   if (einrichtungFehlt(error)) throw new EinrichtungsFehler()
   if (error) throw error
@@ -213,115 +224,92 @@ async function kontoAnlegen(sb: SupabaseClient, gast: User | null): Promise<stri
   return data.user.id
 }
 
-/** Eingeloggten Account auf den (neuen) Namen umstellen: erst Profilname (eindeutig?), dann Zugangsdaten */
+/** Eingeloggten Account auf den (neuen) Namen umstellen: erst Profilname (eindeutig?), dann die Adresse (das Passwort bleibt) */
 async function kontoUmbenennen(sb: SupabaseClient, nutzer: User) {
   const { data: alt } = await sb.from('profile').select('name').eq('id', nutzer.id).maybeSingle()
   const { error: e1 } = await sb.from('profile').update({ name: profil.name, updated_at: new Date().toISOString() }).eq('id', nutzer.id)
   if (e1) throw namensFehler(e1) ?? e1
-  const { data, error } = await sb.auth.updateUser(kontoZugang(profil.name))
-  if (!error && data.user?.email === kontoZugang(profil.name).email) return
-  // Zugangsdaten nicht umgestellt: Profilname zurueck, damit beides zusammenpasst
+  const email = kontoZugang(profil.name).email
+  const { data, error } = await sb.auth.updateUser({ email })
+  if (!error && data.user?.email === email) return
+  // Adresse nicht umgestellt: Profilname zurueck, damit beides zusammenpasst
   if (alt) await sb.from('profile').update({ name: (alt as { name: string }).name }).eq('id', nutzer.id)
   if (emailVergeben(error)) throw new NameVergeben('Diesen Namen gibt es schon.')
   if (!error || einrichtungFehlt(error)) throw new EinrichtungsFehler()
   throw error
 }
 
-type Konto = { id: string; status: 'neu' | 'zurueck' | 'gleich' | 'umbenannt' | 'geraet' }
+type Konto = { id: string; status: 'neu' | 'zurueck' | 'gleich' | 'umbenannt' | 'gesichert' }
 
 /**
  * Stellt sicher, dass dieses Geraet im Account zum Namen `profil.name` angemeldet ist:
- * - 'sichern' (Start, Senden): Account da? Dann bleibt er. Sonst mit dem Namen anmelden, den Gast-Account umwandeln oder neu anlegen
+ * - 'sichern' (Start, Senden): Ist der Account woanders umbenannt worden, dessen Namen uebernehmen
  * - 'umbenennen': eingeloggten Account auf den neuen Namen umstellen
- * - 'wechseln': ausdruecklich in den (anderen) Account dieses Namens wechseln
- * Ist die E-Mail-Anmeldung in Supabase nicht eingerichtet, laeuft alles wie vorher als Gast ('geraet').
+ * Ohne Anmeldung wirft sie NichtAngemeldet (anmelden geht nur mit Passwort, siehe `anmelden`).
  */
-async function kontoBereit(modus: 'sichern' | 'umbenennen' | 'wechseln'): Promise<Konto> {
+async function kontoBereit(modus: 'sichern' | 'umbenennen'): Promise<Konto> {
   const sb = await client()
   const { data: s } = await sb.auth.getSession()
   const nutzer = s.session?.user ?? null
-  const hatKonto = !!nutzer?.email
-  const ziel = kontoZugang(profil.name)
-
-  if (nutzer && hatKonto && modus !== 'wechseln') {
-    if (nutzer.email === ziel.email) return { id: nutzer.id, status: 'gleich' }
-    if (modus === 'umbenennen') {
-      try {
-        await kontoUmbenennen(sb, nutzer)
-        return { id: nutzer.id, status: 'umbenannt' }
-      } catch (e) {
-        if (e instanceof EinrichtungsFehler) return { id: nutzer.id, status: 'geraet' }
-        throw e
-      }
-    }
-    // Der Account wurde woanders umbenannt: dessen Namen uebernehmen
-    await uebernehmeProfil(sb, nutzer.id)
-    return { id: nutzer.id, status: 'gleich' }
+  if (!nutzer?.email || !profil.pw) throw new NichtAngemeldet()
+  if (nutzer.email === kontoZugang(profil.name).email) return { id: nutzer.id, status: 'gleich' }
+  if (modus === 'umbenennen') {
+    await kontoUmbenennen(sb, nutzer)
+    return { id: nutzer.id, status: 'umbenannt' }
   }
-
-  try {
-    const u = await anmeldenMitName(sb, profil.name)
-    if (u) {
-      await uebernehmeProfil(sb, u.id)
-      return { id: u.id, status: 'zurueck' }
-    }
-    if (modus === 'wechseln') throw new NameAlterGast('Dieser Name gehört noch zu einem alten Gast-Account. Öffne Snake einmal auf dem Gerät, wo du ihn zuerst benutzt hast, dann geht er überall.')
-    const gast = nutzer && !hatKonto ? nutzer : null
-    const besitzer = await profilMitName(sb, profil.name)
-    if (besitzer && besitzer !== gast?.id) throw new NameAlterGast('Diesen Namen gibt es schon (alter Gast-Account). Öffne Snake einmal auf dem Gerät, wo du ihn zuerst benutzt hast, dann geht er überall.')
-    return { id: await kontoAnlegen(sb, gast), status: 'neu' }
-  } catch (e) {
-    if (!(e instanceof EinrichtungsFehler)) throw e
-    // Notnagel: Account per Name ist nicht eingerichtet, also wie bisher ein Gast pro Geraet
-    return { id: await nutzerId(), status: 'geraet' }
-  }
+  // Der Account wurde woanders umbenannt: dessen Namen uebernehmen
+  await uebernehmeProfil(sb, nutzer.id)
+  return { id: nutzer.id, status: 'gleich' }
 }
 
 /** Profil (Name) in die Datenbank schreiben. Wirft ohne Netz */
 /** Fehler: Funktion gibt es (noch) nicht (SQL-Datei nicht ausgefuehrt) */
 const funktionFehlt = (e: { code?: string } | null) => !!e && (e.code === 'PGRST202' || e.code === '42883')
 
-async function syncProfil(modus: 'sichern' | 'umbenennen' | 'wechseln' = 'sichern'): Promise<Konto['status']> {
-  return nacheinander(async () => {
-    const { id, status } = await kontoBereit(modus)
-    const sb = await client()
-    const stand = profilStand
-    // Erst ueber die Funktion profil_speichern (legt an oder aendert in einem Schritt, gibt den Freundes-Code zurueck)
-    const { data: code, error: fe } = await sb.rpc('profil_speichern', { p_name: profil.name, p_skin: profil.skin ?? null, p_silber: profil.silber ? Math.floor(profil.silber) : null })
-    if (!fe) profil.code = (code as string | null) ?? profil.code
-    else if (fe.code === 'P0002') {
-      // Der Account wurde geloescht, die Sitzung auf dem Geraet lebt aber noch: abmelden, beim naechsten Mal neu
-      await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
-      idP = null
-      throw fe
-    } else if (!funktionFehlt(fe)) throw namensFehler(fe) ?? fe
-    else {
-      // Aeltere Datenbank ohne profil_speichern: wie bisher direkt in die Tabelle
-      // Eingeloggt in einen bestehenden Account: dort stehen Skin und Silber schon, nichts ueberschreiben
-      const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}), ...(profil.silber ? { silber: Math.floor(profil.silber) } : {}) }
-      let { error } = await sb.from('profile').upsert(daten)
-      // Spalte fehlt (SQL-Datei noch nicht ausgefuehrt): erst ohne Silber, dann nur mit Namen
-      if (spalteFehlt(error) && 'silber' in daten) {
-        const { silber: _s, ...ohne } = daten
-        ;({ error } = await sb.from('profile').upsert(ohne))
-      }
-      if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
-      if (error) throw namensFehler(error) ?? error
+async function syncProfil(modus: 'sichern' | 'umbenennen' = 'sichern'): Promise<Konto['status']> {
+  return nacheinander(() => profilEintragen(modus))
+}
+
+/** Wie syncProfil, aber ohne Warteschlange (fuer Schritte, die schon in `nacheinander` laufen) */
+async function profilEintragen(modus: 'sichern' | 'umbenennen', bekannt?: Konto): Promise<Konto['status']> {
+  const { id, status } = bekannt ?? (await kontoBereit(modus))
+  const sb = await client()
+  const stand = profilStand
+  // Erst ueber die Funktion profil_speichern (legt an oder aendert in einem Schritt, gibt den Freundes-Code zurueck)
+  const { data: code, error: fe } = await sb.rpc('profil_speichern', { p_name: profil.name, p_skin: profil.skin ?? null, p_silber: profil.silber ? Math.floor(profil.silber) : null })
+  if (!fe) profil.code = (code as string | null) ?? profil.code
+  else if (fe.code === 'P0002') {
+    // Der Account wurde geloescht, die Sitzung auf dem Geraet lebt aber noch: abmelden, dann kommt die Anmeldung
+    await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    abgemeldet()
+    throw new NichtAngemeldet()
+  } else if (!funktionFehlt(fe)) throw namensFehler(fe) ?? fe
+  else {
+    // Aeltere Datenbank ohne profil_speichern: wie bisher direkt in die Tabelle
+    // Eingeloggt in einen bestehenden Account: dort stehen Skin und Silber schon, nichts ueberschreiben
+    const daten = { id, name: profil.name, updated_at: new Date().toISOString(), ...(profil.skin ? { skin: profil.skin } : {}), ...(profil.silber ? { silber: Math.floor(profil.silber) } : {}) }
+    let { error } = await sb.from('profile').upsert(daten)
+    // Spalte fehlt (SQL-Datei noch nicht ausgefuehrt): erst ohne Silber, dann nur mit Namen
+    if (spalteFehlt(error) && 'silber' in daten) {
+      const { silber: _s, ...ohne } = daten
+      ;({ error } = await sb.from('profile').upsert(ohne))
     }
-    // Waehrend des Speicherns geaendert (z. B. neuer Skin): offen lassen, das naechste Senden nimmt es mit
-    if (profilStand === stand) profil.offen = false
-    profil.umbenennen = false
-    speichereProfil()
-    setzeZustand({ ok: true, text: `Online eingetragen als ${profil.name}.` })
-    return status
-  })
+    if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
+    if (error) throw namensFehler(error) ?? error
+  }
+  // Waehrend des Speicherns geaendert (z. B. neuer Skin): offen lassen, das naechste Senden nimmt es mit
+  if (profilStand === stand) profil.offen = false
+  profil.umbenennen = false
+  speichereProfil()
+  setzeZustand({ ok: true, text: `Online eingetragen als ${profil.name}.` })
+  return status
 }
 
 /** Silber-Trophaeen (alle je verdienten Aepfel) ins Profil, damit die Hall danach sortieren kann. Wird nie weniger */
 export function setzeSilber(n: number) {
   if ((profil.silber ?? 0) >= n) return
   profil.silber = n
-  if (!onlineAktiv || !profil.name) return speichereProfil()
+  if (!onlineAktiv || !angemeldet()) return speichereProfil()
   profilGeaendert()
   void sende()
 }
@@ -333,36 +321,132 @@ export function setzeSilber(n: number) {
 export function setzeSkin(skin: string, nurNachtragen = false) {
   if (profil.skin === skin || (nurNachtragen && profil.skin)) return
   profil.skin = skin
-  if (!onlineAktiv || !profil.name) return speichereProfil()
+  if (!onlineAktiv || !angemeldet()) return speichereProfil()
   profilGeaendert()
   void sende()
 }
 
 /**
- * Name speichern. Er gilt sofort auf dem Geraet, auch ohne Netz; in die Datenbank kommt er,
- * sobald es geht.
- * - 'neu': Account mit diesem Namen angelegt
- * - 'zurueck': den Account mit diesem Namen gibt es schon, dieses Geraet ist jetzt darin angemeldet
- * - 'umbenannt': der Account heisst jetzt so
- * - 'spaeter': kein Netz, wird nachgeholt
- * `wechseln`: ausdruecklich in den schon vorhandenen Account dieses Namens wechseln (statt umzubenennen)
+ * Anmelden mit Name und Passwort (Start-Bildschirm). Fuer alle Faelle derselbe Knopf:
+ * - 'zurueck': Account mit diesem Namen und Passwort, dieses Geraet ist jetzt darin angemeldet
+ * - 'gesichert': Account von vor 1.42 (nur Name) oder alter Gast: das Passwort ist jetzt festgelegt, alles bleibt
+ * - 'neu': den Namen gab es noch nicht, Account angelegt
+ * Danach steht der Spieler in der Hall of Snakes. Wirft NamenFehler (Name, Passwort) mit Text fuer den Spieler.
  */
-export type NameErgebnis = 'neu' | 'zurueck' | 'umbenannt' | 'spaeter'
-export async function setzeName(name: string, wechseln = false): Promise<NameErgebnis> {
+export type AnmeldeErgebnis = 'neu' | 'zurueck' | 'gesichert'
+export async function anmelden(name: string, passwort: string): Promise<AnmeldeErgebnis> {
   const n = name.trim()
   if (!nameErlaubt(n)) throw new NamenFehler('Dieser Name ist nicht erlaubt.')
   if (!nameGueltig(n)) throw new NamenFehler('Der Name braucht 2 bis 16 Zeichen.')
+  if (passwort.length < PASSWORT_MIN) throw new NamenFehler(`Das Passwort braucht mindestens ${PASSWORT_MIN} Zeichen.`)
+  if (!onlineAktiv) throw new NamenFehler('Online ist in dieser Version nicht eingerichtet.')
   const vorher = { ...profil }
-  const hatteName = !!profil.name
-  const gleich = hatteName && kontoSchluessel(vorher.name) === kontoSchluessel(n)
+  return nacheinander(async () => {
+    const sb = await client()
+    const zugang = passwortZugang(n, passwort)
+    const { data: s } = await sb.auth.getSession()
+    // Frisch vom Server (pw kann auf einem anderen Geraet gesetzt worden sein)
+    const nutzer = s.session ? ((await sb.auth.getUser()).data.user ?? null) : null
+    const konto = async (): Promise<Konto> => {
+      // 1. Dieses Geraet ist schon im Account des Namens, nur noch ohne Passwort: jetzt festlegen
+      if (nutzer?.email === zugang.email && !nutzer.user_metadata?.pw) {
+        await passwortSetzen(sb, zugang.password)
+        return { id: nutzer.id, status: 'gesichert' }
+      }
+      // 2. Alter Gast auf diesem Geraet: in einen Account mit Name und Passwort umwandeln (Id, Freunde, Rekorde bleiben)
+      if (nutzer && !nutzer.email) {
+        const besitzer = await profilMitName(sb, n)
+        if (!besitzer || besitzer === nutzer.id) {
+          try {
+            return { id: await kontoAnlegen(sb, nutzer, zugang), status: besitzer ? 'gesichert' : 'neu' }
+          } catch (e) {
+            if (!(e instanceof NameVergeben)) throw e
+          }
+        }
+      }
+      // 3. Account mit diesem Namen und Passwort
+      const u = await versucheAnmeldung(sb, zugang)
+      if (u) return { id: u.id, status: 'zurueck' }
+      // 4. Account von vor 1.42 (Passwort aus dem Namen): anmelden und das gewaehlte Passwort festlegen
+      const alt = await versucheAnmeldung(sb, kontoZugang(n))
+      if (alt) {
+        await passwortSetzen(sb, zugang.password)
+        return { id: alt.id, status: 'gesichert' }
+      }
+      // 5. Den Namen gibt es schon (mit anderem Passwort): falsch. Sonst neu anlegen
+      if (await profilMitName(sb, n)) throw new PasswortFalsch('Falsches Passwort (oder der Name gehört schon jemand anderem).')
+      try {
+        return { id: await kontoAnlegen(sb, null, zugang), status: 'neu' }
+      } catch (e) {
+        throw e instanceof NameVergeben ? new PasswortFalsch('Falsches Passwort (oder der Name gehört schon jemand anderem).') : e
+      }
+    }
+    const k = await konto()
+    profil.name = n
+    profil.pw = true
+    profil.umbenennen = false
+    if (k.status !== 'neu') await uebernehmeProfil(sb, k.id)
+    // Ein anderer Account als vorher: dessen Freundes-Code gilt, Wartendes vom alten nicht mitnehmen
+    if (nutzer?.id !== k.id) {
+      profil.code = undefined
+      if (vorher.name && kontoSchluessel(vorher.name) !== kontoSchluessel(n)) {
+        warteschlange.length = 0
+        schreib(QKEY, warteschlange)
+      }
+    }
+    profilGeaendert()
+    await profilEintragen('sichern', k)
+    zuletztGesichert = Date.now()
+    return k.status as AnmeldeErgebnis
+  }).then(
+    (r) => {
+      void sende()
+      return r
+    },
+    (e) => {
+      // Nicht geklappt: der vorige Stand gilt weiter (ohne Netz bleibt die Anmeldung offen)
+      Object.assign(profil, vorher)
+      speichereProfil()
+      if (!(e instanceof NamenFehler)) setzeZustand(fehlerWorte(e))
+      throw e
+    },
+  )
+}
+
+/** Abmelden (Hall of Snakes): danach kommt die Anmeldung. Spielstand und Skin bleiben auf dem Geraet */
+export async function abmelden() {
+  if (!onlineAktiv) return
+  await nacheinander(async () => {
+    const sb = await client()
+    await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  })
+  warteschlange.length = 0
+  schreib(QKEY, warteschlange)
+  profil.code = undefined
+  abgemeldet()
+}
+
+/**
+ * Name aendern (Hall of Snakes, nur angemeldet). Er gilt sofort auf dem Geraet, auch ohne Netz; in die Datenbank kommt er,
+ * sobald es geht.
+ * - 'umbenannt': der Account heisst jetzt so
+ * - 'spaeter': kein Netz, wird nachgeholt
+ */
+export type NameErgebnis = 'umbenannt' | 'spaeter'
+export async function setzeName(name: string): Promise<NameErgebnis> {
+  const n = name.trim()
+  if (!nameErlaubt(n)) throw new NamenFehler('Dieser Name ist nicht erlaubt.')
+  if (!nameGueltig(n)) throw new NamenFehler('Der Name braucht 2 bis 16 Zeichen.')
+  if (!angemeldet()) throw new NamenFehler('Bitte melde dich zuerst mit Name und Passwort an.')
+  const vorher = { ...profil }
+  if (kontoSchluessel(vorher.name) !== kontoSchluessel(n)) profil.umbenennen = true
   profil.name = n
-  profil.umbenennen = hatteName && !gleich && !wechseln
   profilGeaendert()
   if (!onlineAktiv) return 'spaeter'
   try {
-    const status = await syncProfil(wechseln ? 'wechseln' : profil.umbenennen ? 'umbenennen' : 'sichern')
+    await syncProfil(profil.umbenennen ? 'umbenennen' : 'sichern')
     void sende()
-    return status === 'neu' || status === 'zurueck' || status === 'umbenannt' ? status : hatteName ? 'umbenannt' : 'neu'
+    return 'umbenannt'
   } catch (e) {
     // Vergeben oder nicht erlaubt: alten Namen behalten und Bescheid geben. Ohne Netz: spaeter
     if (e instanceof NamenFehler) {
@@ -382,41 +466,36 @@ const sitzungUngueltig = (e: { status?: number; code?: string } | null) =>
 let zuletztGesichert = 0
 /**
  * Beim Start, wenn das Netz zurueckkommt und wenn die App wieder nach vorn kommt (hoechstens jede Minute):
- * Account sichern (alten Gast-Account auf den Namen umstellen, nach verlorener Sitzung wieder anmelden, Umbenennungen
- * von anderen Geraeten uebernehmen) und pruefen, ob das Profil wirklich in der Datenbank steht. Fehlt es (Eintrag ging
- * verloren, Account geloescht, Sitzung ungueltig), wird es neu angelegt: wer einen Namen hat, steht in der Hall of Snakes.
+ * Sitzung beim Server pruefen (ungueltig oder Account geloescht: abmelden, dann kommt die Anmeldung), Umbenennungen
+ * von anderen Geraeten uebernehmen und pruefen, ob das Profil wirklich in der Datenbank steht. Fehlt es (Eintrag ging
+ * verloren), wird es neu angelegt: wer angemeldet ist, steht in der Hall of Snakes.
  */
 export function kontoSichern() {
-  if (!onlineAktiv || !profil.name || Date.now() - zuletztGesichert < 60_000) return
+  if (!onlineAktiv || !angemeldet() || Date.now() - zuletztGesichert < 60_000) return
   zuletztGesichert = Date.now()
   void nacheinander(async () => {
     try {
       const sb = await client()
-      // Die gespeicherte Sitzung beim Server pruefen (getSession glaubt dem Geraet): ungueltig = abmelden, dann neu
+      // Die gespeicherte Sitzung beim Server pruefen (getSession glaubt dem Geraet)
       const { data: s } = await sb.auth.getSession()
       if (s.session) {
         const { error } = await sb.auth.getUser()
         if (sitzungUngueltig(error)) {
           await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
-          idP = null
-          // Gibt es den Account zum Namen noch? Nein: er wurde geloescht (Admin). Dann nicht heimlich neu anlegen,
-          // sondern den Namen auf dem Geraet vergessen: beim naechsten Start kommt die Namenswahl
-          const u = await anmeldenMitName(sb, profil.name).catch((e) => (e instanceof EinrichtungsFehler ? undefined : Promise.reject(e)))
-          if (u === null && s.session.user.email) {
-            profilVergessen()
-            return
-          }
+          abgemeldet()
+          return
         }
       }
-      const { id, status } = await kontoBereit(profil.umbenennen ? 'umbenennen' : 'sichern')
+      const { id } = await kontoBereit(profil.umbenennen ? 'umbenennen' : 'sichern')
       const { data, error } = await sb.from('profile').select('id').eq('id', id).maybeSingle()
-      // Frisch angelegt oder der Eintrag fehlt: das Profil muss (wieder) in die Datenbank
-      if (status === 'neu' || (!error && !data)) profilGeaendert()
+      // Der Eintrag fehlt: das Profil muss (wieder) in die Datenbank
+      if (!error && !data) profilGeaendert()
       else if (!error && data && !profil.offen) setzeZustand({ ok: true, text: `Online eingetragen als ${profil.name}.` })
     } catch (e) {
       /* kein Netz oder Name belegt: beim naechsten Mal wieder */
       zuletztGesichert = 0
-      setzeZustand(fehlerWorte(e))
+      if (e instanceof NichtAngemeldet) abgemeldet()
+      else setzeZustand(fehlerWorte(e))
     }
   }).then(() => void sende())
 }
@@ -430,7 +509,7 @@ let sendeTimer = 0
  * frueher ging das verloren, bis zufaellig wieder etwas gesendet wurde
  */
 export function sende(): Promise<void> {
-  if (!onlineAktiv || !profil.name || (!profil.offen && !warteschlange.length)) return sendeP ?? Promise.resolve()
+  if (!onlineAktiv || !angemeldet() || (!profil.offen && !warteschlange.length)) return sendeP ?? Promise.resolve()
   if (sendeP) {
     nochmalSenden = true
     return sendeP
@@ -453,19 +532,8 @@ function spaeterSenden(ms: number) {
 
 async function sendeEinmal() {
   try {
-    if (profil.offen) {
-      try {
-        await syncProfil(profil.umbenennen ? 'umbenennen' : 'sichern')
-      } catch (e) {
-        if (!(e instanceof NamenFehler)) throw e
-        // Name gehoert schon einem anderen Account (und laesst sich hier nicht anmelden): mit Nummer eintragen,
-        // damit der Spieler wenigstens sichtbar ist. Er kann den Namen jederzeit in der Hall of Snakes aendern
-        profil.name = `${profil.name.slice(0, 12)} ${Math.floor(10 + Math.random() * 90)}`
-        profil.umbenennen = false
-        profilStand++
-        await syncProfil()
-      }
-    }
+    // Kein Ausweichen auf "Name 57" mehr: mit Anmeldung gehoert der Name dem Account, ein Fehler bleibt sichtbar stehen
+    if (profil.offen) await syncProfil(profil.umbenennen ? 'umbenennen' : 'sichern')
     const sb = await client()
     const id = await nutzerId()
     // Das beste Ergebnis zuerst: kommt etwas dazwischen, ist wenigstens der Rekord angekommen
@@ -494,30 +562,32 @@ async function sendeEinmal() {
     }
   } catch (e) {
     /* kein Netz: beim naechsten Mal */
-    setzeZustand(fehlerWorte(e))
+    if (e instanceof NichtAngemeldet) abgemeldet()
+    else setzeZustand(fehlerWorte(e))
   }
 }
 
 /**
- * "Neu verbinden" (Knopf in der Hall of Snakes): Sitzung beim Server pruefen, kaputte Sitzung verwerfen, ueber den Namen
- * neu anmelden und Profil samt allem Wartenden neu eintragen. Gibt den Zustand danach zurueck
+ * "Neu verbinden" (Knopf in der Hall of Snakes): Sitzung beim Server pruefen, kaputte Sitzung verwerfen (dann kommt die
+ * Anmeldung) und Profil samt allem Wartenden neu eintragen. Gibt den Zustand danach zurueck
  */
 export async function kontoReparieren(): Promise<OnlineZustand> {
-  if (!onlineAktiv || !profil.name) return zustand
+  if (!onlineAktiv || !angemeldet()) return zustand
   setzeZustand({ ok: false, text: 'Verbinde …' })
   try {
     await nacheinander(async () => {
       const sb = await client()
       const { data: s } = await sb.auth.getSession()
-      if (!s.session) return
+      if (!s.session) throw new NichtAngemeldet()
       const { error } = await sb.auth.getUser()
       if (sitzungUngueltig(error)) {
         await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
-        idP = null
+        throw new NichtAngemeldet()
       } else if (error) throw error
     })
   } catch (e) {
-    setzeZustand(fehlerWorte(e))
+    if (e instanceof NichtAngemeldet) abgemeldet()
+    else setzeZustand(fehlerWorte(e))
     return zustand
   }
   zuletztGesichert = 0
@@ -695,14 +765,16 @@ function profilVergessen() {
   profil.name = ''
   profil.offen = profil.umbenennen = undefined
   profil.skin = profil.silber = undefined
+  profil.code = profil.pw = undefined
   speichereProfil()
   warteschlange.length = 0
   schreib(QKEY, warteschlange)
-  idP = null
+  setzeZustand({ ok: false, text: '', anmelden: true })
 }
 
 export async function adminLoeschen(code: string, ziel: string) {
-  await nutzerId() // ohne Sitzung laeuft der Aufruf als anonym und die Datenbank lehnt ihn ab
+  // Ohne Sitzung laeuft der Aufruf als anonym und die Datenbank lehnt ihn ab
+  await nutzerId().catch(() => Promise.reject(new Error('Zum Löschen musst du angemeldet sein.')))
   const sb = await client()
   const { error } = await sb.rpc('admin_spieler_loeschen', { code, ziel })
   if (!error) return

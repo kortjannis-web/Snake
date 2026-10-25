@@ -33,7 +33,7 @@ import { Renderer } from './render/renderer'
 import { BergKacheln } from './render/berge'
 import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abonniere, abonniereSozial, adminLoeschen, beiZustand, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abmelden, abonniere, abonniereSozial, adminLoeschen, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
@@ -346,18 +346,12 @@ function zaehltOnline() {
 
 /** Hinweis unter dem Namensfeld: der Name ist zugleich der Account */
 const nameInfo = () =>
-  profil.name
-    ? 'So sehen dich die anderen. Nutzt du diesen Namen auf einem anderen Gerät, bist du dort im selben Account.'
-    : 'Ohne Namen zählen deine Ergebnisse nicht. Nutzt du den Namen auf einem anderen Gerät, bist du dort im selben Account.'
-/** Meldung nach dem Speichern des Namens */
+  angemeldet()
+    ? 'So sehen dich die anderen. Mit Name und Passwort kommst du auf jedem Gerät in deinen Account.'
+    : 'Ohne Anmeldung zählen deine Ergebnisse nicht.'
+/** Meldung nach dem Aendern des Namens */
 const nameMeldung = (r: NameErgebnis, name: string) =>
-  r === 'zurueck'
-    ? `Willkommen zurück, ${name}! Du bist jetzt in deinem Account.`
-    : r === 'neu'
-      ? `Account „${name}“ angelegt. Mit diesem Namen kommst du auf jedem Gerät in diesen Account.`
-      : r === 'umbenannt'
-        ? `Gespeichert: Du heißt jetzt ${name}.`
-        : 'Name gespeichert. Er wird online eingetragen, sobald du Verbindung hast.'
+  r === 'umbenannt' ? `Gespeichert: Du heißt jetzt ${name}. Dein Passwort bleibt gleich.` : 'Name gespeichert. Er wird online eingetragen, sobald du Verbindung hast.'
 
 let listeArt: Art = 'heute'
 let listeAbmelden: (() => void) | null = null
@@ -366,7 +360,7 @@ let listeNr = 0
 function oeffneListe() {
   $<HTMLInputElement>('liste-name').value = profil.name
   $('liste-name-info').textContent = nameInfo()
-  $('liste-speichern').textContent = profil.name ? 'Ändern' : 'Speichern'
+  $('liste-speichern').textContent = angemeldet() ? 'Ändern' : 'Anmelden'
   listeAbmelden?.()
   listeAbmelden = abonniere(() => void ladeListeAnzeige())
   $('liste-live').hidden = false
@@ -477,6 +471,8 @@ $('liste-tabs').querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
 )
 $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
   e.preventDefault()
+  // Nicht angemeldet: dafuer gibt es die Anmeldung (Name und Passwort)
+  if (!angemeldet()) return zeigeWillkommen()
   const input = $<HTMLInputElement>('liste-name')
   const info = $('liste-name-info')
   if (!nameGueltig(input.value)) {
@@ -486,24 +482,19 @@ $<HTMLFormElement>('liste-form').addEventListener('submit', async (e) => {
   const knopf = $<HTMLButtonElement>('liste-speichern')
   knopf.disabled = true
   try {
-    let r: NameErgebnis
-    try {
-      r = await setzeName(input.value)
-    } catch (err) {
-      // Der Name gehoert einem anderen Account: auf Wunsch dort anmelden statt umzubenennen
-      const n = input.value.trim()
-      if (!(err instanceof NameVergeben) || !confirm(`„${n}“ gibt es schon. Mit diesem Account anmelden? Dieses Gerät gehört dann zum Account „${n}“.`)) throw err
-      r = await setzeName(input.value, true)
-    }
+    const r = await setzeName(input.value)
     audio.click()
     info.textContent = nameMeldung(r, profil.name)
     knopf.textContent = 'Ändern'
     input.blur()
     void ladeHallAnzeige()
-    // In einen anderen Account gewechselt: Freunde, Chat und Lobby gehoeren dazu, also frisch starten
-    if (r === 'zurueck') window.setTimeout(() => location.reload(), 1500)
   } catch (err) {
-    info.textContent = err instanceof NamenFehler ? err.message : 'Das hat nicht geklappt. Bist du online?'
+    info.textContent =
+      err instanceof NameVergeben
+        ? 'Diesen Namen gibt es schon. Willst du in diesen Account? Dann unten „Abmelden“ und mit seinem Namen und Passwort anmelden.'
+        : err instanceof NamenFehler
+          ? err.message
+          : 'Das hat nicht geklappt. Bist du online?'
   } finally {
     knopf.disabled = false
   }
@@ -533,7 +524,8 @@ async function ladeHallAnzeige() {
   // Name-Feld (aus der frueheren Bestenliste) aktuell halten
   $<HTMLInputElement>('liste-name').value = profil.name
   $('liste-name-info').textContent = nameInfo()
-  $('liste-speichern').textContent = profil.name ? 'Ändern' : 'Speichern'
+  $('liste-speichern').textContent = angemeldet() ? 'Ändern' : 'Anmelden'
+  $('konto-abmelden').hidden = !angemeldet()
   if (!hallZeilen.length) $('hall-info').textContent = 'Lade …'
   try {
     const [{ zeilen, ich }, , , tages] = await Promise.all([ladeHall(), anfragenLaden(), freundeLaden(), hallTab === 'tages' ? ladeListe('tages') : Promise.resolve(null)])
@@ -602,7 +594,7 @@ function hallZeichnen() {
   $('hall-mehr').hidden = treffer.length <= hallZahl
   $('hall-info').textContent =
     `${treffer.length} Snakes. Tippe einen Spieler an, um ihn zum Gefecht einzuladen. Gold: Trophäen aus Mehrspieler-Siegen. Silber: alle je verdienten Äpfel. „–“ heißt: noch nichts.` +
-    (profil.name ? '' : ' Für Freundschaftsanfragen brauchst du oben einen Namen.')
+    (angemeldet() ? '' : ' Für Freundschaftsanfragen musst du angemeldet sein.')
 }
 
 /* ================= Eigener Eintrag: fehlt er, wird repariert ================= */
@@ -616,6 +608,8 @@ function kontoStatusZeigen(z: OnlineZustand | null) {
   $('konto-status-technisch').textContent = z.technisch ?? ''
 }
 beiZustand((z) => {
+  // Abgemeldet (Sitzung weg, Account geloescht): gleich die Anmeldung zeigen
+  if (z.anmelden) return zeigeWillkommen()
   if (page() === 'hall' && (!z.ok || $('konto-status').hidden === false)) kontoStatusZeigen(z.ok ? null : z)
   if (z.ok) $('freund-code-fehlt').hidden = true
 })
@@ -627,7 +621,7 @@ let reparaturVersucht = false
  * verloren): den Rekord einmal nachtragen
  */
 function eintragPruefen() {
-  if (!profil.name) return kontoStatusZeigen(null)
+  if (!angemeldet()) return kontoStatusZeigen(null)
   const ich = hallIch ? hallZeilen.find((z) => z.user_id === hallIch) : undefined
   if (ich) {
     kontoStatusZeigen(null)
@@ -859,36 +853,75 @@ $('hall-mehr').addEventListener('click', () => {
   hallZeichnen()
 })
 
-/* Erster Start: Name gleich am Anfang, ohne Konto. Ohne Netz gilt er trotzdem sofort. */
+/*
+ * Anmeldung mit Name und Passwort (seit 1.42, keine Gaeste mehr): beim Start, solange dieses Geraet nicht angemeldet ist,
+ * und sobald es abgemeldet wird. Wer schon einen Namen hatte, legt hier sein Passwort fest; alles andere bleibt.
+ */
+let willkommenSpaeter = false
 function zeigeWillkommen() {
-  if (!onlineAktiv || profil.name) return
+  if (!onlineAktiv || angemeldet() || willkommenSpaeter || gesperrt) return
+  if (mode === 'play') pause()
+  const alt = !!profil.name && profil.pw === undefined
+  $('willkommen-titel').textContent = alt ? 'Neu: dein Passwort' : profil.name ? 'Wieder anmelden' : 'Anmelden'
+  $('willkommen-text').textContent = alt
+    ? `Sichere deinen Account „${profil.name}“ mit einem Passwort. Dann kommst nur du hinein, mit Name und Passwort auf jedem Gerät. Rekorde, Freunde und Chat bleiben.`
+    : profil.name
+      ? 'Du bist abgemeldet. Melde dich mit Name und Passwort an, dann zählst du wieder in der Hall of Snakes.'
+      : 'Mit Name und Passwort. Neu hier? Dann denk dir beides aus, dein Account legt sich von selbst an. So sehen dich die anderen in der Hall of Snakes, und mit Name und Passwort kommst du auf jedem Gerät in deinen Account (Freunde, Chat, Rekorde).'
+  $('willkommen-los').lastChild!.textContent = alt ? 'Passwort speichern' : 'Anmelden'
+  $<HTMLInputElement>('willkommen-name').value = profil.name
+  $<HTMLInputElement>('willkommen-passwort').autocomplete = alt || !profil.name ? 'new-password' : 'current-password'
+  $('willkommen-offline').hidden = navigator.onLine
   show('willkommen', true)
-  window.setTimeout(() => $<HTMLInputElement>('willkommen-name').focus(), 450)
+  window.setTimeout(() => $<HTMLInputElement>(profil.name ? 'willkommen-passwort' : 'willkommen-name').focus(), 450)
 }
 $<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
   e.preventDefault()
   const fehler = $('willkommen-fehler')
   const name = $<HTMLInputElement>('willkommen-name').value
-  if (!nameGueltig(name)) {
-    fehler.textContent = name.trim().length >= 2 && name.trim().length <= 16 ? 'Dieser Name ist nicht erlaubt.' : 'Der Name braucht 2 bis 16 Zeichen.'
+  const pwFeld = $<HTMLInputElement>('willkommen-passwort')
+  const zeige = (text: string) => {
+    fehler.textContent = text
     fehler.hidden = false
-    return
   }
+  if (!nameGueltig(name)) return zeige(name.trim().length >= 2 && name.trim().length <= 16 ? 'Dieser Name ist nicht erlaubt.' : 'Der Name braucht 2 bis 16 Zeichen.')
+  if (pwFeld.value.length < 4) return zeige('Das Passwort braucht mindestens 4 Zeichen.')
   fehler.hidden = true
+  const knopf = $<HTMLButtonElement>('willkommen-los')
+  knopf.disabled = true
+  const vorher = await eigeneUid()
   try {
-    await setzeName(name)
+    const r = await anmelden(name, pwFeld.value)
+    audio.click()
+    pwFeld.value = ''
+    show('willkommen', false)
+    toast('baum', r === 'neu' ? `Willkommen, ${profil.name}!` : r === 'gesichert' ? 'Passwort gespeichert' : `Willkommen zurück, ${profil.name}!`, r === 'neu' ? 'Dein Account ist angelegt. Du stehst jetzt in der Hall of Snakes.' : r === 'gesichert' ? 'Dein Account ist jetzt geschützt. Merk dir Name und Passwort.' : 'Du bist in deinem Account.')
+    // In einen anderen Account gewechselt: Freunde, Chat und Lobby gehoeren dazu, also frisch starten
+    if (vorher && vorher !== (await eigeneUid())) return void window.setTimeout(() => location.reload(), 1500)
+    linkRaum()
+    void online?.start()
+    void freundeLaden()
+    sozialStarten()
+    void pushAuffrischen()
+    if (page() === 'hall') void ladeHallAnzeige()
   } catch (err) {
-    fehler.textContent = err instanceof NamenFehler ? err.message : 'Das hat nicht geklappt.'
-    fehler.hidden = false
-    return
+    if (err instanceof PasswortFalsch) pwFeld.select()
+    else if (!(err instanceof NamenFehler)) $('willkommen-offline').hidden = false
+    zeige(err instanceof NamenFehler ? err.message : 'Keine Verbindung zum Server. Bist du online? Spielen geht auch ohne, dann zählt es nur nicht online.')
+  } finally {
+    knopf.disabled = false
   }
+})
+$('willkommen-offline').addEventListener('click', () => {
   audio.click()
-  $<HTMLInputElement>('willkommen-name').blur()
+  willkommenSpaeter = true
   show('willkommen', false)
-  linkRaum()
-  void online?.start()
-  void freundeLaden()
-  sozialStarten()
+})
+$('konto-abmelden').addEventListener('click', async () => {
+  if (!confirm(`Als „${profil.name}“ abmelden? Danach meldest du dich mit Name und Passwort wieder an (auch mit einem anderen Account).`)) return
+  audio.click()
+  await abmelden()
+  location.reload()
 })
 
 function gameOver() {
@@ -951,7 +984,7 @@ function gameOver() {
     geld.querySelector('b')!.textContent = `+${laufGeld} ${laufGeld === 1 ? 'Apfel' : 'Äpfel'}`
     const on = $('over-online')
     on.hidden = !(onlineAktiv && zaehltOnline() && g.gegessen > 0)
-    on.textContent = profil.name ? `In der Hall of Snakes als ${profil.name}` : 'Noch ohne Namen: Trag dich in der Hall of Snakes ein, dann zählt dieses Ergebnis.'
+    on.textContent = angemeldet() ? `In der Hall of Snakes als ${profil.name}` : 'Nicht angemeldet: Melde dich mit Name und Passwort an, dann zählt dieses Ergebnis.'
     show('over', true)
     drawMini($<HTMLCanvasElement>('over-icon'), MINI_FOR_CAUSE[g.cause ?? 'rand'])
     if (neu) audio.record()
@@ -2143,7 +2176,7 @@ function renderStats() {
 
 function renderSettings() {
   pushOptionenZeichnen()
-  $('btn-konto-loeschen').hidden = !onlineAktiv || !profil.name
+  $('btn-konto-loeschen').hidden = !onlineAktiv || !angemeldet()
   $<HTMLInputElement>('opt-sound').checked = settings.sound
   $<HTMLInputElement>('opt-music').checked = settings.music
   $<HTMLInputElement>('opt-vibration').checked = settings.vibration
@@ -2805,7 +2838,7 @@ document.addEventListener('visibilitychange', () => {
     audio.suspend()
   } else {
     audio.resume()
-    if (profil.name) {
+    if (angemeldet()) {
       online?.wieder()
       kontoSichern()
     }
@@ -2836,7 +2869,7 @@ if (nativ) {
       audio.suspend()
     } else {
       audio.resume()
-      if (profil.name) {
+      if (angemeldet()) {
         online?.wieder()
         kontoSichern()
       }
@@ -3266,7 +3299,7 @@ function sperrenZeichnen(liste: Gesperrt[]) {
 /** Live: neue Anfragen und angenommene Anfragen (einmal pro App-Start) */
 let sozialAbmelden: (() => void) | null = null
 function sozialStarten() {
-  if (sozialAbmelden || !onlineAktiv || !profil.name) return
+  if (sozialAbmelden || !onlineAktiv || !angemeldet()) return
   sozialAbmelden = abonniereSozial({
     nachricht: (n) => {
       if (chatPartner && n.von === chatPartner.user_id && page() === 'chat') {
@@ -3534,7 +3567,7 @@ $('einladung-nein').addEventListener('click', () => {
 /** Einladungs-Link ?raum=CODE: beitreten, sobald ein Name da ist */
 let raumAusLink = mehr.verfuegbar && onlineAktiv ? (params.get('raum') ?? '').toUpperCase() : ''
 function linkRaum() {
-  if (!raumAusLink || !profil.name || gesperrt) return
+  if (!raumAusLink || !angemeldet() || gesperrt) return
   const code = raumAusLink
   raumAusLink = ''
   mehr.beitreten(code)
@@ -3555,7 +3588,7 @@ setMode('home')
 if (!gesperrt) {
   zeigeWillkommen()
   linkRaum()
-  if (profil.name) {
+  if (angemeldet()) {
     void online?.start()
     void freundeLaden()
     sozialStarten()

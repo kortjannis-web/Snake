@@ -3,7 +3,7 @@ import {
   ArrowLeft, ChartColumn, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleHelp, Gamepad2, Gauge, House,
   Music, Pause, Play, RotateCcw, Settings, Trash2, Trophy, Vibrate, Volume2, VolumeX, createElement, type IconNode,
   Wand, Flag, Zap, Skull, Undo2, Ghost, TrendingUp, Ruler, SlidersHorizontal, Palette, Check, Lock, Shield, Hourglass, Scissors, Box, ListOrdered, Eraser, Utensils, Magnet, Shovel, Sun, Pickaxe, Medal, Video,
-  Users, Plus, Share2, Heart, LogOut, Crown, Swords, Handshake, UserPlus, WifiOff, X, Timer, Pencil, Globe,
+  Users, Plus, Share2, Heart, LogIn, LogOut, Crown, Swords, Handshake, UserPlus, WifiOff, X, Timer, Pencil, Globe,
   MessageCircle, Send, Ban, Clock, Bell, Shuffle, RefreshCw,
 } from 'lucide'
 
@@ -11,7 +11,7 @@ const ICONS: Record<string, IconNode> = {
   ArrowLeft, ChartColumn, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleHelp, Gamepad2, Gauge, House,
   Music, Pause, Play, RotateCcw, Settings, Trash2, Trophy, Vibrate, Volume2, VolumeX,
   Wand, Flag, Zap, Skull, Undo2, Ghost, TrendingUp, Ruler, SlidersHorizontal, Palette, Check, Lock, Shield, Hourglass, Scissors, Box, ListOrdered, Eraser, Utensils, Magnet, Shovel, Sun, Pickaxe, Medal, Video,
-  Users, Plus, Share2, Heart, LogOut, Crown, Swords, Handshake, UserPlus, WifiOff, X, Timer, Pencil, Globe,
+  Users, Plus, Share2, Heart, LogIn, LogOut, Crown, Swords, Handshake, UserPlus, WifiOff, X, Timer, Pencil, Globe,
   MessageCircle, Send, Ban, Clock, Bell, Shuffle, RefreshCw,
 }
 

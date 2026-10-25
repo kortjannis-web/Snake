@@ -181,12 +181,16 @@
 
       <!-- Erster Start: Name (nur mit Online-Bestenliste) -->
       <section class="screen screen--dim" id="willkommen">
-        <form class="card" id="willkommen-form" autocomplete="off">
-          <h2 class="card__title">Willkommen</h2>
-          <p class="card__sub">Wie heißt du? So sehen dich die anderen in der Hall of Snakes. Mit deinem Namen legt sich dein Account von selbst an, ein Passwort gibt es nicht. Nutzt du denselben Namen auf einem anderen Gerät, bist du dort im selben Account (Freunde, Chat, Hall of Snakes). Äpfel und Skins bleiben auf dem jeweiligen Gerät.</p>
-          <input class="name-feld" type="text" id="willkommen-name" maxlength="16" minlength="2" placeholder="Dein Name (2 bis 16 Zeichen)" autocomplete="nickname" autocapitalize="words" spellcheck="false" />
-          <p class="card__sub willkommen__fehler" id="willkommen-fehler" hidden></p>
-          <button class="btn btn--play" type="submit" id="willkommen-los"><span data-icon="Play"></span>Los geht's</button>
+        <form class="card" id="willkommen-form">
+          <h2 class="card__title" id="willkommen-titel">Anmelden</h2>
+          <p class="card__sub" id="willkommen-text">Mit Name und Passwort. Neu hier? Dann denk dir beides aus, dein Account legt sich von selbst an. So sehen dich die anderen in der Hall of Snakes, und mit Name und Passwort kommst du auf jedem Gerät in deinen Account (Freunde, Chat, Rekorde).</p>
+          <label class="sr-only" for="willkommen-name">Name</label>
+          <input class="name-feld" type="text" id="willkommen-name" maxlength="16" minlength="2" placeholder="Dein Name (2 bis 16 Zeichen)" autocomplete="username" autocapitalize="words" spellcheck="false" />
+          <label class="sr-only" for="willkommen-passwort">Passwort</label>
+          <input class="name-feld" type="password" id="willkommen-passwort" maxlength="64" minlength="4" placeholder="Passwort (mindestens 4 Zeichen)" autocomplete="current-password" />
+          <p class="card__sub willkommen__fehler" id="willkommen-fehler" role="alert" hidden></p>
+          <button class="btn btn--play" type="submit" id="willkommen-los"><span data-icon="LogIn"></span>Anmelden</button>
+          <button class="btn btn--ghost btn--klein" type="button" id="willkommen-offline" hidden>Ohne Internet weiterspielen</button>
         </form>
       </section>
 
@@ -518,7 +522,7 @@
               <div class="konto-status" id="konto-status" hidden>
                 <p><b id="konto-status-text"></b><small id="konto-status-technisch"></small></p>
                 <button class="btn btn--ghost btn--klein" type="button" id="konto-reparieren"><span data-icon="RefreshCw"></span>Neu verbinden</button>
-              </div>
+              </div>              <button class="btn btn--ghost btn--klein konto-abmelden" type="button" id="konto-abmelden" hidden><span data-icon="LogOut"></span>Abmelden</button>
             </form>
             <div class="seg seg--3" id="hall-tabs" role="radiogroup">
               <button data-v="alle" role="radio">Alle</button>
