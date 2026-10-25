@@ -7,6 +7,7 @@
  * Mehrspieler weitergegeben): eine einzelne Id ("klassik", "tiger") wie frueher, oder "~" mit
  * Kennbuchstaben und Nummern (siehe kodiere/skinVon). Die Nummern (nr) aendern sich nie.
  */
+import { MISSION_SKINS } from '../game/missionen'
 import { STEP } from '../game/rules'
 import type { Dir, P } from '../game/types'
 import { drawEffekt, EFFEKTE, type Effekt } from './effekte'
@@ -130,6 +131,9 @@ export const MUSTER: Muster[] = [
   { ...mu(55, 'amethyst', 'Amethyst', 0, 'facetten', [184, 120, 240], [84, 40, 150], true), glimmer: [230, 190, 255] },
   { ...mu(56, 'feenzauber', 'Feenzauber', 0, 'leuchten', [120, 230, 220], [160, 90, 230], true, [[255, 255, 255], [255, 170, 240], [170, 255, 240]]), glimmer: [255, 200, 250] },
   { ...mu(57, 'nachtmahr', 'Nachtmahr', 0, 'schemen', [70, 36, 96], [14, 8, 24], true, [[150, 255, 170]]), glimmer: [190, 150, 255] },
+  // Belohnungen der Kampagne (nicht kaufbar): Schatz-Level (Mission 5) und Boss (Mission 10) der Wiese
+  mu(58, 'schatzhueter', 'Schatzhüter', 0, 'schatz', [246, 196, 70], [176, 116, 26], true, [[230, 40, 80], [40, 200, 120], [60, 140, 255]]),
+  { ...mu(59, 'steingolem', 'Steingolem', 0, 'golem', [150, 142, 132], [78, 72, 66], true, [[255, 150, 50], [92, 136, 66]]), glimmer: [255, 190, 110] },
 ]
 
 const ac = (nr: number, platz: Platz, id: string, name: string, preis: number, bewegt = false): Acc => ({ id, nr, name, preis, platz, bewegt })
@@ -224,6 +228,10 @@ export const WELT_LOHN: { welt: string; level: number; id: string }[] = [
 const LOHN = new Map(WELT_LOHN.map((l) => [l.id, l]))
 /** Ist das eine Belohnung einer Welt? (dann nicht kaufbar) */
 export const lohnVon = (id: string) => LOHN.get(id)
+/** Belohnungen der Kampagne: Skin fuer eine Mission (nicht kaufbar), siehe game/missionen.ts MISSION_SKINS */
+export const MISSION_LOHN: { welt: string; mission: number; id: string }[] = Object.entries(MISSION_SKINS).map(([nr, id]) => ({ welt: 'wiese', mission: Number(nr), id }))
+const MLOHN = new Map(MISSION_LOHN.map((l) => [l.id, l]))
+export const missionLohnVon = (id: string) => MLOHN.get(id)
 /** Name einer Sache (Skin, Accessoire, Spur) nach Id */
 export const nameVon = (id: string) => [...MUSTER, ...ACCS, ...SPUREN].find((x) => x.id === id)?.name ?? id
 
@@ -243,7 +251,7 @@ export const TEILUNGEN: { id: Teilung; name: string }[] = [
 const PREISE = new Map<string, number>([...FARBEN, ...MUSTER, ...ACCS, ...SPUREN, ...MODI].map((x) => [x.id, x.preis]))
 export const preisVon = (id: string) => PREISE.get(id) ?? 0
 /** Besitzt man es? (alles mit Preis 0 hat jeder) */
-export const hatSkin = (besitz: string[], id: string) => (preisVon(id) === 0 && !LOHN.has(id)) || besitz.includes(id)
+export const hatSkin = (besitz: string[], id: string) => (preisVon(id) === 0 && !LOHN.has(id) && !MLOHN.has(id)) || besitz.includes(id)
 /** Wie viele kaufbare Sachen man besitzt (fuer den Erfolg "Modebewusst") */
 export const anzahlBesitz = (besitz: string[]) => [...PREISE.keys()].filter((id) => hatSkin(besitz, id)).length
 
@@ -669,13 +677,20 @@ function augen(ctx: CanvasRenderingContext2D, cell: number, art: string, o: Schl
       ctx.arc(ex, ey, cell * 0.22, 0, TAU)
       ctx.fill()
     }
-    ctx.fillStyle = lila ? '#F4E6FF' : art === 'void' ? '#C8A2FF' : art === 'matrix' ? '#7CFF8A' : '#fff'
+    if (art === 'golem' && !o.blinzeln) {
+      // Steingolem: Augen gluehen wie beim Boss
+      ctx.fillStyle = 'rgba(255, 170, 70, 0.4)'
+      ctx.beginPath()
+      ctx.arc(ex, ey, cell * 0.24, 0, TAU)
+      ctx.fill()
+    }
+    ctx.fillStyle = lila ? '#F4E6FF' : art === 'void' ? '#C8A2FF' : art === 'matrix' ? '#7CFF8A' : art === 'golem' ? '#FFC36B' : '#fff'
     ctx.beginPath()
     if (o.blinzeln) ctx.ellipse(ex, ey, cell * 0.03, cell * 0.15, 0, 0, TAU)
     else ctx.arc(ex, ey, cell * 0.15, 0, TAU)
     ctx.fill()
     if (o.blinzeln) continue
-    ctx.fillStyle = lila ? '#4A0F73' : art === 'void' ? '#1A0030' : '#16211d'
+    ctx.fillStyle = lila ? '#4A0F73' : art === 'void' ? '#1A0030' : art === 'golem' ? '#5A1E00' : '#16211d'
     ctx.beginPath()
     ctx.arc(ex + cell * 0.06, ey, cell * (0.075 - 0.025 * (o.angst ?? 0)), 0, TAU)
     ctx.fill()
@@ -895,6 +910,102 @@ function muster(L: CanvasRenderingContext2D, pr: Probe[], cell: number, m: Muste
         L.stroke()
       }
       break
+    case 'schatz': {
+      // Schatzhueter: Goldschuppen mit eingesetzten Edelsteinen, dazwischen Muenzen; ein Glanz laeuft durch
+      L.lineCap = 'round'
+      for (const p of pr) {
+        const r = raster(p, 0.24)
+        if (r <= 0) continue
+        L.strokeStyle = r % 2 ? 'rgba(120, 70, 10, 0.35)' : 'rgba(255, 240, 170, 0.4)'
+        quer(L, p, 0.55, cell * 0.035, r % 2 ? 0.35 : -0.35)
+      }
+      for (const p of pr) {
+        const r = raster(p, 0.5)
+        if (r <= 0) continue
+        const q = r % 2 ? 0.28 : -0.28
+        const x = p.x + p.nx * p.w * q
+        const y = p.y + p.ny * p.w * q
+        if (r % 3 === 0) {
+          // Muenze mit Rand
+          L.fillStyle = '#FFE08A'
+          L.beginPath()
+          L.arc(x, y, p.w * 0.12, 0, TAU)
+          L.fill()
+          L.strokeStyle = 'rgba(150, 90, 10, 0.7)'
+          L.lineWidth = Math.max(1, cell * 0.025)
+          L.stroke()
+          continue
+        }
+        // Edelstein (Rubin, Smaragd, Saphir) in Goldfassung, funkelt nacheinander
+        const f = ex[(r + Math.floor(r / 3)) % ex.length] ?? [230, 40, 80]
+        const rr = p.w * 0.15
+        L.fillStyle = 'rgba(150, 90, 10, 0.8)'
+        L.beginPath()
+        L.arc(x, y, rr * 1.25, 0, TAU)
+        L.fill()
+        L.fillStyle = rgb(f)
+        L.beginPath()
+        L.moveTo(x, y - rr)
+        L.lineTo(x + rr, y)
+        L.lineTo(x, y + rr)
+        L.lineTo(x - rr, y)
+        L.fill()
+        const fu = Math.max(0, Math.sin(welle(now, 1800) + r * 1.9))
+        L.fillStyle = `rgba(255, 255, 255, ${0.35 + 0.6 * fu})`
+        L.fillRect(x - rr * 0.35, y - rr * 0.5, rr * 0.32, rr * 0.32)
+      }
+      const lang = pr.length ? pr[pr.length - 1].s : 6
+      const pos = ((now % 2400) / 2400) * (Math.min(lang, 8) + 1.6) - 0.8
+      for (let i = 0; i < pr.length; i += 2) {
+        const p = pr[i]
+        const d = Math.abs(p.s - pos)
+        if (d > 0.6) continue
+        L.strokeStyle = `rgba(255, 250, 220, ${0.5 * (1 - d / 0.6)})`
+        quer(L, p, 0.6, cell * 0.18)
+      }
+      break
+    }
+    case 'golem': {
+      // Steingolem: Steinplatten mit Fugen, Moos, und gluehende Runenrisse, die langsam pulsieren
+      L.lineCap = 'round'
+      for (const p of pr) {
+        const r = raster(p, 0.36)
+        if (r <= 0) continue
+        L.strokeStyle = 'rgba(30, 26, 22, 0.55)'
+        quer(L, p, 0.6, cell * 0.05, (hash(r) - 0.5) * 0.6)
+      }
+      const glut = ex[0] ?? [255, 150, 50]
+      const moos = ex[1] ?? [92, 136, 66]
+      for (const p of pr) {
+        const r = raster(p, 0.36)
+        if (r <= 0) continue
+        // Moos auf jeder dritten Platte
+        if (r % 3 === 1) {
+          L.fillStyle = rgb(moos, 0.85)
+          punkt(L, p, (hash(r * 5) - 0.5) * 0.7, cell * 0.1, p.w * 0.12)
+          punkt(L, p, (hash(r * 5) - 0.5) * 0.7 + 0.15, cell * 0.16, p.w * 0.07)
+        }
+        // Runenriss: Zickzack quer ueber die Platte, gluehend
+        if (r % 2 === 0) {
+          const puls = 0.45 + 0.55 * Math.max(0, Math.sin(welle(now, 2200) - p.s * 1.4))
+          const q0 = (hash(r) - 0.5) * 0.5
+          const a = { x: p.x + p.nx * p.w * (q0 - 0.3) + p.tx * cell * 0.12, y: p.y + p.ny * p.w * (q0 - 0.3) + p.ty * cell * 0.12 }
+          const m = { x: p.x + p.nx * p.w * q0 - p.tx * cell * 0.05, y: p.y + p.ny * p.w * q0 - p.ty * cell * 0.05 }
+          const b = { x: p.x + p.nx * p.w * (q0 + 0.3) + p.tx * cell * 0.1, y: p.y + p.ny * p.w * (q0 + 0.3) + p.ty * cell * 0.1 }
+          L.strokeStyle = rgb(glut, 0.25 * puls)
+          L.lineWidth = cell * 0.14
+          L.beginPath()
+          L.moveTo(a.x, a.y)
+          L.lineTo(m.x, m.y)
+          L.lineTo(b.x, b.y)
+          L.stroke()
+          L.strokeStyle = rgb(mix(glut, [255, 255, 255], 0.35), 0.5 + 0.5 * puls)
+          L.lineWidth = Math.max(1, cell * 0.04)
+          L.stroke()
+        }
+      }
+      break
+    }
     case 'pharao':
       // Gold mit Lapislazuli-Baendern, schmal gesaeumt
       for (const p of pr) {

@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem'
 
 export type Status = 'play' | 'over'
 
@@ -206,7 +206,13 @@ export type Ameise = {
 }
 
 /** Ereignisse fuer Toene, Vibration und Anzeige */
+/** Boss der Wiese (Mission 10): was der Steingolem gerade tut (fuer Ton, Ruetteln und Teilchen) */
+export type GolemEreignis = 'erwachen' | 'warnung' | 'schlag' | 'kegel' | 'ansturm' | 'aufprall' | 'stein' | 'sprung' | 'landung' | 'bann' | 'frei' | 'treffer' | 'zorn' | 'tot'
+
 export type GameEvent =
+  | { type: 'golem'; was: GolemEreignis; p: P }
+  | { type: 'kristall'; was: 'neu' | 'auf' | 'sockel' | 'alle'; p: P; farbe: number }
+  | { type: 'bossSchaden'; leben: number; p: P }
   | { type: 'eat'; level: number; p: P; stufe: number; wer?: number }
   | { type: 'milestone'; level: number }
   | { type: 'expand'; side: Side; add: number; dx: number; dy: number; block?: P; d?: Dir }

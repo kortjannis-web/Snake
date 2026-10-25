@@ -10,7 +10,9 @@ import { drawEinhorn, drawEnt, drawFee, drawGespenst, drawIrrlichtSchein, drawKr
 import { drawFledermaeuse, drawFledermausWarnung, drawGolem, drawLore, drawLoreAbgestellt, drawLoreWarnung, drawNetz, drawSchieneFeld, drawSpalt, drawSteinWarnung, drawStollenBoden, drawStolleneingang, drawTnt, drawZwerg } from './bergwerk'
 import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapfenSchatten, drawIglu, drawNordlicht, drawRobbe, drawSchneeball, drawSchneemann, drawSchneesturm, drawYeti } from './winter'
 import { WUESTE } from '../game/rules'
+import { BossGame, KRISTALL_FARBEN } from '../game/boss'
 import { MissionGame } from '../game/mission'
+import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, drawKristalle, drawWarnungen, drawWellen } from './golem'
 import type { BergKacheln } from './berge'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { abgrundKachel, drawAbgrund, drawSprudeln, drawVulkanBoden, type AbgrundKachel } from './vulkan'
@@ -459,6 +461,32 @@ export class Renderer {
       if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
     } else if (e.type === 'halt') {
       if (!this.reduce) this.shake = { until: g.time + 140, amp: cell * 0.07 }
+    } else if (e.type === 'golem' && !this.reduce) {
+      // Steingolem: die Arena bebt bei jedem schweren Schlag
+      const beben: Partial<Record<typeof e.was, [number, number]>> = { erwachen: [1400, 0.06], schlag: [420, 0.28], landung: [520, 0.36], aufprall: [480, 0.32], stein: [220, 0.1], kegel: [200, 0.08], treffer: [380, 0.22], zorn: [1100, 0.12], tot: [1600, 0.2], ansturm: [300, 0.06] }
+      const b = beben[e.was]
+      if (b) this.shake = { until: g.time + b[0], amp: cell * b[1] }
+      if (e.was === 'treffer')
+        for (let i = 0; i < 26; i++) {
+          const ang = Math.random() * Math.PI * 2
+          const sp = cell * (1.5 + Math.random() * 2.5)
+          this.funken.push({ x: (e.p.x + 0.5) * cell, y: (e.p.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell, born: g.time, c: ['#BDEBFF', '#FFFFFF', '#8A8178', '#7FD8FF'][i % 4] })
+        }
+    } else if (e.type === 'kristall' && !this.reduce) {
+      const c = KRISTALL_FARBEN[e.farbe] ?? '#FFFFFF'
+      const n = e.was === 'neu' ? 6 : e.was === 'alle' ? 30 : 14
+      for (let i = 0; i < n; i++) {
+        const ang = (Math.PI * 2 * i) / n + Math.random() * 0.3
+        const sp = cell * (e.was === 'alle' ? 3 : 1.2) * (0.7 + Math.random() * 0.6)
+        this.funken.push({ x: (e.p.x + 0.5) * cell, y: (e.p.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.5, born: g.time, c: i % 3 ? c : '#FFFFFF' })
+      }
+    } else if (e.type === 'bossSchaden') {
+      if (!this.reduce) this.shake = { until: g.time + 380, amp: cell * 0.22 }
+      for (let i = 0; i < 16; i++) {
+        const ang = Math.random() * Math.PI * 2
+        const sp = cell * (1 + Math.random() * 1.4)
+        this.funken.push({ x: (e.p.x + 0.5) * cell, y: (e.p.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell * 0.6, born: g.time, c: i % 2 ? '#FF5A6E' : '#FFD0D6' })
+      }
     } else if (e.type === 'tree') {
       // Baum schlaegt auf: kurzes Beben, wenn man es sieht
       const nah = Math.abs((e.p.x + 0.5) * cell - this.cam.x) < this.vw / 2 + 3 * cell && Math.abs((e.p.y + 0.5) * cell - this.cam.y) < this.vh / 2 + 3 * cell
@@ -857,6 +885,14 @@ export class Renderer {
       drawFalleWelt(ctx, welt, px(f.p.x), px(f.p.y), cell, 1 - easeOut(clamp01((k - 0.5) * 2)), easeOut(clamp01(k * 4)), 0, now)
     }
 
+    // Boss-Arena: Bannkreis, Sockel, rote Warnungen, Kristalle
+    const boss = g instanceof BossGame ? g : null
+    if (boss) {
+      drawBossBoden(ctx, boss, cell, now, this.reduce)
+      drawWarnungen(ctx, boss, cell, now, this.reduce)
+      drawKristalle(ctx, boss, cell, now, this.reduce)
+    }
+
     // Apfel (Farbe nach Wert) und Giftaepfel (tarnen sich in derselben Farbe)
     const stufe = g.apfelStufe()
     const wipp = this.reduce ? 0 : Math.max(0, Math.sin(now / 260)) * cell * 0.05
@@ -1046,6 +1082,14 @@ export class Renderer {
 
     // Schlange
     if (n) this.drawSchlange(g, head, a)
+    // Steingolem steht ueber der Schlange (er ist riesig), darueber Brocken und Druckwellen
+    if (boss) {
+      const glieder = g.body.map((b, i) => ({ x: lerp(g.prev[i]?.x ?? b.x, b.x, a), y: lerp(g.prev[i]?.y ?? b.y, b.y, a) }))
+      drawGetragen(ctx, boss, glieder, cell, now)
+      drawGolemBoss(ctx, boss, cell, now, this.reduce)
+      drawBrocken(ctx, boss, cell, now, this.reduce)
+      drawWellen(ctx, boss, cell, now, this.reduce)
+    }
     if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
     if (this.mehr?.blasen) for (const b of this.mehr.blasen) if (sicht(b.p, 2)) this.drawBlase(b)
     this.drawGrabWarnung(g, head, now)
@@ -1207,8 +1251,9 @@ export class Renderer {
 
     // Apfel ausserhalb des Bildes: Pfeil am Rand
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
-    if (g.status === 'play') this.drawZeiger(g, ox, oy, now)
+    if (g.status === 'play' && !boss) this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
+    if (boss) drawBossHud(ctx, boss, vw, vh, now)
   }
 
   /**

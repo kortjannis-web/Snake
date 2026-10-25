@@ -239,6 +239,84 @@ class Audio {
     const t = dia ? [1568, 2093, 2637, 3136] : [988, 1319, 1568]
     t.forEach((f, i) => this.tone(f, 0.12, 'triangle', 0.12, { delay: i * 0.05 }))
   }
+  /** Steingolem (Boss der Wiese): Grollen, Schlaege, Bann und Zerfall */
+  golem(was: string) {
+    switch (was) {
+      case 'erwachen':
+        this.noise(1.8, 'lowpass', 140, 0.45, { to: 420, attack: 0.5 })
+        this.tone(55, 1.6, 'sawtooth', 0.16, { to: 82, filter: 300, attack: 0.4 })
+        this.tone(41, 1.8, 'sine', 0.3, { delay: 0.3, attack: 0.3 })
+        break
+      case 'warnung':
+        this.tone(98, 0.35, 'sawtooth', 0.1, { to: 78, filter: 500, vib: 6 })
+        this.noise(0.25, 'lowpass', 500, 0.12, { attack: 0.05 })
+        break
+      case 'schlag':
+      case 'landung':
+        this.tone(was === 'landung' ? 70 : 90, 0.55, 'sine', 0.55, { to: 34 })
+        this.noise(0.6, 'lowpass', was === 'landung' ? 520 : 420, 0.5, { to: 90 })
+        this.noise(0.12, 'bandpass', 1400, 0.18, { q: 0.8 })
+        break
+      case 'kegel':
+        this.noise(0.22, 'bandpass', 700, 0.28, { to: 2400, q: 0.9, attack: 0.03 })
+        this.tone(120, 0.2, 'sine', 0.28, { to: 60, delay: 0.12 })
+        break
+      case 'ansturm':
+        for (let i = 0; i < 5; i++) this.tone(64, 0.14, 'sine', 0.3, { to: 40, delay: i * 0.12 })
+        this.noise(0.8, 'lowpass', 300, 0.25, { attack: 0.08 })
+        break
+      case 'aufprall':
+        this.noise(0.7, 'lowpass', 1300, 0.55, { to: 120 })
+        this.tone(72, 0.6, 'sine', 0.5, { to: 30 })
+        this.noise(0.4, 'highpass', 2500, 0.12, { delay: 0.05 })
+        break
+      case 'stein':
+        this.noise(0.3, 'lowpass', 700, 0.32, { to: 140 })
+        this.tone(130, 0.2, 'sine', 0.22, { to: 55 })
+        break
+      case 'sprung':
+        this.noise(0.5, 'bandpass', 300, 0.25, { to: 1800, attack: 0.1, q: 0.7 })
+        this.tone(60, 0.3, 'sine', 0.3, { to: 40 })
+        break
+      case 'bann':
+        ;[523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.7, 'triangle', 0.12, { delay: i * 0.06, attack: 0.03 }))
+        this.noise(0.9, 'highpass', 5000, 0.06, { attack: 0.2 })
+        this.tone(110, 0.8, 'sawtooth', 0.1, { to: 70, filter: 400, vib: 9 })
+        break
+      case 'frei':
+        this.tone(140, 0.5, 'sawtooth', 0.14, { to: 70, filter: 600 })
+        this.noise(0.4, 'lowpass', 600, 0.2)
+        break
+      case 'treffer':
+        this.noise(0.08, 'highpass', 3000, 0.5)
+        this.tone(220, 0.45, 'square', 0.12, { to: 55, filter: 1500 })
+        this.noise(0.6, 'lowpass', 900, 0.4, { to: 150, delay: 0.04 })
+        ;[1319, 1760].forEach((f, i) => this.tone(f, 0.25, 'triangle', 0.1, { delay: 0.1 + i * 0.07 }))
+        break
+      case 'zorn':
+        this.tone(82, 1.3, 'sawtooth', 0.2, { to: 62, vib: 7, filter: 700, attack: 0.15 })
+        this.tone(123, 1.1, 'sawtooth', 0.1, { to: 92, vib: 5, filter: 900, attack: 0.15 })
+        this.noise(1.2, 'lowpass', 400, 0.3, { attack: 0.2 })
+        break
+      case 'tot':
+        for (let i = 0; i < 7; i++) this.noise(0.35, 'lowpass', 900 - i * 90, 0.35, { delay: i * 0.22, to: 100 })
+        this.tone(98, 2.2, 'sawtooth', 0.14, { to: 33, filter: 500, vib: 4, attack: 0.1 })
+        ;[523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.4, 'triangle', 0.12, { delay: 1.6 + i * 0.11 }))
+        break
+    }
+  }
+  /** Kristalle: auftauchen, aufheben, in den Sockel setzen, alle sechs leuchten */
+  kristall(was: string, farbe = 0) {
+    const k = 1 + farbe * 0.06
+    if (was === 'neu') this.tone(1760 * k, 0.25, 'sine', 0.06, { attack: 0.02 })
+    else if (was === 'auf') {
+      this.tone(988 * k, 0.12, 'triangle', 0.16)
+      this.tone(1480 * k, 0.16, 'triangle', 0.12, { delay: 0.06 })
+    } else if (was === 'sockel') {
+      ;[659 * k, 988 * k, 1319 * k].forEach((f, i) => this.tone(f, 0.35, 'triangle', 0.13, { delay: i * 0.05 }))
+      this.tone(165 * k, 0.4, 'sine', 0.2, { to: 110 * k })
+    } else if (was === 'alle') [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.5, 'triangle', 0.12, { delay: 0.25 + i * 0.08 }))
+  }
   /** Etwas gefressen (Fuettern) */
   happs() {
     this.tone(220, 0.08, 'square', 0.1, { to: 440, filter: 1800 })

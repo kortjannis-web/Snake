@@ -181,6 +181,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Ist sie direkt neben einem Glied, **beißt** sie: **3 Level zurück** (Schild fängt ab, nach einem Rückschlag geschützt, als Geist nicht). Danach ist sie 5 s satt und geht heim.
 - Sie läuft nie in die Schlange oder in Hindernisse. **Der Kopf zertritt sie** (sie verschwindet, kein Tod): so kann man sich wehren.
 - Gerade lange Schlangen, die neben einer Ameise entlangziehen, werden erwischt.
+- **Seit 1.43 liegt nichts zum Einsammeln in ihrem Revier:** Apfel, Power-ups und Erze (Spitzhacke) kommen nie in den Umkreis einer Ameise (ihr Umkreis plus 2 Felder, auch schräg, um ihren Platz und ihr Zuhause). Eine neue Ameise setzt sich nie so nah an den Apfel, ein Power-up oder ein Erz. Wer etwas holt, wird also nicht gebissen.
 
 ## 12c. Lava (von Anfang an, im Stein)
 
@@ -346,14 +347,46 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Neben dem freien Spiel (Spielen) gibt es **feste Missionen**, je Welt 10. Den Anfang macht die **Wiese**; die anderen Welten folgen.
 - **Karte der Kampagne:** eine weite Wiese mit Hügeln, Bäumen, Blumen und einem Teich, die nur **nach oben und unten** scrollt (links und rechts läuft sie aus dem Bild). Darauf 10 runde Missionsfelder auf einem geschwungenen Weg: **Mission 5 ist das Schatz-Level** (Schatztruhe), **Mission 10 das Boss-Level** (Totenschädel), darüber Nebel und „Coming Soon“.
 - **Die eigene Schlange als Weg:** Anfangs liegt nur ihr Kopf kurz vor Mission 1. Tippt man eine Mission an, **wächst die Schlange weich gebogen bis zu diesem Feld**, danach startet die Mission. So wird sie mit jeder neuen Mission länger. Sie trägt das gewählte Aussehen; Effekte und Spur sind auf der Karte etwas schwächer (75 %).
-- **Bisher spielbar: Mission 1** („Erste Schritte“). Die anderen sind ausgegraut („Mission x kommt bald“). Gespielt wird eine Mission erst, wenn die davor geschafft ist; geschaffte Missionen werden grün mit Stern und lassen sich beliebig wiederholen.
-- **Missionen sind fest:** die Karte ist von Hand gebaut und bei jedem Spielen gleich (Start, Äpfel, Mauern, Teiche, Giftäpfel, Frösche). Statt Erde liegen **Berge** um die Täler (Fuß mit Bäumen, Fels, oben Schnee); dagegen = vorbei („Gegen den Berg gefahren“).
-- **Mission 1:** 4 Täler übereinander, getrennt von Bergrücken mit Pässen links und rechts. Start unten nach oben, Länge 3. **10 Äpfel**, 3 Giftäpfel, 5 Frösche, 3 Teiche, 3 Mauern.
-- **Äpfel:** alle liegen von Anfang an da, die Reihenfolge ist egal. **Der zuletzt übrige leuchtet.** Oben rechts steht „x / 10“, oben in der Leiste die Nummer der Mission. Der Pfeil am Bildrand zeigt zum nächsten Apfel. Alle geholt: „Mission geschafft!“.
+- **Alle 10 Missionen sind spielbar (seit 1.43).** Gespielt wird eine Mission erst, wenn die davor geschafft ist; geschaffte Missionen werden grün mit Stern und lassen sich beliebig wiederholen.
+- **Missionen sind fest:** die Karte ist von Hand gebaut und bei jedem Spielen gleich (Start, Äpfel, Mauern, Teiche, Giftäpfel, Frösche, Eis, Gegner, Edelsteine). Statt Erde liegen **Berge** um die Täler (Fuß mit Bäumen, Fels, oben Schnee); dagegen = vorbei („Gegen den Berg gefahren“). Auch mitten in der Wiese können Berge stehen (Hügel).
+- **Schwierigkeit steigt:** mehr Äpfel, längere Schlange am Start, mehr Gefahren. Bis Mission 7 ist jeder Pass und jede Gasse mindestens 3 Felder breit (so muss man nicht hin und her tippen, im Test geprüft), erst **ab Mission 8 wird es eng** (2 Felder). Ab Mission 6 wird die Schlange je Apfel etwas schneller (6: 0,3 %, 7: 0,45 %, 8: 0,6 %, 9: 0,75 % je Apfel statt 0,12 %).
+
+| Nr. | Name | Karte | Äpfel | Start | Belohnung |
+|---|---|---|---|---|---|
+| 1 | Erste Schritte | 4 Täler, breite Pässe (4 bis 5 Felder), 3 Giftäpfel, 5 Frösche, 3 Teiche, 3 Mauern | 10 | 3 | 6 |
+| 2 | Am Bach | drei Bäche quer durchs Tal, je eine Furt; 4 Giftäpfel, 3 Frösche | 12 | 3 | 8 |
+| 3 | Froschteich | zwei große Teiche, 11 Frösche, 3 Giftäpfel | 12 | 4 | 10 |
+| 4 | Steinmauern | Mauern in Schlangenlinie von Rand zu Rand, Winkel und Haken; 5 Giftäpfel | 15 | 4 | 12 |
+| 5 | Schatztor (Schatz) | oben die Schatzkammer hinter einem Tor im Berg: 4 Gold, 2 Diamanten, 1 Rubin | 16 | 4 | 20 + Edelsteine + Skin **Schatzhüter** |
+| 6 | Giftige Wiese | 15 Giftäpfel zwischen 16 Äpfeln, drei Felder hinter Pässen | 16 | 4 | 14 |
+| 7 | Hügelland | Hügel (Berge) in der Wiese, 4 Eisflächen, 1 Gegner-Schlange | 16 | 5 | 16 |
+| 8 | Enge Pässe | Rücken mit 2er-Pässen, Mauergassen, 2 Gegner-Schlangen | 16 | 5 | 18 |
+| 9 | Sturm im Tal | vier Abschnitte hinter versetzten engen Pässen, Eis vor Teichen, 3 Gegner, 7 Frösche | 20 | 6 | 22 |
+| 10 | Der Wächter der Wiese (Boss) | Arena des Steingolems (siehe unten) | – | 4 | 40 + Skin **Steingolem** |
+
+- **Neue Kartenzeichen:** `E` Eis (rutschig, dort lässt sich nicht lenken; in der Wiese bricht es nicht), `R` rote Gegner-Schlange (3 lang, liegt dorthin, wo am meisten Platz ist), `$` `*` `%` Gold, Diamant, Rubin. Edelsteine zählen im Schatz-Level für die Belohnung (Gold 3, Diamant 6, Rubin 10 Äpfel), nicht als Währung während der Mission.
+- **Äpfel:** alle liegen von Anfang an da, die Reihenfolge ist egal. **Der zuletzt übrige leuchtet.** Oben rechts steht „x / N“, oben in der Leiste die Nummer der Mission. Der Pfeil am Bildrand zeigt zum nächsten Apfel. Alle geholt: „Mission geschafft!“. Beim Start ein kurzer Hinweis zur Mission.
 - **Regeln:** wie im freien Spiel (jedes Hindernis tödlich, 10 ms Reaktionszeit, wachsen alle 2 Äpfel), aber **nichts kommt dazu**: keine neuen Mauern, keine Power-ups, keine Ereignisse. Frösche hüpfen nicht in die Berge. Tod = „Nochmal“ startet die Mission neu. Immer mit den Standardwerten (Master-Einstellungen gelten hier nicht).
-- **Belohnung: 6 Äpfel beim ersten Abschluss**, Wiederholen bringt nichts extra. Die in der Mission gegessenen Äpfel zählen nicht als Währung. Missionen zählen nicht für Rekord, Tagesrekord und Online-Bestenliste.
+- **Belohnung beim ersten Abschluss** (steigt mit der Mission, siehe Tabelle), Wiederholen bringt nichts extra. Die **Skins der Missionen 5 und 10** gibt es nur hier (im Shop mit Schloss „Mission 5 · Wiese“); fehlt einer, kommt er beim nächsten Abschluss nach. Die in der Mission gegessenen Äpfel zählen nicht als Währung. Missionen zählen nicht für Rekord, Tagesrekord, Online-Bestenliste und Erfolge.
 - Gespeichert im Gerät (`snake-kampagne`: geschaffte Missionen, wie weit die Schlange auf der Karte reicht).
-- **Technik:** `src/game/missionen.ts` (Missionen, Karten als Text), `src/game/mission.ts` (MissionGame auf Basis des Endlos-Spiels), `src/render/berge.ts` (Berge als vorgezeichnete Kacheln), `src/render/kampagne.ts` (Karte: Hintergrund einmal als Bild, Felder als kleine Bilder, je Bild nur Ausschnitt und Schlange), `src/kampagne.ts` (Fortschritt).
+
+### 16-0b. Boss: der Steingolem (Mission 10)
+
+- **Arena:** ein runder Kessel in den Bergen (17 × 32 Felder), der **ganz ins Bild passt** (kleinere Felder, die Kamera steht): man sieht immer den ganzen Kampf. In der Mitte der **Bannkreis** (Steinring mit Runen), rundherum im Sechseck **sechs Sockel** in den Farben Rot, Orange, Gelb, Grün, Blau, Lila. Rillen führen von jedem Sockel zum Kreis.
+- **Kristalle statt Äpfel:** Es liegen immer bis zu drei Kristalle (in den Farben der noch dunklen Sockel), sind sie aufgehoben, kommen die nächsten. Die Schlange trägt sie (sie schweben über ihr) und setzt sie ein, indem sie über den **Sockel der gleichen Farbe** fährt. Ein falscher Sockel nimmt nichts. Eingesetzt leuchtet der Sockel, Licht fließt in den Kreis, sein Abschnitt im Ring leuchtet in der Farbe. Oben rechts steht „x / 6“.
+- **Bannkreis:** Leuchten alle sechs, strahlt der Kreis. **Tritt der Golem hinein, ist er gebannt:** sechs Lichtketten halten ihn fest, er wird bläulich, die Risse glühen eisblau, die Leiste unten wird blau. Nur jetzt ist er verwundbar: **mit dem Kopf durch ihn hindurchfahren = ein Treffer** (er blitzt weiß auf, Splitter fliegen). Gebannt bleibt er 6,5 / 5,6 / 4,8 s (Phase 1 / 2 / 3), danach reißt er sich los, und der Kreis braucht 4 s, bis er wieder bannt. Weil der Golem immer auf die Schlange zustapft, lockt man ihn hinein (auch sein Sprung und sein Ansturm können im Kreis enden).
+- **Nach jedem Treffer** erlöschen alle Sockel, der Golem tobt (brüllt, Arme weit, roter Ring), wird schneller und kündigt kürzer an (drei Phasen: Tempo 2,2 / 2,65 / 3,1 Felder je s, Warnungen 100 / 84 / 70 %). Die Schlange bekommt ein Herz zurück. **Drei Treffer:** er zerfällt zu Geröll, „Mission geschafft!“.
+- **Herzen:** Die Schlange hat **3 Herzen** (unten rechts). Ein Treffer kostet eins, danach ist sie 1,9 s geschützt (blinkt). Es zählen **Kopf und Hals**: der Schwanz darf noch in der roten Fläche hängen. Ohne Herzen: „Vom Steingolem zerschmettert“. Berge sind wie immer sofort tödlich.
+- **Der Golem:** erwacht beim Start aus einem Steinhaufen (die Teile ziehen sich zusammen, die Augen glühen auf), stapft schwer auf die Schlange zu (dreht sich, Schritte, Arme schwingen) und greift immer wieder an. Ihn ohne Bann zu berühren kostet ein Herz. Jede Attacke wird **rot angekündigt** (Fläche mit wandernden Streifen, ein heller Ring zeigt, wann es so weit ist):
+  1. **Stampfen:** hebt beide Fäuste über den Kopf und schmettert sie nieder: roter Kreis um ihn (Radius 3,6 / 3,8 / 4,2), Druckwelle, Steinchen spritzen.
+  2. **Prankenhieb:** dreimal hintereinander ein **Kegel** (6,5 Felder lang) dorthin, wo die Schlange gerade ist, abwechselnd mit der rechten und linken Faust (ausholen, dann im Bogen). Die Nummer des Hiebs steht im Kegel.
+  3. **Ansturm** (der lange Angriff): ein 3 Felder breiter Streifen von ihm bis zur Wand, Pfeile laufen darin, er duckt sich und scharrt. Dann rennt er hindurch (14 Felder je s), prallt an der Wand auf und ist benommen (Sterne um den Kopf). Vom Aufprall fallen **3 / 4 / 5 Felsbrocken** in die Nähe der Schlange (einer dorthin, wo sie hinfährt): roter Plus-Schatten, dann schlägt der Brocken ein und zerspringt.
+  4. **Sprung:** duckt sich und springt hoch (wird größer, als käme er auf die Kamera zu, dann ist er weg). Ein **roter Kreis mit Fadenkreuz folgt der Schlange** (etwas träger als sie), bleibt nach 2 s stehen, sein Schatten wächst, dann landet der Golem genau dort (Radius 2,6, starkes Beben). In Phase 3 stampft er gleich nach der Landung.
+- Welche Attacke kommt, hängt am Abstand (nah eher Stampfen und Hiebe, weit eher Ansturm und Sprung), nie zweimal dieselbe hintereinander. Alles läuft mit festem Startwert: bei gleicher Steuerung immer gleich.
+- **Aussehen:** von oben aus vielen Teilen: Beine, Rumpf aus Fels mit Rückenplatte und Zacken, Moos auf Rücken und Schultern, Arme mit großen Fäusten, Kopf mit Braue und glühenden Augen (orange, beim Angriff rot, gebannt eisblau), ein Runenkern in der Brust mit glühenden Rissen. Mit jedem Treffer kommen Risse dazu, beim letzten bricht ein Stück der Schulter heraus. Töne für Erwachen, Warnung, Schläge, Ansturm, Bann, Treffer, Gebrüll und Zerfall; Vibration bei schweren Schlägen.
+- **Getestet:** Ein Bot, der den roten Flächen ausweicht, Kristalle bringt und den Golem in den Kreis lockt, besiegt ihn in 3 bis 4 Minuten (`test/boss.test.ts`, `test/boss-bot.ts`).
+- Zum Ausprobieren beim Entwickeln: `?mission=10` startet die Mission direkt (nur im Dev-Server).
+- **Technik:** `src/game/missionen.ts` (Missionen, Karten als Text), `src/game/mission.ts` (MissionGame auf Basis des Endlos-Spiels), `src/game/boss.ts` (BossGame: Golem, Kristalle, Sockel, Bannkreis; alle Zeiten in `GOLEM`), `src/render/golem.ts` (Golem, Arena, Warnungen, Anzeige), `src/render/berge.ts` (Berge als vorgezeichnete Kacheln), `src/render/kampagne.ts` (Karte: Hintergrund einmal als Bild, Felder als kleine Bilder, je Bild nur Ausschnitt und Schlange), `src/kampagne.ts` (Fortschritt).
 
 ## 16-1. Tagesrekord und Erfolge
 
