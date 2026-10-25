@@ -33,7 +33,7 @@ import { Renderer } from './render/renderer'
 import { BergKacheln } from './render/berge'
 import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abmelden, abonniere, abonniereSozial, adminLoeschen, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abmelden, abonniere, abonniereHall, abonniereSozial, adminLoeschen, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
@@ -190,7 +190,10 @@ function openPage(p: Page) {
   if (p === 'shopteil') renderTeil()
   if (p === 'liste') oeffneListe()
   if (p === 'mehr') void freundeLaden()
-  if (p === 'hall') void ladeHallAnzeige()
+  if (p === 'hall') {
+    void ladeHallAnzeige()
+    hallLiveAn()
+  }
   if (p === 'kampagne') kampagneOeffnen()
   if (p === 'mehr' || p === 'hall') pushFragen()
   show(p, true)
@@ -201,6 +204,7 @@ function closePage() {
   audio.click()
   show(p, false)
   if (p === 'liste') schliesseListe()
+  if (p === 'hall') hallLiveAus()
   if (p === 'chat') chatPartner = null
   if (p === 'shopteil' && page() === 'shop') renderShop()
 }
@@ -209,6 +213,7 @@ function closeAllPages() {
     const p = pages.pop()!
     show(p, false)
     if (p === 'liste') schliesseListe()
+    if (p === 'hall') hallLiveAus()
     if (p === 'chat') chatPartner = null
   }
 }
@@ -507,6 +512,18 @@ let hallZeilen: HallZeile[] = []
 let hallIch: string | null = null
 let hallZahl = HALL_SEITE
 let hallNr = 0
+/** Live: solange die Hall offen ist, neu laden, sobald sich dort etwas aendert (Rekord, Skin, Name, neuer Spieler) */
+let hallLive: (() => void) | null = null
+function hallLiveAn() {
+  if (!onlineAktiv || hallLive) return
+  hallLive = abonniereHall(() => {
+    if (page() === 'hall') void ladeHallAnzeige()
+  })
+}
+function hallLiveAus() {
+  hallLive?.()
+  hallLive = null
+}
 /** Offene Freundschaftsanfragen (eingehend und ausgehend) */
 let anfragen: Anfrage[] = []
 

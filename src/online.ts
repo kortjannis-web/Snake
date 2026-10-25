@@ -658,6 +658,36 @@ export function abonniere(bei: () => void): () => void {
   }
 }
 
+/**
+ * Live fuer die Hall of Snakes: neuer Rekord, neue Trophaee, neuer oder geloeschter Spieler, neuer Skin, Name oder
+ * Silber (hall_signal, 20261026000000_hall_live.sql). Gibt die Abmeldung zurueck
+ */
+export function abonniereHall(bei: () => void): () => void {
+  let weg = false
+  let kanal: ReturnType<SupabaseClient['channel']> | null = null
+  let sb: SupabaseClient | null = null
+  let timer = 0
+  const melden = () => {
+    clearTimeout(timer)
+    timer = window.setTimeout(bei, 400)
+  }
+  void client().then((c) => {
+    if (weg) return
+    sb = c
+    kanal = c
+      .channel('hall')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hall_signal' }, melden)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'score' }, melden)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sieg' }, melden)
+      .subscribe()
+  })
+  return () => {
+    weg = true
+    clearTimeout(timer)
+    if (kanal && sb) void sb.removeChannel(kanal)
+  }
+}
+
 // Beim Start und wenn das Netz zurueckkommt: liegengebliebene Ergebnisse senden
 if (onlineAktiv) {
   kontoSichern()
