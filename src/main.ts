@@ -34,6 +34,7 @@ import { BergKacheln } from './render/berge'
 import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
 import { abmelden, abonniere, abonniereHall, abonniereSozial, adminLoeschen, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { beiCloud } from './cloud'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
@@ -3599,6 +3600,12 @@ if (nativ) {
   })
 }
 
+// Spielstand aus der Cloud uebernommen (anderes Geraet, Anmeldung): Startbildschirm und Online-Profil nachziehen
+beiCloud(() => {
+  if (mode === 'home') updateHome()
+  setzeSkin(wallet.skin)
+  setzeSilber(wallet.verdient ?? 0)
+})
 applySettings()
 newDemo()
 setMode('home')

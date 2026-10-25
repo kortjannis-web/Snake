@@ -39,6 +39,7 @@ with soll(was, name, datei) as (
     ('Funktion', 'konto_status', 'NACHHOLEN.sql'),
     ('Tabelle', 'hall_signal', 'NACHHOLEN.sql'),
     ('Live', 'hall_signal', 'NACHHOLEN.sql'),
+    ('Tabelle', 'spielstand', 'NACHHOLEN.sql'),
     ('Live', 'score', '20261018000000_bestenliste.sql'),
     ('Live', 'sieg', '20261018000300_freunde_siege.sql'),
     ('Live', 'koop_ergebnis', '20261018000300_freunde_siege.sql'),
@@ -64,6 +65,8 @@ union all
 select 'Zahl', 'Konten ohne Hall-Eintrag (unsichtbar)', (select count(*)::text from auth.users u left join public.profile p on p.id = u.id where p.id is null), 'meist alte Gaeste, siehe SPIELER-LOESCHEN.md Teil 0'
 union all
 select 'Zahl', 'Profile ohne Freundes-Code', (select count(*)::text from public.profile where code is null), 'NACHHOLEN.sql (profil_speichern vergibt ihn)'
+union all
+select 'Zahl', 'Spielstaende in der Cloud', (select count(*)::text from public.spielstand), 'NACHHOLEN.sql (Tabelle spielstand)'
 union all
 select 'Zahl', 'Ergebnisse gesamt', (select count(*)::text from public.score), ''
 union all

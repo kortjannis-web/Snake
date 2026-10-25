@@ -176,6 +176,14 @@ function abgemeldet() {
   setzeZustand({ ok: false, text: 'Bitte melde dich mit Name und Passwort an.', anmelden: true })
 }
 
+/** Client und Nutzer-Id, wenn dieses Geraet angemeldet ist (fuer den Spielstand in der Cloud), sonst null */
+export async function sitzung(): Promise<{ sb: SupabaseClient; id: string } | null> {
+  if (!onlineAktiv || !angemeldet()) return null
+  const sb = await client()
+  const { data } = await sb.auth.getSession()
+  return data.session?.user.email ? { sb, id: data.session.user.id } : null
+}
+
 /** Nutzer-Id der Anmeldung. Ohne Anmeldung gibt es keine (keine Gaeste mehr): dann wirft sie */
 async function nutzerId(): Promise<string> {
   const sb = await client()

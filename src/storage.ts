@@ -75,7 +75,13 @@ if (!settings.kameraStand) {
 settings.kamera = 'bereich'
 export const stats: Stats = read(TKEY, defaultStats())
 export const saveSettings = () => write(SKEY, settings)
-export const saveStats = () => write(TKEY, stats)
+/** Wird nach jedem Speichern von Statistik oder Aepfeln/Skins aufgerufen (Spielstand in der Cloud, src/cloud.ts) */
+export const beiSpielstand = new Set<() => void>()
+const spielstandGeaendert = () => beiSpielstand.forEach((f) => f())
+export const saveStats = () => {
+  write(TKEY, stats)
+  spielstandGeaendert()
+}
 export function resetStats() {
   Object.assign(stats, defaultStats())
   saveStats()
@@ -171,7 +177,10 @@ export type LookWahl = {
  *  online weiter), die Wahl im Einzelnen (look), die Welt und Trophaeen (1 je besiegtem Gegner in einem Mehrspieler-Sieg) */
 export type Wallet = { aepfel: number; /** Freigeschaltete Welten (Ids) */ welten?: string[]; /** Zwischenspeicher: noch nicht volle Aepfel in Hundertsteln (0 bis 99) */ rest?: number; skins: string[]; skin: string; look?: LookWahl; welt?: string; trophaeen: number; verdient?: number }
 export const wallet: Wallet = read(WKEY, { aepfel: 0, skins: ['klassik'], skin: 'klassik', trophaeen: 0 } as Wallet)
-export const saveWallet = () => write(WKEY, wallet)
+export const saveWallet = () => {
+  write(WKEY, wallet)
+  spielstandGeaendert()
+}
 /** Aepfel verdient: in den Vorrat und in die Summe aller je verdienten Aepfel (Silber-Trophaeen) */
 export function verdienen(n: number) {
   wallet.aepfel += n
