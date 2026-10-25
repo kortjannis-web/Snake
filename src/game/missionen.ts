@@ -13,7 +13,8 @@
  *   E  Eis (rutschig: dort laesst sich nicht lenken)
  *   R  Kopf einer roten Gegner-Schlange (der Koerper liegt dorthin, wo am meisten Platz ist)
  *   $ * %  Gold, Diamant, Rubin (Schatz: bringen beim ersten Abschluss Aepfel extra)
- * Nur im Boss-Level: O Mitte des Bannkreises, 1 bis 6 Sockel, B Steingolem
+ * Nur im Boss-Level: O Mitte eines Bannkreises, 1 bis 6 Sockel, B Steingolem, T Steintor, k Platz fuer Kristalle,
+ *   x Wiese, auf die der Golem nicht tritt
  */
 import type { Dir } from './types'
 
@@ -50,7 +51,7 @@ export type MissionDef = {
 /** Bildschirm, nach dem die Bloecke der Missionen bemessen sind (wie im Mehrspieler und im Tageslevel): 13 x 12 Felder je Block */
 export const MISSION_BILD = { w: 12, h: 23 }
 export const MISSION_BLOCK = { w: 13, h: 12 }
-/** Boss-Arena: groesseres Bild (kleinere Felder), Bloecke 17 x 16, die Arena (17 x 32) passt ganz hinein */
+/** Boss-Arena: groesseres Bild (kleinere Felder), Bloecke 17 x 16, ein Raum (17 x 32) passt ganz hinein */
 export const BOSS_BILD = { w: 16, h: 30 }
 
 /**
@@ -598,15 +599,80 @@ const WIESE_9 = [
 ] as const
 
 /**
- * Mission 10 (Boss): die Arena des Steingolems. Sie passt ganz ins Bild (eigene Bildgroesse BOSS_BILD).
- * O = Mitte des Bannkreises, 1 bis 6 = Sockel (je eine Kristallfarbe), B = Golem, S = Schlange
+ * Mission 10 (Boss): drei Raeume uebereinander, jeder passt ganz ins Bild (eigene Bildgroesse BOSS_BILD, je Raum 17 x 32).
+ * Unten Raum 1 (3 Sockel), in der Mitte Raum 2 (4 Sockel, vier Saeulen), oben Raum 3 (6 Sockel, Kammern und Gassen).
+ * O = Mitte des Bannkreises, 1 bis 6 = Sockel (Kristallfarbe), B = Golem, T = Steintor zum naechsten Raum,
+ * k = fester Platz fuer Kristalle (Raum 3), x = Durchgang, durch den der Golem nicht passt (zu den Kammern), S = Schlange
  */
 const WIESE_BOSS = [
   '#################',
   '####.........####',
   '###...........###',
+  '##..k.......k..##',
+  '##.............##',
+  '##.............##',
+  '######xxxxx######',
+  '#...............#',
+  '#...............#',
+  '#.......1.......#',
+  '#....#.....#....#',
+  '#....#.....#....#',
+  '#..6.#.....#.2..#',
+  '#....#..B..#....#',
+  '#...............#',
+  '#...............#',
+  '#.k.....O.....k.#',
+  '#...............#',
+  '#...............#',
+  '#....#.....#....#',
+  '#..5.#.....#.3..#',
+  '#....#.....#....#',
+  '#....#.....#....#',
+  '#.......4.......#',
+  '#...............#',
+  '#...............#',
+  '######xxxxx######',
+  '##.............##',
+  '##..k.......k..##',
+  '###...........###',
+  '####.........####',
+  '#######TTT#######',
+  '#######TTT#######',
+  '####.........####',
+  '###...........###',
   '##.............##',
   '#...............#',
+  '#...............#',
+  '#...##..B..##...#',
+  '#...##.....##...#',
+  '#...............#',
+  '#.......1.......#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#..4....O....2..#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#.......3.......#',
+  '#...............#',
+  '#...##.....##...#',
+  '#...##.....##...#',
+  '#...............#',
+  '##.............##',
+  '###...........###',
+  '####.........####',
+  '#######TTT#######',
+  '#######TTT#######',
+  '####.........####',
+  '###...........###',
+  '##.............##',
   '#.......B.......#',
   '#...............#',
   '#...............#',
@@ -614,7 +680,6 @@ const WIESE_BOSS = [
   '#...............#',
   '#...............#',
   '#...............#',
-  '#..6.........2..#',
   '#...............#',
   '#...............#',
   '#...............#',
@@ -622,15 +687,17 @@ const WIESE_BOSS = [
   '#...............#',
   '#...............#',
   '#...............#',
-  '#..5.........3..#',
+  '#...............#',
+  '#..3.........2..#',
   '#...............#',
   '#...............#',
   '#...............#',
-  '#.......4.......#',
   '#...............#',
   '#...............#',
   '#...............#',
-  '##......S......##',
+  '#...............#',
+  '#.......S.......#',
+  '##.............##',
   '###...........###',
   '####.........####',
   '#################',

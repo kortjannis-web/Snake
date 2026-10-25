@@ -463,7 +463,7 @@ export class Renderer {
       if (!this.reduce) this.shake = { until: g.time + 140, amp: cell * 0.07 }
     } else if (e.type === 'golem' && !this.reduce) {
       // Steingolem: die Arena bebt bei jedem schweren Schlag
-      const beben: Partial<Record<typeof e.was, [number, number]>> = { erwachen: [1400, 0.06], schlag: [420, 0.28], landung: [520, 0.36], aufprall: [480, 0.32], stein: [220, 0.1], kegel: [200, 0.08], treffer: [380, 0.22], zorn: [1100, 0.12], tot: [1600, 0.2], ansturm: [300, 0.06] }
+      const beben: Partial<Record<typeof e.was, [number, number]>> = { erwachen: [1400, 0.06], schlag: [420, 0.28], landung: [520, 0.36], aufprall: [480, 0.32], stein: [220, 0.1], torAuf: [700, 0.08], torZu: [300, 0.08], treffer: [380, 0.22], zorn: [1100, 0.12], tot: [1600, 0.2], ansturm: [300, 0.06] }
       const b = beben[e.was]
       if (b) this.shake = { until: g.time + b[0], amp: cell * b[1] }
       if (e.was === 'treffer')
@@ -1763,6 +1763,19 @@ export class Renderer {
     let ty = (kopf.y + 0.5) * cell
     const lief = g.time !== this.camZeit
     this.camZeit = g.time
+    // Boss: die Kamera zeigt immer den ganzen Raum, in dem der Kopf ist, und gleitet durch das Tor in den naechsten
+    if (g instanceof BossGame) {
+      const z = g.kameraZiel(kopf)
+      this.frameOk = false
+      this.sichtGlatt = { x: [0, 0], y: [0, 0] }
+      if (!this.camInit || this.reduce) {
+        this.cam = { x: z.x * cell, y: z.y * cell }
+        this.camZiel = { ...this.cam }
+        this.camV = { x: 0, y: 0 }
+        this.camInit = true
+      } else this.feder(z.x * cell, z.y * cell, BEREICH, dt)
+      return this.cam
+    }
     if (this.standbild(g)) {
       this.cam = { x: (g.w / 2) * cell, y: (g.h / 2) * cell }
       this.camZiel = { ...this.cam }

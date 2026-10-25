@@ -36,6 +36,7 @@ export const CAUSE: Record<Cause, string> = {
   zwerg: 'Den Grubenzwerg umgerannt',
   golem: 'Gegen den Steingolem gelaufen',
   steingolem: 'Vom Steingolem zerschmettert',
+  steintor: 'Gegen das Steintor gefahren',
   lorenlager: 'Gegen eine abgestellte Lore gefahren',
   irrlicht: 'Den Irrlicht-Apfel erwischt',
   einhorn: 'Mit dem Einhorn zusammengestoßen',

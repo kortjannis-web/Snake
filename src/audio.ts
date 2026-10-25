@@ -257,9 +257,15 @@ class Audio {
         this.noise(0.6, 'lowpass', was === 'landung' ? 520 : 420, 0.5, { to: 90 })
         this.noise(0.12, 'bandpass', 1400, 0.18, { q: 0.8 })
         break
-      case 'kegel':
-        this.noise(0.22, 'bandpass', 700, 0.28, { to: 2400, q: 0.9, attack: 0.03 })
-        this.tone(120, 0.2, 'sine', 0.28, { to: 60, delay: 0.12 })
+      case 'torAuf':
+      case 'torZu':
+        // Schweres Steintor schleift ueber Stein
+        this.noise(was === 'torAuf' ? 0.9 : 0.45, 'lowpass', 260, 0.35, { to: 700, attack: 0.08 })
+        this.tone(58, was === 'torAuf' ? 0.8 : 0.4, 'sawtooth', 0.12, { to: 46, filter: 300 })
+        if (was === 'torZu') this.tone(80, 0.3, 'sine', 0.35, { to: 40, delay: 0.35 })
+        break
+      case 'wechsel':
+        this.tone(82, 0.9, 'sawtooth', 0.14, { to: 120, vib: 6, filter: 600, attack: 0.1 })
         break
       case 'ansturm':
         for (let i = 0; i < 5; i++) this.tone(64, 0.14, 'sine', 0.3, { to: 40, delay: i * 0.12 })

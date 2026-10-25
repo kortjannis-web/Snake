@@ -1,16 +1,17 @@
 /**
- * Boss der Wiese (Mission 10): der Steingolem in seiner Arena. Statt Aepfeln gibt es Kristalle:
- * - Kristalle (drei auf einmal, sind sie aufgehoben, kommen die naechsten) einsammeln und zum Sockel der gleichen Farbe bringen (sechs Sockel rund um den Bannkreis)
- * - leuchten alle sechs, wird der Bannkreis in der Mitte aktiv: tritt der Golem hinein, ist er gebannt (er wird blaeulich,
- *   die Risse leuchten) und verwundbar. Dann fuehrt die Schlange durch ihn hindurch: ein Treffer
- * - nach jedem Treffer erlischen die Sockel, der Golem tobt und wird schneller (drei Phasen). Drei Treffer = besiegt
+ * Boss der Wiese (Mission 10): der Steingolem in drei Raeumen. Statt Aepfeln gibt es Kristalle:
+ * - Raum 1 hat 3 Sockel, Raum 2 hat 4, Raum 3 hat 6 (dort liegen die Kristalle in Kammern und Gassen, man muss sie holen).
+ *   Kristalle (bis zu drei auf einmal) einsammeln und zum Sockel der gleichen Farbe bringen
+ * - leuchten alle Sockel des Raums, wird sein Bannkreis aktiv: tritt der Golem hinein, ist er gebannt (er wird blaeulich,
+ *   Lichtketten halten ihn) und verwundbar. Dann faehrt die Schlange durch ihn hindurch: der eine Treffer dieses Raums
+ * - danach springt der Golem in den naechsten Raum, das Steintor geht auf; ist die Schlange durch, schliesst es sich hinter
+ *   ihr, der Golem bruellt und der Kampf geht weiter, schneller und boeser. Drei Treffer = besiegt
  * Der Golem stapft immer auf die Schlange zu und greift an, jede Attacke wird rot angekuendigt:
  * - Stampfen: Kreis um ihn herum
- * - Prankenhieb: dreimal hintereinander ein Kegel dorthin, wo die Schlange gerade ist
  * - Ansturm: ein langer Streifen bis zur Wand, er rennt hindurch, prallt auf und Felsbrocken fallen
  * - Sprung: er springt hoch, ein roter Kreis folgt der Schlange, bleibt stehen, dann landet er dort
  * Die Schlange hat drei Herzen: ein Treffer kostet eins (danach kurz geschuetzt), jeder Treffer am Golem gibt eins zurueck.
- * Es zaehlen Kopf und Hals (der Schwanz darf noch in der roten Flaeche haengen). Berge sind wie immer toedlich.
+ * Es zaehlen Kopf und Hals (der Schwanz darf noch in der roten Flaeche haengen). Berge und Tore sind wie immer toedlich.
  */
 import { key } from './game'
 import { MissionGame } from './mission'
@@ -18,8 +19,9 @@ import type { MissionDef } from './missionen'
 import { DIRS, STEP } from './rules'
 import type { GolemEreignis, P } from './types'
 
-export type GolemZustand = 'schlaf' | 'erwachen' | 'laufen' | 'stampfen' | 'kegel' | 'ansturm' | 'benommen' | 'sprung' | 'gebannt' | 'getroffen' | 'zorn' | 'tot'
-export type GolemAngriffArt = 'stampfen' | 'kegel' | 'ansturm' | 'sprung'
+/** wechsel = springt in den naechsten Raum, wartet = steht dort, bis die Schlange hereinkommt */
+export type GolemZustand = 'schlaf' | 'erwachen' | 'laufen' | 'stampfen' | 'ansturm' | 'benommen' | 'sprung' | 'gebannt' | 'getroffen' | 'wechsel' | 'wartet' | 'zorn' | 'tot'
+export type GolemAngriffArt = 'stampfen' | 'ansturm' | 'sprung'
 
 /** Punkt in Feldern (Mitte eines Feldes = ganze Zahl), auch zwischen den Feldern */
 export type Pf = { x: number; y: number }
@@ -27,12 +29,11 @@ export type Pf = { x: number; y: number }
 export type GolemAngriff =
   /** Stampfen: Kreis mit Radius r um ihn, Einschlag bei `schlag` */
   | { art: 'stampfen'; r: number; ab: number; schlag: number; fertig: boolean }
-  /** Prankenhieb nr (0 bis 2): Kegel in Richtung `winkel`, angekuendigt ab `ab`, Hieb bei `schlag` */
-  | { art: 'kegel'; nr: number; winkel: number; ab: number; schlag: number; fertig: boolean }
   /** Ansturm von `von` bis `nach` (Wand), losrennen bei `los` */
   | { art: 'ansturm'; von: Pf; nach: Pf; dir: Pf; ab: number; los: number }
-  /** Sprung: abheben bei `ab`, Kreis folgt der Schlange bis `halt`, faellt ab `fall`, landet bei `landung` */
-  | { art: 'sprung'; ziel: Pf; r: number; von: Pf; duck: number; ab: number; halt: number; fall: number; landung: number; fertig: boolean; combo: boolean }
+  /** Sprung: abheben bei `ab`, Kreis folgt der Schlange bis `halt`, faellt ab `fall`, landet bei `landung`.
+   *  wechsel = Sprung in den naechsten Raum (ohne Zielkreis, tut niemandem weh) */
+  | { art: 'sprung'; ziel: Pf; r: number; von: Pf; duck: number; ab: number; halt: number; fall: number; landung: number; fertig: boolean; combo: boolean; wechsel: boolean }
 
 export type Golem = {
   x: number
@@ -60,7 +61,14 @@ export type Sockel = { p: P; farbe: number; an: boolean; t: number }
 /** Fallender Felsbrocken nach dem Aufprall des Ansturms (Schatten bis `bis`, dann Einschlag) */
 export type Brocken = { p: P; t: number; bis: number; fertig: boolean }
 /** Sichtbare Druckwelle (nur Darstellung) */
-export type Welle = { x: number; y: number; t: number; r: number; art: 'stampfen' | 'landung' | 'aufprall' | 'kegel' | 'treffer' | 'zorn' }
+export type Welle = { x: number; y: number; t: number; r: number; art: 'stampfen' | 'landung' | 'aufprall' | 'treffer' | 'zorn' }
+/** Steintor zwischen zwei Raeumen: zu (toedlich), geht nach dem Treffer auf und hinter der Schlange wieder zu */
+export type Tor = { cells: P[]; offen: boolean; t: number }
+/** Ein Raum der Arena: Zeilen y0 bis y1, Bannkreis, Sockel, Start des Golems, feste Kristallplaetze, Tor nach oben */
+export type Raum = { nr: number; y0: number; y1: number; kreis: { p: P; r: number }; sockel: Sockel[]; golem: P; plaetze: P[]; tor: Tor | null }
+
+/** So hoch ist ein Raum (zwei Bloecke der Boss-Bildgroesse) */
+export const RAUM_H = 32
 
 /** Kristallfarben (Index = Sockel 1 bis 6) */
 export const KRISTALL_FARBEN = ['#FF4D5E', '#FFA032', '#FFE14A', '#5BE37A', '#4FB6FF', '#B57BFF'] as const
@@ -82,12 +90,6 @@ export const GOLEM = {
   stampfenWarn: 1300,
   stampfenR: [3.6, 3.8, 4.2],
   stampfenNach: 700,
-  kegelWarn: 900,
-  kegelFolge: 0.85,
-  kegelPause: 260,
-  kegelLaenge: 6.5,
-  kegelHalb: 0.52,
-  kegelNach: 550,
   ansturmWarn: 1250,
   ansturmTempo: 14,
   benommen: 1200,
@@ -106,6 +108,11 @@ export const GOLEM = {
   kreisPause: 4000,
   getroffen: 1100,
   zorn: 1600,
+  /** Sprung in den naechsten Raum: hoch, Flug, Landung */
+  wechselAuf: 500,
+  wechselFlug: 900,
+  /** Tor sinkt in den Boden (und steigt wieder auf) */
+  tor: 700,
   tot: 3400,
   kristallPause: 1600,
 } as const
@@ -125,8 +132,11 @@ export class BossGame extends MissionGame {
   kristalle: Kristall[] = []
   /** Getragene Kristalle (Farben) */
   traegt: number[] = []
-  sockel: Sockel[]
-  kreis: { p: P; r: number }
+  /** Die Raeume von unten (0, Start) nach oben; `raumNr` = in welchem der Golem gerade kaempft */
+  raeume: Raum[]
+  raumNr = 0
+  /** Felder, auf die der Golem nicht tritt */
+  protected sperre: Set<number>
   /** Herzen der Schlange */
   leben: number = GOLEM.herzen
   brocken: Brocken[] = []
@@ -137,11 +147,69 @@ export class BossGame extends MissionGame {
   constructor(m: MissionDef) {
     super(m)
     const k = this.karte
-    const g = k.golem ?? { x: Math.floor(k.w / 2), y: 4 }
+    // Raeume: je RAUM_H Zeilen, Raum 0 ganz unten
+    const n = Math.max(1, Math.round(k.h / RAUM_H))
+    const imBand = (p: P, y0: number) => p.y >= y0 && p.y < y0 + RAUM_H
+    this.raeume = Array.from({ length: n }, (_, nr) => {
+      const y0 = k.h - RAUM_H * (nr + 1)
+      const kreis = k.kreise.find((p) => imBand(p, y0)) ?? { x: Math.floor(k.w / 2), y: y0 + RAUM_H / 2 }
+      const golem = k.golems.find((p) => imBand(p, y0)) ?? { x: Math.floor(k.w / 2), y: y0 + 5 }
+      // Tor nach oben: liegt auf den beiden Randzeilen zwischen diesem und dem naechsten Raum
+      const tor = k.tore.filter((p) => p.y === y0 || p.y === y0 - 1)
+      return {
+        nr,
+        y0,
+        y1: y0 + RAUM_H - 1,
+        kreis: { p: { ...kreis }, r: GOLEM.bannR },
+        sockel: k.sockel.filter((s) => imBand(s.p, y0)).sort((a, b) => a.i - b.i).map((s) => ({ p: { ...s.p }, farbe: s.i, an: false, t: -1e9 })),
+        golem: { ...golem },
+        plaetze: k.plaetze.filter((p) => imBand(p, y0)).map((p) => ({ ...p })),
+        tor: tor.length ? { cells: tor.map((p) => ({ ...p })), offen: false, t: -1e9 } : null,
+      }
+    })
+    this.sperre = new Set(k.sperre.map((p) => key(p.x, p.y)))
+    const g = this.raeume[0].golem
     this.golem = { x: g.x, y: g.y, winkel: Math.PI / 2, zustand: 'schlaf', seit: 0, bis: 0, phase: 0, hp: GOLEM.leben, angriff: null, letzter: null, weg: 0, trefferT: -1e9, kreisPause: 0 }
-    this.sockel = k.sockel.map((p, i) => ({ p: { ...p }, farbe: i, an: false, t: -1e9 }))
-    this.kreis = { p: { ...(k.kreis ?? { x: Math.floor(k.w / 2), y: Math.floor(k.h / 2) }) }, r: GOLEM.bannR }
     this.kristallAb = 700
+  }
+
+  /** Der Raum, in dem gekaempft wird */
+  get aktuell(): Raum {
+    return this.raeume[this.raumNr]
+  }
+  /** Sockel und Bannkreis des aktuellen Raums */
+  get sockel(): Sockel[] {
+    return this.aktuell.sockel
+  }
+  get kreis() {
+    return this.aktuell.kreis
+  }
+  /** In welchem Raum liegt diese Zeile? (-1 = auf einem Tor zwischen zwei Raeumen) */
+  raumBei(y: number) {
+    return this.raeume.findIndex((r) => y > r.y0 && y < r.y1)
+  }
+  /** Liegt das Feld im aktuellen Raum (nicht auf den Randzeilen, nicht im Tor)? */
+  imRaum(c: P, r = this.raumNr) {
+    const ra = this.raeume[r]
+    return !!ra && c.y > ra.y0 && c.y < ra.y1 && this.inside(c)
+  }
+  /** Ist hier ein geschlossenes Tor? */
+  torZu(c: P) {
+    return this.raeume.some((r) => r.tor && !r.tor.offen && r.tor.cells.some((t) => t.x === c.x && t.y === c.y))
+  }
+
+  /** Geschlossene Tore sind wie Wand */
+  override gefahr(n: P, rest: P[] = this.body) {
+    if (this.torZu(n)) return 'steintor' as const
+    return super.gefahr(n, rest)
+  }
+
+  /** Mitte des Raums, den die Kamera zeigen soll (der, in dem der Kopf ist; auf dem Tor der, aus dem er kommt) */
+  kameraZiel(kopf: Pf): Pf {
+    let r = this.raumBei(Math.round(kopf.y))
+    if (r < 0) r = this.raeume.findIndex((ra) => kopf.y >= ra.y0 - 1 && kopf.y <= ra.y1 + 1)
+    const ra = this.raeume[Math.max(0, r)]
+    return { x: this.w / 2, y: (ra.y0 + ra.y1 + 1) / 2 }
   }
 
   /** Boss-Level: es gibt keine Aepfel, gezaehlt werden die Treffer am Golem */
@@ -150,7 +218,10 @@ export class BossGame extends MissionGame {
   }
 
   get kreisAktiv() {
-    return this.sockel.length > 0 && this.sockel.every((s) => s.an)
+    return this.raumAktiv(this.aktuell)
+  }
+  raumAktiv(r: Raum) {
+    return r.sockel.length > 0 && r.sockel.every((s) => s.an)
   }
   get verwundbar() {
     return this.golem.zustand === 'gebannt'
@@ -158,12 +229,12 @@ export class BossGame extends MissionGame {
   /** Hoch in der Luft (Sprung): trifft niemanden und wird nicht gebannt */
   get fliegt() {
     const a = this.golem.angriff
-    return this.golem.zustand === 'sprung' && a?.art === 'sprung' && this.time >= a.ab && this.time < a.landung
+    return (this.golem.zustand === 'sprung' || this.golem.zustand === 'wechsel') && a?.art === 'sprung' && this.time >= a.ab && this.time < a.landung
   }
   /** Wie hoch der Golem gerade springt (0 am Boden bis 1 ganz oben, fuer die Darstellung) */
   hoehe() {
     const a = this.golem.angriff
-    if (this.golem.zustand !== 'sprung' || a?.art !== 'sprung' || this.time < a.ab) return 0
+    if ((this.golem.zustand !== 'sprung' && this.golem.zustand !== 'wechsel') || a?.art !== 'sprung' || this.time < a.ab) return 0
     if (this.time < a.ab + GOLEM.sprungAuf) return (this.time - a.ab) / GOLEM.sprungAuf
     if (this.time < a.fall) return 1
     return Math.max(0, 1 - (this.time - a.fall) / Math.max(1, a.landung - a.fall))
@@ -177,9 +248,9 @@ export class BossGame extends MissionGame {
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) out.push({ x: cx + dx, y: cy + dy })
     return out
   }
-  /** Passt der Golem hierhin (alle 9 Felder in der Arena)? */
+  /** Passt der Golem hierhin (alle 9 Felder in seinem Raum, keins in einem Durchgang zu den Kammern)? */
   protected golemPasst(x: number, y: number) {
-    return this.golemFelder(x, y).every((c) => this.inside(c))
+    return this.golemFelder(x, y).every((c) => this.imRaum(c) && !this.sperre.has(key(c.x, c.y)))
   }
   protected aufGolem(c: P) {
     const g = this.golem
@@ -237,9 +308,6 @@ export class BossGame extends MissionGame {
       case 'stampfen':
         this.stampfenTakt()
         break
-      case 'kegel':
-        this.kegelTakt(dt)
-        break
       case 'ansturm':
         this.ansturmTakt(dt)
         break
@@ -259,15 +327,24 @@ export class BossGame extends MissionGame {
         break
       case 'getroffen':
         if (t >= g.bis) {
-          if (g.hp <= 0) {
+          if (g.hp <= 0 || this.raumNr >= this.raeume.length - 1) {
             this.setze('tot', GOLEM.tot)
             this.ereignis('tot')
-          } else {
-            g.phase = Math.min(2, GOLEM.leben - g.hp)
-            this.setze('zorn', GOLEM.zorn)
-            this.ereignis('zorn')
-            this.wellen.push({ x: g.x, y: g.y, t, r: 5, art: 'zorn' })
-          }
+          } else this.wechseln()
+        }
+        break
+      case 'wechsel':
+        this.sprungTakt(dt)
+        break
+      case 'wartet':
+        // Erst wenn die Schlange im Raum ist, geht es weiter: Gebruell, dann Kampf
+        this.drehen(winkelVon(g, this.kopf), dt, 1.5)
+        if (this.imRaum(this.body[0])) {
+          g.phase = Math.min(2, this.raumNr)
+          this.setze('zorn', GOLEM.zorn)
+          this.ereignis('zorn')
+          this.wellen.push({ x: g.x, y: g.y, t, r: 5, art: 'zorn' })
+          this.kristallAb = t + GOLEM.zorn + GOLEM.kristallPause * 0.5
         }
         break
       case 'zorn':
@@ -278,9 +355,43 @@ export class BossGame extends MissionGame {
         return
     }
     this.brockenTakt()
+    this.toreTakt()
     this.bannen()
     this.beruehrt()
     this.kristalleTakt()
+  }
+
+  /** Nach dem Treffer: das Tor nach oben geht auf, der Golem springt in den naechsten Raum */
+  protected wechseln() {
+    const g = this.golem
+    const t = this.time
+    const tor = this.aktuell.tor
+    if (tor) {
+      tor.offen = true
+      tor.t = t
+      this.ereignis('torAuf', tor.cells[1] ?? tor.cells[0])
+    }
+    this.raumNr++
+    const ziel = this.aktuell.golem
+    const ab = t + GOLEM.sprungDuck
+    const fall = ab + GOLEM.wechselAuf + GOLEM.wechselFlug
+    g.angriff = { art: 'sprung', ziel: { ...ziel }, r: GOLEM.sprungR, von: { x: g.x, y: g.y }, duck: t, ab, halt: ab, fall, landung: fall + GOLEM.sprungFall, fertig: false, combo: false, wechsel: true }
+    this.setze('wechsel', 1e9)
+    this.ereignis('wechsel')
+    // Bis die Schlange im neuen Raum ist, gibt es keine Kristalle
+    this.kristallAb = Infinity
+  }
+
+  /** Offene Tore hinter der Schlange gehen wieder zu, sobald sie ganz im neuen Raum ist */
+  protected toreTakt() {
+    for (const r of this.raeume) {
+      const tor = r.tor
+      if (!tor?.offen || r.nr >= this.raumNr) continue
+      if (!this.body.every((b) => this.imRaum(b, this.raumNr))) continue
+      tor.offen = false
+      tor.t = this.time
+      this.ereignis('torZu', tor.cells[1] ?? tor.cells[0])
+    }
   }
 
   protected laufenLos() {
@@ -321,12 +432,12 @@ export class BossGame extends MissionGame {
     return true
   }
 
-  /** Naechste Attacke: nah eher Stampfen und Hiebe, weit eher Ansturm und Sprung, nie zweimal dieselbe */
+  /** Naechste Attacke: nah eher Stampfen, weit eher Ansturm und Sprung, nie zweimal dieselbe */
   protected angreifen() {
     const g = this.golem
     const d = dist(g, this.kopf)
     const gewicht: Record<GolemAngriffArt, number> =
-      d < 4.5 ? { stampfen: 5, kegel: 3, ansturm: 0.5, sprung: 1 } : d < 9 ? { stampfen: 1, kegel: 4, ansturm: 3, sprung: 3 } : { stampfen: 0, kegel: 1, ansturm: 4, sprung: 4 }
+      d < 4.5 ? { stampfen: 5, ansturm: 1, sprung: 2 } : d < 9 ? { stampfen: 1, ansturm: 3, sprung: 3 } : { stampfen: 0, ansturm: 4, sprung: 4 }
     if (g.letzter) gewicht[g.letzter] = 0
     const arten = (Object.keys(gewicht) as GolemAngriffArt[]).filter((a) => gewicht[a] > 0)
     let z = this.r.next() * arten.reduce((s, a) => s + gewicht[a], 0)
@@ -350,10 +461,6 @@ export class BossGame extends MissionGame {
       const dauer = GOLEM.stampfenWarn * f
       g.angriff = { art, r: GOLEM.stampfenR[g.phase], ab: t, schlag: t + dauer, fertig: false }
       this.setze('stampfen', dauer + GOLEM.stampfenNach)
-    } else if (art === 'kegel') {
-      const dauer = GOLEM.kegelWarn * f
-      g.angriff = { art, nr: 0, winkel: winkelVon(g, this.kopf), ab: t, schlag: t + dauer, fertig: false }
-      this.setze('kegel', 1e9)
     } else if (art === 'ansturm') {
       const dir0 = winkelVon(g, this.kopf)
       const dir = { x: Math.cos(dir0), y: Math.sin(dir0) }
@@ -372,7 +479,7 @@ export class BossGame extends MissionGame {
       const ab = t + duck
       const halt = ab + GOLEM.sprungAuf + GOLEM.sprungZielen * this.f
       const fall = halt + GOLEM.sprungHalt * this.f
-      g.angriff = { art, ziel: { ...this.kopf }, r: GOLEM.sprungR, von: { x: g.x, y: g.y }, duck: t, ab, halt, fall, landung: fall + GOLEM.sprungFall, fertig: false, combo: g.phase >= 2 }
+      g.angriff = { art, ziel: { ...this.kopf }, r: GOLEM.sprungR, von: { x: g.x, y: g.y }, duck: t, ab, halt, fall, landung: fall + GOLEM.sprungFall, fertig: false, combo: g.phase >= 2, wechsel: false }
       this.setze('sprung', 1e9)
     }
     this.ereignis('warnung')
@@ -384,19 +491,7 @@ export class BossGame extends MissionGame {
   kreisFelder(m: Pf, r: number): P[] {
     const out: P[] = []
     for (let y = Math.floor(m.y - r); y <= Math.ceil(m.y + r); y++)
-      for (let x = Math.floor(m.x - r); x <= Math.ceil(m.x + r); x++) if (Math.hypot(x - m.x, y - m.y) <= r && this.inside({ x, y })) out.push({ x, y })
-    return out
-  }
-  /** Felder im Kegel ab m in Richtung w */
-  kegelFelder(m: Pf, w: number): P[] {
-    const out: P[] = []
-    const L = GOLEM.kegelLaenge
-    for (let y = Math.floor(m.y - L); y <= Math.ceil(m.y + L); y++)
-      for (let x = Math.floor(m.x - L); x <= Math.ceil(m.x + L); x++) {
-        const d = Math.hypot(x - m.x, y - m.y)
-        if (d < 1 || d > L || !this.inside({ x, y })) continue
-        if (Math.abs(winkelDiff(w, Math.atan2(y - m.y, x - m.x))) <= GOLEM.kegelHalb) out.push({ x, y })
-      }
+      for (let x = Math.floor(m.x - r); x <= Math.ceil(m.x + r); x++) if (Math.hypot(x - m.x, y - m.y) <= r && this.imRaum({ x, y })) out.push({ x, y })
     return out
   }
   /** Streifen des Ansturms: 3 Felder breit von a nach b */
@@ -407,7 +502,7 @@ export class BossGame extends MissionGame {
     const l2 = Math.max(1e-6, lx * lx + ly * ly)
     for (let y = Math.floor(Math.min(a.y, b.y) - 2); y <= Math.ceil(Math.max(a.y, b.y) + 2); y++)
       for (let x = Math.floor(Math.min(a.x, b.x) - 2); x <= Math.ceil(Math.max(a.x, b.x) + 2); x++) {
-        if (!this.inside({ x, y })) continue
+        if (!this.imRaum({ x, y })) continue
         const u = Math.max(0, Math.min(1, ((x - a.x) * lx + (y - a.y) * ly) / l2))
         if (Math.hypot(x - (a.x + lx * u), y - (a.y + ly * u)) <= 1.5) out.push({ x, y })
       }
@@ -441,29 +536,6 @@ export class BossGame extends MissionGame {
       this.trifft(this.kreisFelder(g, a.r), g)
     }
     if (this.time >= g.bis) this.laufenLos()
-  }
-
-  protected kegelTakt(dt: number) {
-    const g = this.golem
-    const a = g.angriff
-    if (a?.art !== 'kegel') return this.laufenLos()
-    this.drehen(a.winkel, dt, 6)
-    if (!a.fertig && this.time >= a.schlag) {
-      a.fertig = true
-      this.ereignis('kegel')
-      this.wellen.push({ x: g.x, y: g.y, t: this.time, r: GOLEM.kegelLaenge, art: 'kegel' })
-      this.trifft(this.kegelFelder(g, a.winkel), g)
-    }
-    if (a.fertig && this.time >= a.schlag + GOLEM.kegelPause) {
-      if (a.nr >= 2) {
-        if (this.time >= a.schlag + GOLEM.kegelNach) this.laufenLos()
-        return
-      }
-      // Naechster Hieb: wieder dorthin, wo die Schlange jetzt ist
-      const t = this.time
-      g.angriff = { art: 'kegel', nr: a.nr + 1, winkel: winkelVon(g, this.kopf), ab: t, schlag: t + GOLEM.kegelWarn * GOLEM.kegelFolge * this.f, fertig: false }
-      this.ereignis('warnung')
-    }
   }
 
   protected ansturmTakt(dt: number) {
@@ -505,7 +577,7 @@ export class BossGame extends MissionGame {
       let p: P | null = null
       for (let v = 0; v < 20 && !p; v++) {
         const c = v === 0 ? { x: Math.round(vor.x), y: Math.round(vor.y) } : { x: h.x + this.r.int(-6, 6), y: h.y + this.r.int(-6, 6) }
-        if (this.inside(c) && !zu.has(key(c.x, c.y)) && !this.brocken.some((b) => Math.abs(b.p.x - c.x) + Math.abs(b.p.y - c.y) < 3)) p = c
+        if (this.imRaum(c) && !zu.has(key(c.x, c.y)) && !this.brocken.some((b) => Math.abs(b.p.x - c.x) + Math.abs(b.p.y - c.y) < 3)) p = c
       }
       if (p) this.brocken.push({ p, t: this.time, bis: this.time + GOLEM.brockenWarn + i * 180, fertig: false })
     }
@@ -515,7 +587,7 @@ export class BossGame extends MissionGame {
 
   /** Felder, die ein Brocken trifft (ein Plus) */
   brockenFelder(b: Brocken): P[] {
-    return [b.p, ...DIRS.map((d) => ({ x: b.p.x + STEP[d].x, y: b.p.y + STEP[d].y }))].filter((c) => this.inside(c))
+    return [b.p, ...DIRS.map((d) => ({ x: b.p.x + STEP[d].x, y: b.p.y + STEP[d].y }))].filter((c) => this.imRaum(c))
   }
 
   protected brockenTakt() {
@@ -533,13 +605,13 @@ export class BossGame extends MissionGame {
     const a = g.angriff
     if (a?.art !== 'sprung') return this.laufenLos()
     const t = this.time
-    if (t < a.ab) return this.drehen(winkelVon(g, this.kopf), dt, 2)
+    if (t < a.ab) return this.drehen(a.wechsel ? -Math.PI / 2 : winkelVon(g, this.kopf), dt, 2)
     if (g.seit < a.ab) {
       g.seit = a.ab
       this.ereignis('sprung')
     }
     // Hoch oben: der Kreis folgt der Schlange (etwas traege), dann bleibt er stehen
-    if (t < a.halt) {
+    if (t < a.halt && !a.wechsel) {
       const v = (GOLEM.sprungZielTempo[g.phase] * dt) / 1000
       const d = dist(a.ziel, this.kopf)
       if (d > 1e-3) {
@@ -554,9 +626,16 @@ export class BossGame extends MissionGame {
       const p = this.platzNahe(a.ziel)
       g.x = p.x
       g.y = p.y
-      g.winkel = winkelVon(g, this.kopf)
       this.ereignis('landung')
       this.wellen.push({ x: a.ziel.x, y: a.ziel.y, t, r: a.r, art: 'landung' })
+      if (a.wechsel) {
+        // Im neuen Raum angekommen: dort wartet er auf die Schlange
+        g.winkel = Math.PI / 2
+        g.angriff = null
+        this.setze('wartet', 1e9)
+        return
+      }
+      g.winkel = winkelVon(g, this.kopf)
       this.trifft(this.kreisFelder(a.ziel, a.r), a.ziel)
       if (this.bannen()) return
       g.bis = t + GOLEM.sprungNach
@@ -591,7 +670,7 @@ export class BossGame extends MissionGame {
   protected bannen() {
     const g = this.golem
     if (!this.kreisAktiv || this.time < g.kreisPause || this.fliegt) return false
-    if (g.zustand === 'gebannt' || g.zustand === 'getroffen' || g.zustand === 'zorn' || g.zustand === 'tot' || g.zustand === 'erwachen') return false
+    if (g.zustand === 'gebannt' || g.zustand === 'getroffen' || g.zustand === 'zorn' || g.zustand === 'tot' || g.zustand === 'erwachen' || g.zustand === 'wechsel' || g.zustand === 'wartet') return false
     if (dist(g, this.kreis.p) > this.kreis.r - 0.3) return false
     g.angriff = null
     g.x = g.x + (this.kreis.p.x - g.x) * 0.5
@@ -612,11 +691,11 @@ export class BossGame extends MissionGame {
       if (this.aufGolem(this.body[0])) this.golemTreffer()
       return
     }
-    if (g.zustand === 'getroffen' || g.zustand === 'tot' || g.zustand === 'schlaf' || this.fliegt) return
+    if (g.zustand === 'getroffen' || g.zustand === 'tot' || g.zustand === 'schlaf' || g.zustand === 'wechsel' || g.zustand === 'wartet' || this.fliegt) return
     if (this.body.slice(0, GOLEM.trifftGlieder).some((b) => this.aufGolem(b))) this.schaden(g)
   }
 
-  /** Durch den gebannten Golem gefahren: ein Treffer, die Sockel erloeschen */
+  /** Durch den gebannten Golem gefahren: der Treffer dieses Raums. Danach geht es in den naechsten */
   protected golemTreffer() {
     const g = this.golem
     g.hp--
@@ -628,11 +707,10 @@ export class BossGame extends MissionGame {
     this.wellen.push({ x: g.x, y: g.y, t: this.time, r: 3, art: 'treffer' })
     // Belohnung: ein Herz zurueck
     this.leben = Math.min(GOLEM.herzen, this.leben + 1)
-    for (const s of this.sockel) s.an = false
     this.kristalle = []
     this.traegt = []
     this.brocken = []
-    this.kristallAb = this.time + GOLEM.getroffen + GOLEM.zorn + GOLEM.kristallPause
+    this.kristallAb = Infinity
   }
 
   /* ---------------- Kristalle und Sockel ---------------- */
@@ -657,11 +735,12 @@ export class BossGame extends MissionGame {
     if (this.golem?.zustand === 'gebannt' && this.aufGolem(n)) this.golemTreffer()
   }
 
-  /** Liegt nichts mehr da: neue Kristalle (bis zu drei) fuer die dunklen Sockel, deren Kristall die Schlange noch nicht traegt */
+  /** Liegt nichts mehr da: neue Kristalle (bis zu drei) fuer die dunklen Sockel des Raums, deren Kristall die Schlange
+   *  noch nicht traegt. Hat der Raum feste Plaetze (Raum 3: in Kammern und Gassen), liegen sie dort, sonst irgendwo frei */
   protected kristalleTakt() {
     if (this.kristalle.length || this.time < this.kristallAb) return
     const z = this.golem.zustand
-    if (z === 'getroffen' || z === 'zorn' || z === 'tot') return
+    if (z === 'getroffen' || z === 'zorn' || z === 'tot' || z === 'wechsel' || z === 'wartet') return
     const dunkel = this.r.shuffle(this.sockel.filter((s) => !s.an && !this.traegt.includes(s.farbe)).map((s) => s.farbe))
     if (!dunkel.length) return
     const zu = new Set<number>()
@@ -669,17 +748,21 @@ export class BossGame extends MissionGame {
     for (const s of this.sockel) zu.add(key(s.p.x, s.p.y))
     for (const b of this.body) zu.add(key(b.x, b.y))
     const h = this.kopf
-    const cand: P[] = []
-    for (let y = 0; y < this.h; y++)
-      for (let x = 0; x < this.w; x++) {
-        const c = { x, y }
-        if (!this.inside(c) || zu.has(key(x, y))) continue
-        // Nicht direkt an der Wand, nicht im Bannkreis, nicht gleich vor dem Kopf
-        if (DIRS.some((d) => !this.inside({ x: x + STEP[d].x, y: y + STEP[d].y }))) continue
-        if (Math.hypot(x - this.kreis.p.x, y - this.kreis.p.y) <= this.kreis.r + 0.5) continue
-        if (Math.abs(x - h.x) + Math.abs(y - h.y) < 4) continue
-        cand.push(c)
-      }
+    const feste = this.aktuell.plaetze
+    const cand: P[] = feste.length
+      ? feste.filter((c) => !zu.has(key(c.x, c.y)))
+      : []
+    if (!feste.length)
+      for (let y = this.aktuell.y0 + 1; y < this.aktuell.y1; y++)
+        for (let x = 0; x < this.w; x++) {
+          const c = { x, y }
+          if (!this.imRaum(c) || zu.has(key(x, y))) continue
+          // Nicht direkt an der Wand, nicht im Bannkreis, nicht gleich vor dem Kopf
+          if (DIRS.some((d) => !this.imRaum({ x: x + STEP[d].x, y: y + STEP[d].y }))) continue
+          if (Math.hypot(x - this.kreis.p.x, y - this.kreis.p.y) <= this.kreis.r + 0.5) continue
+          if (Math.abs(x - h.x) + Math.abs(y - h.y) < 4) continue
+          cand.push(c)
+        }
     for (const farbe of dunkel.slice(0, 3)) {
       const frei = cand.filter((c) => this.kristalle.every((k) => Math.abs(k.p.x - c.x) + Math.abs(k.p.y - c.y) >= 5))
       if (!frei.length) break

@@ -1350,8 +1350,9 @@ function handle(e: GameEvent) {
     case 'golem':
       audio.golem(e.was)
       if (e.was === 'schlag' || e.was === 'landung' || e.was === 'aufprall' || e.was === 'treffer' || e.was === 'tot') haptic.heavy()
-      else if (e.was === 'kegel' || e.was === 'stein' || e.was === 'zorn') haptic.medium()
+      else if (e.was === 'stein' || e.was === 'zorn' || e.was === 'torAuf') haptic.medium()
       if (e.was === 'bann') toast('gebiet', 'Gebannt!', 'Jetzt durch den Golem hindurchfahren.')
+      if (e.was === 'torAuf' && game instanceof BossGame) toast('gebiet', `Raum ${game.raumNr + 1} von ${game.raeume.length}`, `Das Tor ist offen: dem Golem nach. Hier brauchst du ${game.sockel.length} Kristalle.`)
       break
     case 'kristall':
       audio.kristall(e.was, e.farbe)
@@ -2697,7 +2698,7 @@ function missionStarten(m: MissionDef) {
     closeAllPages()
     newGame(false, false, 'normal', m)
     if (m.art === 'boss')
-      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Bring die Kristalle zum Sockel ihrer Farbe. Leuchten alle sechs, bannt der Kreis in der Mitte den Golem: dann fahr durch ihn hindurch. Drei Treffer, du hast drei Herzen.')
+      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Räume. Bring die Kristalle zum Sockel ihrer Farbe, leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Je Raum ein Treffer, du hast drei Herzen.')
     else toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. ${m.hinweis ?? 'Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.'}`)
   })
 }
@@ -2979,7 +2980,7 @@ function frame(now: number) {
     }
     // Kampagne: geholte Aepfel oben rechts, der letzte liegende leuchtet
     if (game instanceof BossGame) {
-      const t = `${game.sockel.filter((s) => s.an).length} / 6`
+      const t = `${game.sockel.filter((s) => s.an).length} / ${game.sockel.length}`
       const zt = $('tages-ziel')
       if (zt.textContent !== t) zt.textContent = t
       renderer.sonderApfel = false

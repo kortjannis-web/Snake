@@ -1,13 +1,14 @@
 /**
- * Boss der Wiese: der Steingolem und seine Arena (Bannkreis, Sockel, Kristalle, rote Warnungen, Druckwellen, Anzeige).
+ * Boss der Wiese: der Steingolem und seine drei Raeume (Bannkreise, Sockel, Steintore, Kristalle, rote Warnungen,
+ * Druckwellen, Anzeige).
  *
  * Der Golem ist von oben gezeichnet wie alle Wesen, aber aus vielen Teilen: Beine, Rumpf aus Felsbrocken mit Moos,
  * Schultern, Arme mit Faeusten, Kopf mit Brauen und gluehenden Augen, ein Runenkern in der Brust. Jeder Zustand bewegt
- * die Teile anders (Schritte, Faeuste heben und niederschmettern, Prankenhieb im Bogen, geduckter Ansturm, Sprung mit
- * Schatten, gebannt in Lichtketten, getroffen mit Splittern, Gebruell, Zerfall zu Geroell). Mit jedem Treffer kommen
+ * die Teile anders (Schritte, Faeuste heben und niederschmettern, geduckter Ansturm, Sprung mit Schatten, Sprung in den
+ * naechsten Raum, gebannt in Lichtketten, getroffen mit Splittern, Gebruell, Zerfall zu Geroell). Mit jedem Treffer kommen
  * Risse dazu, beim letzten fehlt ein Stueck der Schulter.
  */
-import { GOLEM, KRISTALL_FARBEN, type BossGame, type Pf } from '../game/boss'
+import { GOLEM, KRISTALL_FARBEN, type BossGame, type Pf, type Raum } from '../game/boss'
 
 const TAU = Math.PI * 2
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
@@ -28,15 +29,97 @@ const px = (v: number, cell: number) => (v + 0.5) * cell
 
 /* ================= Boden der Arena ================= */
 
-/** Alte Steinplatten, Runen und der Bannkreis (unter allem anderen) */
+/** Boden aller Raeume (Platten, Bannkreise, Sockel), dazu die Steintore und die Kristalladern in Raum 3 */
 export function drawBossBoden(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
-  const k = g.kreis
+  for (const r of g.raeume) drawRaumBoden(ctx, g, r, cell, now, reduce)
+  for (const r of g.raeume) for (const p of r.plaetze) drawAder(ctx, px(p.x, cell), px(p.y, cell), cell, p.x * 7 + p.y)
+  for (const r of g.raeume) if (r.tor) drawTor(ctx, r.tor, cell, now, reduce)
+}
+
+/** Kristallader am Boden: hier tauchen in Raum 3 die Kristalle auf */
+function drawAder(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, seed: number) {
+  ctx.save()
+  ctx.fillStyle = 'rgba(60, 54, 48, 0.28)'
+  ctx.beginPath()
+  ctx.ellipse(x, y + cell * 0.1, cell * 0.75, cell * 0.55, 0, 0, TAU)
+  ctx.fill()
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU + hash(seed)
+    const fx = x + Math.cos(a) * cell * 0.45
+    const fy = y + Math.sin(a) * cell * 0.32
+    ctx.fillStyle = `rgba(200, 220, 255, ${0.35 + 0.2 * hash(seed + i)})`
+    ctx.beginPath()
+    ctx.moveTo(fx, fy - cell * 0.16)
+    ctx.lineTo(fx + cell * 0.07, fy)
+    ctx.lineTo(fx, fy + cell * 0.05)
+    ctx.lineTo(fx - cell * 0.07, fy)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+/** Steintor: geschlossen eine Platte mit Runen (glimmt), beim Oeffnen sinkt sie in den Boden, beim Schliessen steigt sie auf */
+function drawTor(ctx: CanvasRenderingContext2D, tor: { cells: { x: number; y: number }[]; offen: boolean; t: number }, cell: number, now: number, reduce: boolean) {
+  const xs = tor.cells.map((c) => c.x)
+  const ys = tor.cells.map((c) => c.y)
+  const x0 = Math.min(...xs) * cell
+  const y0 = Math.min(...ys) * cell
+  const w = (Math.max(...xs) + 1) * cell - x0
+  const h = (Math.max(...ys) + 1) * cell - y0
+  const k = reduce ? 1 : clamp01((now - tor.t) / GOLEM.tor)
+  // Hoehe der Platte: 1 = ganz oben (zu), 0 = im Boden (offen)
+  const hoch = tor.offen ? 1 - easeOut(k) : easeOut(k)
+  ctx.save()
+  // Rille im Boden bleibt sichtbar
+  ctx.fillStyle = 'rgba(40, 34, 30, 0.35)'
+  ctx.fillRect(x0, y0 + h * 0.4, w, h * 0.2)
+  if (hoch > 0.02) {
+    const off = (1 - hoch) * h * 0.35
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * hoch})`
+    ctx.fillRect(x0 + cell * 0.15, y0 + cell * 0.25 + off, w, h - off)
+    const gr = ctx.createLinearGradient(x0, y0, x0, y0 + h)
+    gr.addColorStop(0, rgb(mix(STEIN_HELL, [0, 0, 0], 0.1 * (1 - hoch))))
+    gr.addColorStop(1, rgb(STEIN_DUNKEL))
+    ctx.globalAlpha = 0.35 + 0.65 * hoch
+    ctx.fillStyle = gr
+    ctx.fillRect(x0 - cell * 0.1, y0 + off, w + cell * 0.2, h - off)
+    ctx.strokeStyle = rgb(STEIN_DUNKEL)
+    ctx.lineWidth = Math.max(1, cell * 0.08)
+    ctx.strokeRect(x0 - cell * 0.1, y0 + off, w + cell * 0.2, h - off)
+    // Fugen und eine Rune in der Mitte, die gluehend pulsiert
+    ctx.beginPath()
+    ctx.moveTo(x0 + w / 3, y0 + off)
+    ctx.lineTo(x0 + w / 3, y0 + h)
+    ctx.moveTo(x0 + (2 * w) / 3, y0 + off)
+    ctx.lineTo(x0 + (2 * w) / 3, y0 + h)
+    ctx.stroke()
+    const puls = reduce ? 0.7 : 0.55 + 0.45 * Math.sin(now / 300)
+    ctx.strokeStyle = `rgba(255, 170, 70, ${0.55 * puls * hoch})`
+    ctx.lineWidth = Math.max(1.5, cell * 0.09)
+    const mx = x0 + w / 2
+    const my = y0 + off + (h - off) / 2
+    ctx.beginPath()
+    ctx.moveTo(mx, my - cell * 0.45)
+    ctx.lineTo(mx + cell * 0.32, my)
+    ctx.lineTo(mx, my + cell * 0.45)
+    ctx.lineTo(mx - cell * 0.32, my)
+    ctx.closePath()
+    ctx.stroke()
+  }
+  // Beim Oeffnen und Schliessen: Staub
+  if (!reduce && k < 1) staub(ctx, x0 + w / 2, y0 + h / 2, cell * (1 + k * 1.5), 0.35 * (1 - k))
+  ctx.restore()
+}
+
+/** Ein Raum: alte Steinplatten, Runen, Bannkreis, Sockel */
+function drawRaumBoden(ctx: CanvasRenderingContext2D, g: BossGame, raum: Raum, cell: number, now: number, reduce: boolean) {
+  const k = raum.kreis
   const cx = px(k.p.x, cell)
   const cy = px(k.p.y, cell)
   const r = k.r * cell
-  const an = g.sockel.filter((s) => s.an).length
-  const aktiv = g.kreisAktiv
-  const gebannt = g.golem.zustand === 'gebannt'
+  const an = raum.sockel.filter((s) => s.an).length
+  const aktiv = g.raumAktiv(raum)
+  const gebannt = g.golem.zustand === 'gebannt' && raum === g.aktuell
   const puls = reduce ? 0.6 : 0.5 + 0.5 * Math.sin(now / 260)
 
   // Gepflasterter Platz rund um den Kreis (Ring aus Platten)
@@ -59,7 +142,7 @@ export function drawBossBoden(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
   ctx.stroke()
 
   // Linien von den Sockeln zum Kreis: dunkle Rillen, bei leuchtenden Sockeln fliesst Licht darin
-  for (const s of g.sockel) {
+  for (const s of raum.sockel) {
     const sx = px(s.p.x, cell)
     const sy = px(s.p.y, cell)
     const a = Math.atan2(cy - sy, cx - sx)
@@ -114,7 +197,7 @@ export function drawBossBoden(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
   ctx.beginPath()
   ctx.arc(cx, cy, r - cell * 0.17, 0, TAU)
   ctx.stroke()
-  g.sockel.forEach((s, i) => {
+  raum.sockel.forEach((s, i) => {
     // Abschnitt zeigt in Richtung seines Sockels
     const a = Math.atan2(s.p.y - k.p.y, s.p.x - k.p.x)
     ctx.lineWidth = cell * 0.2
@@ -172,7 +255,7 @@ export function drawBossBoden(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
   ctx.restore()
 
   // Sockel: Steinsaeulen, der leere Platz zeigt die Farbe, eingesetzt leuchtet der Kristall
-  for (const s of g.sockel) drawSockel(ctx, px(s.p.x, cell), px(s.p.y, cell), cell, s.farbe, s.an, reduce ? 1e9 : now - s.t, now, g.traegt.includes(s.farbe) && !s.an)
+  for (const s of raum.sockel) drawSockel(ctx, px(s.p.x, cell), px(s.p.y, cell), cell, s.farbe, s.an, reduce ? 1e9 : now - s.t, now, g.traegt.includes(s.farbe) && !s.an)
 }
 
 /** Ein Sockel: achteckiger Stein mit Mulde; `wartet` = die Schlange traegt den passenden Kristall (Mulde blinkt) */
@@ -386,27 +469,6 @@ export function drawWarnungen(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
     ctx.beginPath()
     ctx.arc(gx, gy, r * k, 0, TAU)
     ctx.stroke()
-  } else if (a?.art === 'kegel' && !a.fertig) {
-    const k = clamp01((now - a.ab) / Math.max(1, a.schlag - a.ab))
-    const L = (GOLEM.kegelLaenge + 0.5) * cell
-    const h = GOLEM.kegelHalb
-    warnPfad(ctx, () => {
-      ctx.beginPath()
-      ctx.moveTo(gx + Math.cos(a.winkel) * cell * 0.6, gy + Math.sin(a.winkel) * cell * 0.6)
-      ctx.arc(gx, gy, L, a.winkel - h, a.winkel + h)
-      ctx.closePath()
-    }, k, now, cell, reduce)
-    ctx.strokeStyle = 'rgba(255, 200, 190, 0.7)'
-    ctx.lineWidth = Math.max(1.5, cell * 0.08)
-    ctx.beginPath()
-    ctx.arc(gx, gy, Math.max(cell, L * k), a.winkel - h, a.winkel + h)
-    ctx.stroke()
-    // Kleine Zahl: der wievielte Hieb
-    ctx.fillStyle = 'rgba(255, 235, 230, 0.9)'
-    ctx.font = `800 ${Math.round(cell * 0.7)}px "Libre Franklin", system-ui, sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(`${a.nr + 1}`, gx + Math.cos(a.winkel) * L * 0.6, gy + Math.sin(a.winkel) * L * 0.6)
   } else if (a?.art === 'ansturm' && now < a.los) {
     const k = clamp01((now - a.ab) / Math.max(1, a.los - a.ab))
     const ax = px(a.von.x, cell)
@@ -437,6 +499,15 @@ export function drawWarnungen(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
       ctx.lineTo(x, y)
       ctx.lineTo(x - a.dir.x * cell * 0.4 - nx * 0.35, y - a.dir.y * cell * 0.4 - ny * 0.35)
       ctx.stroke()
+    }
+  } else if (a?.art === 'sprung' && !a.fertig && now >= a.ab && a.wechsel) {
+    // Sprung in den naechsten Raum: nur sein Schatten, wo er landet
+    const k = now >= a.fall ? clamp01((now - a.fall) / Math.max(1, a.landung - a.fall)) : 0
+    if (k > 0) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${0.15 + 0.3 * k})`
+      ctx.beginPath()
+      ctx.ellipse(px(a.ziel.x, cell), px(a.ziel.y, cell), cell * (1.2 + 1.2 * k), cell * (1 + k), 0, 0, TAU)
+      ctx.fill()
     }
   } else if (a?.art === 'sprung' && !a.fertig && now >= a.ab) {
     const fest = now >= a.halt
@@ -523,22 +594,13 @@ function staub(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, a
   ctx.fill()
 }
 
-/** Druckwellen: Stampfen, Landung, Aufprall, Hieb, Treffer, Gebruell */
+/** Druckwellen: Stampfen, Landung, Aufprall, Treffer, Gebruell */
 export function drawWellen(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
   if (reduce) return
   for (const w of g.wellen) {
-    const t = clamp01((now - w.t) / (w.art === 'kegel' ? 350 : 700))
+    const t = clamp01((now - w.t) / 700)
     const x = px(w.x, cell)
     const y = px(w.y, cell)
-    if (w.art === 'kegel') {
-      const a = g.golem.winkel
-      ctx.strokeStyle = `rgba(255, 245, 230, ${0.7 * (1 - t)})`
-      ctx.lineWidth = cell * 0.35 * (1 - t)
-      ctx.beginPath()
-      ctx.arc(x, y, cell * (1.5 + t * (GOLEM.kegelLaenge - 1.5)), a - GOLEM.kegelHalb, a + GOLEM.kegelHalb)
-      ctx.stroke()
-      continue
-    }
     const r = (w.art === 'zorn' ? w.r * 1.2 : w.r + 0.5) * cell * (0.25 + 0.75 * easeOut(t))
     ctx.strokeStyle = w.art === 'treffer' ? `rgba(150, 230, 255, ${0.9 * (1 - t)})` : w.art === 'zorn' ? `rgba(255, 90, 60, ${0.5 * (1 - t)})` : `rgba(255, 240, 220, ${0.75 * (1 - t)})`
     ctx.lineWidth = cell * (w.art === 'zorn' ? 0.25 : 0.4) * (1 - t)
@@ -660,38 +722,6 @@ function haltung(g: BossGame, now: number, reduce: boolean): Haltung {
       }
       break
     }
-    case 'kegel': {
-      if (a?.art !== 'kegel') break
-      const rechts = a.nr % 2 === 0
-      const k = clamp01((now - a.ab) / Math.max(1, a.schlag - a.ab))
-      const seite = rechts ? 1 : -1
-      let f: Pf
-      let fs: number
-      if (!a.fertig) {
-        // Ausholen: Faust nach hinten aussen
-        const e = easeOut(k)
-        f = { x: lerp(1.1, Math.cos(2.3) * 1.7, e), y: seite * lerp(1.45, Math.sin(2.3) * 1.6, e) }
-        fs = 1 + 0.3 * e
-        h.dreh = -seite * 0.22 * e
-        h.augen = 1
-      } else {
-        // Hieb im Bogen quer nach vorn
-        // Hieb: die Faust fegt im Bogen von hinten aussen quer vor dem Kopf vorbei
-        const n = clamp01((now - a.schlag) / 180)
-        const phi = lerp(2.3, -0.35, easeOut(n))
-        f = { x: Math.cos(phi) * 1.7, y: seite * Math.sin(phi) * 1.6 }
-        fs = 1.15
-        h.dreh = seite * 0.18 * (1 - n)
-      }
-      if (rechts) {
-        h.fr = f
-        h.fsr = fs
-      } else {
-        h.fl = f
-        h.fsl = fs
-      }
-      break
-    }
     case 'ansturm': {
       if (a?.art !== 'ansturm') break
       if (now < a.los) {
@@ -722,6 +752,13 @@ function haltung(g: BossGame, now: number, reduce: boolean): Haltung {
       h.fsl = h.fsr = 0.9
       h.glut = 0.3
       break
+    case 'wartet':
+      // Steht im neuen Raum und wartet, die Glut ist schwach
+      h.glut = 0.35 + (reduce ? 0 : 0.15 * Math.sin(now / 400))
+      h.fl = { x: 0.9, y: -1.5 }
+      h.fr = { x: 0.9, y: 1.5 }
+      break
+    case 'wechsel':
     case 'sprung': {
       if (a?.art !== 'sprung') break
       if (now < a.ab) {
@@ -801,7 +838,7 @@ export function drawGolemBoss(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
   let gx = go.x
   let gy = go.y
   let hoch = 0
-  if (go.zustand === 'sprung' && a?.art === 'sprung' && now >= a.ab && !a.fertig) {
+  if ((go.zustand === 'sprung' || go.zustand === 'wechsel') && a?.art === 'sprung' && now >= a.ab && !a.fertig) {
     hoch = g.hoehe()
     if (now >= a.fall) {
       gx = a.ziel.x
@@ -1112,9 +1149,10 @@ export function drawBossHud(ctx: CanvasRenderingContext2D, g: BossGame, vw: numb
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = 'rgba(23, 21, 19, 0.75)'
-  ctx.fillText('STEINGOLEM', vw / 2 + 1, y0 + 11)
+  const name = g.raeume.length > 1 ? `STEINGOLEM · RAUM ${g.raumNr + 1}/${g.raeume.length}` : 'STEINGOLEM'
+  ctx.fillText(name, vw / 2 + 1, y0 + 11)
   ctx.fillStyle = go.zustand === 'gebannt' ? '#BDEBFF' : '#F5EFE6'
-  ctx.fillText('STEINGOLEM', vw / 2, y0 + 10)
+  ctx.fillText(name, vw / 2, y0 + 10)
   // Leiste
   const by = y0 + 16
   const bh = 10

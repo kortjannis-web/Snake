@@ -31,10 +31,15 @@ export type MissionKarte = {
   /** Koepfe der Gegner-Schlangen */
   gegner: P[]
   funde: { p: P; art: ErzArt }[]
-  /** Boss: Sockel 1 bis 6 (Index = Kristallfarbe), Mitte des Bannkreises, Start des Golems */
-  sockel: P[]
-  kreis: P | null
-  golem: P | null
+  /** Boss: Sockel 1 bis 6 (i = Kristallfarbe), Mitten der Bannkreise, Starts des Golems (je Raum einer),
+   *  Felder der Steintore zwischen den Raeumen, feste Plaetze fuer Kristalle */
+  sockel: { p: P; i: number }[]
+  kreise: P[]
+  golems: P[]
+  tore: P[]
+  plaetze: P[]
+  /** Wiese, auf die der Golem nicht tritt (Durchgaenge zu den Kammern) */
+  sperre: P[]
 }
 
 /** Zusammenhaengende Gruppen (4er-Nachbarschaft) */
@@ -77,13 +82,15 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
     gegner: [],
     funde: [],
     sockel: [],
-    kreis: null,
-    golem: null,
+    kreise: [],
+    golems: [],
+    tore: [],
+    plaetze: [],
+    sperre: [],
   }
   const mauer: P[] = []
   const teich: P[] = []
   const eis: P[] = []
-  const sockel: { p: P; i: number }[] = []
   const ERZ: Record<string, ErzArt> = { $: 'gold', '*': 'dia', '%': 'rubin' }
   zeilen.forEach((z, y) => {
     for (let x = 0; x < z.length; x++) {
@@ -122,20 +129,28 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
           k.funde.push({ p, art: ERZ[z[x]] })
           break
         case 'O':
-          k.kreis = p
+          k.kreise.push(p)
           break
         case 'B':
-          k.golem = p
+          k.golems.push(p)
+          break
+        case 'T':
+          k.tore.push(p)
+          break
+        case 'k':
+          k.plaetze.push(p)
+          break
+        case 'x':
+          k.sperre.push(p)
           break
         default:
-          if (z[x] >= '1' && z[x] <= '6') sockel.push({ p, i: Number(z[x]) - 1 })
+          if (z[x] >= '1' && z[x] <= '6') k.sockel.push({ p, i: Number(z[x]) - 1 })
       }
     }
   })
   k.mauern = gruppen(mauer)
   k.teiche = gruppen(teich)
   k.eis = gruppen(eis)
-  k.sockel = sockel.sort((a, b) => a.i - b.i).map((s) => s.p)
   return k
 }
 
