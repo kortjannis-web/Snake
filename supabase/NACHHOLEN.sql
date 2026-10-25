@@ -1,11 +1,12 @@
 -- ============================================================================================
--- NACHHOLEN: alle Datenbank-Aenderungen seit Version 1.27 in einem Stueck (Stand 1.39).
+-- NACHHOLEN: alle Datenbank-Aenderungen seit Version 1.27 in einem Stueck (Stand 1.42).
 -- Fuer alle, bei denen die Aenderungen nicht automatisch ankommen (GitHub-Secrets aus
 -- docs/ONLINE-EINRICHTEN.md, Schritt 8 fehlen). Einmal komplett im Supabase SQL Editor ausfuehren.
 -- Laesst sich gefahrlos wiederholen. Enthaelt:
 --   20261021000100_einladen_alle.sql, 20261022000000_sieg_drei_leben.sql, 20261024000000_konto_loeschen.sql
 --   (ersetzt 20261021000000_admin_loeschen.sql und 20261023000000_admin_loeschen_fix.sql)
 --   und 20261025000000_profil_reparatur.sql (Spieler zuverlaessig in der Hall of Snakes, Freundes-Code, Rekorde)
+--   und 20261026000000_hall_live.sql (Hall of Snakes live: neue Spieler, Skins und Namen sofort sichtbar)
 -- Anleitung fuers Handy: docs/SPIELER-LOESCHEN.md
 -- ============================================================================================
 
@@ -141,5 +142,45 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.konto_status() from public;
 grant execute on function public.konto_status() to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ---------------- 20261026000000_hall_live.sql ----------------
+-- Hall of Snakes live: Neuer Spieler, neuer Skin, neuer Name, Silber oder geloeschter Spieler erscheinen sofort bei allen.
+-- Das Profil selbst bleibt aus Realtime heraus (private Spalte code). Stattdessen zaehlt die kleine Tabelle hall_signal
+-- bei jeder solchen Aenderung hoch, und nur diese Zahl geht live raus. Neue Rekorde kommen wie bisher ueber score.
+-- Laesst sich wiederholt ausfuehren.
+
+create table if not exists public.hall_signal (
+  id smallint primary key default 1 check (id = 1),
+  stand bigint not null default 0,
+  at timestamptz not null default now()
+);
+insert into public.hall_signal (id) values (1) on conflict (id) do nothing;
+alter table public.hall_signal enable row level security;
+drop policy if exists hall_signal_lesen on public.hall_signal;
+create policy hall_signal_lesen on public.hall_signal for select using (true);
+revoke all on public.hall_signal from anon, authenticated;
+grant select on public.hall_signal to anon, authenticated;
+
+create or replace function public.hall_signal_geben() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' and new.name is not distinct from old.name and new.skin is not distinct from old.skin
+     and new.silber is not distinct from old.silber then
+    return null;
+  end if;
+  update public.hall_signal set stand = stand + 1, at = now() where id = 1;
+  return null;
+end $$;
+
+drop trigger if exists hall_signal_profil on public.profile;
+create trigger hall_signal_profil after insert or update or delete on public.profile
+  for each row execute function public.hall_signal_geben();
+
+do $$ begin
+  alter publication supabase_realtime add table public.hall_signal;
+exception when duplicate_object then null;
+end $$;
 
 notify pgrst, 'reload schema';

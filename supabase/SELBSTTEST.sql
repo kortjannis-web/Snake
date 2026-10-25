@@ -37,6 +37,8 @@ with soll(was, name, datei) as (
     ('Funktion', 'konto_loeschen', 'NACHHOLEN.sql'),
     ('Funktion', 'profil_speichern', 'NACHHOLEN.sql'),
     ('Funktion', 'konto_status', 'NACHHOLEN.sql'),
+    ('Tabelle', 'hall_signal', 'NACHHOLEN.sql'),
+    ('Live', 'hall_signal', 'NACHHOLEN.sql'),
     ('Live', 'score', '20261018000000_bestenliste.sql'),
     ('Live', 'sieg', '20261018000300_freunde_siege.sql'),
     ('Live', 'koop_ergebnis', '20261018000300_freunde_siege.sql'),
