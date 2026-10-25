@@ -14,6 +14,7 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
+import { BossGame, GOLEM, missionSpiel } from './game/boss'
 import { karteVon, MissionGame } from './game/mission'
 import { spielbar, WIESE_MISSIONEN, type MissionDef } from './game/missionen'
 import { erreicht, geschafft, missionGeschafft, offen, setzeErreicht } from './kampagne'
@@ -37,7 +38,7 @@ import { abmelden, abonniere, abonniereHall, abonniereSozial, adminLoeschen, ang
 import { beiCloud } from './cloud'
 import { APK_URL, neueVersion } from './update'
 import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
-import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
+import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, missionLohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon, type Welt } from './render/welten'
 import { mountIcons, setIcon } from './ui/icons'
@@ -133,6 +134,8 @@ const params = new URLSearchParams(location.search)
 const startLevel = Math.max(1, Number(params.get('level')) || 1)
 /** ?auto=1 laesst den Autopilot auch im Spiel steuern (zum Testen der spaeten Level) */
 const auto = params.has('auto')
+/** Nur beim Entwickeln: ?mission=10 startet diese Mission der Wiese gleich */
+const devMission = import.meta.env.DEV ? Number(params.get('mission')) || 0 : 0
 
 mountIcons(document)
 $('version').textContent = __APP_VERSION__
@@ -238,7 +241,7 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
   const sc = screenCells()
   if (laufMission) {
     // Kampagne: feste Karte, immer gleich (Berge rundherum, alle Aepfel liegen schon da)
-    const mg = new MissionGame(laufMission)
+    const mg = missionSpiel(laufMission)
     game = mg
     let b = bergeJe.get(laufMission.id)
     if (!b) {
@@ -957,12 +960,20 @@ function gameOver() {
   const mission = laufMission
   const missionOk = !!mission && g.cause === 'ziel'
   if (mission && missionOk) {
-    const lohn = missionGeschafft(mission)
+    // Beim ersten Mal: Belohnung, im Schatz-Level dazu die Edelsteine
+    const erstes = missionGeschafft(mission) > 0
+    const lohn = erstes ? mission.lohn + (g instanceof MissionGame ? g.schatz : 0) : 0
     if (lohn > 0) {
       verdienen(lohn)
       laufGeld += lohn
       saveWallet()
       updateGeld(true)
+    }
+    // Skin der Mission (5 und 10): auch nachtraeglich, falls er fehlt
+    if (mission.skin && !wallet.skins.includes(mission.skin)) {
+      wallet.skins.push(mission.skin)
+      saveWallet()
+      toast('aepfel', `Neu: ${nameVon(mission.skin)}`, `Skin für Mission ${mission.nr}. Im Aussehen unter Skins anlegen.`)
     }
   }
   if (!istKreativ) {
@@ -982,11 +993,11 @@ function gameOver() {
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
     $('over-cause').textContent = mission ? (missionOk ? 'Mission geschafft!' : g.cause === 'rand' ? 'Gegen den Berg gefahren' : g.cause ? CAUSE[g.cause] : '') : g.cause ? CAUSE[g.cause] : ''
-    $('over-label').textContent = mission ? `Mission ${mission.nr}` : 'Level'
-    $('over-level').textContent = mission && g instanceof MissionGame ? `${g.ziel - g.uebrig}/${g.ziel}` : istTages ? `${Math.min(g.gegessen, tagesZiel)}/${tagesZiel}` : String(g.level)
+    $('over-label').textContent = g instanceof BossGame ? 'Treffer am Golem' : mission ? `Mission ${mission.nr}` : 'Level'
+    $('over-level').textContent = g instanceof BossGame ? `${GOLEM.leben - g.golem.hp}/${GOLEM.leben}` : mission && g instanceof MissionGame ? `${g.ziel - g.uebrig}/${g.ziel}` : istTages ? `${Math.min(g.gegessen, tagesZiel)}/${tagesZiel}` : String(g.level)
     const mb = $('over-mission')
     mb.hidden = !mission
-    mb.querySelector('b')!.textContent = mission ? `${mission.name}${missionOk && laufGeld <= 0 ? ' · schon geschafft' : ''}` : ''
+    mb.querySelector('b')!.textContent = mission ? `${mission.name}${missionOk && laufGeld <= 0 ? ' · schon geschafft' : ''}${missionOk && mission.skin ? ` · Skin ${nameVon(mission.skin)}` : ''}` : ''
     $('btn-menu').lastChild!.textContent = mission ? 'Zur Karte' : 'Hauptmenü'
     $('over-record').hidden = !neu
     $('over-heute').hidden = !neuHeute
@@ -1014,7 +1025,8 @@ function gameOver() {
 
 /** Zaehler fuer Erfolge (nur echte Runden) */
 function zaehlen(e: GameEvent) {
-  if (istKreativ) return
+  // Kreativ und Missionen (immer gleiche Karte, liesse sich beliebig wiederholen) zaehlen nicht fuer die Erfolge
+  if (istKreativ || laufMission) return
   switch (e.type) {
     case 'gegnerWeg':
       if (e.wert <= 0) return
@@ -1334,6 +1346,22 @@ function handle(e: GameEvent) {
       break
     case 'lavaWachsen':
       if (nah(e.p, 0.5)) audio.lava()
+      break
+    case 'golem':
+      audio.golem(e.was)
+      if (e.was === 'schlag' || e.was === 'landung' || e.was === 'aufprall' || e.was === 'treffer' || e.was === 'tot') haptic.heavy()
+      else if (e.was === 'stein' || e.was === 'zorn' || e.was === 'torAuf') haptic.medium()
+      if (e.was === 'bann') toast('gebiet', 'Gebannt!', 'Jetzt durch den Golem hindurchfahren.')
+      if (e.was === 'torAuf' && game instanceof BossGame) toast('gebiet', `Raum ${game.raumNr + 1} von ${game.raeume.length}`, `Das Tor ist offen: dem Golem nach. Hier brauchst du ${game.sockel.length} Kristalle.`)
+      break
+    case 'kristall':
+      audio.kristall(e.was, e.farbe)
+      if (e.was !== 'neu') haptic.light()
+      if (e.was === 'alle') toast('gebiet', 'Der Bannkreis leuchtet', 'Lock den Golem in den Kreis in der Mitte.')
+      break
+    case 'bossSchaden':
+      audio.setback()
+      haptic.heavy()
       break
     case 'fund': {
       audio.fund(e.art !== 'gold')
@@ -1743,8 +1771,15 @@ function shopKarte(id: string, name: string, an: boolean, waehlen: () => void, z
   if (an) {
     preis.innerHTML = '<span></span>Aktiv'
     setIcon(preis.querySelector('span')!, 'Check')
-  } else if (hat) preis.textContent = preisWert || lohnVon(id) ? 'Wählen' : 'Gratis'
-  else if (lohnVon(id)) {
+  } else if (hat) preis.textContent = preisWert || lohnVon(id) || missionLohnVon(id) ? 'Wählen' : 'Gratis'
+  else if (missionLohnVon(id)) {
+    // Belohnung der Kampagne: nicht kaufbar
+    const l = missionLohnVon(id)!
+    preis.innerHTML = '<span></span>'
+    setIcon(preis.querySelector('span')!, 'Lock')
+    preis.append(`Mission ${l.mission} · ${weltVon(l.welt).name}`)
+    preis.classList.add('zu-teuer')
+  } else if (lohnVon(id)) {
     // Belohnung einer Welt: nicht kaufbar
     const l = lohnVon(id)!
     preis.innerHTML = '<span></span>'
@@ -2042,10 +2077,11 @@ function kaufen(id: string, waehlen: () => void, knopf?: HTMLElement) {
   audio.unlock()
   if (!hatSkin(wallet.skins, id)) {
     const l = lohnVon(id)
-    if (l) {
+    const ml = missionLohnVon(id)
+    if (l || ml) {
       audio.nein()
       haptic.medium()
-      toast('gebiet', nameVon(id), `Erreiche Level ${l.level} in der Welt ${weltVon(l.welt).name}.`)
+      toast('gebiet', nameVon(id), ml ? `Schaff Mission ${ml.mission} der Kampagne (${weltVon(ml.welt).name}).` : `Erreiche Level ${l!.level} in der Welt ${weltVon(l!.welt).name}.`)
       const card = knopf ?? $('skins').querySelector<HTMLElement>(`[data-id="${id}"]`)
       card?.classList.remove('wackeln')
       void card?.offsetWidth
@@ -2661,7 +2697,9 @@ function missionStarten(m: MissionDef) {
     setzeErreicht(m.welt, m.nr)
     closeAllPages()
     newGame(false, false, 'normal', m)
-    toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.`)
+    if (m.art === 'boss')
+      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Räume. Bring die Kristalle zum Sockel ihrer Farbe, leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Je Raum ein Treffer, du hast drei Herzen.')
+    else toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. ${m.hinweis ?? 'Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.'}`)
   })
 }
 
@@ -2941,7 +2979,12 @@ function frame(now: number) {
       renderer.sonderApfel = game.gegessen === tagesZiel - 1
     }
     // Kampagne: geholte Aepfel oben rechts, der letzte liegende leuchtet
-    if (laufMission && game instanceof MissionGame) {
+    if (game instanceof BossGame) {
+      const t = `${game.sockel.filter((s) => s.an).length} / ${game.sockel.length}`
+      const zt = $('tages-ziel')
+      if (zt.textContent !== t) zt.textContent = t
+      renderer.sonderApfel = false
+    } else if (laufMission && game instanceof MissionGame) {
       const t = `${game.ziel - game.uebrig} / ${game.ziel}`
       const zt = $('tages-ziel')
       if (zt.textContent !== t) zt.textContent = t
@@ -3622,6 +3665,8 @@ if (!gesperrt) {
   setzeSkin(wallet.skin)
   setzeSilber(wallet.verdient ?? 0)
   requestAnimationFrame(frame)
+  const dm = WIESE_MISSIONEN[devMission - 1]
+  if (dm) newGame(false, false, 'normal', dm)
 }
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)

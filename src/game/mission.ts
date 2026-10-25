@@ -4,12 +4,13 @@
  * - alle Aepfel liegen von Anfang an da (Reihenfolge egal), der zuletzt uebrige leuchtet; alle gegessen = geschafft
  * - nichts kommt dazu: keine Mauern nach jedem Apfel, keine Power-ups, keine Ereignisse
  * - Froesche bleiben im Tal (sie huepfen nicht ueber den Rand in die Berge)
+ * - Edelsteine (Schatz-Level) zaehlen mit: beim ersten Abschluss gibt es ihren Wert in Aepfeln dazu
  *
  * `apple` ist immer der naechste Apfel zum Kopf (dorthin zeigt der Pfeil am Bildrand), `aepfel` sind alle, die noch liegen.
  */
 import { BLOCK_PLUS, Game, key } from './game'
 import { MISSION_BILD, type MissionDef } from './missionen'
-import { DEFAULTS, DIRS, FROSCH_ANLAUF, OPP, STEP } from './rules'
+import { DEFAULTS, DIRS, erzWert, FROSCH_ANLAUF, OPP, STEP, type ErzArt } from './rules'
 import type { Dir, P } from './types'
 
 export type MissionApfel = { p: P; t: number }
@@ -26,6 +27,19 @@ export type MissionKarte = {
   teiche: P[][]
   gift: P[]
   froesche: P[]
+  eis: P[][]
+  /** Koepfe der Gegner-Schlangen */
+  gegner: P[]
+  funde: { p: P; art: ErzArt }[]
+  /** Boss: Sockel 1 bis 6 (i = Kristallfarbe), Mitten der Bannkreise, Starts des Golems (je Raum einer),
+   *  Felder der Steintore zwischen den Raeumen, feste Plaetze fuer Kristalle */
+  sockel: { p: P; i: number }[]
+  kreise: P[]
+  golems: P[]
+  tore: P[]
+  plaetze: P[]
+  /** Wiese, auf die der Golem nicht tritt (Durchgaenge zu den Kammern) */
+  sperre: P[]
 }
 
 /** Zusammenhaengende Gruppen (4er-Nachbarschaft) */
@@ -54,9 +68,30 @@ function gruppen(felder: P[]): P[][] {
 }
 
 export function leseKarte(zeilen: readonly string[]): MissionKarte {
-  const k: MissionKarte = { w: zeilen[0]?.length ?? 0, h: zeilen.length, berge: [], start: { x: 0, y: 0 }, aepfel: [], mauern: [], teiche: [], gift: [], froesche: [] }
+  const k: MissionKarte = {
+    w: zeilen[0]?.length ?? 0,
+    h: zeilen.length,
+    berge: [],
+    start: { x: 0, y: 0 },
+    aepfel: [],
+    mauern: [],
+    teiche: [],
+    gift: [],
+    froesche: [],
+    eis: [],
+    gegner: [],
+    funde: [],
+    sockel: [],
+    kreise: [],
+    golems: [],
+    tore: [],
+    plaetze: [],
+    sperre: [],
+  }
   const mauer: P[] = []
   const teich: P[] = []
+  const eis: P[] = []
+  const ERZ: Record<string, ErzArt> = { $: 'gold', '*': 'dia', '%': 'rubin' }
   zeilen.forEach((z, y) => {
     for (let x = 0; x < z.length; x++) {
       const p = { x, y }
@@ -82,11 +117,40 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
         case 'F':
           k.froesche.push(p)
           break
+        case 'E':
+          eis.push(p)
+          break
+        case 'R':
+          k.gegner.push(p)
+          break
+        case '$':
+        case '*':
+        case '%':
+          k.funde.push({ p, art: ERZ[z[x]] })
+          break
+        case 'O':
+          k.kreise.push(p)
+          break
+        case 'B':
+          k.golems.push(p)
+          break
+        case 'T':
+          k.tore.push(p)
+          break
+        case 'k':
+          k.plaetze.push(p)
+          break
+        case 'x':
+          k.sperre.push(p)
+          break
+        default:
+          if (z[x] >= '1' && z[x] <= '6') k.sockel.push({ p, i: Number(z[x]) - 1 })
       }
     }
   })
   k.mauern = gruppen(mauer)
   k.teiche = gruppen(teich)
+  k.eis = gruppen(eis)
   return k
 }
 
@@ -101,9 +165,8 @@ export function karteVon(m: MissionDef): MissionKarte {
   return k
 }
 
-/** Blockgroesse der Missionen (haengt nur am festen Bild MISSION_BILD, hochkant) */
-const BW = MISSION_BILD.w + BLOCK_PLUS
-const BH = Math.max(4, Math.floor(MISSION_BILD.h / 2)) + BLOCK_PLUS
+/** Blockgroesse der Missionen (haengt nur am festen Bild, hochkant) */
+const blockVon = (bild: { w: number; h: number }) => ({ w: bild.w + BLOCK_PLUS, h: Math.max(4, Math.floor(bild.h / 2)) + BLOCK_PLUS })
 
 export class MissionGame extends Game {
   readonly mission: MissionDef
@@ -114,17 +177,21 @@ export class MissionGame extends Game {
   readonly ziel: number
   /** Berge als Schluessel (fuer die Darstellung) */
   readonly bergSet: Set<number>
+  /** Wert der eingesammelten Edelsteine (Aepfel, gibt es beim ersten Abschluss dazu) */
+  schatz = 0
 
   constructor(m: MissionDef) {
     const k = karteVon(m)
+    const bild = m.bild ?? MISSION_BILD
+    const b = blockVon(bild)
     const bloecke: P[] = []
-    for (let by = 0; by * BH < k.h; by++) for (let bx = 0; bx * BW < k.w; bx++) bloecke.push({ x: bx, y: by })
+    for (let by = 0; by * b.h < k.h; by++) for (let bx = 0; bx * b.w < k.w; bx++) bloecke.push({ x: bx, y: by })
     super({
-      screenW: MISSION_BILD.w,
-      screenH: MISSION_BILD.h,
+      screenW: bild.w,
+      screenH: bild.h,
       tempo: 'normal',
-      // Immer die Standardregeln: die Mission spielt sich auf jedem Geraet gleich
-      cfg: { ...DEFAULTS },
+      // Immer die Standardregeln: die Mission spielt sich auf jedem Geraet gleich (spaete Missionen werden je Apfel schneller)
+      cfg: { ...DEFAULTS, ...(m.tempoProApfel !== undefined ? { tempoProLevel: m.tempoProApfel } : {}) },
       seed: m.seed ?? 1,
       startLevel: 1,
       sandbox: { breite: 0, hoehe: 0, laenge: m.laenge ?? 3, objekte: {}, weiter: false, bloecke, aus: k.berge },
@@ -157,10 +224,35 @@ export class MissionGame extends Game {
       const d = [...DIRS].sort((a, b) => frei(b) - frei(a))[0]
       return { p: { ...p }, from: { ...p }, dir: d, altDir: d, drehT: -1e9, t: -1e9, flugAb: -1e9, hopAt: this.cfg.froschSprung * 1000 + i * 450 }
     })
+    this.eis = k.eis.map((cells) => ({ cells: cells.map((c) => ({ ...c })), t: -1e9 }))
+    this.funde = k.funde.map((f) => ({ p: { ...f.p }, art: f.art, t: 0 }))
+    for (const kopf of k.gegner) this.gegnerSetzen(kopf)
     // Alle Aepfel liegen von Anfang an da und ploppen beim Start auf
     this.aepfel = k.aepfel.map((p) => ({ p: { ...p }, t: 0 }))
     this.zielWaehlen()
     this.events = []
+  }
+
+  /** Rote Gegner-Schlange mit dem Kopf auf p, 3 lang, der Koerper liegt dorthin, wo am meisten Platz ist (fest) */
+  protected gegnerSetzen(p: P) {
+    const zu = this.hindernisse()
+    const frei = (c: P) => this.inside(c) && !zu.has(key(c.x, c.y)) && !this.body.some((b) => b.x === c.x && b.y === c.y)
+    const weit = (d: Dir) => {
+      let n = 0
+      while (n < 6 && frei({ x: p.x + STEP[d].x * (n + 1), y: p.y + STEP[d].y * (n + 1) })) n++
+      return n
+    }
+    const hinten = [...DIRS].sort((a, b) => weit(b) - weit(a))[0]
+    const body = [0, 1, 2].map((i) => ({ x: p.x + STEP[hinten].x * i, y: p.y + STEP[hinten].y * i }))
+    const t = this.time
+    this.gegner.push({ art: 'rot', body, prev: body.map((c) => ({ ...c })), dir: OPP[hinten], t, last: t + 500, wachsAt: t + this.cfg.gegnerWachsen * 1000, wachsRest: 0, wuchsT: -1e9, eng: 0, angst: 0, stur: 0 })
+  }
+
+  /** Edelstein (Schatz-Level): zaehlt fuer die Belohnung, nicht als Waehrung waehrend der Mission */
+  protected override fundNehmen(art: ErzArt, p: P) {
+    const wert = erzWert(this.cfg, art)
+    this.schatz += wert
+    this.emit({ type: 'fund', art, p: { ...p }, wert })
   }
 
   /** Noch zu holen */

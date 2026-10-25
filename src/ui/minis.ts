@@ -306,4 +306,6 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   mumie: 'gegner',
   sarkophag: 'mauer',
   fata: 'gift',
+  steingolem: 'mauer',
+  steintor: 'mauer',
 }

@@ -1128,7 +1128,7 @@ export class Game {
     // Garantie: spaetestens nach powerGarantie Aepfeln ohne Power-up kommt eins
     this.ohnePower++
     if (this.ohnePower < c.powerGarantie && this.r.next() * 100 >= c.powerChance) return
-    const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3))
+    const cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.imWeg(p, 3) && !this.ameiseNah(p))
     // Lichtungen im Wald: dort liegt eher etwas (gut 40 % der Power-ups, wenn eine frei und in Reichweite ist)
     const inLichtung = this.lichtungen.length ? cand.filter((c) => this.lichtungen.some((l) => same(l, c))) : []
     const p = inLichtung.length && this.r.next() < 0.42 ? this.r.pick(inLichtung) : cand.length ? this.r.pick(cand) : null
@@ -1141,7 +1141,7 @@ export class Game {
   protected erzSetzen() {
     const head = this.body[0]
     const nah = this.screenW + this.screenH
-    let cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah)
+    let cand = this.freieFelder((p) => manhattan(p, head) >= 4 && manhattan(p, head) <= nah && !this.ameiseNah(p))
     if (!cand.length) cand = this.freieFelder(() => true)
     if (!cand.length) return false
     let z = this.r.next() * R.ERZ_ARTEN.reduce((s, a) => s + R.SPITZHACKE_GEWICHT[a], 0)
@@ -4049,7 +4049,9 @@ export class Game {
   neuerApfel() {
     const head = this.body[0]
     const nah = this.screenW + this.screenH
-    let cand = this.freieFelder((c) => manhattan(c, head) >= 3 && manhattan(c, head) <= nah)
+    // Nie in die Naehe einer Ameise (wer den Apfel holt, soll nicht gebissen werden)
+    let cand = this.freieFelder((c) => manhattan(c, head) >= 3 && manhattan(c, head) <= nah && !this.ameiseNah(c))
+    if (!cand.length) cand = this.freieFelder((c) => !this.ameiseNah(c))
     if (!cand.length) cand = this.freieFelder(() => true)
     if (!cand.length) cand = this.freieFelderNotfall()
     if (!cand.length) return
@@ -4994,7 +4996,10 @@ export class Game {
       for (let x = 0; x < this.w; x++) {
         const p = { x, y }
         const k = key(x, y)
-        if (!this.mask[y * this.w + x] || wand.has(k) || !reach.has(k) || same(p, this.apple.p) || this.powers.some((o) => same(o.p, p))) continue
+        if (!this.mask[y * this.w + x] || wand.has(k) || !reach.has(k)) continue
+        // Nicht neben den Apfel, Power-ups und Erze (sonst beisst sie, wer sie holt)
+        const ab = this.ameiseAbstand
+        if (cheb(p, this.apple.p) <= ab || this.powers.some((o) => cheb(o.p, p) <= ab) || this.funde.some((f) => cheb(f.p, p) <= ab)) continue
         if (manhattan(p, head) < 6 || this.imWeg(p, 8) || this.freieNachbarn(p, wand) < 3) continue
         if (nahe.has(k)) continue
         cand.push(p)
@@ -5004,6 +5009,16 @@ export class Game {
     this.ameisen.push({ p, from: { ...p }, heim: { ...p }, dir: this.r.pick(DIRS), t: this.time, schrittT: -1e9, next: this.time + c.ameiseTakt * 1000, alarm: -1, sattBis: 0 })
     this.emit({ type: 'ameise', p: { ...p } })
     return true
+  }
+
+  /** Liegt das Feld im Revier einer Ameise (dort, wo sie sitzt, und um ihr Zuhause)? Dort kommt nichts zum Einsammeln hin */
+  ameiseNah(c: P) {
+    const r = this.ameiseAbstand
+    return this.ameisen.some((a) => cheb(a.p, c) <= r || cheb(a.heim, c) <= r)
+  }
+  /** So weit (Felder, auch schraeg) bleibt alles zum Einsammeln von Ameisen weg: ihr Umkreis und zwei Felder Luft */
+  get ameiseAbstand() {
+    return this.cfg.ameiseRadius + 2
   }
 
   /** Ameisen: ruhig, bis die Schlange im Umkreis ist (ameiseRadius, auch schraeg). Dann kurz aufmerksam,

@@ -1227,6 +1227,37 @@ describe('Ameisen', () => {
     ;(g as unknown as { ameisenTakt: () => void }).ameisenTakt()
   }
 
+  it('kein Apfel, Power-up oder Erz kommt in die Naehe einer Ameise', () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const g = welt(seed)
+      g.body = [{ x: 2, y: 2 }, { x: 1, y: 2 }, { x: 0, y: 2 }]
+      const a = ameise(g, { x: 6, y: 12 })
+      const b = ameise(g, { x: 6, y: 4 })
+      // Sie war schon unterwegs: auch um ihr Zuhause bleibt es frei
+      b.heim = { x: 9, y: 18 }
+      for (let i = 0; i < 40; i++) {
+        g.neuerApfel()
+        for (const m of [a, b]) {
+          expect(Math.max(Math.abs(g.apple.p.x - m.p.x), Math.abs(g.apple.p.y - m.p.y))).toBeGreaterThan(g.cfg.ameiseRadius + 1)
+          expect(Math.max(Math.abs(g.apple.p.x - m.heim.x), Math.abs(g.apple.p.y - m.heim.y))).toBeGreaterThan(g.cfg.ameiseRadius + 1)
+        }
+      }
+      expect(g.ameiseNah({ x: 7, y: 13 })).toBe(true)
+      expect(g.ameiseNah({ x: 2, y: 20 })).toBe(false)
+    }
+  })
+
+  it('eine neue Ameise setzt sich nicht neben den Apfel', () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const g = welt(seed)
+      g.body = [{ x: 2, y: 2 }, { x: 1, y: 2 }, { x: 0, y: 2 }]
+      g.apple.p = { x: 6, y: 14 }
+      for (let i = 0; i < 4; i++) g.neueAmeise(true)
+      expect(g.ameisen.length).toBeGreaterThan(0)
+      for (const m of g.ameisen) expect(Math.max(Math.abs(g.apple.p.x - m.p.x), Math.abs(g.apple.p.y - m.p.y))).toBeGreaterThan(g.cfg.ameiseRadius + 1)
+    }
+  })
+
   it('chillt, solange die Schlange weiter weg ist', () => {
     const g = welt()
     g.body = [{ x: 2, y: 2 }, { x: 1, y: 2 }, { x: 0, y: 2 }]
