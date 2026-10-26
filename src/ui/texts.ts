@@ -1,3 +1,4 @@
+import { ENT } from '../game/entkampf'
 import type { Config } from '../game/rules'
 import type { Cause } from '../game/types'
 import type { Mini } from './minis'
@@ -43,6 +44,9 @@ export const CAUSE: Record<Cause, string> = {
   wolke: 'In die Giftwolke geraten',
   ameise: 'Von der Ameise gebissen',
   bienen: 'Von den Bienen gestochen',
+  minient: 'Vom Mini-Ent gepackt',
+  blaetterbombe: 'Von der Blätterbombe getroffen',
+  entboss: 'Vom Ent besiegt',
   lorenlager: 'Gegen eine abgestellte Lore gefahren',
   irrlicht: 'Den Irrlicht-Apfel erwischt',
   einhorn: 'Mit dem Einhorn zusammengestoßen',
@@ -108,6 +112,7 @@ export const help = (c: Config): { mini: Mini; title: string; ab?: string; text:
   { mini: 'golem', title: 'Kleine Steingolems (Wiese)', ab: `ab Level ${c.minigolemAb}`, text: `Alle ${c.minigolemMin} bis ${c.minigolemMax} Level stapft ein kleiner Steingolem auf die Karte (höchstens ${c.minigolemAnzahl}, 60 Level später einer mehr). Er läuft immer weiter: meist geradeaus, manchmal biegt er ab, ab und zu bleibt er 1 bis 4 Sekunden stehen. Nach vorn sieht er ${c.minigolemSicht} Felder weit, je weiter, desto breiter. Sieht er deinen Kopf, bekommt er ein Ausrufezeichen und kommt auf dich zu, bis er dich aus den Augen verliert (Mauern, Häuser und Bäume versperren die Sicht). Ist dein Kopf nah, holt er ${c.minigolemLaden} Sekunden aus (die Fläche wird rot) und schlägt zu: rundum 2 Felder oder geradeaus 4 Felder. Nur der Kopf zählt, der Körper darf in der Fläche liegen. Kopf getroffen oder hineingefahren: vorbei.` },
   { mini: 'baum', title: 'Große Tannen (Wiese)', ab: `ab Level ${c.tanneAb}`, text: `Alle ${c.tanneAlle} Level wächst eine große Tanne. Sie steht auf 3 × 3 Feldern und fällt wie die anderen Bäume nach einer Weile um, aber viel weiter: 6 Felder. Auf die Schlange fällt sie nie.` },
   { mini: 'gegner', title: 'Boss: der Steingolem (Wiese)', ab: `auf Level ${c.bossAb}`, text: `Einmal je Runde erwacht der Steingolem mitten auf der Karte, um einen Bannkreis mit 4 Sockeln. Solange er kämpft, gibt es keinen Apfel. Bring die Kristalle zum Sockel ihrer Farbe. Leuchten alle vier, bannt der Kreis den Golem, sobald er in die Mitte tritt: dann fahr mit dem Kopf durch ihn hindurch. Seine Angriffe (Stampfen, Ansturm, Sprung) werden rot angekündigt, jeder Treffer kostet eins deiner drei Herzen. Besiegt bringt er ${c.bossLohn} Äpfel mal Apfelwert, dann geht es weiter.` },
+  { mini: 'baum', title: 'Boss: der Ent (Wiese)', ab: `auf Level ${c.entBossAb}`, text: `Einmal je Runde wächst eine Lichtung aus der Karte, am Rand steht der Ent verwurzelt und dreht sich nur. Solange er kämpft, gibt es keinen Apfel. Er greift aus der Ferne an, alles wird rot angekündigt: Wurzeln brechen durch ganze Zeilen und Spalten oder schießen auf dich zu, Dornen fliegen als Fächer (stell dich in eine Lücke), Eicheln schlagen im Plus ein. In der Mitte glüht eine Glutschale: Fahr hindurch, dann trägst du eine Flamme. Damit zündest du einen der 3 Holzstapel an (er brennt ${ENT.feuerBrennt / 1000} Sekunden). Brennen alle drei gleichzeitig, fängt seine Rinde Feuer und der Herzknoten liegt frei: Fahr mit dem Kopf durch ihn hindurch. Nur der Kopf zählt, du hast drei Herzen. Besiegt bringt er ${c.entBossLohn} Äpfel mal Apfelwert.` },
   { mini: 'lava', title: 'Lava', ab: 'von Anfang an', text: `In etwa ${c.lavaChance} % der Blöcke rund um die Karte steckt ein einzelnes Lavafeld im Stein, du siehst es schon in der Erde. Kommt der Block zur Karte (neues Gebiet oder Maulwurf), bricht es als Lavasee aus. Wer ein Gebiet wählt, wählt also auch, ob Lava mitkommt. Beim Graben ist das Lavafeld tödlich. Jeden ${c.lavaWachsen}. Apfel breitet er sich um ein Feld in eine zufällige Richtung aus, nie in die Schlange und nie direkt vor den Kopf, und hört bei ${Math.min(c.lavaMin, c.lavaMax)} bis ${Math.max(c.lavaMin, c.lavaMax)} Feldern auf. Hineinfahren beendet das Spiel.` },
   { mini: 'gebiet', title: 'Immer mehr los', ab: `ab Level ${c.ereignis1Ab}`, text: `Ab Level ${c.ereignis1Ab} ist immer mindestens eine Gefahr (Falle, Wolke, Frosch) unterwegs, ab ${c.ereignis2Ab} mindestens zwei, ab ${c.ereignis3Ab} drei. Es geht endlos weiter: Wie weit kommst du?` },
 ]

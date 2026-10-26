@@ -82,6 +82,11 @@ function ruhig(g: MissionGame) {
   g.gegner = []
   g.ameisen = []
   g.minigolems = []
+  // Mini-Ents bleiben stehen (sie sind Hindernisse), werfen und packen aber nicht
+  for (const e of g.minients) {
+    e.wurfNext = Infinity
+    e.griffPause = Infinity
+  }
   g.stoecke = []
   g.wesen = []
   g.quellen = []
@@ -105,37 +110,49 @@ function legeSchlange(g: MissionGame, p: P, min = 0, max = 5) {
 }
 
 describe('Kampagne', () => {
-  it('Wiese: 20 Missionen, 5 und 15 Schatz, 10 Boss, alle spielbar, Belohnung steigt, Skins bei 10 und 20', () => {
+  it('Wiese: 20 Missionen, 5 und 15 Schatz, 10 und 20 Boss, alle spielbar, Belohnung steigt, Skins bei 10, 15 und 20', () => {
     expect(WIESE_MISSIONEN).toHaveLength(20)
     expect(WIESE_MISSIONEN.filter((m) => m.art === 'schatz').map((m) => m.nr)).toEqual([5, 15])
-    expect(WIESE_MISSIONEN.filter((m) => m.art === 'boss').map((m) => m.nr)).toEqual([10])
+    expect(WIESE_MISSIONEN.filter((m) => m.art === 'boss').map((m) => m.nr)).toEqual([10, 20])
+    expect(WIESE_MISSIONEN[9].boss).toBe('golem')
+    expect(WIESE_MISSIONEN[19].boss).toBe('ent')
+    expect(WIESE_MISSIONEN[19].name).toBe('Der Ent')
+    expect(WIESE_MISSIONEN[18].name).toBe('Dunkler Forst')
+    // Der Ent ist neu (frueher war Mission 20 das Golem-Heer): eigene Id, damit er fuer alle wieder offen ist
+    expect(WIESE_MISSIONEN[19].id).toBe('wiese-20-ent')
+    expect(new Set(WIESE_MISSIONEN.map((m) => m.id)).size).toBe(20)
     expect(WIESE_MISSIONEN.filter(spielbar).map((m) => m.nr)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1))
     expect(WIESE_MISSIONEN.map((m) => m.lohn)).toEqual(MISSION_LOHN)
     expect(WIESE_MISSIONEN[0].lohn).toBe(6)
-    // Der Boss bringt den Steingolem, das Golem-Heer (20) den Schatzhueter
-    expect(WIESE_MISSIONEN.filter((m) => m.skin).map((m) => m.nr)).toEqual([10, 20])
-    expect(WIESE_MISSIONEN[19].skin).toBe('schatzhueter')
+    // Der Golem bringt den Steingolem, die Schatzhoehle (15) den Schatzhueter, der Ent (20) den Waldgeist
+    expect(WIESE_MISSIONEN.filter((m) => m.skin).map((m) => m.nr)).toEqual([10, 15, 20])
+    expect(WIESE_MISSIONEN[14].skin).toBe('schatzhueter')
+    expect(WIESE_MISSIONEN[19].skin).toBe('waldgeist')
     expect(missionSkinVorgemerkt('schatzhueter')).toBe(false)
     expect(missionSkinVorgemerkt('steingolem')).toBe(false)
+    expect(missionSkinVorgemerkt('waldgeist')).toBe(false)
   })
 
-  it('weniger Giftaepfel, ab 5 Ameisen, Baeume und Haeuser, ab 11 Golems (gegen 20 immer mehr), wenig Froesche, ab 16 Leuchttuerme', () => {
+  it('weniger Giftaepfel, ab 5 Ameisen, Baeume und Haeuser, Golems 6 bis 10, Mini-Ents ab 16, wenig Froesche, ab 16 Leuchttuerme', () => {
     const g = WIESE_MISSIONEN.map((m) => new MissionGame(m))
     expect(g.slice(0, 9).map((x) => x.gift.length)).toEqual([2, 2, 2, 3, 2, 8, 2, 3, 5])
-    for (const x of [...g.slice(4, 9), ...g.slice(10)]) {
+    for (const x of [...g.slice(4, 9), ...g.slice(10, 19)]) {
       expect(x.ameisen.length, x.mission.id).toBeGreaterThan(0)
       expect(x.baeume.length, x.mission.id).toBeGreaterThan(0)
     }
-    for (const x of [...g.slice(4, 9), ...g.slice(10, 16), ...g.slice(17)]) expect(x.haeuser.length, x.mission.id).toBeGreaterThan(0)
+    for (const x of [...g.slice(4, 9), ...g.slice(10, 16), ...g.slice(17, 19)]) expect(x.haeuser.length, x.mission.id).toBeGreaterThan(0)
     for (const x of g.slice(0, 4)) expect(x.ameisen.length + x.baeume.length + x.haeuser.length, x.mission.id).toBe(0)
-    const golems = g.slice(10).map((x) => x.minigolems.length)
-    expect(golems[0]).toBeGreaterThanOrEqual(2)
-    expect(golems[9]).toBe(7)
-    for (let i = 1; i < golems.length; i++) expect(golems[i], `wiese-${i + 11}`).toBeGreaterThanOrEqual(golems[i - 1] - 1)
-    for (const x of g.slice(0, 10)) expect(x.minigolems, x.mission.id).toHaveLength(0)
+    // Kleine Golems langsam ab Mission 6 (1, 1, 2, 3), im Boss-Level ein paar, danach keine mehr
+    expect(g.slice(5, 9).map((x) => x.minigolems.length)).toEqual([1, 1, 2, 3])
+    expect(g[9].minigolems.length).toBe(3)
+    for (const x of [...g.slice(0, 5), ...g.slice(10)]) expect(x.minigolems, x.mission.id).toHaveLength(0)
+    // Mini-Ents kuendigen den Ent an: ab Mission 16 (1, 2, 2, 3), im Boss-Level zwei
+    expect(g.slice(15, 19).map((x) => x.minients.length)).toEqual([1, 2, 2, 3])
+    expect(g[19].minients.length).toBe(2)
+    for (const x of g.slice(0, 15)) expect(x.minients, x.mission.id).toHaveLength(0)
     for (const x of g.slice(10)) expect(x.aktiveFroesche.length, x.mission.id).toBeLessThanOrEqual(2)
     for (const x of g.slice(10, 15)) expect(x.tuerme, x.mission.id).toHaveLength(0)
-    for (const x of g.slice(15)) expect(x.tuerme.length, x.mission.id).toBeGreaterThan(0)
+    for (const x of g.slice(15, 19)) expect(x.tuerme.length, x.mission.id).toBeGreaterThan(0)
     // Lava, Giftwolken und grosse Tannen erst ab 11
     for (const x of g.slice(0, 10)) expect(x.lava.length + x.quellen.length + x.baeume.filter((b) => b.gross).length, x.mission.id).toBe(0)
     expect(g.slice(10).some((x) => x.lava.length)).toBe(true)
@@ -166,7 +183,11 @@ describe('Kampagne', () => {
       for (const a of aepfel) {
         for (const h of g.haeuser) for (const c of h.cells) expect(cheb(a, c), m.id).toBeGreaterThan(2)
         for (const am of g.ameisen) expect(cheb(a, am.p), m.id).toBeGreaterThan(2)
+        // Kein Apfel direkt neben einem Mini-Ent (sonst packt er beim Essen fast sicher zu)
+        for (const e of g.minients) expect(cheb(a, e.p), m.id).toBeGreaterThan(2)
       }
+      // Mini-Ents stehen frei (rundherum Wiese), nie in einer Gasse
+      for (const e of g.minients) for (const d of DIRS) expect(g.inside({ x: e.p.x + STEP[d].x, y: e.p.y + STEP[d].y }), `${m.id} Mini-Ent`).toBe(true)
       for (const q of g.quellen) for (const p of [...aepfel, ...g.gift.map((x) => x.p), ...g.funde.map((f) => f.p)]) expect(cheb(q.p, p), m.id).toBeGreaterThan(2)
       if (m.nr < 11) continue
       // Sackgasse: ein freies Feld mit hoechstens einem freien Nachbarn (darin kommt man nicht mehr heraus)
@@ -181,7 +202,7 @@ describe('Kampagne', () => {
     }
   })
 
-  it('Missionen 1 bis 7: keine Gasse schmaler als 3 Felder (erst ab 8 wird es eng)', () => {
+  it('Missionen 1 bis 7: keine Gasse schmaler als 3 Felder (erst ab 8 wird es eng; Golems laufen, zaehlen nicht)', () => {
     for (const m of WIESE_MISSIONEN.slice(0, 7)) {
       const g = new MissionGame(m)
       const zu = g.hindernisse()
@@ -189,6 +210,7 @@ describe('Kampagne', () => {
       for (const a of g.aepfel) zu.delete(key(a.p.x, a.p.y))
       for (const f of g.froesche) zu.delete(key(f.p.x, f.p.y))
       for (const a of g.ameisen) zu.delete(key(a.p.x, a.p.y))
+      for (const mg of g.minigolems) zu.delete(key(mg.p.x, mg.p.y))
       for (const e of g.gegner) for (const b of e.body) zu.delete(key(b.x, b.y))
       const frei = (x: number, y: number) => g.inside({ x, y }) && !zu.has(key(x, y))
       // Ein Pass ist eng, wenn man waagrecht und senkrecht nur 1 oder 2 Felder Platz hat und beidseits weiterkommt
@@ -271,8 +293,8 @@ describe('Kampagne', () => {
     expect(g.aepfel).toHaveLength(0)
   })
 
-  it('Missionen 2 bis 9 und 11 bis 20 lassen sich schaffen (ohne Tiere, Golems, Gegner und Wolken)', () => {
-    for (const m of [...WIESE_MISSIONEN.slice(1, 9), ...WIESE_MISSIONEN.slice(10)]) {
+  it('Missionen 2 bis 9 und 11 bis 19 lassen sich schaffen (ohne Tiere, Golems, Gegner und Wolken, Mini-Ents ruhig)', () => {
+    for (const m of [...WIESE_MISSIONEN.slice(1, 9), ...WIESE_MISSIONEN.slice(10, 19)]) {
       const g = new MissionGame(m)
       ruhig(g)
       let schritte = 0
@@ -354,8 +376,8 @@ describe('Kampagne', () => {
     }
   })
 
-  it('Querformat: Missionen 1 bis 9 und 11 bis 20 lassen sich genauso schaffen (ohne Tiere, Golems, Gegner und Wolken)', () => {
-    for (const m of [...WIESE_MISSIONEN.slice(0, 9), ...WIESE_MISSIONEN.slice(10)]) {
+  it('Querformat: Missionen 1 bis 9 und 11 bis 19 lassen sich genauso schaffen (ohne Tiere, Golems, Gegner und Wolken, Mini-Ents ruhig)', () => {
+    for (const m of [...WIESE_MISSIONEN.slice(0, 9), ...WIESE_MISSIONEN.slice(10, 19)]) {
       const g = new MissionGame(m, true)
       ruhig(g)
       let schritte = 0
@@ -460,10 +482,10 @@ describe('Kampagne', () => {
   })
 
   it('kleine Steingolems: trifft der Schlag den Kopf, ist die Mission verloren', () => {
-    const g = new MissionGame(WIESE_MISSIONEN[10])
+    const g = new MissionGame(WIESE_MISSIONEN[5])
     ruhig(g)
     g.tick = 1e12
-    const m = new MissionGame(WIESE_MISSIONEN[10]).minigolems[0]
+    const m = new MissionGame(WIESE_MISSIONEN[5]).minigolems[0]
     m.next = 1e12
     m.jagt = 0
     g.minigolems = [m]

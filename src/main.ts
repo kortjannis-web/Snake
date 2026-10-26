@@ -15,6 +15,7 @@ import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
 import { BossGame, GOLEM, missionSpiel } from './game/boss'
+import { ENT, EntBossGame } from './game/entboss'
 import { karteVon, MissionGame } from './game/mission'
 import { spielbar, WIESE_MISSIONEN, type MissionDef } from './game/missionen'
 import { erreicht, geschafft, missionGeschafft, offen, setzeErreicht } from './kampagne'
@@ -995,8 +996,8 @@ function gameOver() {
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
     $('over-cause').textContent = mission ? (missionOk ? 'Mission geschafft!' : g.cause === 'rand' ? 'Gegen den Berg gefahren' : g.cause ? CAUSE[g.cause] : '') : g.cause ? CAUSE[g.cause] : ''
-    $('over-label').textContent = g instanceof BossGame ? 'Treffer am Golem' : mission ? `Mission ${mission.nr}` : 'Level'
-    $('over-level').textContent = g instanceof BossGame ? `${GOLEM.leben - g.golem.hp}/${GOLEM.leben}` : mission && g instanceof MissionGame ? `${g.ziel - g.uebrig}/${g.ziel}` : istTages ? `${Math.min(g.gegessen, tagesZiel)}/${tagesZiel}` : String(g.level)
+    $('over-label').textContent = g instanceof BossGame ? 'Treffer am Golem' : g instanceof EntBossGame ? 'Treffer am Ent' : mission ? `Mission ${mission.nr}` : 'Level'
+    $('over-level').textContent = g instanceof BossGame ? `${GOLEM.leben - g.golem.hp}/${GOLEM.leben}` : g instanceof EntBossGame ? `${ENT.leben - g.kampf.ent.hp}/${ENT.leben}` : mission && g instanceof MissionGame ? `${g.ziel - g.uebrig}/${g.ziel}` : istTages ? `${Math.min(g.gegessen, tagesZiel)}/${tagesZiel}` : String(g.level)
     const mb = $('over-mission')
     mb.hidden = !mission
     mb.querySelector('b')!.textContent = mission ? `${mission.name}${missionOk && laufGeld <= 0 ? ' · schon geschafft' : ''}${missionOk && mission.skin ? ` · Skin ${nameVon(mission.skin)}` : ''}` : ''
@@ -1360,13 +1361,34 @@ function handle(e: GameEvent) {
       if (e.was === 'neu' || nah(e.p, 0.6)) audio.minigolem(e.was)
       if (e.was === 'schlag' && nah(e.p, 0.4)) haptic.medium()
       break
+    case 'ent': {
+      audio.ent(e.was)
+      if (e.was === 'treffer' || e.was === 'tot' || e.was === 'auftauchen') haptic.heavy()
+      else if (e.was === 'einschlag' || e.was === 'zorn' || e.was === 'brennt' || e.was === 'abtauchen') haptic.medium()
+      else if (e.was === 'flamme' || e.was === 'feuer') haptic.light()
+      const kampf = game instanceof EntBossGame ? game.kampf : game?.freiEnt
+      if (e.was === 'flamme') toast('gebiet', 'Du trägst eine Flamme', 'Fahr durch einen Holzstapel, um ihn anzuzünden.')
+      if (e.was === 'brennt') toast('gebiet', 'Die Rinde brennt!', 'Sein Herzknoten liegt frei: fahr jetzt durch den Ent hindurch.')
+      if (e.was === 'zorn' && kampf && kampf.ent.phase === 1 && kampf.entLeben > 1 && kampf.ent.hp === kampf.entLeben - 1)
+        toast('gegner', 'Phase 2', 'Er wandert zwischen den Stümpfen. Zünde Feuer an und stell dich so, dass ein Feuer zwischen dir und ihm liegt: Seine Wurzeln fangen dort Feuer.')
+      if (e.was === 'zorn' && kampf && kampf.ent.phase === 2 && kampf.ent.hp === 1 && kampf.entLeben > 1) toast('gegner', 'Phase 3', 'Die Lichtung wächst von außen zu. Ein letzter Treffer!')
+      break
+    }
+    case 'minient':
+      if (nah(e.p, 0.6)) audio.minient(e.was)
+      if (e.was === 'griff') {
+        haptic.heavy()
+        toast('gegner', 'Gepackt!', 'Wisch schnell vom Mini-Ent weg.')
+      } else if (e.was === 'platzt' && nah(e.p, 0.4)) haptic.medium()
+      break
     case 'bossStart':
       haptic.heavy()
-      toast('gegner', 'Boss: der Steingolem!', 'Bring die 4 Kristalle zum Sockel ihrer Farbe. Leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Du hast drei Herzen.')
+      if (e.boss === 'ent') toast('gegner', 'Boss: der Ent!', 'Hol eine Flamme aus der Glutschale in der Mitte und zünde die 3 Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann fahr durch ihn hindurch. Du hast drei Herzen.')
+      else toast('gegner', 'Boss: der Steingolem!', 'Bring die 4 Kristalle zum Sockel ihrer Farbe. Leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Du hast drei Herzen.')
       break
     case 'bossSieg':
       haptic.success()
-      toast('aepfel', 'Steingolem besiegt!', `+${e.wert} Äpfel. Weiter geht es mit dem Apfel.`)
+      toast('aepfel', e.boss === 'ent' ? 'Ent besiegt!' : 'Steingolem besiegt!', `+${e.wert} Äpfel. Weiter geht es mit dem Apfel.`)
       break
     case 'kristall':
       audio.kristall(e.was, e.farbe)
@@ -2713,7 +2735,9 @@ function missionStarten(m: MissionDef) {
     setzeErreicht(m.welt, m.nr)
     closeAllPages()
     newGame(false, false, 'normal', m)
-    if (m.art === 'boss')
+    if (m.art === 'boss' && m.boss === 'ent')
+      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Phasen. Hol eine Flamme aus der Glutschale und zünde die Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann durch ihn hindurch. Später fangen seine Wurzeln an brennenden Feuern Feuer. Drei Herzen, nur der Kopf zählt.')
+    else if (m.art === 'boss')
       toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Räume. Bring die Kristalle zum Sockel ihrer Farbe, leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Je Raum ein Treffer, du hast drei Herzen.')
     else toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. ${m.hinweis ?? 'Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.'}`)
   })
@@ -2995,7 +3019,14 @@ function frame(now: number) {
       renderer.sonderApfel = game.gegessen === tagesZiel - 1
     }
     // Kampagne: geholte Aepfel oben rechts, der letzte liegende leuchtet
-    if (game instanceof BossGame) {
+    if (game instanceof EntBossGame) {
+      // Ent: wie viele Holzstapel brennen
+      const akt = game.kampf.aktiveFeuer
+      const t = `${akt.filter((f) => f.an).length} / ${akt.length}`
+      const zt = $('tages-ziel')
+      if (zt.textContent !== t) zt.textContent = t
+      renderer.sonderApfel = false
+    } else if (game instanceof BossGame) {
       const t = `${game.sockel.filter((s) => s.an).length} / ${game.sockel.length}`
       const zt = $('tages-ziel')
       if (zt.textContent !== t) zt.textContent = t

@@ -6,8 +6,8 @@
  * - Froesche bleiben im Tal (sie huepfen nicht ueber den Rand in die Berge)
  * - Edelsteine (Schatz-Level) zaehlen mit: beim ersten Abschluss gibt es ihren Wert in Aepfeln dazu
  * - ab Mission 5: Baeume kippen, wenn die Schlange nah ist (nach 1 bis 8 Sekunden), in Haeusern wechselt das Licht alle
- *   paar Sekunden (nie auf die Schlange), Ameisen; ab Mission 11 kleine Steingolems, Giftwolken aus Quellen, Lava, die sich
- *   ausbreitet, grosse Tannen, ab 16 Leuchttuerme, die sich drehen
+ *   paar Sekunden (nie auf die Schlange), Ameisen; ab Mission 6 kleine Steingolems (bis Mission 10), ab Mission 11 Giftwolken
+ *   aus Quellen, Lava, die sich ausbreitet, grosse Tannen, ab 16 Leuchttuerme, die sich drehen, und Mini-Ents
  * - es gibt kein Level, das zurueckfallen koennte: Fensterlicht, Lichtkegel, Giftwolke, Ameisenbiss und Bienen = verloren
  *
  * `apple` ist immer der naechste Apfel zum Kopf (dorthin zeigt der Pfeil am Bildrand), `aepfel` sind alle, die noch liegen.
@@ -71,6 +71,13 @@ export type MissionKarte = {
   minigolems: P[]
   stoecke: P[]
   igel: P[]
+  /** Mini-Ents (ab Mission 16) */
+  minients: P[]
+  /** Ent-Boss (Mission 20): Start des Ents, alte Baumstuempfe, Holzstapel (ab = ab welcher Phase), Glutschale */
+  ent: P | null
+  stuempfe: P[]
+  holz: { p: P; ab: number }[]
+  schale: P | null
 }
 
 /** Zusammenhaengende Gruppen (4er-Nachbarschaft) */
@@ -128,6 +135,11 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
     minigolems: [],
     stoecke: [],
     igel: [],
+    minients: [],
+    ent: null,
+    stuempfe: [],
+    holz: [],
+    schale: null,
   }
   const mauer: P[] = []
   const teich: P[] = []
@@ -216,6 +228,24 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
           break
         case 'I':
           k.igel.push(p)
+          break
+        case 'N':
+          k.minients.push(p)
+          break
+        case 'Q':
+          k.ent = p
+          break
+        case 'U':
+          k.stuempfe.push(p)
+          break
+        case 'P':
+          k.holz.push({ p, ab: 0 })
+          break
+        case 'V':
+          k.holz.push({ p, ab: 1 })
+          break
+        case 'K':
+          k.schale = p
           break
         default:
           if (z[x] >= '1' && z[x] <= '6') k.sockel.push({ p, i: Number(z[x]) - 1 })
@@ -440,7 +470,7 @@ export class MissionGame extends Game {
 
   /* ================= Neues ab Mission 5 ================= */
 
-  /** Ameisen, Baeume, Haeuser, Leuchttuerme, Lava, Giftwolken-Quellen, Steingolems, Bienenstoecke und Igel von der Karte */
+  /** Ameisen, Baeume, Haeuser, Leuchttuerme, Lava, Giftwolken-Quellen, Steingolems, Mini-Ents, Bienenstoecke und Igel von der Karte */
   protected dingeSetzen(k: MissionKarte) {
     const r = this.r
     // Wohin am meisten Platz ist (fest, damit es jedes Mal gleich ist)
@@ -495,6 +525,7 @@ export class MissionGame extends Game {
     this.quellen = k.quellen.map((p, i) => ({ p: { ...p }, next: 2500 + i * 2600 }))
     for (const p of k.minigolems) this.minigolemSetzen(p, weitesteRichtung(p))
     this.stoecke = k.stoecke.map((p) => ({ p: { ...p }, t: 0, bis: Infinity, ruhe: 0 }))
+    for (const p of k.minients) this.minientSetzen(p)
     this.wesen = k.igel.map((p) => ({ art: 'igel' as const, p: { ...p }, from: { ...p }, dir: weitesteRichtung(p), t: 0, schrittT: 0, next: WESEN_TAKT.igel, heim: { ...p }, sattBis: 0, wurfNext: 0 }))
   }
 

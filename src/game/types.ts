@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor' | 'minigolem' | 'licht' | 'kegel' | 'wolke' | 'ameise' | 'bienen'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor' | 'minigolem' | 'licht' | 'kegel' | 'wolke' | 'ameise' | 'bienen' | 'minient' | 'blaetterbombe' | 'entboss'
 
 export type Status = 'play' | 'over'
 
@@ -245,17 +245,43 @@ export type Minigolem = {
   ruheBis: number
 }
 
+/** Mini-Ent (Missionen 16 bis 20): kleines Baumwesen, steht verwurzelt und bewegt sich nicht. Ist der Kopf in Reichweite,
+ *  wirft er eine Blaetterbombe (Schatten, dann platzt sie im Plus). Faehrt der Kopf direkt an ihm vorbei (Nachbarfeld seitlich),
+ *  packt er zu: dann bleibt eine halbe Sekunde, um in die Gegenrichtung wegzuziehen */
+export type MiniEnt = {
+  p: P
+  /** Blickrichtung (Bogenmass, dreht sich zum Kopf) */
+  winkel: number
+  t: number
+  /** Naechste Bombe fruehestens ab, zuletzt geworfen */
+  wurfNext: number
+  wurfT: number
+  /** Packt erst wieder ab (nach einem Griff) */
+  griffPause: number
+  /** Letzter Griff (Animation) */
+  griffT: number
+}
+/** Blaetterbombe eines Mini-Ents: fliegt von `von` nach `p` (Schatten bis `bis`), platzt dort im Plus */
+export type Blaetterbombe = { von: P; p: P; t: number; bis: number; fertig: boolean }
+
 /** Ereignisse fuer Toene, Vibration und Anzeige */
 /** Boss der Wiese (Mission 10): was der Steingolem gerade tut (fuer Ton, Ruetteln und Teilchen) */
 export type GolemEreignis = 'erwachen' | 'warnung' | 'schlag' | 'ansturm' | 'aufprall' | 'stein' | 'sprung' | 'landung' | 'bann' | 'frei' | 'treffer' | 'zorn' | 'tot' | 'torAuf' | 'torZu' | 'wechsel'
 
+/** Boss des Waldes (Mission 20, frei auf Level 100): was der Ent gerade tut */
+export type EntEreignis =
+  | 'erwachen' | 'warnung' | 'wurzel' | 'dornen' | 'eichel' | 'einschlag' | 'ranken' | 'setzling' | 'sturm' | 'flamme' | 'feuer' | 'aus'
+  | 'brennt' | 'rueckfeuer' | 'treffer' | 'abtauchen' | 'auftauchen' | 'zorn' | 'tot' | 'zuwachsen'
+
 export type GameEvent =
   | { type: 'golem'; was: GolemEreignis; p: P }
+  | { type: 'ent'; was: EntEreignis; p: P }
+  | { type: 'minient'; was: 'wurf' | 'platzt' | 'griff' | 'los'; p: P }
   | { type: 'kristall'; was: 'neu' | 'auf' | 'sockel' | 'alle'; p: P; farbe: number }
   | { type: 'bossSchaden'; leben: number; p: P }
   /** Boss im freien Spiel: der Kampf beginnt (Mitte des Bannkreises) oder ist gewonnen (Belohnung in Aepfeln) */
-  | { type: 'bossStart'; p: P }
-  | { type: 'bossSieg'; p: P; wert: number }
+  | { type: 'bossStart'; p: P; boss?: 'ent' }
+  | { type: 'bossSieg'; p: P; wert: number; boss?: 'ent' }
   | { type: 'minigolem'; was: 'neu' | 'sieht' | 'laden' | 'schlag'; p: P }
   | { type: 'eat'; level: number; p: P; stufe: number; wer?: number }
   | { type: 'milestone'; level: number }

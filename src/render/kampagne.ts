@@ -306,6 +306,7 @@ export class KampagnenKarte {
     c.fill()
     // Inhalt: Zahl, Schatztruhe oder Totenschaedel
     if (schatz) truhe(c, x, y - 1, r * 0.95, zu)
+    else if (boss && m.boss === 'ent') entKopf(c, x, y - 1, r * 0.95, zu)
     else if (boss) schaedel(c, x, y - 1, r * 0.95, zu)
     else {
       c.fillStyle = zu ? '#6E736B' : z === 'geschafft' ? '#FFFFFF' : '#2C1E14'
@@ -590,6 +591,52 @@ function truhe(c: CanvasRenderingContext2D, x: number, y: number, r: number, gra
 }
 
 /** Totenschaedel (Mission 10, Boss-Level) */
+/** Boss des Waldes: Kopf des Ents (Laubkrone, Rindengesicht, gluehende Augen) */
+function entKopf(c: CanvasRenderingContext2D, x: number, y: number, r: number, grau: boolean) {
+  const k = r * 0.5
+  const laub = grau ? ['#AEB2AA', '#C5C8C0'] : ['#2F6B3A', '#5DA552']
+  // Krone aus Laubballen
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI + (i / 6) * Math.PI
+    c.fillStyle = laub[i % 2]
+    c.beginPath()
+    c.arc(x + Math.cos(a) * k * 0.75, y - k * 0.1 + Math.sin(a) * k * 0.7, k * 0.42, 0, Math.PI * 2)
+    c.fill()
+  }
+  // Gesicht aus Rinde
+  c.fillStyle = grau ? '#8E918A' : '#6B4A2C'
+  c.beginPath()
+  c.ellipse(x, y + k * 0.25, k * 0.62, k * 0.78, 0, 0, Math.PI * 2)
+  c.fill()
+  c.strokeStyle = grau ? '#7C7F78' : '#3E2816'
+  c.lineWidth = k * 0.08
+  c.lineCap = 'round'
+  for (const dx of [-0.32, 0, 0.32]) {
+    c.beginPath()
+    c.moveTo(x + dx * k, y + k * 0.75)
+    c.lineTo(x + dx * k * 0.8, y + k * 0.95)
+    c.stroke()
+  }
+  // Brauen und Augen
+  c.lineWidth = k * 0.14
+  c.beginPath()
+  c.moveTo(x - k * 0.5, y - k * 0.08)
+  c.lineTo(x - k * 0.12, y + k * 0.06)
+  c.moveTo(x + k * 0.5, y - k * 0.08)
+  c.lineTo(x + k * 0.12, y + k * 0.06)
+  c.stroke()
+  c.fillStyle = grau ? '#D9DBD5' : '#F6DE6E'
+  c.beginPath()
+  c.arc(x - k * 0.28, y + k * 0.22, k * 0.13, 0, Math.PI * 2)
+  c.arc(x + k * 0.28, y + k * 0.22, k * 0.13, 0, Math.PI * 2)
+  c.fill()
+  // Mund
+  c.fillStyle = grau ? '#7C7F78' : '#2A1A10'
+  c.beginPath()
+  c.ellipse(x, y + k * 0.58, k * 0.2, k * 0.08, 0, 0, Math.PI * 2)
+  c.fill()
+}
+
 function schaedel(c: CanvasRenderingContext2D, x: number, y: number, r: number, grau: boolean) {
   const k = r * 0.5
   const knochen = grau ? '#D9DBD5' : '#F4EFE2'

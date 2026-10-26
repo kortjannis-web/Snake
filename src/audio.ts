@@ -331,6 +331,91 @@ class Audio {
         break
     }
   }
+  /** Ent (Boss des Waldes): Knarren, brechende Wurzeln, Dornen, Eicheln, Feuer, Gebruell, Zerfall */
+  ent(was: string) {
+    switch (was) {
+      case 'erwachen':
+        // Altes Holz knarrt, tiefes Brummen
+        this.tone(62, 2, 'sawtooth', 0.14, { to: 48, filter: 260, vib: 3, attack: 0.5 })
+        this.noise(1.6, 'bandpass', 380, 0.2, { to: 160, attack: 0.4, q: 3 })
+        break
+      case 'warnung':
+        this.tone(140, 0.4, 'sawtooth', 0.07, { to: 104, filter: 600, vib: 8 })
+        this.noise(0.3, 'bandpass', 900, 0.08, { q: 4 })
+        break
+      case 'einschlag':
+        this.tone(160, 0.2, 'sine', 0.3, { to: 70 })
+        this.noise(0.25, 'lowpass', 900, 0.25, { to: 200 })
+        break
+      case 'sturm':
+        this.noise(2.4, 'bandpass', 600, 0.22, { to: 1500, attack: 0.6, q: 0.6 })
+        break
+      case 'setzling':
+        ;[330, 392, 440].forEach((f, i) => this.tone(f, 0.12, 'triangle', 0.08, { delay: i * 0.07 }))
+        break
+      case 'flamme':
+        this.noise(0.35, 'bandpass', 1800, 0.14, { to: 900, q: 1.2 })
+        this.tone(660, 0.2, 'triangle', 0.08, { to: 880 })
+        break
+      case 'feuer':
+        this.noise(0.8, 'lowpass', 1200, 0.25, { to: 500, attack: 0.05 })
+        ;[523, 784].forEach((f, i) => this.tone(f, 0.25, 'triangle', 0.1, { delay: 0.05 + i * 0.07 }))
+        break
+      case 'aus':
+        this.noise(0.6, 'highpass', 2500, 0.1, { to: 900 })
+        break
+      case 'brennt':
+        this.noise(1.4, 'lowpass', 1500, 0.35, { to: 400, attack: 0.1 })
+        this.tone(98, 1.2, 'sawtooth', 0.14, { to: 140, filter: 700, vib: 9 })
+        break
+      case 'rueckfeuer':
+        this.noise(0.7, 'bandpass', 1200, 0.22, { to: 300, q: 0.9 })
+        break
+      case 'abtauchen':
+      case 'auftauchen':
+        this.noise(0.9, 'lowpass', 300, 0.35, { to: was === 'auftauchen' ? 700 : 120 })
+        this.tone(55, 0.8, 'sine', 0.3, { to: was === 'auftauchen' ? 82 : 40 })
+        break
+      case 'zuwachsen':
+        this.noise(1.2, 'bandpass', 500, 0.12, { to: 250, attack: 0.3, q: 2 })
+        break
+      case 'treffer':
+        this.noise(0.12, 'highpass', 2500, 0.4)
+        this.tone(196, 0.6, 'sawtooth', 0.14, { to: 65, filter: 1200, vib: 6 })
+        this.noise(0.7, 'lowpass', 800, 0.35, { to: 150, delay: 0.05 })
+        break
+      case 'zorn':
+        this.tone(73, 1.4, 'sawtooth', 0.2, { to: 58, vib: 6, filter: 650, attack: 0.15 })
+        this.tone(110, 1.2, 'sawtooth', 0.1, { to: 82, vib: 4, filter: 800, attack: 0.15 })
+        this.noise(1.3, 'bandpass', 420, 0.25, { attack: 0.2, q: 2 })
+        break
+      case 'tot':
+        for (let i = 0; i < 6; i++) this.noise(0.4, 'bandpass', 1400 - i * 150, 0.2, { delay: i * 0.25, q: 1.5 })
+        this.tone(82, 2.4, 'sawtooth', 0.12, { to: 30, filter: 450, vib: 3, attack: 0.1 })
+        ;[392, 523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.45, 'triangle', 0.12, { delay: 1.7 + i * 0.12 }))
+        break
+    }
+  }
+  /** Mini-Ent: Wurf, platzende Blaetterbombe, Griff, losgerissen */
+  minient(was: string) {
+    switch (was) {
+      case 'wurf':
+        this.noise(0.25, 'bandpass', 900, 0.1, { to: 1800, q: 1 })
+        break
+      case 'platzt':
+        this.noise(0.35, 'bandpass', 1600, 0.2, { to: 600, q: 0.8 })
+        this.tone(220, 0.15, 'sine', 0.15, { to: 110 })
+        break
+      case 'griff':
+        this.tone(120, 0.5, 'sawtooth', 0.12, { to: 90, filter: 500, vib: 10 })
+        this.noise(0.4, 'bandpass', 500, 0.18, { q: 3 })
+        break
+      case 'los':
+        this.noise(0.2, 'highpass', 1800, 0.16)
+        this.tone(440, 0.12, 'triangle', 0.1, { to: 660 })
+        break
+    }
+  }
   /** Kristalle: auftauchen, aufheben, in den Sockel setzen, alle sechs leuchten */
   kristall(was: string, farbe = 0) {
     const k = 1 + farbe * 0.06

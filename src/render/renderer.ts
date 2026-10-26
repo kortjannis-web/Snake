@@ -11,6 +11,8 @@ import { drawFledermaeuse, drawFledermausWarnung, drawGolem, drawLore, drawLoreA
 import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapfenSchatten, drawIglu, drawNordlicht, drawRobbe, drawSchneeball, drawSchneemann, drawSchneesturm, drawYeti } from './winter'
 import { WUESTE } from '../game/rules'
 import { BossGame, KRISTALL_FARBEN } from '../game/boss'
+import { EntBossGame } from '../game/entboss'
+import { drawBomben, drawBombenWarnung, drawEicheln, drawEntBoss, drawEntHud, drawEntLinien, drawEntWarnungen, drawGetrageneFlamme, drawGriff, drawLaubsturm, drawLichtung, drawMiniEnt, drawRueckfeuer, drawSetzlinge, drawWaldrand } from './ent'
 import { MissionGame } from '../game/mission'
 import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, drawKristalle, drawMinigolem, drawMinigolemEntdeckt, drawMinigolemSchlag, drawMinigolemWarnung, drawWarnungen, drawWellen } from './golem'
 import type { BergKacheln } from './berge'
@@ -472,6 +474,19 @@ export class Renderer {
           const sp = cell * (1.5 + Math.random() * 2.5)
           this.funken.push({ x: (e.p.x + 0.5) * cell, y: (e.p.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell, born: g.time, c: ['#BDEBFF', '#FFFFFF', '#8A8178', '#7FD8FF'][i % 4] })
         }
+    } else if (e.type === 'ent' && !this.reduce) {
+      // Ent: der Boden bebt, wenn Wurzeln brechen, Eicheln einschlagen und er getroffen wird
+      const beben: Partial<Record<typeof e.was, [number, number]>> = { erwachen: [1400, 0.06], einschlag: [240, 0.12], treffer: [420, 0.24], zorn: [1100, 0.12], tot: [1600, 0.2], abtauchen: [700, 0.08], auftauchen: [500, 0.12], brennt: [500, 0.1], rueckfeuer: [260, 0.08], zuwachsen: [600, 0.05] }
+      const b = beben[e.was]
+      if (b) this.shake = { until: g.time + b[0], amp: cell * b[1] }
+      if (e.was === 'treffer' || e.was === 'feuer' || e.was === 'brennt')
+        for (let i = 0; i < (e.was === 'feuer' ? 10 : 24); i++) {
+          const ang = Math.random() * Math.PI * 2
+          const sp = cell * (1.2 + Math.random() * 2.2)
+          this.funken.push({ x: (e.p.x + 0.5) * cell, y: (e.p.y + 0.5) * cell, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - cell, born: g.time, c: e.was === 'treffer' ? ['#9BDB6A', '#E8A040', '#FFE58A', '#5A3A22'][i % 4] : ['#FFB13D', '#FF6A2A', '#FFE58A'][i % 3] })
+        }
+    } else if (e.type === 'minient' && e.was === 'platzt' && !this.reduce) {
+      this.shake = { until: g.time + 160, amp: cell * 0.06 }
     } else if (e.type === 'kristall' && !this.reduce) {
       const c = KRISTALL_FARBEN[e.farbe] ?? '#FFFFFF'
       const n = e.was === 'neu' ? 6 : e.was === 'alle' ? 30 : 14
@@ -895,6 +910,16 @@ export class Renderer {
       drawWarnungen(ctx, boss, cell, now, this.reduce)
       drawKristalle(ctx, boss, cell, now, this.reduce)
     }
+    // Lichtung des Ents: Stuempfe, Holzstapel, Glutschale, rote Warnungen, Wurzeln und Ranken (unter der Schlange)
+    const ent = g instanceof EntBossGame ? g.kampf : g.freiEnt
+    if (ent) {
+      if (g instanceof EntBossGame) drawWaldrand(ctx, ent, cell, (x, y) => g.inside({ x, y }), now, this.reduce)
+      drawLichtung(ctx, ent, cell, now, this.reduce)
+      drawEntWarnungen(ctx, ent, cell, now, this.reduce)
+      drawEntLinien(ctx, ent, cell, now, this.reduce)
+      drawSetzlinge(ctx, ent, cell, now, this.reduce)
+    }
+    if (g.bomben.length) drawBombenWarnung(ctx, g.bomben, (b) => g.bombeFelder(b), cell, now, this.reduce)
 
     // Apfel (Farbe nach Wert) und Giftaepfel (tarnen sich in derselben Farbe)
     const stufe = g.apfelStufe()
@@ -1092,6 +1117,8 @@ export class Renderer {
       drawSchneeball(ctx, px(lerp(s.from.x, s.p.x, k)), px(lerp(s.from.y, s.p.y, k)), cell, k)
     }
 
+    // Mini-Ents: stehen verwurzelt, drehen sich zum Kopf
+    for (const me of g.minients) if (sicht(me.p, 3)) drawMiniEnt(ctx, me, cell, now, !!g.gepackt && g.gepackt.p.x === me.p.x && g.gepackt.p.y === me.p.y, this.reduce)
     // Spuren (Teilchen hinter den Schlangen)
     if (!this.reduce) this.spuren.draw(ctx, cell, now)
 
@@ -1114,6 +1141,20 @@ export class Renderer {
       drawGolemBoss(ctx, boss, cell, now, this.reduce)
       drawBrocken(ctx, boss, cell, now, this.reduce)
       drawWellen(ctx, boss, cell, now, this.reduce)
+    }
+    // Der Ent steht ueber der Schlange, darueber Eicheln, das Rueckfeuer und die getragene Flamme
+    if (ent) {
+      const kopf = { x: lerp(g.prev[0]?.x ?? g.body[0].x, g.body[0].x, a), y: lerp(g.prev[0]?.y ?? g.body[0].y, g.body[0].y, a) }
+      drawEntBoss(ctx, ent, cell, now, this.reduce)
+      drawEicheln(ctx, ent, cell, now, this.reduce)
+      drawRueckfeuer(ctx, ent, cell, now)
+      drawGetrageneFlamme(ctx, ent, kopf, cell, now)
+    }
+    if (g.bomben.length) drawBomben(ctx, g.bomben, cell, now, this.reduce)
+    // Vom Mini-Ent gepackt: Ranken zum Kopf, Ring und Pfeil, wohin man wischen muss
+    if (g.gepackt && g.status === 'play') {
+      const gp = g.gepackt
+      drawGriff(ctx, gp.p, g.body[0], STEP[gp.weg], (now - gp.ab) / Math.max(1, gp.bis - gp.ab), cell, now)
     }
     if (this.mehr) for (const f of this.mehr.andere) if (!f.tot && f.name && f.body.some((p) => sicht(p))) this.drawName(f)
     if (this.mehr?.blasen) for (const b of this.mehr.blasen) if (sicht(b.p, 2)) this.drawBlase(b)
@@ -1276,9 +1317,13 @@ export class Renderer {
 
     // Apfel ausserhalb des Bildes: Pfeil am Rand
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
-    if (g.status === 'play' && !boss) this.drawZeiger(g, ox, oy, now)
+    if (g.status === 'play' && !boss && !ent) this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
     if (boss) drawBossHud(ctx, boss, vw, vh, now)
+    if (ent) {
+      drawLaubsturm(ctx, ent, vw, vh, now, this.reduce)
+      drawEntHud(ctx, ent, vw, vh, now)
+    }
   }
 
   /**
@@ -1789,7 +1834,7 @@ export class Renderer {
     const lief = g.time !== this.camZeit
     this.camZeit = g.time
     // Boss: die Kamera zeigt immer den ganzen Raum, in dem der Kopf ist, und gleitet durch das Tor in den naechsten
-    if (g instanceof BossGame) {
+    if (g instanceof BossGame || g instanceof EntBossGame) {
       const z = g.kameraZiel(kopf)
       this.frameOk = false
       this.sichtGlatt = { x: [0, 0], y: [0, 0] }

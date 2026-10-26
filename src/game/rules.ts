@@ -129,6 +129,15 @@ const BASIS = {
   // Boss im freien Spiel (Wiese): auf diesem Level kommt der Steingolem mit 4 Sockeln, Belohnung mal Apfelwert
   bossAb: 60,
   bossLohn: 25,
+  // Ent (Wiese): auf diesem Level einmal der Ent auf einer Lichtung (3 Holzstapel, ein Treffer), Belohnung mal Apfelwert
+  entBossAb: 100,
+  entBossLohn: 40,
+  // Mini-Ents (Missionen 16 bis 20): werfen Blaetterbomben, packen zu, wenn man direkt vorbeifaehrt
+  minientWeite: 6,
+  minientWurf: 2.6,
+  minientFlug: 1.1,
+  minientGriff: 0.5,
+  minientGriffPause: 2,
   // Gegner-Schlangen
   gegnerAb: 100,
   gegnerMin: 30,
@@ -789,7 +798,7 @@ const SCHEMA_ROH: SchemaGruppe[] = [
     ],
   },
   {
-    gruppe: 'Wiese: Steingolems, große Tannen, Boss',
+    gruppe: 'Wiese: Steingolems, große Tannen, Bosse, Mini-Ents',
     felder: [
       { key: 'minigolemAb', label: 'Steingolems ab Level', min: 1, max: 10000 },
       { key: 'minigolemMin', label: 'Neuer Golem alle mindestens', min: 1, max: 200, einheit: 'Level' },
@@ -804,6 +813,13 @@ const SCHEMA_ROH: SchemaGruppe[] = [
       { key: 'tanneAlle', label: 'Neue große Tanne alle', min: 1, max: 500, einheit: 'Level' },
       { key: 'bossAb', label: 'Boss (Steingolem) auf Level', min: 1, max: 10000 },
       { key: 'bossLohn', label: 'Boss besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
+      { key: 'entBossAb', label: 'Ent auf Level', min: 1, max: 10000 },
+      { key: 'entBossLohn', label: 'Ent besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
+      { key: 'minientWeite', label: 'Mini-Ent wirft bis', min: 1, max: 20, einheit: 'Felder' },
+      { key: 'minientWurf', label: 'Mini-Ent wirft alle', min: 0.3, max: 20, step: 0.1, einheit: 's' },
+      { key: 'minientFlug', label: 'Blätterbombe fliegt', min: 0.2, max: 5, step: 0.05, einheit: 's' },
+      { key: 'minientGriff', label: 'Mini-Ent packt: Zeit zum Wegziehen', min: 0.1, max: 5, step: 0.05, einheit: 's' },
+      { key: 'minientGriffPause', label: 'Mini-Ent packt erst wieder nach', min: 0, max: 30, step: 0.1, einheit: 's' },
     ],
   },
   {

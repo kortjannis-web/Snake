@@ -18,15 +18,20 @@
  *   Y  Stamm eines stehenden Baums (von oben ein Plus: die vier Nachbarn gehoeren dazu). Kommt der Kopf auf 5 Felder
  *      heran, kippt er nach 1 bis 8 Sekunden um (nie auf die Schlange)
  *   H  Haus (zusammenhaengende Felder; je Seite ein Fenster, das Licht wechselt alle paar Sekunden)
+ * Ab Mission 6 (bis Mission 10):
+ *   M  kleiner Steingolem
  * Ab Mission 11:
  *   Z  Stamm einer grossen Tanne (steht auf 3 x 3 Feldern, faellt 6 Felder weit)
- *   M  kleiner Steingolem
  *   L  Lava (zusammenhaengend ein See, breitet sich aus)
  *   C  Quelle einer Giftwolke (steigt immer wieder auf)
  *   J  Leuchtturm (2 x 2, dreht seinen Lichtkegel)
  *   b  Bienenstock, I Igel
+ * Ab Mission 16:
+ *   N  Mini-Ent (steht, wirft Blaetterbomben, packt zu)
  * Nur im Boss-Level: O Mitte eines Bannkreises, 1 bis 6 Sockel, B Steingolem, T Steintor, k Platz fuer Kristalle,
  *   x Wiese, auf die der Golem nicht tritt
+ * Nur im Ent-Level: Q Stamm des Ents, U alter Baumstumpf (dorthin wandert er), P Holzstapel, V Holzstapel ab Phase 2,
+ *   K Glutschale
  */
 import type { Dir } from './types'
 
@@ -54,6 +59,8 @@ export type MissionDef = {
   seed?: number
   /** Schneller je Apfel (Prozent, Standard wie im freien Spiel 0,12): spaete Missionen ziehen an */
   tempoProApfel?: number
+  /** Boss-Level: der Steingolem (Mission 10) oder der Ent (Mission 20) */
+  boss?: 'golem' | 'ent'
   /** Eigene Bildgroesse (Boss: die ganze Arena passt ins Bild) */
   bild?: { w: number; h: number }
   /** Kurzer Hinweis beim Start */
@@ -376,7 +383,7 @@ const WIESE_6 = [
   '##..........A...........##',
   '##.....G............A...##',
   '##..A...................##',
-  '##........F.............##',
+  '##........F.....M.......##',
   '##......................##',
   '##...........WWWWW......##',
   '##...~~~~...........W...##',
@@ -433,7 +440,7 @@ const WIESE_7 = [
   '##.......EEEE.....########',
   '##.......EEEE......#######',
   '##.F.....EEEE...........##',
-  '##......................##',
+  '##..........M...........##',
   '##......................##',
   '##.###................A.##',
   '#######.........~.......##',
@@ -500,7 +507,7 @@ const WIESE_8 = [
   '##..WWWWW..WA.W..WWWWW..##',
   '##.........W..W.........##',
   '##.........W..W......A..##',
-  '##..R...................##',
+  '##..R.........M.........##',
   '##......................##',
   '#################..#######',
   '#################..#######',
@@ -523,7 +530,7 @@ const WIESE_8 = [
   '##..WWWWWW..WWWWWW..W...##',
   '##..................W.A.##',
   '##................F.W...##',
-  '##...........G......W...##',
+  '##........M..G......W...##',
   '##......................##',
   '##.....a................##',
   '##############..##########',
@@ -560,7 +567,7 @@ const WIESE_9 = [
   '##############..##########',
   '##############..##########',
   '##############..##########',
-  '##......................##',
+  '##......M...............##',
   '##......................##',
   '##..A....G..W..W....A...##',
   '##..#.......W..W........##',
@@ -572,7 +579,7 @@ const WIESE_9 = [
   '##..F.......W..W.EEEEE..##',
   '##...............EEEEE..##',
   '##...A..............F...##',
-  '##......................##',
+  '##..........M...........##',
   '#######..#########..######',
   '#######..#########..######',
   '#######..#########..######',
@@ -596,7 +603,7 @@ const WIESE_9 = [
   '##...A..................##',
   '##........G.Y.....A.....##',
   '##WWWWWWWW..............##',
-  '##......................##',
+  '##............M.........##',
   '##............WWWWWWWW..##',
   '##......F...............##',
   '##...EEEE...............##',
@@ -632,7 +639,7 @@ const WIESE_BOSS = [
   '##.............##',
   '######xxxxx######',
   '#...............#',
-  '#...............#',
+  '#.M.............#',
   '#.......1.......#',
   '#....#.....#....#',
   '#....#.....#....#',
@@ -648,7 +655,7 @@ const WIESE_BOSS = [
   '#....#.....#....#',
   '#....#.....#....#',
   '#.......4.......#',
-  '#...............#',
+  '#.............M.#',
   '#...............#',
   '######xxxxx######',
   '##.............##',
@@ -680,7 +687,7 @@ const WIESE_BOSS = [
   '#...............#',
   '#...............#',
   '#.......3.......#',
-  '#...............#',
+  '#..M............#',
   '#...##.....##...#',
   '#...##.....##...#',
   '#...............#',
@@ -722,13 +729,13 @@ const WIESE_BOSS = [
   '#################',
 ] as const
 
-/** Mission 11: die Golemwiese, die ersten kleinen Steingolems (2), Haeuser, Baeume, Ameisen. 16 Aepfel, der mittlere Pass ist eng */
+/** Mission 11: der Ameisenhuegel, Haeuser, Baeume, viele Ameisen. 16 Aepfel, der mittlere Pass ist eng */
 const WIESE_11 = [
   '##########################',
   '########.........A########',
   '#######............#######',
   '######.......a..A...######',
-  '#####..M....Y........#####',
+  '#####..a....Y........#####',
   '####..................####',
   '###...........A........###',
   '##.............WWWWW....##',
@@ -757,7 +764,7 @@ const WIESE_11 = [
   '##......................##',
   '##...................a..##',
   '##......................##',
-  '##..........A...Y..M....##',
+  '##..........A...Y..a....##',
   '##.........###..........##',
   '##........#####.........##',
   '##.......#######........##',
@@ -786,7 +793,7 @@ const WIESE_11 = [
   '##########################',
 ] as const
 
-/** Mission 12: breite Taeler im Giftnebel: drei Quellen, aus denen immer wieder Giftwolken steigen, 2 Golems. 18 Aepfel */
+/** Mission 12: breite Taeler im Giftnebel: drei Quellen, aus denen immer wieder Giftwolken steigen, Ameisen. 18 Aepfel */
 const WIESE_12 = [
   '#######################################',
   '########.............A.........########',
@@ -797,7 +804,7 @@ const WIESE_12 = [
   '###.........................A.......###',
   '##...~~~.........##..................##',
   '##..~~~~~.......####.................##',
-  '##...~~~...............####...M......##',
+  '##...~~~...............####...a......##',
   '##.......###...F......#####..........##',
   '##.......###.........................##',
   '##...........................A.......##',
@@ -828,7 +835,7 @@ const WIESE_12 = [
   '##.....###..W........................##',
   '##......#...W.A....C...........~~~...##',
   '##.A........W...##............~~~~~..##',
-  '##....M.........###..........A.~~~...##',
+  '##....a.........###..........A.~~~...##',
   '##.............Y.#..##..WWWWWW.......##',
   '##..................##...............##',
   '##....A.............##...............##',
@@ -850,13 +857,13 @@ const WIESE_12 = [
   '#######################################',
 ] as const
 
-/** Mission 13: Lavafelder, drei Seen breiten sich aus, enge Paesse, 3 Golems, eine grosse Tanne. 18 Aepfel */
+/** Mission 13: Lavafelder, drei Seen breiten sich aus, enge Paesse, Ameisen, eine grosse Tanne. 18 Aepfel */
 const WIESE_13 = [
   '##########################',
   '########..........########',
   '#######............#######',
   '######..###.........######',
-  '#####..A####...M..A..#####',
+  '#####..A####...a..A..#####',
   '####....###...........####',
   '###....................###',
   '##......................##',
@@ -874,7 +881,7 @@ const WIESE_13 = [
   '##................###...##',
   '##..........LL...#####..##',
   '##..........LL....###...##',
-  '##....M...........###...##',
+  '##....a...........###...##',
   '##......................##',
   '##.....Y................##',
   '##......................##',
@@ -884,9 +891,9 @@ const WIESE_13 = [
   '###...##############...###',
   '##......................##',
   '##......................##',
-  '##......................##',
+  '##................a.....##',
   '##............Z.........##',
-  '##....#.............M...##',
+  '##....#.................##',
   '##...###..........A.....##',
   '##..#####...............##',
   '##..#####.......L...A...##',
@@ -926,7 +933,7 @@ const WIESE_13 = [
   '##########################',
 ] as const
 
-/** Mission 14: Tannenwald, sechs grosse Tannen und vier Baeume, 3 Golems. 20 Aepfel */
+/** Mission 14: Tannenwald, sechs grosse Tannen und vier Baeume, Ameisen. 20 Aepfel */
 const WIESE_14 = [
   '#######################################',
   '########.......................########',
@@ -938,7 +945,7 @@ const WIESE_14 = [
   '##..A.....................A..........##',
   '##....................Y..............##',
   '##..........Z........................##',
-  '##......M.......A....................##',
+  '##......a.......A....................##',
   '##..........................~~~......##',
   '##...........A..###........~~~~~.....##',
   '##..............##..........~~~......##',
@@ -964,7 +971,7 @@ const WIESE_14 = [
   '##.......~~~........W..........Z.....##',
   '##......~~~~~...Y....................##',
   '##.......~~~A........................##',
-  '##....................G.Y.....M......##',
+  '##....................G.Y.....a......##',
   '##...###.............................##',
   '##..#####................Z...........##',
   '##..#####......####.........A........##',
@@ -980,7 +987,7 @@ const WIESE_14 = [
   '##.............................Z.....##',
   '##.................#####.............##',
   '##............A....#####.............##',
-  '##..a....................M...........##',
+  '##..a....................a...........##',
   '##........A........................A.##',
   '##...........................A.......##',
   '##...................................##',
@@ -1002,19 +1009,19 @@ const WIESE_14 = [
   '#######################################',
 ] as const
 
-/** Mission 15 (Schatz): oben hinter dem Tor die Schatzkammer mit Gold, Diamanten und Rubinen, zwei Golems wachen. 16 Aepfel */
+/** Mission 15 (Schatz): oben hinter dem Tor die Schatzkammer mit Gold, Diamanten und Rubinen, Ameisen wachen. 16 Aepfel */
 const WIESE_15 = [
   '##########################',
   '########..........########',
   '#######...A......A.#######',
   '######.......%......######',
-  '#####$..M...........$#####',
-  '####..................####',
+  '#####$..............$#####',
+  '####......a...........####',
   '###...WW....%.....WW...###',
   '##....WW..........WW.A..##',
   '##......................##',
   '##........$....$........##',
-  '##...............M......##',
+  '##...............a......##',
   '##..*................*..##',
   '##......................##',
   '###########....###########',
@@ -1048,7 +1055,7 @@ const WIESE_15 = [
   '##...~~~~~...A..........##',
   '##....~~~...............##',
   '##...............A......##',
-  '##..................M...##',
+  '##..................a...##',
   '##......................##',
   '##..A...................##',
   '##......................##',
@@ -1078,7 +1085,7 @@ const WIESE_15 = [
   '##########################',
 ] as const
 
-/** Mission 16: drei Leuchttuerme drehen ihre Lichtkegel, 3 Golems, Lava. 20 Aepfel */
+/** Mission 16: drei Leuchttuerme drehen ihre Lichtkegel, der erste Mini-Ent, Ameisen, Lava. 20 Aepfel */
 const WIESE_16 = [
   '#######################################',
   '########.......................########',
@@ -1086,7 +1093,7 @@ const WIESE_16 = [
   '######...........................######',
   '#####.............................#####',
   '####...............................####',
-  '###.........##................M.....###',
+  '###.........##................a.....###',
   '##..........##.......A...............##',
   '##....A.JJ...A.......................##',
   '##......JJ...........................##',
@@ -1103,7 +1110,7 @@ const WIESE_16 = [
   '##...................................##',
   '##............................A......##',
   '##...................................##',
-  '##.......................M...........##',
+  '##.......................N...........##',
   '##....###............................##',
   '##....###............................##',
   '##.....#......###....................##',
@@ -1112,9 +1119,9 @@ const WIESE_16 = [
   '##........L........JJ.....A.~~~~~....##',
   '##.....Y...........JJ................##',
   '##...................................##',
-  '##.............##......W.............##',
+  '##....a........##......W.............##',
   '##..G..........##......W.............##',
-  '##....M........##......W......A......##',
+  '##.............##......W......A......##',
   '##......A......##...W.............G..##',
   '##..................W..........A.....##',
   '##.A................W................##',
@@ -1154,14 +1161,14 @@ const WIESE_16 = [
   '#######################################',
 ] as const
 
-/** Mission 17: Bienenhain, drei Bienenstoecke, Igel, Giftwolken, zwei Leuchttuerme, 4 Golems. 20 Aepfel */
+/** Mission 17: Bienenhain, drei Bienenstoecke, Igel, Giftwolken, zwei Leuchttuerme, 2 Mini-Ents. 20 Aepfel */
 const WIESE_17 = [
   '#######################################',
   '########.......................########',
   '#######...................A.....#######',
   '######...........................######',
   '#####.............b......I........#####',
-  '####.....M....................A....####',
+  '####.....a....................A....####',
   '###.................................###',
   '##......####............###..........##',
   '##......####.............##..........##',
@@ -1172,7 +1179,7 @@ const WIESE_17 = [
   '##....JJ.........#####...............##',
   '##....JJ...###....###................##',
   '##.........###............A..........##',
-  '##..A......###..................M....##',
+  '##..A......###..................N....##',
   '##...................................##',
   '##........A..........................##',
   '##..........A........................##',
@@ -1194,9 +1201,9 @@ const WIESE_17 = [
   '##....................W......JJ......##',
   '##...........A...##..................##',
   '##....#..........###.......Z.........##',
-  '##...###.......A.###..........A......##',
+  '##...###.a.....A.###..........A......##',
   '##...###....###......................##',
-  '##........M.###.....A................##',
+  '##..........###.....A................##',
   '##...................................##',
   '##.......A............WWW............##',
   '##...................................##',
@@ -1208,7 +1215,7 @@ const WIESE_17 = [
   '##.........###.......................##',
   '##.........###.............Z.........##',
   '##..........#........................##',
-  '##..b.......A.....A.....M............##',
+  '##..b.......A.....A.....N............##',
   '##...................................##',
   '##...................................##',
   '##....####...I.......................##',
@@ -1230,13 +1237,13 @@ const WIESE_17 = [
   '#######################################',
 ] as const
 
-/** Mission 18: lange Schlucht im Steinbruch, enge Paesse (2 Felder), 5 Golems, Lava, Tuerme, eine Gegner-Schlange. 22 Aepfel */
+/** Mission 18: lange Schlucht im Steinbruch, enge Paesse (2 Felder), 2 Mini-Ents, Lava, Tuerme, eine Gegner-Schlange. 22 Aepfel */
 const WIESE_18 = [
   '##########################',
   '########..........########',
   '#######............#######',
   '######..............######',
-  '#####..............M.#####',
+  '#####..............a.#####',
   '####..................####',
   '###....................###',
   '##.......WWWWWW.A...A...##',
@@ -1250,9 +1257,9 @@ const WIESE_18 = [
   '##......................##',
   '##......................##',
   '##......................##',
-  '##...........A..........##',
+  '##.....a.....A..........##',
   '##.........###...W......##',
-  '##..A.M...#####..W......##',
+  '##..A.....#####..W......##',
   '##.........###...W......##',
   '##........Y......W......##',
   '##.....G.........W......##',
@@ -1268,7 +1275,7 @@ const WIESE_18 = [
   '##..EEEEE.JJ.......LL...##',
   '##..EEEEE.JJ........L...##',
   '##..EEEEE...............##',
-  '##...................M..##',
+  '##...................N..##',
   '##......................##',
   '##..G..........A........##',
   '##......................##',
@@ -1276,15 +1283,15 @@ const WIESE_18 = [
   '############..############',
   '############..############',
   '##......................##',
-  '##.........A............##',
+  '##.........A......N.....##',
   '##......................##',
-  '##..........Y.......M...##',
+  '##..........Y...........##',
   '##...........#####......##',
   '##...........#####A.....##',
   '##..WWWWW....#####......##',
   '##......................##',
   '##......................##',
-  '##..M...................##',
+  '##..a...................##',
   '##............A......A..##',
   '##......................##',
   '####################..####',
@@ -1318,14 +1325,14 @@ const WIESE_18 = [
   '##########################',
 ] as const
 
-/** Mission 19: brennende Taeler, Lava, Giftwolken, 5 Golems, Tuerme, zwei Gegner-Schlangen. 24 Aepfel */
+/** Mission 19: der dunkle Forst, Lava, Giftwolken, 3 Mini-Ents, Tuerme, zwei Gegner-Schlangen. 24 Aepfel */
 const WIESE_19 = [
   '#######################################',
   '########.......................########',
   '#######...A.....................#######',
   '######...................A.......######',
   '#####.............................#####',
-  '####....M.....Z....................####',
+  '####....N.....Z....................####',
   '###..A..............................###',
   '##...#...............................##',
   '##..###..........LL..................##',
@@ -1333,7 +1340,7 @@ const WIESE_19 = [
   '##...................................##',
   '##.....................###...........##',
   '##..........R..........####..........##',
-  '##.....####............###.A..M......##',
+  '##.....####............###.A..a......##',
   '##.....####........A.................##',
   '##.......................A...........##',
   '##...................................##',
@@ -1350,9 +1357,9 @@ const WIESE_19 = [
   '##..............#######..............##',
   '##......LL......#######..............##',
   '##.......L......#######..............##',
-  '##....A...........###................##',
+  '##....A...........###....N...........##',
   '##...................................##',
-  '##.a....###...HH...........M.........##',
+  '##.a....###...HH.....................##',
   '##.....####...HH.........G...........##',
   '##......##....HH............A.###....##',
   '##....G......................#####...##',
@@ -1364,7 +1371,7 @@ const WIESE_19 = [
   '##...................................##',
   '##...................................##',
   '##....A......A.......................##',
-  '##...............A...............M...##',
+  '##...............A...............N...##',
   '##...................................##',
   '##...........WWW..JJ..A..............##',
   '##......###.......JJ...###..LL.......##',
@@ -1372,7 +1379,7 @@ const WIESE_19 = [
   '##......###..........................##',
   '##....................W..............##',
   '##.............####.Z.W..............##',
-  '##...M.........####...W..............##',
+  '##...a.........####...W..............##',
   '##..............##....W.......C......##',
   '##.........WWW........W..###.....A...##',
   '##......................####.........##',
@@ -1406,137 +1413,90 @@ const WIESE_19 = [
   '#######################################',
 ] as const
 
-/** Mission 20: das Golem-Heer, sieben kleine Steingolems, drei Leuchttuerme, Lava, Wolken, Bienen, Gegner. 25 Aepfel */
+/**
+ * Mission 20 (Boss): die Waldlichtung des Ents, passt ganz ins Bild (BOSS_BILD, 17 x 32). Oben steht der Ent (Q, Stamm
+ * 3 x 3) verwurzelt, ab Phase 2 wandert er zwischen den alten Baumstuempfen (U). In der Mitte die Glutschale (K),
+ * dazu 3 Holzstapel (P) und ab Phase 2 ein vierter (V). Unten zwei Mini-Ents (N), S = Schlange
+ */
 const WIESE_20 = [
-  '#######################################',
-  '########.......................########',
-  '#######.........................#######',
-  '######...........................######',
-  '#####.............................#####',
-  '####......M..........##............####',
-  '###.....Y............##...JJ........###',
-  '##...................##...JJ.......A.##',
-  '##..........WWWWW....................##',
-  '##..............A..A..........HH.....##',
-  '##............................HH.....##',
-  '##.........####......................##',
-  '##....A....####.............R........##',
-  '##................A..................##',
-  '##...................................##',
-  '##...................................##',
-  '#####..###########...###########..#####',
-  '#####..###########...###########..#####',
-  '##...............A..............A....##',
-  '##...................................##',
-  '##....................A..............##',
-  '##.A.....................W.A......a..##',
-  '##..EEEEE................W...........##',
-  '##..EEEEE.........###....W...........##',
-  '##...............#####...W....LL.....##',
-  '##..............#######........L.....##',
-  '##..###..........#####...........G...##',
-  '##..###..JJ.......###................##',
-  '##..##...JJ........##................##',
-  '##............###..##....M.......C...##',
-  '##....M..Z....###..##................##',
-  '##.............#.....................##',
-  '##...................................##',
-  '##...................................##',
-  '##########...##############..##########',
-  '##########...##############..##########',
-  '##................A..................##',
-  '##...................................##',
-  '##.....##...............A..WWWWWW....##',
-  '##..b..##............................##',
-  '##............R......................##',
-  '##.................#........JJ.......##',
-  '##....G..........#####......JJ.....A.##',
-  '##......LL..###..#####...............##',
-  '##..##..L..####..#####....Z..........##',
-  '##..###....A##.A...#.................##',
-  '##...#...................W.......G...##',
-  '##............M..........W.....M.....##',
-  '##.......................W...........##',
-  '##.......................W...........##',
-  '##...................................##',
-  '##...................................##',
-  '###..#############....############..###',
-  '###..#############....############..###',
-  '##.........A.........###.............##',
-  '##...................###.............##',
-  '##...................###.....EEEEE...##',
-  '##..........C................EEEEE...##',
-  '##...................................##',
-  '##................###................##',
-  '##.A..M..........#####...............##',
-  '##........#.......###............Z...##',
-  '##.......###..................M......##',
-  '##.......##..........................##',
-  '##..................A............A...##',
-  '##...............A...................##',
-  '#########...################...########',
-  '#########...################...########',
-  '##................A..................##',
-  '##.................................A.##',
-  '##............HH.....................##',
-  '##............HH...####..............##',
-  '##.................####......~~~.....##',
-  '##.................####.....~~~~~....##',
-  '##....WWWWW......A..##.......~~~.....##',
-  '##.................Y.................##',
-  '##...................................##',
-  '###...............................a.###',
-  '####...............S...............####',
-  '#####.........................A...#####',
-  '######.......A...................######',
-  '#######.........................#######',
-  '########.......................########',
-  '#######################################',
+  '#################',
+  '####.........####',
+  '###...........###',
+  '##.............##',
+  '##......Q......##',
+  '#...............#',
+  '#...............#',
+  '#..U.........U..#',
+  '#...............#',
+  '#...............#',
+  '#.......V.......#',
+  '#...............#',
+  '#...............#',
+  '#..P.........P..#',
+  '#...............#',
+  '#...............#',
+  '#.U...........U.#',
+  '#.......K.......#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#...............#',
+  '#.......P.......#',
+  '#...............#',
+  '#...............#',
+  '#..N.........N..#',
+  '#.......S.......#',
+  '#...............#',
+  '##.............##',
+  '#################',
 ] as const
 
 /** Belohnung je Mission (beim ersten Abschluss), steigt mit der Schwierigkeit */
 export const MISSION_LOHN = [6, 8, 10, 12, 20, 14, 16, 18, 22, 40, 24, 26, 28, 30, 45, 32, 34, 36, 40, 60]
-/** Skins der Kampagne: der Boss der Wiese (Mission 10) und der Schatzhueter fuer das Golem-Heer (Mission 20) */
-export const MISSION_SKINS: Record<number, string> = { 10: 'steingolem', 20: 'schatzhueter' }
+/** Skins der Kampagne: Steingolem (Boss, Mission 10), Schatzhueter (Schatzhoehle, Mission 15), Waldgeist (Ent, Mission 20) */
+export const MISSION_SKINS: Record<number, string> = { 10: 'steingolem', 15: 'schatzhueter', 20: 'waldgeist' }
 /** Skins, deren Mission es noch nicht gibt (vorgemerkt, im Shop versteckt, ausser man hat ihn schon) */
 export const missionSkinVorgemerkt = (id: string) => Object.entries(MISSION_SKINS).some(([nr, s]) => s === id && Number(nr) > WIESE_MISSIONEN.length)
 
-type Bau = Pick<MissionDef, 'karte' | 'richtung' | 'laenge' | 'seed' | 'tempoProApfel' | 'bild' | 'hinweis' | 'wolkeStufe' | 'lavaMehr'>
+type Bau = Pick<MissionDef, 'karte' | 'richtung' | 'laenge' | 'seed' | 'tempoProApfel' | 'bild' | 'hinweis' | 'wolkeStufe' | 'lavaMehr' | 'boss'>
 const BAU: Bau[] = [
   { karte: WIESE_1, richtung: 'u', laenge: 3, seed: 0x5eed01 },
   { karte: WIESE_2, richtung: 'u', laenge: 3, seed: 0x5eed02, hinweis: 'Durch die Bäche kommst du nur an den Furten.' },
   { karte: WIESE_3, richtung: 'u', laenge: 4, seed: 0x5eed03, hinweis: 'Pass auf die vielen Frösche auf.' },
   { karte: WIESE_4, richtung: 'u', laenge: 4, seed: 0x5eed04, hinweis: 'Die Mauern ziehen sich von Rand zu Rand.' },
   { karte: WIESE_5, richtung: 'u', laenge: 4, seed: 0x5eed05, hinweis: 'Ganz am Ende hinter dem Tor liegt der Schatz. Neu: Bäume kippen, wenn du nah kommst, Ameisen beißen, ins Fensterlicht laufen ist vorbei.' },
-  { karte: WIESE_6, richtung: 'u', laenge: 4, seed: 0x5eed06, tempoProApfel: 0.3, hinweis: 'Viele Giftäpfel: genau hinsehen.' },
-  { karte: WIESE_7, richtung: 'u', laenge: 5, seed: 0x5eed07, tempoProApfel: 0.45, hinweis: 'Auf dem Eis lässt sich nicht lenken, dazu eine Gegner-Schlange.' },
-  { karte: WIESE_8, richtung: 'u', laenge: 5, seed: 0x5eed08, tempoProApfel: 0.6, hinweis: 'Enge Pässe und Gassen, zwei Gegner-Schlangen.' },
-  { karte: WIESE_9, richtung: 'u', laenge: 6, seed: 0x5eed09, tempoProApfel: 0.75, hinweis: 'Alles auf einmal: enge Pässe, Eis, Gegner und Frösche.' },
-  { karte: WIESE_BOSS, richtung: 'u', laenge: 4, seed: 0x5eed10, bild: BOSS_BILD },
-  { karte: WIESE_11, richtung: 'u', laenge: 6, seed: 0x5eed11, tempoProApfel: 0.8, hinweis: 'Neu: kleine Steingolems. Sehen sie deinen Kopf, kommen sie und schlagen zu. Wird es rot, schnell weg.' },
+  { karte: WIESE_6, richtung: 'u', laenge: 4, seed: 0x5eed06, tempoProApfel: 0.3, hinweis: 'Viele Giftäpfel. Neu: ein kleiner Steingolem. Sieht er deinen Kopf, kommt er und schlägt zu. Wird es rot, schnell weg.' },
+  { karte: WIESE_7, richtung: 'u', laenge: 5, seed: 0x5eed07, tempoProApfel: 0.45, hinweis: 'Auf dem Eis lässt sich nicht lenken, dazu eine Gegner-Schlange und ein Steingolem.' },
+  { karte: WIESE_8, richtung: 'u', laenge: 5, seed: 0x5eed08, tempoProApfel: 0.6, hinweis: 'Enge Pässe und Gassen, zwei Gegner-Schlangen, zwei Steingolems.' },
+  { karte: WIESE_9, richtung: 'u', laenge: 6, seed: 0x5eed09, tempoProApfel: 0.75, hinweis: 'Alles auf einmal: enge Pässe, Eis, Gegner, Frösche und drei Steingolems. Gleich kommt ihr Herr.' },
+  { karte: WIESE_BOSS, richtung: 'u', laenge: 4, seed: 0x5eed10, bild: BOSS_BILD, boss: 'golem' },
+  { karte: WIESE_11, richtung: 'u', laenge: 6, seed: 0x5eed11, tempoProApfel: 0.8, hinweis: 'Die Golems sind fort, dafür viele Ameisen. Kommst du ihnen nah, laufen sie los und beißen.' },
   { karte: WIESE_12, richtung: 'u', laenge: 6, seed: 0x5eed12, tempoProApfel: 0.85, wolkeStufe: 2, hinweis: 'Aus drei Quellen steigen immer wieder Giftwolken.' },
   { karte: WIESE_13, richtung: 'u', laenge: 6, seed: 0x5eed13, tempoProApfel: 0.9, lavaMehr: 10, hinweis: 'Die Lava breitet sich aus. Die große Tanne fällt 6 Felder weit.' },
   { karte: WIESE_14, richtung: 'u', laenge: 7, seed: 0x5eed14, tempoProApfel: 0.9, hinweis: 'Im Tannenwald: Kommst du nah, kippen die Bäume nach ein paar Sekunden.' },
-  { karte: WIESE_15, richtung: 'u', laenge: 6, seed: 0x5eed15, tempoProApfel: 0.85, wolkeStufe: 2, lavaMehr: 8, hinweis: 'Ganz oben hinter dem Tor liegt der Schatz, zwei Golems bewachen ihn.' },
-  { karte: WIESE_16, richtung: 'u', laenge: 7, seed: 0x5eed16, tempoProApfel: 0.95, lavaMehr: 8, hinweis: 'Neu: Leuchttürme drehen ihren Lichtkegel. Wer im Licht ist, hat verloren.' },
-  { karte: WIESE_17, richtung: 'u', laenge: 7, seed: 0x5eed17, tempoProApfel: 1, wolkeStufe: 2, hinweis: 'Zu nah am Bienenstock, und der Schwarm kommt. Dazu Igel, Wolken und Leuchttürme.' },
-  { karte: WIESE_18, richtung: 'u', laenge: 7, seed: 0x5eed18, tempoProApfel: 1, lavaMehr: 8, hinweis: 'Enge Pässe im Steinbruch, fünf Golems und eine Gegner-Schlange.' },
-  { karte: WIESE_19, richtung: 'u', laenge: 8, seed: 0x5eed19, tempoProApfel: 1.05, wolkeStufe: 2, lavaMehr: 10, hinweis: 'Lava, Giftwolken, Golems und Türme: alles auf einmal.' },
-  { karte: WIESE_20, richtung: 'u', laenge: 8, seed: 0x5eed20, tempoProApfel: 1.1, wolkeStufe: 2, lavaMehr: 8, hinweis: 'Das Golem-Heer: sieben Steingolems. Hol alle 25 Äpfel.' },
+  { karte: WIESE_15, richtung: 'u', laenge: 6, seed: 0x5eed15, tempoProApfel: 0.85, wolkeStufe: 2, lavaMehr: 8, hinweis: 'Ganz oben hinter dem Tor liegt der Schatz, Ameisen bewachen ihn.' },
+  { karte: WIESE_16, richtung: 'u', laenge: 7, seed: 0x5eed16, tempoProApfel: 0.95, lavaMehr: 8, hinweis: 'Neu: Leuchttürme (wer im Licht ist, hat verloren) und ein Mini-Ent. Er wirft Blätterbomben. Fährst du direkt an ihm vorbei, packt er zu: dann sofort von ihm weg wischen.' },
+  { karte: WIESE_17, richtung: 'u', laenge: 7, seed: 0x5eed17, tempoProApfel: 1, wolkeStufe: 2, hinweis: 'Zu nah am Bienenstock, und der Schwarm kommt. Dazu Igel, Wolken, Leuchttürme und zwei Mini-Ents.' },
+  { karte: WIESE_18, richtung: 'u', laenge: 7, seed: 0x5eed18, tempoProApfel: 1, lavaMehr: 8, hinweis: 'Enge Pässe im Steinbruch, zwei Mini-Ents und eine Gegner-Schlange.' },
+  { karte: WIESE_19, richtung: 'u', laenge: 8, seed: 0x5eed19, tempoProApfel: 1.05, wolkeStufe: 2, lavaMehr: 10, hinweis: 'Im dunklen Forst: drei Mini-Ents, Lava, Giftwolken und Türme. Der Ent ist nah.' },
+  { karte: WIESE_20, richtung: 'u', laenge: 4, seed: 0x5eed20, bild: BOSS_BILD, boss: 'ent' },
 ]
 
 const NAMEN = [
   'Erste Schritte', 'Am Bach', 'Froschteich', 'Steinmauern', 'Schatztor', 'Giftige Wiese', 'Hügelland', 'Enge Pässe', 'Sturm im Tal', 'Der Wächter der Wiese',
-  'Golemwiese', 'Giftnebel', 'Lavafelder', 'Tannenwald', 'Schatzhöhle', 'Leuchttürme', 'Bienenhain', 'Steinbruch', 'Brennende Täler', 'Das Golem-Heer',
+  'Ameisenhügel', 'Giftnebel', 'Lavafelder', 'Tannenwald', 'Schatzhöhle', 'Leuchttürme', 'Bienenhain', 'Steinbruch', 'Dunkler Forst', 'Der Ent',
 ]
 
-/** Die 20 Missionen der Wiese. 5 und 15 sind Schatz-Level, 10 der Boss (der Steingolem), 20 das Golem-Heer */
+/** Die 20 Missionen der Wiese. 5 und 15 sind Schatz-Level, 10 und 20 die Bosse (Steingolem und Ent) */
 export const WIESE_MISSIONEN: MissionDef[] = NAMEN.map((name, i) => ({
-  id: `wiese-${i + 1}`,
+  // Mission 20 war frueher das Golem-Heer: der Ent hat eine eigene Id, so zaehlt er fuer alle als neu (mit Belohnung)
+  id: i === 19 ? 'wiese-20-ent' : `wiese-${i + 1}`,
   welt: 'wiese',
   nr: i + 1,
   name,
-  art: i === 4 || i === 14 ? 'schatz' : i === 9 ? 'boss' : 'normal',
+  art: i === 4 || i === 14 ? 'schatz' : i === 9 || i === 19 ? 'boss' : 'normal',
   lohn: MISSION_LOHN[i],
   ...(MISSION_SKINS[i + 1] ? { skin: MISSION_SKINS[i + 1] } : {}),
   ...BAU[i],
