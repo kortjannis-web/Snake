@@ -14,10 +14,11 @@
  * Zeit: `time` laeuft nur, solange `update()` aufgerufen wird (Pause = nicht
  * aufrufen). Alle Zeitpunkte im Spiel beziehen sich auf `time`.
  */
+import { ENT, Entkampf, type Lichtung } from './entkampf'
 import { GOLEM, Golemkampf, type Raum } from './golemkampf'
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Baum, Bienenstock, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, Minigolem, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
+import type { Ameise, Baum, Bienenstock, Blaetterbombe, MiniEnt, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, Minigolem, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -122,6 +123,9 @@ export const WESEN_WEG = 600
 const ausKey = (k: number): P => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })
 
 /** Schluessel fuer Sets (funktioniert auch fuer -1 und Karten bis 4000 Felder Kante) */
+/** Vorboten der Bosse im freien Spiel: so viele Level vor dem Boss kommt je ein kleiner Golem bzw. Mini-Ent */
+export const VORBOTEN = [10, 7, 4, 2] as const
+
 export const key = (x: number, y: number) => (y + 1) * 4096 + (x + 1)
 const same = (a: P, b: P) => a.x === b.x && a.y === b.y
 const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
@@ -308,6 +312,15 @@ export class Game {
   minigolems: Minigolem[] = []
   /** Boss im freien Spiel (Wiese, Level bossAb, auch im Kreativ-Modus): der Steingolem mitten auf der Karte, 4 Sockel um einen Bannkreis */
   freiBoss: Golemkampf | null = null
+  /** Mini-Ents (Missionen 16 bis 20) und ihre fliegenden Blaetterbomben */
+  minients: MiniEnt[] = []
+  bomben: Blaetterbombe[] = []
+  /** Ein Mini-Ent hat zugepackt: die Schlange steht bis `bis`, nur ein Wisch in Richtung `weg` (von ihm weg) befreit sie */
+  gepackt: { p: P; weg: Dir; ab: number; bis: number } | null = null
+  /** Zweiter Boss im freien Spiel (Wiese, Level entBossAb): der Ent auf einer Lichtung, 3 Holzstapel, ein Treffer */
+  freiEnt: Entkampf | null = null
+  protected entFaellig = false
+  protected entVersuch = 0
   /** Der Boss ist faellig (kommt, sobald keine Gebietswahl mehr offen ist und Platz da ist) */
   protected bossFaellig = false
   protected bossVersuch = 0
@@ -355,7 +368,8 @@ export class Game {
 
   protected next: Record<Art, number>
   /** Naechster kleiner Steingolem (Level) */
-  protected golemNext = 0
+  /** Wie viele Vorboten (kleine Golems, Mini-Ents) vor dem jeweiligen Boss schon gekommen sind */
+  protected vorbotenDa = { golem: 0, ent: 0 }
   protected lastSpawn = -1e9
   /** Faellige Baeume, Haeuser und Tuerme, die noch keinen Platz gefunden haben */
   protected offen = { baum: 0, haus: 0, turm: 0, eis: 0, tanne: 0 }
@@ -411,7 +425,6 @@ export class Game {
     if (this.formZufall) this.ursprung = { x: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bw, y: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bh }
     for (const b of this.blocks) this.startBloecke.add(weltKey(b.x - this.ursprung.x / this.bw, b.y - this.ursprung.y / this.bh))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
-    this.golemNext = this.cfg.minigolemAb
     this.tick = R.takt(this.cfg, this.tempo, 1)
 
     // Start in der Mitte der Karte, im Tageslevel in der Mitte des ersten Blocks
@@ -456,7 +469,6 @@ export class Game {
     this.apples = start - 1
     this.tick = R.takt(this.cfg, this.tempo, this.level)
     for (const k of ['falle', 'wolke', 'frosch', 'gegner', 'ameise'] as const) this.next[k] = Math.max(this.next[k], start + 1)
-    this.golemNext = Math.max(this.golemNext, start + 1)
     if (sb) {
       this.statisch = !sb.weiter
       this.wachsRest = Math.max(0, Math.round(sb.laenge) - this.body.length)
@@ -472,6 +484,7 @@ export class Game {
       this.events = []
       // Start genau auf dem Boss-Level (Admin: Kreativ mit Startlevel 60): der Boss kommt gleich
       if (start === this.cfg.bossAb && this.wieseExtras()) this.bossFaellig = true
+      if (start === this.cfg.entBossAb && this.wieseExtras()) this.entFaellig = true
     }
     this.aufbau = false
   }
@@ -482,7 +495,10 @@ export class Game {
   update(dt: number) {
     const vorher = this.time
     this.zeitTakt(dt)
-    if (this.status !== 'play') return this.freiBoss?.update(0)
+    if (this.status !== 'play') {
+      this.freiEnt?.update(0)
+      return this.freiBoss?.update(0)
+    }
     this.schritte()
     if (this.status !== 'play') return
     this.weltTakt()
@@ -501,12 +517,14 @@ export class Game {
   protected schritte() {
     // Nach einem Haenger nicht mehrere Schritte nachholen
     if (this.time - this.last > this.takt * 3) this.last = this.time - this.takt
-    while (this.status === 'play' && this.lebt() && !this.gnade && this.time - this.last >= this.takt) {
+    while (this.status === 'play' && this.lebt() && !this.gnade && !this.gepackt && this.time - this.last >= this.takt) {
       this.last += this.takt
       this.step()
     }
     // Reaktionszeit vorbei, ohne zu lenken: jetzt prallt sie auf
     if (this.gnade && this.lebt() && this.time >= this.gnade.bis) this.nachGnade()
+    // Vom Mini-Ent gepackt und nicht rechtzeitig weggezogen
+    if (this.gepackt && this.lebt() && this.time >= this.gepackt.bis) this.griffVorbei()
   }
 
   /** Lebt die aktive Schlange? (Im Mehrspieler kann eine tot sein, waehrend das Spiel weiterlaeuft) */
@@ -530,6 +548,7 @@ export class Game {
     this.gegnerTakt()
     this.ameisenTakt()
     this.minigolemTakt()
+    this.minientTakt()
     this.fallenTakt()
     this.sandwurmTakt()
     this.einschlaegeTakt()
@@ -585,6 +604,11 @@ export class Game {
     if (this.status !== 'play') return
     // Spiegelfluch: die Steuerung ist vertauscht
     if (this.spiegelt()) d = OPP[d]
+    // Ein Mini-Ent haelt fest: nur der Wisch von ihm weg reisst los
+    if (this.gepackt) {
+      if (d === this.gepackt.weg) this.losreissen()
+      return
+    }
     // Auf Eis laesst sich nicht lenken (ausser im Kreativ-Modus, wenn die Schlange vor einem Hindernis steht)
     if (!this.halt && this.aufEis(this.body[0])) return
     // Reaktionszeit vor dem Aufprall: Abbiegen rettet (nicht in den Hals, nicht noch einmal geradeaus)
@@ -784,6 +808,7 @@ export class Game {
     if (fi >= 0) this.fundNehmen(this.funde.splice(fi, 1)[0].art, n)
     // Bosskampf im freien Spiel: Kristalle, Sockel, Treffer
     this.freiBoss?.einsammeln(n)
+    this.freiEnt?.einsammeln(n)
   }
 
   /** Erz eingesammelt: Gold 3, Diamant 6, Rubin 10, Opal 20 mal aktueller Apfel */
@@ -957,6 +982,8 @@ export class Game {
     if (this.fallen.some((f) => same(f.p, n))) return 'falle'
     if (this.froesche.some((f) => f.gone === undefined && same(f.p, n))) return 'frosch'
     if (this.minigolems.some((g) => same(g.p, n))) return 'minigolem'
+    if (this.minients.some((e) => same(e.p, n))) return 'minient'
+    if (this.freiEnt?.istWand(n)) return 'ranke'
     if (this.baeume.some((b) => b.cells.some((p) => same(p, n)))) return 'baum'
     if (this.haeuser.some((h) => h.cells.some((p) => same(p, n)))) return 'haus'
     if (this.tuerme.some((t) => t.cells.some((p) => same(p, n)))) return 'turm'
@@ -1031,6 +1058,7 @@ export class Game {
 
   protected die(cause: Cause) {
     this.gnade = null
+    this.gepackt = null
     this.status = 'over'
     this.cause = cause
     this.deathAt = this.time
@@ -1097,6 +1125,7 @@ export class Game {
     if (this.wieseExtras() && l >= c.tanneAb && (l - c.tanneAb) % Math.max(1, c.tanneAlle) === 0) this.offen.tanne++
     // Boss: einmal, wenn dieser Level zum ersten Mal erreicht wird (nicht beim Aufbau, nicht im Kreativ-Modus)
     if (l === c.bossAb && this.wieseExtras() && !this.aufbau) this.bossFaellig = true
+    if (l === c.entBossAb && this.wieseExtras() && !this.aufbau) this.entFaellig = true
     this.bauten()
     // Feste Zeit: mit lilaAb kommt der lila Gegner (immer nur einer)
     if (l === c.lilaAb && !this.aufbau && !this.gegner.some((e) => e.art === 'lila')) this.neuerGegner('lila', true)
@@ -1143,11 +1172,20 @@ export class Game {
       this.next[k] = this.level + this.r.int(a, b)
       this.spawn(k)
     }
-    if (this.wieseExtras() && this.level >= this.cfg.minigolemAb && this.level >= this.golemNext) {
-      const c = this.cfg
-      this.golemNext = this.level + this.r.int(Math.min(c.minigolemMin, c.minigolemMax), Math.max(c.minigolemMin, c.minigolemMax))
-      this.neuerMinigolem()
-    }
+    this.vorbotenAuffuellen()
+  }
+
+  /** Vorboten der Bosse (Wiese, freies Spiel): 10, 7, 4 und 2 Level vor dem Steingolem kommt je ein kleiner Golem,
+   *  genauso vor dem Ent je ein Mini-Ent. Ist der Boss besiegt, verschwinden sie wieder. Startet man mitten drin
+   *  (Kreativ), stehen schon so viele da, wie bis dahin gekommen waeren */
+  protected vorbotenAuffuellen() {
+    if (!this.wieseExtras()) return
+    const c = this.cfg
+    const soll = (boss: number) => (this.level > boss ? 0 : VORBOTEN.filter((v) => this.level >= boss - v).length)
+    const golems = soll(c.bossAb) - this.vorbotenDa.golem
+    for (let i = 0; i < golems; i++) if (this.neuerMinigolem()) this.vorbotenDa.golem++
+    const ents = soll(c.entBossAb) - this.vorbotenDa.ent
+    for (let i = 0; i < ents; i++) if (this.neuerMinient()) this.vorbotenDa.ent++
   }
 
   /** Nach einem Apfel vielleicht ein Power-up (auf einem freien Feld in Reichweite) */
@@ -3697,6 +3735,13 @@ export class Game {
       g.angriff?.cells.forEach(mv)
     }
     this.freiBoss?.verschieben(dx, dy)
+    this.freiEnt?.verschieben(dx, dy)
+    for (const e of this.minients) mv(e.p)
+    for (const b of this.bomben) {
+      mv(b.p)
+      mv(b.von)
+    }
+    if (this.gepackt) mv(this.gepackt.p)
     this.abgeschnitten.forEach((a) => a.cells.forEach(mv))
     this.einschlaege.forEach((e) => e.cells.forEach(mv))
     for (const w of [...this.wesen, ...this.wesenWeg.map((x) => x.w)]) {
@@ -3793,6 +3838,7 @@ export class Game {
     this.lava.forEach((l) => l.cells.forEach(add))
     this.ameisen.forEach((a) => add(a.p))
     this.minigolems.forEach((g) => add(g.p))
+    this.minients.forEach((e) => add(e.p))
     this.wesen.forEach((w) => !FLIEGT.has(w.art) && add(w.p))
     this.einschlaege.forEach((e) => this.einschlagLiegt(e) && e.cells.forEach(add))
     this.ranken.forEach((r) => r.cells.slice(0, r.grown).forEach(add))
@@ -3817,6 +3863,7 @@ export class Game {
     for (const o of this.haeuser) o.cells.forEach((c) => s.add(key(c.x, c.y)))
     for (const b of this.baeume) b.cells.forEach((c) => s.add(key(c.x, c.y)))
     for (const t of this.tuerme) t.cells.forEach((c) => s.add(key(c.x, c.y)))
+    for (const e of this.minients) s.add(key(e.p.x, e.p.y))
     return s
   }
 
@@ -4373,7 +4420,7 @@ export class Game {
 
   /** Haelt die Mindestzahl an Ereignissen (Fallen, Wolken, Froesche) */
   protected regie() {
-    if (this.freiBoss) return
+    if (this.freiBoss || this.freiEnt) return
     const min = R.mindestEreignisse(this.cfg, this.level)
     if (this.aktiveEreignisse() >= min || this.time - this.lastSpawn < 2500) return
     const arten = (['falle', 'wolke', 'frosch'] as const).filter((k) => this.level >= R.ab(this.cfg, k))
@@ -5052,10 +5099,11 @@ export class Game {
     return true
   }
 
-  /** Liegt das Feld im Revier einer Ameise (dort, wo sie sitzt, und um ihr Zuhause)? Dort kommt nichts zum Einsammeln hin */
+  /** Liegt das Feld im Revier einer Ameise (dort, wo sie sitzt, und um ihr Zuhause) oder neben einem Mini-Ent? Dort kommt
+   *  nichts zum Einsammeln hin */
   ameiseNah(c: P) {
     const r = this.ameiseAbstand
-    return this.ameisen.some((a) => cheb(a.p, c) <= r || cheb(a.heim, c) <= r)
+    return this.ameisen.some((a) => cheb(a.p, c) <= r || cheb(a.heim, c) <= r) || this.minients.some((e) => cheb(e.p, c) <= 3)
   }
   /** So weit (Felder, auch schraeg) bleibt alles zum Einsammeln von Ameisen weg: ihr Umkreis und zwei Felder Luft */
   get ameiseAbstand() {
@@ -5149,15 +5197,8 @@ export class Game {
     return this.weltId === 'wiese' && !this.statisch
   }
 
-  /** Hoechstzahl kleiner Golems: minigolemAnzahl, 60 Level spaeter einer mehr */
-  protected minigolemMax() {
-    const c = this.cfg
-    return Math.max(0, Math.round(c.minigolemAnzahl)) + (this.level >= c.minigolemAb + 60 ? 1 : 0)
-  }
-
   /** Neuer kleiner Steingolem: weit weg vom Kopf, nicht in seiner Bahn, mit Platz drumherum */
-  neuerMinigolem(egal = false) {
-    if (!egal && this.minigolems.length >= this.minigolemMax()) return false
+  neuerMinigolem() {
     const head = this.body[0]
     const wand = this.hindernisse()
     const reach = this.erreichbar(wand)
@@ -5372,35 +5413,169 @@ export class Game {
     this.die('minigolem')
   }
 
+  /* ================= Mini-Ents ================= */
+
+  /** Mini-Ent auf ein Feld setzen (Missionen) */
+  protected minientSetzen(p: P) {
+    const i = this.minients.length
+    this.minients.push({ p: { ...p }, winkel: Math.PI / 2, t: this.time, wurfNext: this.time + 1500 + i * 700, wurfT: -1e9, griffPause: 0, griffT: -1e9 })
+  }
+
+  /** Neuer Mini-Ent (freies Spiel, vor dem Ent): weit weg vom Kopf, nicht in seiner Bahn, rundherum frei, nicht am Apfel */
+  neuerMinient() {
+    const head = this.body[0]
+    const wand = this.hindernisse()
+    const reach = this.erreichbar(wand)
+    const cand: P[] = []
+    for (let y = 1; y < this.h - 1; y++)
+      for (let x = 1; x < this.w - 1; x++) {
+        const p = { x, y }
+        const k = key(x, y)
+        if (!this.mask[y * this.w + x] || wand.has(k) || !reach.has(k) || this.aufSchlange(p) || cheb(p, this.apple.p) <= 3) continue
+        if (manhattan(p, head) < 9 || this.imWeg(p, 10)) continue
+        // Rundherum frei (auch schraeg): er steht nie in einer Gasse
+        let frei = true
+        for (let dy = -1; dy <= 1 && frei; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const n = { x: x + dx, y: y + dy }
+            if ((dx || dy) && (!this.inside(n) || wand.has(key(n.x, n.y)) || this.aufSchlange(n))) frei = false
+          }
+        if (!frei || this.minients.some((e) => cheb(e.p, p) < 5) || this.powers.some((o) => cheb(o.p, p) <= 2) || this.funde.some((f) => cheb(f.p, p) <= 2)) continue
+        cand.push(p)
+      }
+    if (!cand.length) return false
+    this.minientSetzen(this.r.pick(cand))
+    return true
+  }
+
+  /** Felder, die eine Blaetterbombe trifft (ein Plus) */
+  bombeFelder(b: Blaetterbombe): P[] {
+    return [b.p, ...DIRS.map((d) => ({ x: b.p.x + STEP[d].x, y: b.p.y + STEP[d].y }))].filter((c) => this.inside(c))
+  }
+
+  /** Mini-Ents: drehen sich zum Kopf, werfen Blaetterbomben (Schatten, dann Plus), packen zu, wenn man direkt vorbeifaehrt */
+  protected minientTakt() {
+    const c = this.cfg
+    const t = this.time
+    const head = this.body[0]
+    // Bomben platzen
+    for (const b of this.bomben) {
+      if (b.fertig || t < b.bis) continue
+      b.fertig = true
+      this.emit({ type: 'minient', was: 'platzt', p: { ...b.p } })
+      if (this.bombeFelder(b).some((p) => same(p, this.body[0]))) this.bombeTrifft(b.p)
+      if (this.status !== 'play') return
+    }
+    this.bomben = this.bomben.filter((b) => !b.fertig || t - b.bis < 700)
+    if (!this.minients.length || this.status !== 'play') return
+    let sperre: Set<number> | null = null
+    for (const e of this.minients) {
+      const ziel = Math.atan2(head.y - e.p.y, head.x - e.p.x)
+      let dw = ziel - e.winkel
+      while (dw > Math.PI) dw -= Math.PI * 2
+      while (dw < -Math.PI) dw += Math.PI * 2
+      e.winkel += Math.max(-0.12, Math.min(0.12, dw))
+      // Direkt vorbei (seitlich daneben): zupacken
+      if (!this.gepackt && !this.gnade && t >= e.griffPause && manhattan(e.p, head) === 1 && !this.geist() && this.griffErlaubt()) {
+        const weg: Dir = head.x > e.p.x ? 'r' : head.x < e.p.x ? 'l' : head.y > e.p.y ? 'd' : 'u'
+        if (weg !== this.dir && weg !== OPP[this.dir]) {
+          this.gepackt = { p: { ...e.p }, weg, ab: t, bis: t + c.minientGriff * 1000 }
+          this.queue = []
+          this.prev = this.body.map((b) => ({ ...b }))
+          e.griffT = t
+          e.griffPause = t + c.minientGriffPause * 1000
+          this.emit({ type: 'minient', was: 'griff', p: { ...e.p } })
+          continue
+        }
+      }
+      // Werfen, wenn der Kopf in Reichweite ist und nichts Hohes dazwischen steht
+      if (t < e.wurfNext) continue
+      if (Math.hypot(head.x - e.p.x, head.y - e.p.y) > c.minientWeite || manhattan(head, e.p) < 2) continue
+      sperre ??= this.sichtSperre()
+      if (!this.sichtFrei(e.p, head, sperre)) continue
+      // Dorthin, wo der Kopf sein wird, wenn sie landet (sonst auf den Kopf)
+      const schritte = Math.round((c.minientFlug * 1000) / Math.max(60, this.takt))
+      const d = STEP[this.dir]
+      let p = { x: head.x + d.x * schritte, y: head.y + d.y * schritte }
+      for (let k = schritte; k > 0 && !this.inside(p); k--) p = { x: head.x + d.x * (k - 1), y: head.y + d.y * (k - 1) }
+      if (this.bomben.some((b) => !b.fertig && manhattan(b.p, p) < 2)) continue
+      this.bomben.push({ von: { ...e.p }, p, t, bis: t + c.minientFlug * 1000, fertig: false })
+      e.wurfT = t
+      e.wurfNext = t + c.minientWurf * 1000 * (0.85 + this.r.next() * 0.3)
+      this.emit({ type: 'minient', was: 'wurf', p: { ...e.p } })
+    }
+  }
+
+  /** Darf jetzt gepackt werden? (Kreativ ohne Tod: nein) */
+  protected griffErlaubt() {
+    return !this.kreativ || this.kreativ.tod === 'an'
+  }
+
+  /** Rechtzeitig weggezogen: die Schlange reisst sich los und faehrt in diese Richtung weiter */
+  protected losreissen() {
+    const g = this.gepackt
+    if (!g) return
+    this.gepackt = null
+    this.queue = [g.weg]
+    this.last = this.time
+    this.emit({ type: 'minient', was: 'los', p: { ...g.p } })
+    this.step()
+  }
+
+  /** Zu lange festgehalten: vorbei (Schild faengt ab) */
+  protected griffVorbei() {
+    this.gepackt = null
+    this.last = this.time
+    if (this.schildBrechen()) return
+    this.die('minient')
+  }
+
+  /** Blaetterbombe trifft den Kopf: vorbei (Schild faengt ab, als Geist nichts) */
+  protected bombeTrifft(_p: P) {
+    if (this.geist()) return
+    if (this.kreativ && this.kreativ.tod !== 'an') return
+    if (this.schildBrechen()) return
+    this.die('blaetterbombe')
+  }
+
   /* ================= Boss im freien Spiel ================= */
 
   /** Je Bild: faelligen Boss starten, laufenden Kampf weiterdrehen */
   protected bossTakt(d: number) {
-    if (this.bossFaellig && !this.freiBoss && this.wahl === 0 && this.time >= this.bossVersuch) {
+    if (this.bossFaellig && !this.freiBoss && !this.freiEnt && this.wahl === 0 && this.time >= this.bossVersuch) {
       if (this.bossStarten()) this.bossFaellig = false
       else this.bossVersuch = this.time + 1000
     }
+    if (this.entFaellig && !this.freiBoss && !this.freiEnt && this.wahl === 0 && this.time >= this.entVersuch) {
+      if (this.entStarten()) this.entFaellig = false
+      else this.entVersuch = this.time + 1000
+    }
     const k = this.freiBoss
-    if (!k) return
+    const e = this.freiEnt
+    if (!k && !e) return
     this.bossWand = this.hindernisse()
-    k.update(d)
+    k?.update(d)
+    e?.update(d)
   }
 
-  /** Arena suchen: ein Platz mit 5 Feldern Umkreis ohne feste Bauten (Teiche, Baeume, Haeuser, Tuerme, Lava, Eis),
-   *  nicht zu nah und nicht zu weit vom Kopf. Was sonst dort liegt (Mauern, Giftaepfel, Fallen, Wolken, Tiere), verschwindet.
-   *  Der Apfel ist waehrend des Kampfs weg, es kommt nichts Neues dazu */
-  protected bossStarten() {
+  /** Platz fuer eine Arena: RADIUS Felder Umkreis ohne feste Bauten (Teiche, Baeume, Haeuser, Tuerme, Lava, Eis), nicht zu
+   *  nah und nicht zu weit vom Kopf. Was sonst dort liegt (Mauern, Giftaepfel, Fallen, Wolken, Tiere), verschwindet.
+   *  Der Apfel ist waehrend des Kampfs weg, es kommt nichts Neues dazu. Mit `lichtung` duerfen Baeume, Teiche und Eis
+   *  im Weg sein (sie verschwinden) und der Platz darf bis 40 Felder weit weg sein */
+  protected arenaPlatz(RADIUS: number, lichtung = false): P | null {
     const head = this.body[0]
     const fest = new Set<number>()
     const add = (p: P) => fest.add(key(p.x, p.y))
-    this.teiche.forEach((t) => t.cells.forEach(add))
-    this.baeume.forEach((b) => b.cells.forEach(add))
+    // Der Ent schafft sich seine Lichtung: Baeume, Teiche und Eis darin verschwinden, nur Haeuser, Tuerme und Lava bleiben
+    if (!lichtung) {
+      this.teiche.forEach((t) => t.cells.forEach(add))
+      this.baeume.forEach((b) => b.cells.forEach(add))
+      this.eis.forEach((e) => e.cells.forEach(add))
+    }
     this.haeuser.forEach((h) => h.cells.forEach(add))
     this.tuerme.forEach((t) => t.cells.forEach(add))
     this.lava.forEach((l) => l.cells.forEach(add))
-    this.eis.forEach((e) => e.cells.forEach(add))
     this.lavaOffen.forEach(add)
-    const RADIUS = 5
     const scheibe: P[] = []
     for (let dy = -RADIUS; dy <= RADIUS; dy++) for (let dx = -RADIUS; dx <= RADIUS; dx++) if (dx * dx + dy * dy <= RADIUS * RADIUS + 1) scheibe.push({ x: dx, y: dy })
     const koerper = this.koerperSet()
@@ -5410,7 +5585,7 @@ export class Game {
       for (let x = RADIUS; x < this.w - RADIUS; x++) {
         const m = { x, y }
         const dist = manhattan(m, head)
-        if (dist < 8 || dist > 22) continue
+        if (dist < 8 || dist > (lichtung ? 40 : 22)) continue
         if (!scheibe.every((o) => {
           const c = { x: m.x + o.x, y: m.y + o.y }
           return this.inside(c) && !fest.has(key(c.x, c.y)) && !koerper.has(key(c.x, c.y))
@@ -5422,7 +5597,7 @@ export class Game {
           best = m
         }
       }
-    if (!best) return false
+    if (!best) return null
     const m = best
     // Platz machen: was nicht fest steht, verschwindet aus der Arena
     const nah = (p: P) => (p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= (RADIUS + 1) ** 2
@@ -5436,10 +5611,27 @@ export class Game {
     this.froesche = this.froesche.filter((f) => !nah(f.p))
     this.ameisen = this.ameisen.filter((a) => !nah(a.p))
     this.minigolems = this.minigolems.filter((g) => !nah(g.p))
+    this.minients = this.minients.filter((e) => !nah(e.p))
     this.wesen = this.wesen.filter((w) => !nah(w.p))
     this.einschlaege = this.einschlaege.filter((e) => !e.cells.some(nah))
+    if (lichtung) {
+      this.baeume = this.baeume.filter((b) => !b.cells.some(nah))
+      this.eis = this.eis.filter((e) => !e.cells.some(nah))
+      // Teiche trocknen aus
+      for (const t of this.teiche) if (t.drying === undefined && t.cells.some(nah)) t.drying = this.time
+    }
     // Waehrend des Kampfs gibt es keinen Apfel
     this.apple = { p: { x: -1000, y: -1000 }, t: this.time }
+    return m
+  }
+
+  /** Der Steingolem kommt: Arena mit 5 Feldern Umkreis, 4 Sockel im Kreuz um den Bannkreis */
+  protected bossStarten() {
+    const head = this.body[0]
+    // Ist kein freier Platz da, raeumt er sich einen frei (Baeume, Teiche und Eis verschwinden)
+    const m = this.arenaPlatz(5) ?? this.arenaPlatz(5, true)
+    if (!m) return false
+    const koerper = this.koerperSet()
     // Sockel im Kreuz um den Bannkreis (Rot oben, Orange rechts, Gelb unten, Gruen links)
     const sockel = [{ x: 0, y: -4 }, { x: 4, y: 0 }, { x: 0, y: 4 }, { x: -4, y: 0 }].map((o, i) => ({ p: { x: m.x + o.x, y: m.y + o.y }, farbe: i, an: false, t: -1e9 }))
     // Der Golem erwacht auf der Seite, die vom Kopf weg zeigt
@@ -5516,11 +5708,97 @@ export class Game {
     const k = this.freiBoss
     if (!k) return
     this.freiBoss = null
+    // Die kleinen Golems zerfallen mit ihm
+    for (const g of this.minigolems) this.emit({ type: 'minigolem', was: 'schlag', p: { ...g.p } })
+    this.minigolems = []
     const c = this.cfg
     const p = { ...k.kreis.p }
     const wert = c.bossLohn * c.apfelWert * this.apfelStufe()
     this.verdient += wert
     this.emit({ type: 'bossSieg', p, wert })
+    if (wert > 0) this.emit({ type: 'geld', wert, p, quelle: 'gegner' })
+    this.neuerApfel()
+  }
+
+  /** Der Ent kommt: eine Lichtung mit 6 Feldern Umkreis, er steht auf der Seite, die vom Kopf weg liegt.
+   *  In der Mitte die Glutschale, auf der anderen Seite 3 Holzstapel. Brennen alle, liegt sein Herzknoten frei */
+  protected entStarten() {
+    const head = this.body[0]
+    const RADIUS = 6
+    const m = this.arenaPlatz(RADIUS, true)
+    if (!m) return false
+    const felder: P[] = []
+    for (let dy = -RADIUS; dy <= RADIUS; dy++)
+      for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+        const c = { x: m.x + dx, y: m.y + dy }
+        if (dx * dx + dy * dy <= RADIUS * RADIUS + 1 && this.inside(c)) felder.push(c)
+      }
+    const a0 = Math.atan2(m.y - head.y, m.x - head.x)
+    const ent = { x: Math.round(m.x + Math.cos(a0) * 4), y: Math.round(m.y + Math.sin(a0) * 4) }
+    const feuer = [0, 1, -1].map((k) => {
+      const a = a0 + Math.PI + k * 1.25
+      return { p: { x: Math.round(m.x + Math.cos(a) * 4), y: Math.round(m.y + Math.sin(a) * 4) }, ab: 0 }
+    })
+    const lichtung: Lichtung = { felder, schale: { ...m }, feuer, stuempfe: [ent] }
+    const spiel = this
+    this.bossWand = this.hindernisse()
+    this.freiEnt = new Entkampf(
+      {
+        get time() {
+          return spiel.time
+        },
+        get body() {
+          return spiel.body
+        },
+        get dir() {
+          return spiel.dir
+        },
+        get r() {
+          return spiel.r
+        },
+        get status() {
+          return spiel.status
+        },
+        get w() {
+          return spiel.w
+        },
+        get h() {
+          return spiel.h
+        },
+        get schutzBis() {
+          return spiel.schutzBis
+        },
+        set schutzBis(v: number) {
+          spiel.schutzBis = v
+        },
+        inside: (c) => spiel.inside(c),
+        frei: (c) => !spiel.bossWand.has(key(c.x, c.y)),
+        emit: (e) => spiel.emit(e),
+        // Kreativ ohne Tod: die Herzen fuellen sich wieder auf
+        verloren: () => (spiel.kreativ && spiel.kreativ.tod !== 'an' && spiel.freiEnt ? (spiel.freiEnt.leben = ENT.herzen) : spiel.die('entboss')),
+        besiegt: () => spiel.entBesiegt(),
+      },
+      lichtung,
+      { leben: 1 },
+    )
+    this.emit({ type: 'bossStart', p: { ...m }, boss: 'ent' })
+    return true
+  }
+
+  /** Der Ent ist zu Laub zerfallen: Belohnung, dann geht es mit dem Apfel weiter */
+  protected entBesiegt() {
+    const k = this.freiEnt
+    if (!k) return
+    this.freiEnt = null
+    // Die Mini-Ents welken mit ihm
+    this.minients = []
+    this.bomben = []
+    this.gepackt = null
+    const c = this.cfg
+    const p = { x: Math.round(k.schale.x), y: Math.round(k.schale.y) }
+    const wert = c.entBossLohn * c.apfelWert * this.apfelStufe()
+    this.verdient += wert
+    this.emit({ type: 'bossSieg', p, wert, boss: 'ent' })
     if (wert > 0) this.emit({ type: 'geld', wert, p, quelle: 'gegner' })
     this.neuerApfel()
   }
@@ -5617,6 +5895,8 @@ export class Game {
     this.gegner = []
     this.ameisen = []
     this.minigolems = []
+    this.minients = []
+    this.bomben = []
     this.lava = []
     this.eis = []
     this.lavaOffen = []

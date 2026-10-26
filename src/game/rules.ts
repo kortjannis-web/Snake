@@ -113,11 +113,8 @@ const BASIS = {
   ameiseRadius: 2,
   ameiseTakt: 0.8,
   ameiseZurueck: 3,
-  // Kleine Steingolems (Wiese ab Level 60, dazu in den Missionen 11 bis 20): laufen zufaellig, sehen nach vorn, schlagen zu
-  minigolemAb: 60,
-  minigolemMin: 10,
-  minigolemMax: 15,
-  minigolemAnzahl: 2,
+  // Kleine Steingolems (Wiese: 10, 7, 4 und 2 Level vor dem Boss je einer, dazu in den Missionen 6 bis 10): laufen
+  // zufaellig, sehen nach vorn, schlagen zu
   minigolemTakt: 0.75,
   minigolemJagdTakt: 0.5,
   minigolemSicht: 5,
@@ -129,6 +126,15 @@ const BASIS = {
   // Boss im freien Spiel (Wiese): auf diesem Level kommt der Steingolem mit 4 Sockeln, Belohnung mal Apfelwert
   bossAb: 60,
   bossLohn: 25,
+  // Ent (Wiese): auf diesem Level einmal der Ent auf einer Lichtung (3 Holzstapel, ein Treffer), Belohnung mal Apfelwert
+  entBossAb: 100,
+  entBossLohn: 40,
+  // Mini-Ents (Missionen 16 bis 20): werfen Blaetterbomben, packen zu, wenn man direkt vorbeifaehrt
+  minientWeite: 6,
+  minientWurf: 2.6,
+  minientFlug: 1.1,
+  minientGriff: 0.5,
+  minientGriffPause: 2,
   // Gegner-Schlangen
   gegnerAb: 100,
   gegnerMin: 30,
@@ -422,7 +428,8 @@ const grund = (haeufig: GrundArt[] = []) => Object.fromEntries(GRUND_ARTEN.map((
 /** Je Welt: Stufe je Ding (Grund-Dinge und die Tiere/Dinge der Welt; deren Name = Anfang ihrer Config-Schluessel) */
 export const WELT_STUFEN = {
   wiese: { ...grund(['teich', 'frosch']), igel: 2, huegel: 2, bienenstock: 2 },
-  wueste: { ...grund(['baum', 'frosch', 'ameise']), klapper: 2, skorpion: 2, krabbe: 2, erdmaennchen: 2, mumie: 2, fata: 2 },
+  // Kein Eis in der Wueste
+  wueste: { ...grund(['baum', 'frosch', 'ameise']), eis: 0, klapper: 2, skorpion: 2, krabbe: 2, erdmaennchen: 2, mumie: 2, fata: 2 },
   winter: { ...grund(), robbe: 2, schneemann: 2, eisbaer: 2 },
   bergwerk: { ...grund(), zwerg: 2, golem: 2, netz: 2 },
   zauberwald: { ...grund(), einhorn: 2, fee: 2, ent: 2, pilzring: 2 },
@@ -523,7 +530,8 @@ export function mitStufen(c: Config, welt: string): Config {
   const turm = (c[stufeKey(w, 'turm')] ?? 2) > 0 ? c.turmAb : NIE
   const level = neuLevels(c, reihe.length, [c.mauerAb, turm, c.lilaAb])
   for (const art of Object.keys(WELT_STUFEN[w])) {
-    const stufe = c[stufeKey(w, art)] ?? 2
+    // Eis in der Wueste gibt es nie (auch nicht, wenn eine alte Einstellung es noch einschaltet)
+    const stufe = w === 'wueste' && art === 'eis' ? 0 : (c[stufeKey(w, art)] ?? 2)
     const n = stufeAlle(c, stufe)
     const platz = reihe.indexOf(art)
     const ab = stufe <= 0 || platz < 0 ? NIE : level[platz]
@@ -789,12 +797,8 @@ const SCHEMA_ROH: SchemaGruppe[] = [
     ],
   },
   {
-    gruppe: 'Wiese: Steingolems, große Tannen, Boss',
+    gruppe: 'Wiese: Steingolems, große Tannen, Bosse, Mini-Ents',
     felder: [
-      { key: 'minigolemAb', label: 'Steingolems ab Level', min: 1, max: 10000 },
-      { key: 'minigolemMin', label: 'Neuer Golem alle mindestens', min: 1, max: 200, einheit: 'Level' },
-      { key: 'minigolemMax', label: 'Neuer Golem alle höchstens', min: 1, max: 200, einheit: 'Level' },
-      { key: 'minigolemAnzahl', label: 'Golems höchstens gleichzeitig (60 Level später einer mehr)', min: 0, max: 20 },
       { key: 'minigolemTakt', label: 'Golem läuft ein Feld alle', min: 0.1, max: 5, step: 0.05, einheit: 's' },
       { key: 'minigolemJagdTakt', label: 'Golem auf der Jagd: ein Feld alle', min: 0.1, max: 5, step: 0.05, einheit: 's' },
       { key: 'minigolemSicht', label: 'Golem sieht nach vorn', min: 1, max: 12, einheit: 'Felder' },
@@ -802,8 +806,15 @@ const SCHEMA_ROH: SchemaGruppe[] = [
       { key: 'minigolemRuhe', label: 'Golem nach dem Schlag', min: 0, max: 10, step: 0.1, einheit: 's' },
       { key: 'tanneAb', label: 'Große Tannen ab Level', min: 1, max: 10000 },
       { key: 'tanneAlle', label: 'Neue große Tanne alle', min: 1, max: 500, einheit: 'Level' },
-      { key: 'bossAb', label: 'Boss (Steingolem) auf Level', min: 1, max: 10000 },
+      { key: 'bossAb', label: 'Boss (Steingolem) auf Level (10, 7, 4 und 2 Level vorher je ein kleiner Golem)', min: 1, max: 10000 },
       { key: 'bossLohn', label: 'Boss besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
+      { key: 'entBossAb', label: 'Ent auf Level (10, 7, 4 und 2 Level vorher je ein Mini-Ent)', min: 1, max: 10000 },
+      { key: 'entBossLohn', label: 'Ent besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
+      { key: 'minientWeite', label: 'Mini-Ent wirft bis', min: 1, max: 20, einheit: 'Felder' },
+      { key: 'minientWurf', label: 'Mini-Ent wirft alle', min: 0.3, max: 20, step: 0.1, einheit: 's' },
+      { key: 'minientFlug', label: 'Blätterbombe fliegt', min: 0.2, max: 5, step: 0.05, einheit: 's' },
+      { key: 'minientGriff', label: 'Mini-Ent packt: Zeit zum Wegziehen', min: 0.1, max: 5, step: 0.05, einheit: 's' },
+      { key: 'minientGriffPause', label: 'Mini-Ent packt erst wieder nach', min: 0, max: 30, step: 0.1, einheit: 's' },
     ],
   },
   {

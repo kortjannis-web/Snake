@@ -14,6 +14,12 @@ export function gefahrFelder(g: BossGame): Set<number> {
   if (a?.art === 'ansturm') add(g.streifenFelder(go, a.nach))
   if (a?.art === 'sprung' && !a.wechsel && !a.fertig && g.time >= a.ab) add(g.kreisFelder(a.ziel, a.r + 1.2))
   for (const b of g.brocken) if (!b.fertig) add(g.brockenFelder(b))
+  // Kleine Golems: wohin sie schlagen, rundherum (2 Felder) und geradeaus vor ihnen (4 Felder)
+  for (const m of g.minigolems) {
+    if (m.angriff) add(m.angriff.cells)
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) s.add(key(m.p.x + dx, m.p.y + dy))
+    for (let i = 1; i <= 4; i++) s.add(key(m.p.x + STEP[m.dir].x * i, m.p.y + STEP[m.dir].y * i))
+  }
   if (go.zustand !== 'gebannt' && !g.fliegt)
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) s.add(key(Math.round(go.x) + dx, Math.round(go.y) + dy))
   return s
@@ -23,6 +29,8 @@ export function botZug(g: BossGame): Dir | null {
   const h = g.body[0]
   const gefahr = gefahrFelder(g)
   const koerper = new Set(g.body.slice(0, -1).map((b) => key(b.x, b.y)))
+  // Kleine Golems sind Hindernisse (auch das Feld daneben: dorthin koennen sie gleich treten)
+  for (const m of g.minigolems) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) koerper.add(key(m.p.x + dx, m.p.y + dy))
   const go = g.golem
   let ziel: P
   const nah = Math.hypot(go.x - h.x, go.y - h.y)

@@ -44,8 +44,9 @@ describe('Stufen', () => {
     for (const welt of R.WELT_IDS) {
       const w = R.mitStufen(C, welt) as Record<string, number>
       const reihe = R.neuReihenfolge(C, welt)
-      // Alles ausser den Jaegertuermen (feste Zeit) ist in der Reihe
-      expect(reihe.length, welt).toBe(Object.keys(R.WELT_STUFEN[welt]).length - 1)
+      // Alles ausser den Jaegertuermen (feste Zeit) und Abgeschaltetem (Eis in der Wueste) ist in der Reihe
+      const an = Object.entries(R.WELT_STUFEN[welt]).filter(([a, v]) => a !== 'turm' && v > 0)
+      expect(reihe.length, welt).toBe(an.length)
       expect(w.mauerAb).toBe(5)
       const ab = reihe.map((a) => w[`${a}Ab`])
       expect(ab[0], welt).toBe(C.stufenAb)
@@ -56,6 +57,12 @@ describe('Stufen', () => {
       // Bis Level 50 hoechstens zwei Dinge aus der Reihe
       expect(ab.filter((l) => l <= 50).length, welt).toBeLessThanOrEqual(2)
     }
+  })
+
+  it('kein Eis in der Wueste', () => {
+    expect((R.mitStufen(C, 'wueste') as Record<string, number>).eisAb).toBe(R.NIE)
+    expect(R.neuReihenfolge(C, 'wueste')).not.toContain('eis')
+    expect((R.mitStufen(C, 'wiese') as Record<string, number>).eisAb).toBeLessThan(R.NIE)
   })
 
   it('Plätze nahe einer festen Zeit rücken dahinter', () => {

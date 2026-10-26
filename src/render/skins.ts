@@ -131,10 +131,11 @@ export const MUSTER: Muster[] = [
   { ...mu(55, 'amethyst', 'Amethyst', 0, 'facetten', [184, 120, 240], [84, 40, 150], true), glimmer: [230, 190, 255] },
   { ...mu(56, 'feenzauber', 'Feenzauber', 0, 'leuchten', [120, 230, 220], [160, 90, 230], true, [[255, 255, 255], [255, 170, 240], [170, 255, 240]]), glimmer: [255, 200, 250] },
   { ...mu(57, 'nachtmahr', 'Nachtmahr', 0, 'schemen', [70, 36, 96], [14, 8, 24], true, [[150, 255, 170]]), glimmer: [190, 150, 255] },
-  // Belohnungen der Kampagne (nicht kaufbar): Boss der Wiese (Mission 10) und das Golem-Heer (Mission 20)
+  // Belohnungen der Kampagne (nicht kaufbar): Boss der Wiese (Mission 10), Schatzhoehle (Mission 15) und der Ent (Mission 20)
   // und bis dahin im Shop versteckt (wer ihn schon hat, behaelt ihn)
   mu(58, 'schatzhueter', 'Schatzhüter', 0, 'schatz', [246, 196, 70], [176, 116, 26], true, [[230, 40, 80], [40, 200, 120], [60, 140, 255]], true),
   { ...mu(59, 'steingolem', 'Steingolem', 0, 'golem', [150, 142, 132], [78, 72, 66], true, [[255, 150, 50], [92, 136, 66]]), glimmer: [255, 190, 110] },
+  { ...mu(60, 'waldgeist', 'Waldgeist', 0, 'waldgeist', [122, 92, 58], [72, 52, 32], true, [[96, 156, 70], [168, 222, 120], [214, 120, 40]]), glimmer: [190, 255, 150] },
 ]
 
 const ac = (nr: number, platz: Platz, id: string, name: string, preis: number, bewegt = false): Acc => ({ id, nr, name, preis, platz, bewegt })
@@ -678,20 +679,20 @@ function augen(ctx: CanvasRenderingContext2D, cell: number, art: string, o: Schl
       ctx.arc(ex, ey, cell * 0.22, 0, TAU)
       ctx.fill()
     }
-    if (art === 'golem' && !o.blinzeln) {
-      // Steingolem: Augen gluehen wie beim Boss
-      ctx.fillStyle = 'rgba(255, 170, 70, 0.4)'
+    if ((art === 'golem' || art === 'waldgeist') && !o.blinzeln) {
+      // Steingolem und Waldgeist: Augen gluehen wie beim Boss
+      ctx.fillStyle = art === 'waldgeist' ? 'rgba(240, 220, 100, 0.4)' : 'rgba(255, 170, 70, 0.4)'
       ctx.beginPath()
       ctx.arc(ex, ey, cell * 0.24, 0, TAU)
       ctx.fill()
     }
-    ctx.fillStyle = lila ? '#F4E6FF' : art === 'void' ? '#C8A2FF' : art === 'matrix' ? '#7CFF8A' : art === 'golem' ? '#FFC36B' : '#fff'
+    ctx.fillStyle = lila ? '#F4E6FF' : art === 'void' ? '#C8A2FF' : art === 'matrix' ? '#7CFF8A' : art === 'golem' ? '#FFC36B' : art === 'waldgeist' ? '#F6DE6E' : '#fff'
     ctx.beginPath()
     if (o.blinzeln) ctx.ellipse(ex, ey, cell * 0.03, cell * 0.15, 0, 0, TAU)
     else ctx.arc(ex, ey, cell * 0.15, 0, TAU)
     ctx.fill()
     if (o.blinzeln) continue
-    ctx.fillStyle = lila ? '#4A0F73' : art === 'void' ? '#1A0030' : art === 'golem' ? '#5A1E00' : '#16211d'
+    ctx.fillStyle = lila ? '#4A0F73' : art === 'void' ? '#1A0030' : art === 'golem' ? '#5A1E00' : art === 'waldgeist' ? '#3A2A10' : '#16211d'
     ctx.beginPath()
     ctx.arc(ex + cell * 0.06, ey, cell * (0.075 - 0.025 * (o.angst ?? 0)), 0, TAU)
     ctx.fill()
@@ -1004,6 +1005,62 @@ function muster(L: CanvasRenderingContext2D, pr: Probe[], cell: number, m: Muste
           L.lineWidth = Math.max(1, cell * 0.04)
           L.stroke()
         }
+      }
+      break
+    }
+    case 'waldgeist': {
+      // Waldgeist: Rinde mit Maserung laengs, Moosflecken, an den Seiten spriessen Blaetter, die im Wind wippen
+      const moos = ex[0] ?? [96, 156, 70]
+      const hell = ex[1] ?? [168, 222, 120]
+      const herbst = ex[2] ?? [214, 120, 40]
+      L.lineCap = 'round'
+      // Maserung: kurze, versetzte Striche laengs
+      for (const p of pr) {
+        const r = raster(p, 0.2, 0.03)
+        if (r <= 0) continue
+        for (const q of [-0.45, 0, 0.45]) {
+          const v = q + (hash(r * 3 + q * 10) - 0.5) * 0.2
+          L.strokeStyle = 'rgba(40, 24, 12, 0.45)'
+          L.lineWidth = cell * 0.035
+          L.beginPath()
+          L.moveTo(p.x + p.nx * p.w * v - p.tx * cell * 0.09, p.y + p.ny * p.w * v - p.ty * cell * 0.09)
+          L.lineTo(p.x + p.nx * p.w * v + p.tx * cell * 0.09, p.y + p.ny * p.w * v + p.ty * cell * 0.09)
+          L.stroke()
+        }
+      }
+      for (const p of pr) {
+        const r = raster(p, 0.5)
+        if (r <= 0) continue
+        // Moos auf jeder zweiten Stelle
+        if (r % 2 === 0) {
+          L.fillStyle = rgb(moos, 0.9)
+          punkt(L, p, (hash(r * 5) - 0.5) * 0.6, 0, p.w * 0.16)
+          punkt(L, p, (hash(r * 5) - 0.5) * 0.6 + 0.18, cell * 0.08, p.w * 0.1)
+        }
+        // Blatt an der Seite, abwechselnd links und rechts, wippt
+        const seite = r % 2 ? 1 : -1
+        const wipp = Math.sin(welle(now, 1800) + r * 0.9) * 0.35
+        const bx = p.x + p.nx * p.w * 0.3 * seite
+        const by = p.y + p.ny * p.w * 0.3 * seite
+        // Schraeg nach hinten aussen (wie Blaetter an einem Zweig)
+        const w = Math.atan2(p.ny * seite * 0.7 - p.ty * 0.7, p.nx * seite * 0.7 - p.tx * 0.7) + wipp * 0.6
+        const lr = p.w * 0.62
+        L.save()
+        L.translate(bx, by)
+        L.rotate(w)
+        L.fillStyle = rgb(r % 5 === 0 ? herbst : hell)
+        L.beginPath()
+        L.moveTo(0, 0)
+        L.quadraticCurveTo(lr * 0.5, -lr * 0.4, lr, 0)
+        L.quadraticCurveTo(lr * 0.5, lr * 0.4, 0, 0)
+        L.fill()
+        L.strokeStyle = rgb(moos, 0.8)
+        L.lineWidth = Math.max(0.5, cell * 0.02)
+        L.beginPath()
+        L.moveTo(0, 0)
+        L.lineTo(lr * 0.85, 0)
+        L.stroke()
+        L.restore()
       }
       break
     }

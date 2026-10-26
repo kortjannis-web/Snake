@@ -4,7 +4,7 @@
  * - Kristalle einsammeln und zum Sockel der gleichen Farbe bringen; leuchten alle Sockel des Raums, bannt sein Kreis den
  *   Golem, wenn er hineintritt. Dann faehrt die Schlange durch ihn hindurch: ein Treffer
  * - der Golem stapft auf die Schlange zu und greift an (Stampfen, Ansturm, Sprung), jede Attacke wird rot angekuendigt
- * - die Schlange hat Herzen, ein Treffer kostet eins (Kopf und Hals zaehlen)
+ * - der Golem hat drei Leben (je Raum ein Treffer), die Schlange keins extra: ein Treffer am Kopf ist vorbei
  * Was der Kampf vom Spiel braucht (Zeit, Schlange, Zufall, Karte, Ereignisse), kommt ueber den `KampfWirt`.
  */
 import type { Rng } from './rng'
@@ -83,13 +83,14 @@ export const KRISTALL_NAMEN = ['Rot', 'Orange', 'Gelb', 'Grün', 'Blau', 'Lila']
 /** Alle Zeiten in ms, Tempo in Feldern je Sekunde. Je Phase: Tempo steigt, Warnungen werden kuerzer */
 export const GOLEM = {
   leben: 3,
-  herzen: 3,
+  /** Die Schlange hat kein Leben extra: ein Treffer ist vorbei (nur der Boss hat drei Leben) */
+  herzen: 1,
   /** Nach einem Treffer am Spieler so lange geschuetzt */
   schutz: 1900,
-  /** Von Attacken und Beruehrung zaehlen Kopf und Hals (so viele Glieder vorn) */
-  trifftGlieder: 2,
-  tempo: [2.2, 2.65, 3.1],
-  warnFaktor: [1, 0.84, 0.7],
+  /** Von Attacken und Beruehrung zaehlt nur der Kopf (so viele Glieder vorn) */
+  trifftGlieder: 1,
+  tempo: [2.2, 2.55, 2.85],
+  warnFaktor: [1, 0.9, 0.8],
   erwachen: 2400,
   laufenMin: 1300,
   laufenMax: 2400,
@@ -573,13 +574,13 @@ export class Golemkampf {
     return out
   }
 
-  /** Liegen Kopf oder Hals in diesen Feldern? Dann ein Herz weniger (der Schwanz darf noch in der Flaeche haengen) */
+  /** Liegt der Kopf in diesen Feldern? Dann ist es vorbei (der Koerper darf in der Flaeche liegen) */
   protected trifft(felder: P[], p: Pf) {
     const s = new Set(felder.map((c) => key(c.x, c.y)))
     if (this.body.slice(0, GOLEM.trifftGlieder).some((b) => s.has(key(b.x, b.y)))) this.schaden(p)
   }
 
-  /** Die Schlange wird getroffen: ein Herz weniger, kurz geschuetzt; ohne Herzen vorbei */
+  /** Die Schlange wird getroffen: vorbei (Kreativ ohne Tod: geht weiter, kurz geschuetzt) */
   schaden(p: Pf = this.kopf) {
     if (this.time < this.schutzBis || this.status !== 'play') return false
     this.leben--
@@ -748,7 +749,7 @@ export class Golemkampf {
     return true
   }
 
-  /** Beruehrt die Schlange den Golem? Gebannt: der Kopf trifft ihn. Sonst kostet die Beruehrung ein Herz */
+  /** Beruehrt die Schlange den Golem? Gebannt: der Kopf trifft ihn. Sonst ist es vorbei */
   protected beruehrt() {
     const g = this.golem
     if (g.zustand === 'gebannt') {
@@ -769,8 +770,6 @@ export class Golemkampf {
     this.setze('getroffen', GOLEM.getroffen)
     this.ereignis('treffer')
     this.wellen.push({ x: g.x, y: g.y, t: this.time, r: 3, art: 'treffer' })
-    // Belohnung: ein Herz zurueck
-    this.leben = Math.min(GOLEM.herzen, this.leben + 1)
     this.kristalle = []
     this.traegt = []
     this.brocken = []

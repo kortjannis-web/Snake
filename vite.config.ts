@@ -50,8 +50,9 @@ export default defineConfig({
       },
       // push-sw.js: zeigt Push-Einladungen und oeffnet beim Tippen den Raum
       workbox: {
-        // Shop-Videos und Standbilder sind klein (zusammen ca. 2,4 MB): mit in den Offline-Speicher
-        globPatterns: ['**/*.{js,css,html,woff2,png,svg,webp,mp4,webm}'],
+        // Shop-Videos (MP4, das spielt jedes Geraet) und Standbilder sind klein (zusammen ca. 2,7 MB): mit in den Offline-
+        // Speicher. WebM ist nur der Ersatz fuer Browser ohne H.264 und wird erst bei Bedarf geladen (spart 2 MB beim Installieren)
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg,webp,mp4}'],
         importScripts: ['push-sw.js'],
       },
     }),

@@ -180,10 +180,11 @@ export function fuellung(ctx: CanvasRenderingContext2D, maske: Bild, tex: HTMLCa
 
 /* ================= Arten ================= */
 
-/** Wasser je Welt: tief (Seerosen), klar (Sand und Kiesel), gras (klar, Ufer bemoost), winter (kalt, Eisschollen),
+/** Wasser je Welt: tief (Seerosen, Wiese), klar (Sand und Kiesel), oase (tief mit Seerosen und Sandufer, Wueste),
+ *  gras (klar, Ufer bemoost), winter (kalt, Eisschollen),
  *  hoehle (dunkel, Kristalle am Ufer), zauber (leuchtende Punkte), sumpf (truebe, Blasen), schwefel (Vulkan: heisse
  *  gelbgruene Schwefelquelle mit Krustenrand, blubbert) */
-export type WasserArt = 'tief' | 'klar' | 'gras' | 'winter' | 'hoehle' | 'zauber' | 'sumpf' | 'schwefel'
+export type WasserArt = 'tief' | 'klar' | 'oase' | 'gras' | 'winter' | 'hoehle' | 'zauber' | 'sumpf' | 'schwefel'
 export type FlaechenArt = 'lava' | 'eis' | 'eisNacht' | WasserArt
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -285,9 +286,15 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
       }
       const w = W(x, y)
       const t = cl((tt - 0.1) / 1.1 + (fbm(w.x * 0.9, w.y * 0.9, 2) - 0.5) * 0.25)
-      const n = fbm(w.x * 1.6, w.y * 1.6, 3)
-      let c = t < 0.5 ? mixA([194, 54, 26, 1], [255, 140, 40, 1], t * 2) : mixA([255, 140, 40, 1], [255, 226, 122, 1], (t - 0.5) * 2)
-      c = mixA(c, [150, 30, 14, 1], (1 - n) * 0.35 * (1 - t))
+      // Fluessige Glut: am Rand dunkelrot, innen heiss und hell
+      let c = t < 0.5 ? mixA([176, 44, 20, 1], [246, 112, 30, 1], t * 2) : mixA([246, 112, 30, 1], [255, 214, 110, 1], (t - 0.5) * 2)
+      // Erkaltete Krustenplatten schwimmen darauf (mehr am Rand), zwischen ihnen leuchten Risse
+      const platte = sstep(0.48, 0.6, fbm(w.x * 1.1 + 13, w.y * 1.1, 3)) * (1 - t * 0.55)
+      const riss = 1 - Math.abs(fbm(w.x * 1.7, w.y * 1.7, 2) * 2 - 1)
+      c = mixA(c, [62, 22, 14, 1], platte * 0.9)
+      // Risse gluehen (in der Kruste gelb-orange, im Fluessigen als helle Adern)
+      const ader = sstep(0.8, 0.94, riss)
+      c = mixA(c, platte > 0.3 ? [255, 168, 58, 1] : [255, 232, 150, 1], ader * (platte > 0.3 ? 0.9 : 0.45))
       return [c[0], c[1], c[2], 1]
     })
     const maske = raster(cells, px, 0.5, d, T, (dd) => (dd > -0.12 ? null : [255, 255, 255, cl((-0.12 - dd) / 0.08)]))
@@ -324,39 +331,63 @@ function baue(cells: P[], art: FlaechenArt, px: number, o: P): Koerper {
   // Wasser
   const d = abstand(cells, 0.34, 0.7, 0.1, o)
   const T = tiefe(cells, 1.6)
-  // rb = Breite des Uferstreifens (Felder), nass = feuchter Hof ausserhalb
-  const P: Record<WasserArt, { rand: Farbe4; flach: Farbe4; mitte: Farbe4; tief: Farbe4; nass: Farbe4; rb?: number }> = {
-    tief: { rand: [224, 244, 248, 0.95], flach: [124, 200, 222, 1], mitte: [63, 147, 181, 1], tief: [31, 92, 128, 1], nass: [150, 138, 88, 0.28], rb: 0.09 },
-    gras: { rand: [190, 178, 126, 0.85], flach: [120, 190, 175, 1], mitte: [70, 160, 180, 1], tief: [40, 115, 150, 1], nass: [140, 128, 80, 0.3], rb: 0.1 },
-    klar: { rand: [214, 196, 140, 1], flach: [170, 205, 165, 1], mitte: [70, 165, 185, 1], tief: [40, 120, 150, 1], nass: [150, 110, 60, 0.25] },
-    winter: { rand: [250, 252, 255, 1], flach: [120, 175, 210, 1], mitte: [50, 100, 160, 1], tief: [24, 52, 104, 1], nass: [200, 220, 235, 0.4] },
-    hoehle: { rand: [90, 210, 230, 0.9], flach: [40, 100, 130, 1], mitte: [18, 52, 82, 1], tief: [6, 20, 40, 1], nass: [60, 180, 220, 0.2] },
-    zauber: { rand: [210, 140, 255, 0.85], flach: [60, 170, 170, 1], mitte: [24, 100, 120, 1], tief: [10, 46, 70, 1], nass: [150, 90, 220, 0.22] },
-    sumpf: { rand: [90, 100, 50, 1], flach: [95, 110, 55, 1], mitte: [60, 80, 40, 1], tief: [34, 48, 26, 1], nass: [40, 50, 20, 0.35] },
-    schwefel: { rand: [236, 214, 92, 1], flach: [214, 222, 96, 1], mitte: [150, 190, 70, 1], tief: [74, 120, 52, 1], nass: [200, 170, 60, 0.32], rb: 0.11 },
+  // Ufer je Welt: aussen feuchter Boden (nass, Breite na), dann ein Saum in der Farbe des Ufers (ufer, Breite ub), in den das
+  // Wasser weich uebergeht. Am Rand ist das flache Wasser durchscheinend: kein harter Schnitt, kein heller Streifen
+  const P: Record<WasserArt, { ufer: Farbe4; flach: Farbe4; mitte: Farbe4; tief: Farbe4; nass: Farbe4; ub?: number; na?: number }> = {
+    // Wiese: dunkleres, sattes Gras am Ufer
+    tief: { ufer: [118, 178, 128, 1], flach: [118, 196, 200, 1], mitte: [63, 147, 181, 1], tief: [31, 92, 128, 1], nass: [126, 190, 140, 0.45] },
+    gras: { ufer: [112, 172, 118, 1], flach: [120, 190, 175, 1], mitte: [70, 160, 180, 1], tief: [40, 115, 150, 1], nass: [122, 186, 134, 0.45] },
+    // Wueste: nasser Sand
+    oase: { ufer: [204, 178, 120, 1], flach: [124, 200, 205, 1], mitte: [63, 147, 181, 1], tief: [31, 92, 128, 1], nass: [214, 190, 132, 0.45] },
+    klar: { ufer: [204, 178, 120, 1], flach: [170, 205, 165, 1], mitte: [70, 165, 185, 1], tief: [40, 120, 150, 1], nass: [214, 190, 132, 0.45] },
+    // Winter: verharschter Schnee, leicht blaeulich
+    winter: { ufer: [206, 224, 238, 1], flach: [120, 175, 210, 1], mitte: [50, 100, 160, 1], tief: [24, 52, 104, 1], nass: [214, 230, 242, 0.5] },
+    // Bergwerk: nasser, dunkler Fels
+    hoehle: { ufer: [98, 92, 86, 1], flach: [40, 100, 130, 1], mitte: [18, 52, 82, 1], tief: [6, 20, 40, 1], nass: [104, 96, 88, 0.5] },
+    // Zauberwald: dunkles Moos
+    zauber: { ufer: [34, 74, 64, 1], flach: [60, 170, 170, 1], mitte: [24, 100, 120, 1], tief: [10, 46, 70, 1], nass: [38, 72, 60, 0.5] },
+    // Gruselwald: Schlamm
+    sumpf: { ufer: [70, 72, 46, 1], flach: [95, 110, 55, 1], mitte: [60, 80, 40, 1], tief: [34, 48, 26, 1], nass: [72, 70, 52, 0.5] },
+    // Vulkan: gelbe Schwefelkruste
+    schwefel: { ufer: [210, 188, 86, 1], flach: [214, 222, 96, 1], mitte: [150, 190, 70, 1], tief: [74, 120, 52, 1], nass: [170, 150, 80, 0.4] },
   }
   const p = P[art as WasserArt]
-  const rb = p.rb ?? 0.08
+  const ub = p.ub ?? 0.24
+  const na = p.na ?? 0.22
   const basis = raster(cells, px, 0.3, d, T, (dd, tt, x, y) => {
-    if (dd > rb) return null
-    if (dd > 0) return [p.nass[0], p.nass[1], p.nass[2], p.nass[3] * (1 - dd / rb)]
-    const aa = cl(-dd / 0.04)
+    if (dd > na) return null
+    // Feuchter Boden um das Wasser, nach aussen weich auslaufend
+    if (dd > 0) {
+      const t = 1 - dd / na
+      return [p.nass[0], p.nass[1], p.nass[2], p.nass[3] * t * t]
+    }
     const w = W(x, y)
-    if (dd > -rb) return [p.rand[0], p.rand[1], p.rand[2], p.rand[3] * aa]
     const t = cl(tt / 1.2 + (fbm(w.x, w.y, 2) - 0.5) * 0.15)
     let c = t < 0.35 ? mixA(p.flach, p.mitte, t / 0.35) : mixA(p.mitte, p.tief, (t - 0.35) / 0.65)
     c = mixA(c, mixA(p.tief, [0, 0, 0, 1], 0.2), (fbm(w.x * 1.3, w.y * 1.3, 3) - 0.5) * 0.4)
     if ((art === 'klar' || art === 'gras') && t < 0.7 && rauschen(w.x * 7, w.y * 7) > 0.84) c = mixA(c, art === 'klar' ? [150, 145, 125, 1] : [100, 125, 105, 1], 0.45)
+    // Ufersaum: vom feuchten Boden ueber die Uferfarbe ins Wasser, das am Rand noch durchscheint. Abstand zum Ufer: am Rand
+    // der weiche Kantenabstand, weiter innen kommt die Tiefe dazu (sonst schimmerten die Feldgrenzen im Wasser durch)
+    const u = cl((-dd + sstep(0.25, 0.6, tt)) / ub)
+    if (u < 1) {
+      const rand = u < 0.4 ? mixA(p.nass, p.ufer, u / 0.4) : mixA(p.ufer, c, sstep(0.4, 1, u))
+      return [rand[0], rand[1], rand[2], lerp(p.nass[3], 1, sstep(0, 0.55, u))]
+    }
     return [c[0], c[1], c[2], 1]
   })
-  const maske = raster(cells, px, 0.3, d, T, (dd) => (dd > -rb ? null : [255, 255, 255, cl((-rb - dd) / 0.06)]))
+  // Bewegte Oberflaeche erst im Wasser, weich einsetzend
+  const maske = raster(cells, px, 0.3, d, T, (dd, tt) => {
+    const e = -dd + sstep(0.25, 0.6, tt)
+    return e < ub * 0.7 ? null : [255, 255, 255, cl((e - ub * 0.7) / 0.2)]
+  })
   return { basis, maske, cells, art, T, benutzt: 0 }
 }
 
 const koerper = new Map<string, Koerper>()
 let bildNr = 0
-/** Pixel je Feld fuers Berechnen (gut zwei Drittel der Feldgroesse, hoechstens 20: wird weich vergroessert, die Formen sind ohnehin weich, und das Neuberechnen beim Wachsen geht so mehr als doppelt so schnell) */
-const aufloesung = (cell: number) => Math.max(8, Math.min(20, Math.round(cell * 0.7)))
+/** Pixel je Feld fuers Berechnen (85 % der Feldgroesse, hoechstens 28: wird weich vergroessert. Seit 1.48 feiner als
+ *  vorher (20), damit Ufer und Lavarand nicht treppig und verwaschen wirken; gebaut wird nur einmal je Form) */
+const aufloesung = (cell: number) => Math.max(8, Math.min(28, Math.round(cell * 0.85)))
 
 function holen(cells: P[], art: FlaechenArt, cell: number, o: P) {
   const px = aufloesung(cell)
@@ -420,6 +451,7 @@ export function drawFlaeche(ctx: CanvasRenderingContext2D, cells: P[], art: Flae
       })
       break
     case 'tief':
+    case 'oase':
       seerosen(ctx, k, cell, now)
       break
     case 'winter':
@@ -448,7 +480,7 @@ function oberflaeche(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, no
   switch (art) {
     case 'lava':
       // Langsam fliessende Schlieren
-      fuellung(ctx, maske, tex('lava'), cell, t0 / 54, t0 / 120, 0.85)
+      fuellung(ctx, maske, tex('lava'), cell, t0 / 54, t0 / 120, 0.5)
       break
     case 'eis':
     case 'eisNacht': {
@@ -468,6 +500,7 @@ function oberflaeche(ctx: CanvasRenderingContext2D, k: Koerper, cell: number, no
       break
     }
     case 'tief':
+    case 'oase':
     case 'gras':
       fuellung(ctx, maske, tex('kaustik'), cell, t0 / 60, t0 / 90, 0.32)
       fuellung(ctx, maske, tex('kaustik'), cell, -t0 / 80, t0 / 70, 0.22, 1.3)

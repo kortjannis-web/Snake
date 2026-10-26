@@ -319,4 +319,7 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   wolke: 'wolke',
   ameise: 'ameise',
   bienen: 'ameise',
+  minient: 'baum',
+  blaetterbombe: 'baum',
+  entboss: 'baum',
 }

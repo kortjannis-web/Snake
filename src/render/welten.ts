@@ -75,7 +75,7 @@ export const WELTEN: Welt[] = [
     // Das "Erdreich" ist hier das Meer rund um die Insel: flach und hell am Strand, nach aussen tiefer
     erde: { nah: [122, 208, 198], mitte: [78, 184, 204], tief: [40, 138, 178], kruemelNah: 'rgba(255, 255, 255, 0.3)', kruemel: 'rgba(255, 255, 255, 0.18)', grund: '#2A7DA6' },
     baeume: ['palme', 'palme', 'kaktus'],
-    wasser: ['klar', 'klar', 'tief'],
+    wasser: ['klar', 'klar', 'oase'],
     futter: 'kaktusfeige',
     falle: 'skorpion',
     frosch: 'springmaus',
