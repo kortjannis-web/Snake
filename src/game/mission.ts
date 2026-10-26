@@ -303,6 +303,8 @@ export class MissionGame extends Game {
   schatz = 0
   /** Quer gedreht (Querformat, PC): man spielt von links nach rechts */
   readonly quer: boolean
+  /** Bild, nach dem die Feldgroesse bemessen wird: in allen Missionen gleich (auch im Boss-Level mit groesseren Bloecken) */
+  readonly sicht: { w: number; h: number }
   /** Naechster Lichtwechsel je Haus, naechste Drehung je Leuchtturm (Spielzeit) */
   lichtNext: number[] = []
   protected turmNext: number[] = []
@@ -322,13 +324,14 @@ export class MissionGame extends Game {
       screenH: bild.h,
       tempo: 'normal',
       // Immer die Standardregeln: die Mission spielt sich auf jedem Geraet gleich (spaete Missionen werden je Apfel schneller)
-      cfg: { ...DEFAULTS, ...(m.tempoProApfel !== undefined ? { tempoProLevel: m.tempoProApfel } : {}) },
+      cfg: { ...DEFAULTS, ...(m.tempoProApfel !== undefined ? { tempoProLevel: m.tempoProApfel } : {}), ...(m.turm ? { kegelLaenge: m.turm.laenge } : {}) },
       seed: m.seed ?? 1,
       startLevel: 1,
       sandbox: { breite: 0, hoehe: 0, laenge: m.laenge ?? 3, objekte: {}, weiter: false, bloecke, aus: k.berge },
     })
     this.mission = m
     this.quer = quer
+    this.sicht = quer ? { w: MISSION_BILD.h, h: MISSION_BILD.w } : { ...MISSION_BILD }
     this.karte = k
     this.ziel = k.aepfel.length
     this.bergSet = new Set(k.berge.map((p) => key(p.x, p.y)))
@@ -386,6 +389,11 @@ export class MissionGame extends Game {
     const wert = erzWert(this.cfg, art)
     this.schatz += wert
     this.emit({ type: 'fund', art, p: { ...p }, wert })
+  }
+
+  /** So oft (ms) dreht sich ein Leuchtturm weiter (Mission 18 schneller) */
+  get turmTakt() {
+    return this.mission.turm?.takt ?? TURM_TAKT
   }
 
   /** Noch zu holen */
@@ -518,7 +526,7 @@ export class MissionGame extends Game {
       this.kegel(t)
       return t
     })
-    this.turmNext = this.tuerme.map((_, i) => TURM_TAKT + i * 1100)
+    this.turmNext = this.tuerme.map((_, i) => this.turmTakt + i * 1100)
     // Lavaseen breiten sich aus (um lavaMehr Felder)
     const mehr = this.mission.lavaMehr ?? 10
     this.lava = k.lava.map((cells) => ({ cells: cells.map((c) => ({ ...c })), t: cells.map(() => -1e9), ziel: cells.length + mehr }))
@@ -606,7 +614,7 @@ export class MissionGame extends Game {
     })
     this.tuerme.forEach((tu, i) => {
       if (t < this.turmNext[i]) return
-      this.turmNext[i] = t + TURM_TAKT
+      this.turmNext[i] = t + this.turmTakt
       tu.altDir = tu.dir
       tu.dir = CW[tu.dir]
       this.kegel(tu)

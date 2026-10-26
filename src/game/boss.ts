@@ -173,6 +173,11 @@ export class BossGame extends MissionGame {
   kameraZiel(kopf: Pf): Pf {
     return this.kampf.kameraZiel(kopf)
   }
+  /** Die Kamera folgt dem Kopf, bleibt aber im Raum (Felder, einschliesslich) */
+  kameraBox(kopf: Pf) {
+    const r = this.kampf.kameraRaum(kopf)
+    return { x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 }
+  }
 
   /** Geschlossene Tore sind wie Wand */
   override gefahr(n: P, rest: P[] = this.body) {

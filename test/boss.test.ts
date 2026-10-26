@@ -305,6 +305,17 @@ describe('Boss quer (PC)', () => {
     // Die Kamera zeigt den Raum, in dem der Kopf ist
     expect(q.kameraZiel(dreh({ x: 8, y: 80 }))).toEqual({ x: RAUM_H / 2, y: 17 / 2 })
     expect(q.kameraZiel(dreh({ x: 8, y: 40 }))).toEqual({ x: RAUM_H * 1.5, y: 17 / 2 })
+    expect(q.kameraBox(dreh({ x: 8, y: 40 }))).toEqual({ x0: RAUM_H, y0: -1, x1: RAUM_H * 2 - 1, y1: 17 })
+  })
+
+  it('Felder so gross wie in den anderen Missionen: die Kamera folgt dem Kopf im Raum', () => {
+    for (const quer of [false, true]) {
+      const normal = new MissionGame(WIESE_MISSIONEN[0], quer)
+      for (const m of [boss, WIESE_MISSIONEN[19]]) expect(missionSpiel(m, quer).sicht, m.id).toEqual(normal.sicht)
+    }
+    const g = new BossGame(boss)
+    const r = g.aktuell
+    expect(g.kameraBox(g.body[0])).toEqual({ x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 })
   })
 
   it('nach dem Treffer: Golem springt nach rechts in Raum 2, das Tor geht auf, hinter der Schlange wieder zu', () => {

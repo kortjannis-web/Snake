@@ -61,7 +61,7 @@ export type MissionDef = {
   tempoProApfel?: number
   /** Boss-Level: der Steingolem (Mission 10) oder der Ent (Mission 20) */
   boss?: 'golem' | 'ent'
-  /** Eigene Bildgroesse (Boss: die ganze Arena passt ins Bild) */
+  /** Eigene Bildgroesse fuer die Bloecke (Boss: groessere Bloecke). Gezeigt wird immer in der Feldgroesse von MISSION_BILD */
   bild?: { w: number; h: number }
   /** Kurzer Hinweis beim Start */
   hinweis?: string
@@ -69,12 +69,16 @@ export type MissionDef = {
   wolkeStufe?: number
   /** Lavaseen breiten sich um so viele Felder aus */
   lavaMehr?: number
+  /** Leuchtturm: so lang ist sein Kegel (Felder) und so oft (ms) dreht er sich eine Vierteldrehung weiter
+   *  (sonst wie im freien Spiel 6 Felder und TURM_TAKT) */
+  turm?: { laenge: number; takt: number }
 }
 
 /** Bildschirm, nach dem die Bloecke der Missionen bemessen sind (wie im Mehrspieler und im Tageslevel): 13 x 12 Felder je Block */
 export const MISSION_BILD = { w: 12, h: 23 }
 export const MISSION_BLOCK = { w: 13, h: 12 }
-/** Boss-Arena: groesseres Bild (kleinere Felder), Bloecke 17 x 16, ein Raum (17 x 32) passt ganz hinein */
+/** Boss-Arena: Bloecke 17 x 16 (ein Raum ist 17 x 32). Die Felder sind so gross wie in den anderen Missionen
+ *  (MISSION_BILD), die Kamera folgt dem Kopf und bleibt im Raum */
 export const BOSS_BILD = { w: 16, h: 30 }
 
 /**
@@ -624,7 +628,7 @@ const WIESE_9 = [
 ] as const
 
 /**
- * Mission 10 (Boss): drei Raeume uebereinander, jeder passt ganz ins Bild (eigene Bildgroesse BOSS_BILD, je Raum 17 x 32).
+ * Mission 10 (Boss): drei Raeume uebereinander, je Raum 17 x 32 (Bloecke nach BOSS_BILD, die Kamera folgt dem Kopf im Raum).
  * Unten Raum 1 (3 Sockel), in der Mitte Raum 2 (4 Sockel, vier Saeulen), oben Raum 3 (6 Sockel, Kammern und Gassen).
  * O = Mitte des Bannkreises, 1 bis 6 = Sockel (Kristallfarbe), B = Golem, T = Steintor zum naechsten Raum,
  * k = fester Platz fuer Kristalle (Raum 3), x = Durchgang, durch den der Golem nicht passt (zu den Kammern), S = Schlange
@@ -1236,9 +1240,10 @@ const WIESE_17 = [
   '#######################################',
 ] as const
 
-/** Mission 18: der Leuchtturm. Er steht mitten in einem runden Platz, um ihn ein Felsring mit vier Luecken (dort faellt
- *  sein Licht hindurch) und weiter aussen ein Mauerring mit vier Toren: man bahnt sich ringsherum. 23 Aepfel, 2 Mini-Ents,
- *  Ameisen, ein Haus, Baeume, ein kleiner Lavasee, Eis */
+/** Mission 18: der Leuchtturm. Er steht mitten in einem runden Platz, um ihn ein Felsring mit vier Luecken genau in
+ *  seinen vier Richtungen (dort faellt sein Licht hindurch, 16 Felder weit bis fast an den Rand, und er dreht sich
+ *  schneller als sonst) und weiter aussen ein Mauerring mit vier Toren: man bahnt sich ringsherum. Die Aepfel in den
+ *  Lichtbahnen holt man zwischen zwei Drehungen. 23 Aepfel, 2 Mini-Ents, Ameisen, ein Haus, Baeume, ein kleiner Lavasee, Eis */
 const WIESE_18 = [
   '#######################################',
   '#############..............############',
@@ -1258,18 +1263,18 @@ const WIESE_18 = [
   '##......N....WW..........WW.......a...#',
   '##..........WW..A......A..WW.A........#',
   '##.........WW..............WW.........#',
-  '##.........W......####......W.........#',
-  '##........W......######......W........#',
+  '##.........W.....##..##.....W.........#',
+  '##........W.....###..###.....W........#',
   '##....EE..W.A.......A......A.W........#',
-  '##....EE.W.....#........#.....W.......#',
-  '##............##........##............#',
-  '##.A..........##...JJ...##.........A..#',
-  '##............##A..JJ..A##............#',
-  '##............##........##............#',
-  '##.......W.....#........#.....W.......#',
+  '##....EE.W....##........##....W.......#',
+  '##...........###........###...........#',
+  '##.A...............JJ..............A..#',
+  '##..............A..JJ..A..............#',
+  '##...........###........###...........#',
+  '##.......W....##........##....W.......#',
   '##........W.A.......A......A.W........#',
-  '##........W......######......W........#',
-  '##.........W......####......W.........#',
+  '##........W.....###..###.....W........#',
+  '##.........W.....##..##.....W.........#',
   '##..a....A.WW..............WW.........#',
   '##..........WW..A......A..WW..N.......#',
   '##...........WW..........WW...........#',
@@ -1379,7 +1384,7 @@ const WIESE_19 = [
 ] as const
 
 /**
- * Mission 20 (Boss): die Waldlichtung des Ents, passt ganz ins Bild (BOSS_BILD, 17 x 32). Oben steht der Ent (Q, Stamm
+ * Mission 20 (Boss): die Waldlichtung des Ents, 17 x 32 (Bloecke nach BOSS_BILD, die Kamera folgt dem Kopf). Oben steht der Ent (Q, Stamm
  * 3 x 3) verwurzelt, ab Phase 2 wandert er zwischen den alten Baumstuempfen (U). In der Mitte die Glutschale (K),
  * dazu 3 Holzstapel (P) und ab Phase 2 ein vierter (V). Unten zwei Mini-Ents (N), S = Schlange
  */
@@ -1425,7 +1430,7 @@ export const MISSION_SKINS: Record<number, string> = { 10: 'steingolem', 15: 'sc
 /** Skins, deren Mission es noch nicht gibt (vorgemerkt, im Shop versteckt, ausser man hat ihn schon) */
 export const missionSkinVorgemerkt = (id: string) => Object.entries(MISSION_SKINS).some(([nr, s]) => s === id && Number(nr) > WIESE_MISSIONEN.length)
 
-type Bau = Pick<MissionDef, 'karte' | 'richtung' | 'laenge' | 'seed' | 'tempoProApfel' | 'bild' | 'hinweis' | 'wolkeStufe' | 'lavaMehr' | 'boss'>
+type Bau = Pick<MissionDef, 'karte' | 'richtung' | 'laenge' | 'seed' | 'tempoProApfel' | 'bild' | 'hinweis' | 'wolkeStufe' | 'lavaMehr' | 'boss' | 'turm'>
 const BAU: Bau[] = [
   { karte: WIESE_1, richtung: 'u', laenge: 3, seed: 0x5eed01 },
   { karte: WIESE_2, richtung: 'u', laenge: 3, seed: 0x5eed02, hinweis: 'Durch die Bäche kommst du nur an den Furten.' },
@@ -1444,7 +1449,7 @@ const BAU: Bau[] = [
   { karte: WIESE_15, richtung: 'u', laenge: 6, seed: 0x5eed15, tempoProApfel: 0.85, wolkeStufe: 2, lavaMehr: 8, hinweis: 'Ganz oben hinter dem Tor liegt der Schatz, Ameisen bewachen ihn.' },
   { karte: WIESE_16, richtung: 'u', laenge: 7, seed: 0x5eed16, tempoProApfel: 0.95, lavaMehr: 8, hinweis: 'Neu: ein Mini-Ent. Er wirft Blätterbomben. Fährst du direkt an ihm vorbei, packt er zu: dann sofort von ihm weg wischen.' },
   { karte: WIESE_17, richtung: 'u', laenge: 7, seed: 0x5eed17, tempoProApfel: 1, wolkeStufe: 2, hinweis: 'Neu: Bienenstöcke. Zu nah dran, und der Schwarm kommt. Dazu Igel, Wolken und zwei Mini-Ents.' },
-  { karte: WIESE_18, richtung: 'u', laenge: 7, seed: 0x5eed18, tempoProApfel: 1, lavaMehr: 8, hinweis: 'In der Mitte steht der Leuchtturm und dreht seinen Lichtkegel. Wer ins Licht fährt, hat verloren. Bahn dir den Weg ringsherum.' },
+  { karte: WIESE_18, richtung: 'u', laenge: 7, seed: 0x5eed18, tempoProApfel: 1, lavaMehr: 8, turm: { laenge: 16, takt: 2400 }, hinweis: 'In der Mitte steht der Leuchtturm. Sein Licht fällt durch die Lücken im Fels weit über die Wiese und dreht sich schnell. Wer ins Licht fährt, hat verloren.' },
   { karte: WIESE_19, richtung: 'u', laenge: 8, seed: 0x5eed19, tempoProApfel: 1.05, wolkeStufe: 2, lavaMehr: 10, hinweis: 'Im dunklen Forst: drei Mini-Ents, Lava, Giftwolken und große Tannen. Der Ent ist nah.' },
   { karte: WIESE_20, richtung: 'u', laenge: 4, seed: 0x5eed20, bild: BOSS_BILD, boss: 'ent' },
 ]

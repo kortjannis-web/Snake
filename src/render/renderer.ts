@@ -312,9 +312,11 @@ export class Renderer {
     this.spuren.leeren()
   }
 
-  /** Feldgroesse so, dass ein Bildschirm (screenW x screenH) und je Richtung 2 Felder mehr hineinpassen */
+  /** Feldgroesse so, dass ein Bildschirm (screenW x screenH) und je Richtung 2 Felder mehr hineinpassen.
+   *  Missionen: immer nach ihrem gemeinsamen Bild, so sind die Felder auch im Boss-Level so gross wie sonst */
   cellFor(g: Game) {
-    return Math.max(4, Math.floor(Math.min(this.vw / (g.screenW + MEHR_SICHT), this.vh / (g.screenH + MEHR_SICHT))))
+    const s = g instanceof MissionGame ? g.sicht : { w: g.screenW, h: g.screenH }
+    return Math.max(4, Math.floor(Math.min(this.vw / (s.w + MEHR_SICHT), this.vh / (s.h + MEHR_SICHT))))
   }
 
   /** Neue Feldgroesse (Fenster geaendert): alles, was in Pixeln gespeichert ist, mitskalieren */
@@ -877,7 +879,7 @@ export class Renderer {
 
     // Jaegertuerme: Kegel dreht sich mit, blendet nach jedem Wechsel ein
     for (const t of g.tuerme) {
-      if (!t.cells.some((c) => sicht(c, 8))) continue
+      if (!t.cells.some((c) => sicht(c, 8)) && !t.kegel.some((c) => sicht(c))) continue
       const k = this.reduce ? 1 : easeOut(clamp01((now - t.kegelT) / 500))
       const a0 = DIR_WINKEL[t.altDir]
       let a1 = DIR_WINKEL[t.dir]
@@ -1837,9 +1839,12 @@ export class Renderer {
     let ty = (kopf.y + 0.5) * cell
     const lief = g.time !== this.camZeit
     this.camZeit = g.time
-    // Boss: die Kamera zeigt immer den ganzen Raum, in dem der Kopf ist, und gleitet durch das Tor in den naechsten
+    // Boss: die Kamera folgt dem Kopf, bleibt aber im Raum (passt er ganz ins Bild, steht er in der Mitte) und
+    // gleitet durch das Tor in den naechsten
     if (g instanceof BossGame || g instanceof EntBossGame) {
-      const z = g.kameraZiel(kopf)
+      const b = g.kameraBox(kopf)
+      const imRaum = (k: number, a: number, e: number, sicht: number) => (sicht >= e - a ? (a + e) / 2 : Math.min(e - sicht / 2, Math.max(a + sicht / 2, k)))
+      const z = { x: imRaum(kopf.x + 0.5, b.x0, b.x1 + 1, this.vw / cell), y: imRaum(kopf.y + 0.5, b.y0, b.y1 + 1, this.vh / cell) }
       this.frameOk = false
       this.sichtGlatt = { x: [0, 0], y: [0, 0] }
       if (!this.camInit || this.reduce) {
