@@ -6,7 +6,8 @@
  * - Phase 2: ein vierter Stapel kommt dazu. Schiesst er eine Wurzel durch ein brennendes Feuer, laeuft die Flamme zu ihm
  *   zurueck. Er wandert zwischen den alten Baumstuempfen, dazu Rankenwaende, Setzlinge und Laubsturm
  * - Phase 3: dichtere Linien, kuerzere Warnungen, die Lichtung waechst von aussen zu
- * Zwei Mini-Ents stehen mit auf der Lichtung (Blaetterbomben, Greifen). Drei Herzen, nur der Kopf zaehlt.
+ * Zwei Mini-Ents stehen mit auf der Lichtung (Blaetterbomben, Greifen). Der Ent hat drei Leben, die Schlange keins extra:
+ * ein Treffer am Kopf ist vorbei.
  */
 import { key } from './game'
 import { ENT, Entkampf, type Lichtung } from './entkampf'
@@ -98,21 +99,9 @@ export class EntBossGame extends MissionGame {
     this.minientTakt()
   }
 
-  /** Waehrend man nach einem Treffer geschuetzt ist, packt kein Mini-Ent zu */
+  /** Waehrend man geschuetzt ist (gleich nach einem Treffer am Ent), packt kein Mini-Ent zu */
   protected override griffErlaubt() {
     return super.griffErlaubt() && this.time >= this.schutzBis
-  }
-
-  /** Zu lange festgehalten: ein Herz weniger, dann laesst er los */
-  protected override griffVorbei() {
-    const g = this.gepackt
-    this.gepackt = null
-    this.last = this.time
-    this.kampf.schaden(g?.p)
-  }
-
-  protected override bombeTrifft(p: P) {
-    this.kampf.schaden(p)
   }
 
   /** Kopf auf der Glutschale: Flamme. Auf einem Holzstapel: anzuenden. Am brennenden Ent: Treffer */

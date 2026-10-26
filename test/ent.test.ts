@@ -90,10 +90,9 @@ describe('Ent (Mission 20)', () => {
     expect(spaet.an).toBe(false)
   })
 
-  it('Phase 1: brennen alle drei Stapel, brennt seine Rinde; durch ihn hindurch = Treffer, ein Herz zurueck, dann Phase 2', () => {
+  it('Phase 1: brennen alle drei Stapel, brennt seine Rinde; durch ihn hindurch = Treffer, dann Phase 2', () => {
     const g = entSpiel()
     const k = ruhigerEnt(g)
-    k.leben = 2
     for (const f of k.aktiveFeuer) {
       innen(g).einsammeln(k.schale)
       innen(g).einsammeln(f.p)
@@ -105,7 +104,7 @@ describe('Ent (Mission 20)', () => {
     expect(k.feuer.every((f) => !f.an)).toBe(true)
     innen(g).einsammeln({ x: k.ent.x, y: k.ent.y + 1 })
     expect(k.ent.hp).toBe(ENT.leben - 1)
-    expect(k.leben).toBe(3)
+    expect(g.status).toBe('play')
     lauf(g, ENT.getroffen + 100)
     expect(k.ent.phase).toBe(1)
     expect(k.aktiveFeuer).toHaveLength(4)
@@ -158,29 +157,25 @@ describe('Ent (Mission 20)', () => {
     expect(k.ent.hp).toBe(2)
   })
 
-  it('Attacken treffen nur den Kopf: ein Herz weniger, kurz geschuetzt; ohne Herzen ist die Mission verloren', () => {
+  it('der Ent hat drei Leben, die Schlange keins extra: Attacken treffen nur den Kopf, ein Treffer ist vorbei', () => {
+    expect(ENT.leben).toBe(3)
+    expect(ENT.herzen).toBe(1)
+    // Liegt nur der Schwanz in der Linie, passiert nichts
     const g = entSpiel()
     const k = ruhigerEnt(g)
-    setzeSchlange(g, { x: 3, y: 22 }, 'u')
-    // Wurzelbruch durch die Zeile des Kopfes
-    k.starte('wurzelbruch')
-    lauf(g, ENT.linienWarn + 800)
-    expect(k.leben).toBe(2)
-    // Liegt nur der Schwanz in der Linie, passiert nichts
-    lauf(g, ENT.schutz)
-    k.linien = []
-    const l0 = k.leben
     g.body = [{ x: 3, y: 21 }, { x: 3, y: 22 }, { x: 3, y: 23 }]
     g.prev = g.body.map((p) => ({ ...p }))
     k.linien.push({ art: 'wurzel', cells: [{ x: 3, y: 23 }], d: [0], von: { x: 0, y: 23 }, ab: g.time, los: g.time, tempo: 30, bleibt: 600, stop: Infinity, feuer: null, weg: Infinity })
     lauf(g, 200)
-    expect(k.leben).toBe(l0)
-    g.schutzBis = 0
-    k.schaden()
-    g.schutzBis = 0
-    k.schaden()
-    expect(g.status).toBe('over')
-    expect(g.cause).toBe('entboss')
+    expect(g.status).toBe('play')
+    // Wurzelbruch durch die Zeile des Kopfes: vorbei
+    const h = entSpiel()
+    const kh = ruhigerEnt(h)
+    setzeSchlange(h, { x: 3, y: 22 }, 'u')
+    kh.starte('wurzelbruch')
+    lauf(h, ENT.linienWarn + 800)
+    expect(h.status).toBe('over')
+    expect(h.cause).toBe('entboss')
   })
 
   it('Dornenfaecher: 5 bis 7 Strahlen mit Luecken; Eichelmoerser: einer dort, wo die Schlange hinfaehrt', () => {
@@ -312,7 +307,11 @@ describe('Ent (Mission 20)', () => {
     for (let i = 0; i < 3 * 60 * 50 && g.status === 'play'; i++) {
       g.schutzBis = g.time + 1e6
       k.leben = 3
-      if (g.gepackt) g.turn(g.gepackt.weg)
+      // Mini-Ents ruhig: hier geht es um den Ent
+      for (const e of g.minients) {
+        e.wurfNext = Infinity
+        e.griffPause = Infinity
+      }
       const h = g.body[0]
       const ok = (d: Dir) => {
         const n = { x: h.x + STEP[d].x, y: h.y + STEP[d].y }
@@ -331,7 +330,8 @@ describe('Ent (Mission 20)', () => {
       g.update(20)
       for (const e of g.drain()) if (e.type === 'ent') arten.add(e.was)
     }
-    expect(g.status).toBe('play')
+    // Laeuft noch oder ist (per Rueckfeuer) sogar geschafft
+    expect(g.status === 'play' || g.cause === 'ziel', String(g.cause)).toBe(true)
     expect(k.ent.phase).toBe(2)
     for (const a of ['warnung', 'einschlag', 'abtauchen', 'auftauchen', 'treffer', 'zorn', 'zuwachsen']) expect(arten.has(a), a).toBe(true)
   })
@@ -408,7 +408,7 @@ describe('Mini-Ents', () => {
     expect(g.gefahr(e.p)).toBe('minient')
   })
 
-  it('im Ent-Kampf kosten Griff und Bombe ein Herz statt der Mission', () => {
+  it('auch im Ent-Kampf ist der Griff eines Mini-Ents vorbei, wenn man nicht wegwischt', () => {
     const g = missionSpiel(WIESE_MISSIONEN[19]) as EntBossGame
     g.tick = 1e12
     const k = g.kampf
@@ -420,14 +420,13 @@ describe('Mini-Ents', () => {
     lauf(g, 40)
     expect(g.gepackt).toBeTruthy()
     lauf(g, DEFAULTS.minientGriff * 1000 + 100)
-    expect(g.status).toBe('play')
-    expect(k.leben).toBe(ENT.herzen - 1)
-    expect(g.gepackt).toBeNull()
+    expect(g.status).toBe('over')
+    expect(g.cause).toBe('minient')
   })
 })
 
 describe('Mission 10: kleine Golems im Bosskampf', () => {
-  it('in Raum 2 und 3 stehen kleine Golems; ihr Schlag kostet ein Herz statt der Mission', () => {
+  it('in Raum 2 und 3 stehen kleine Golems; ihr Schlag ist auch hier vorbei', () => {
     const g = missionSpiel(WIESE_MISSIONEN[9]) as BossGame
     expect(g.minigolems).toHaveLength(3)
     // Keiner im ersten Raum (unten)
@@ -439,12 +438,44 @@ describe('Mission 10: kleine Golems im Bosskampf', () => {
     m.jagt = 0
     g.kampf.golem.zustand = 'wartet'
     lauf(g, 1200)
-    expect(g.status).toBe('play')
-    expect(g.leben).toBeLessThan(3)
+    expect(g.status).toBe('over')
+    expect(g.cause).toBe('minigolem')
   })
 })
 
 describe('Ent im freien Spiel (Wiese, Level 100)', () => {
+  it('Mini-Ents kuendigen ihn an: auf Level 90, 93, 96 und 98 je einer; ist er besiegt, welken sie', () => {
+    const g = new Game({ screenW: 12, screenH: 23, seed: 4, welt: 'wiese', startLevel: 89 })
+    expect(g.minients).toHaveLength(0)
+    const anzahl: Record<number, number> = {}
+    while (g.level < 100) {
+      innen(g).eat({ ...g.apple.p })
+      g.wahl = 0
+      anzahl[g.level] = g.minients.length
+    }
+    expect([90, 92, 93, 95, 96, 97, 98, 99].map((l) => anzahl[l])).toEqual([1, 1, 2, 2, 3, 3, 4, 4])
+    // Rundherum frei, nicht neben dem Apfel
+    for (const e of g.minients) {
+      for (const d of DIRS) expect(g.inside({ x: e.p.x + STEP[d].x, y: e.p.y + STEP[d].y })).toBe(true)
+      expect(g.gefahr(e.p)).toBe('minient')
+    }
+    g.tick = 1e12
+    lauf(g, 40)
+    const k = g.freiEnt!
+    expect(k).toBeTruthy()
+    k.ent.hp = 0
+    k.ent.zustand = 'tot'
+    k.ent.bis = g.time
+    lauf(g, 40)
+    expect(g.freiEnt).toBeNull()
+    expect(g.minients).toHaveLength(0)
+    for (let i = 0; i < 20; i++) {
+      innen(g).eat({ ...g.apple.p })
+      g.wahl = 0
+    }
+    expect(g.minients).toHaveLength(0)
+  })
+
   it('kommt auf Level 100: Lichtung, 3 Holzstapel, ein Treffer; besiegt bringt Aepfel und der Apfel ist wieder da', () => {
     const g = new Game({ screenW: 12, screenH: 23, seed: 5, welt: 'wiese', startLevel: 99 })
     innen(g).eat({ ...g.apple.p })

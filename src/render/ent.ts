@@ -917,16 +917,7 @@ function rundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
   ctx.closePath()
 }
 
-function herz(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string) {
-  ctx.fillStyle = c
-  ctx.beginPath()
-  ctx.moveTo(x, y + r * 0.85)
-  ctx.bezierCurveTo(x - r * 1.3, y - r * 0.1, x - r * 0.6, y - r * 1.05, x, y - r * 0.35)
-  ctx.bezierCurveTo(x + r * 0.6, y - r * 1.05, x + r * 1.3, y - r * 0.1, x, y + r * 0.85)
-  ctx.fill()
-}
-
-/** Name, Lebensleiste des Ents (Laub), Herzen der Schlange, darunter wie viele Feuer brennen */
+/** Name, Lebensleiste des Ents (seine drei Leben), links die getragene Flamme und wie viele Feuer brennen */
 export function drawEntHud(ctx: CanvasRenderingContext2D, k: Entkampf, vw: number, vh: number, now: number) {
   const e = k.ent
   const w = Math.min(220, vw * 0.48)
@@ -959,16 +950,6 @@ export function drawEntHud(ctx: CanvasRenderingContext2D, k: Entkampf, vw: numbe
       rundRect(ctx, x + 2, by + 1, teil - 4, 3, 2)
       ctx.fill()
     }
-  }
-  // Herzen rechts
-  ctx.fillStyle = 'rgba(23, 21, 19, 0.6)'
-  rundRect(ctx, vw - 16 - ENT.herzen * 22, by - 6, ENT.herzen * 22 + 6, bh + 12, 10)
-  ctx.fill()
-  const weg = now < k.schutzBis
-  for (let i = 0; i < ENT.herzen; i++) {
-    const voll = i < k.leben
-    const blinkt = !voll && i === k.leben && weg && Math.sin(now / 70) > 0
-    herz(ctx, vw - 24 - (ENT.herzen - 1 - i) * 22, by + bh / 2 + 1, 8, voll || blinkt ? '#FF5A6E' : 'rgba(245, 239, 230, 0.18)')
   }
   // Links: Flamme getragen? Feuer, die brennen
   const akt = k.aktiveFeuer

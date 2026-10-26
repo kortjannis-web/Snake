@@ -10,8 +10,8 @@
  * - Stampfen: Kreis um ihn herum
  * - Ansturm: ein langer Streifen bis zur Wand, er rennt hindurch, prallt auf und Felsbrocken fallen
  * - Sprung: er springt hoch, ein roter Kreis folgt der Schlange, bleibt stehen, dann landet er dort
- * Die Schlange hat drei Herzen: ein Treffer kostet eins (danach kurz geschuetzt), jeder Treffer am Golem gibt eins zurueck.
- * Es zaehlen Kopf und Hals (der Schwanz darf noch in der roten Flaeche haengen). Berge und Tore sind wie immer toedlich.
+ * Der Golem hat drei Leben, die Schlange keins extra: trifft eine Attacke den Kopf, ist es vorbei (der Koerper darf in der
+ * roten Flaeche liegen). Berge und Tore sind wie immer toedlich.
  *
  * Der Kampf selbst steckt in golemkampf.ts (er laeuft genauso im freien Spiel auf Level 60), hier nur die Raeume der Mission.
  */
@@ -202,11 +202,6 @@ export class BossGame extends MissionGame {
     if (this.karte.tore.some((t) => t.x === c.x && t.y === c.y)) return false
     const g = this.kampf?.golem
     return !g || Math.abs(c.x - Math.round(g.x)) > 2 || Math.abs(c.y - Math.round(g.y)) > 2
-  }
-
-  /** Schlag eines kleinen Golems: im Bosskampf kostet er ein Herz */
-  protected override minigolemTrifft() {
-    this.kampf.schaden()
   }
 
   /** Kopf auf einem Kristall: aufheben. Auf einem Sockel: passenden Kristall einsetzen. Durch den gebannten Golem: Treffer */

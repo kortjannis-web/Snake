@@ -123,6 +123,9 @@ export const WESEN_WEG = 600
 const ausKey = (k: number): P => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })
 
 /** Schluessel fuer Sets (funktioniert auch fuer -1 und Karten bis 4000 Felder Kante) */
+/** Vorboten der Bosse im freien Spiel: so viele Level vor dem Boss kommt je ein kleiner Golem bzw. Mini-Ent */
+export const VORBOTEN = [10, 7, 4, 2] as const
+
 export const key = (x: number, y: number) => (y + 1) * 4096 + (x + 1)
 const same = (a: P, b: P) => a.x === b.x && a.y === b.y
 const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
@@ -365,7 +368,8 @@ export class Game {
 
   protected next: Record<Art, number>
   /** Naechster kleiner Steingolem (Level) */
-  protected golemNext = 0
+  /** Wie viele Vorboten (kleine Golems, Mini-Ents) vor dem jeweiligen Boss schon gekommen sind */
+  protected vorbotenDa = { golem: 0, ent: 0 }
   protected lastSpawn = -1e9
   /** Faellige Baeume, Haeuser und Tuerme, die noch keinen Platz gefunden haben */
   protected offen = { baum: 0, haus: 0, turm: 0, eis: 0, tanne: 0 }
@@ -421,7 +425,6 @@ export class Game {
     if (this.formZufall) this.ursprung = { x: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bw, y: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bh }
     for (const b of this.blocks) this.startBloecke.add(weltKey(b.x - this.ursprung.x / this.bw, b.y - this.ursprung.y / this.bh))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
-    this.golemNext = this.cfg.minigolemAb
     this.tick = R.takt(this.cfg, this.tempo, 1)
 
     // Start in der Mitte der Karte, im Tageslevel in der Mitte des ersten Blocks
@@ -466,7 +469,6 @@ export class Game {
     this.apples = start - 1
     this.tick = R.takt(this.cfg, this.tempo, this.level)
     for (const k of ['falle', 'wolke', 'frosch', 'gegner', 'ameise'] as const) this.next[k] = Math.max(this.next[k], start + 1)
-    this.golemNext = Math.max(this.golemNext, start + 1)
     if (sb) {
       this.statisch = !sb.weiter
       this.wachsRest = Math.max(0, Math.round(sb.laenge) - this.body.length)
@@ -1170,11 +1172,20 @@ export class Game {
       this.next[k] = this.level + this.r.int(a, b)
       this.spawn(k)
     }
-    if (this.wieseExtras() && this.level >= this.cfg.minigolemAb && this.level >= this.golemNext) {
-      const c = this.cfg
-      this.golemNext = this.level + this.r.int(Math.min(c.minigolemMin, c.minigolemMax), Math.max(c.minigolemMin, c.minigolemMax))
-      this.neuerMinigolem()
-    }
+    this.vorbotenAuffuellen()
+  }
+
+  /** Vorboten der Bosse (Wiese, freies Spiel): 10, 7, 4 und 2 Level vor dem Steingolem kommt je ein kleiner Golem,
+   *  genauso vor dem Ent je ein Mini-Ent. Ist der Boss besiegt, verschwinden sie wieder. Startet man mitten drin
+   *  (Kreativ), stehen schon so viele da, wie bis dahin gekommen waeren */
+  protected vorbotenAuffuellen() {
+    if (!this.wieseExtras()) return
+    const c = this.cfg
+    const soll = (boss: number) => (this.level > boss ? 0 : VORBOTEN.filter((v) => this.level >= boss - v).length)
+    const golems = soll(c.bossAb) - this.vorbotenDa.golem
+    for (let i = 0; i < golems; i++) if (this.neuerMinigolem()) this.vorbotenDa.golem++
+    const ents = soll(c.entBossAb) - this.vorbotenDa.ent
+    for (let i = 0; i < ents; i++) if (this.neuerMinient()) this.vorbotenDa.ent++
   }
 
   /** Nach einem Apfel vielleicht ein Power-up (auf einem freien Feld in Reichweite) */
@@ -5088,10 +5099,11 @@ export class Game {
     return true
   }
 
-  /** Liegt das Feld im Revier einer Ameise (dort, wo sie sitzt, und um ihr Zuhause)? Dort kommt nichts zum Einsammeln hin */
+  /** Liegt das Feld im Revier einer Ameise (dort, wo sie sitzt, und um ihr Zuhause) oder neben einem Mini-Ent? Dort kommt
+   *  nichts zum Einsammeln hin */
   ameiseNah(c: P) {
     const r = this.ameiseAbstand
-    return this.ameisen.some((a) => cheb(a.p, c) <= r || cheb(a.heim, c) <= r)
+    return this.ameisen.some((a) => cheb(a.p, c) <= r || cheb(a.heim, c) <= r) || this.minients.some((e) => cheb(e.p, c) <= 3)
   }
   /** So weit (Felder, auch schraeg) bleibt alles zum Einsammeln von Ameisen weg: ihr Umkreis und zwei Felder Luft */
   get ameiseAbstand() {
@@ -5185,15 +5197,8 @@ export class Game {
     return this.weltId === 'wiese' && !this.statisch
   }
 
-  /** Hoechstzahl kleiner Golems: minigolemAnzahl, 60 Level spaeter einer mehr */
-  protected minigolemMax() {
-    const c = this.cfg
-    return Math.max(0, Math.round(c.minigolemAnzahl)) + (this.level >= c.minigolemAb + 60 ? 1 : 0)
-  }
-
   /** Neuer kleiner Steingolem: weit weg vom Kopf, nicht in seiner Bahn, mit Platz drumherum */
-  neuerMinigolem(egal = false) {
-    if (!egal && this.minigolems.length >= this.minigolemMax()) return false
+  neuerMinigolem() {
     const head = this.body[0]
     const wand = this.hindernisse()
     const reach = this.erreichbar(wand)
@@ -5416,6 +5421,33 @@ export class Game {
     this.minients.push({ p: { ...p }, winkel: Math.PI / 2, t: this.time, wurfNext: this.time + 1500 + i * 700, wurfT: -1e9, griffPause: 0, griffT: -1e9 })
   }
 
+  /** Neuer Mini-Ent (freies Spiel, vor dem Ent): weit weg vom Kopf, nicht in seiner Bahn, rundherum frei, nicht am Apfel */
+  neuerMinient() {
+    const head = this.body[0]
+    const wand = this.hindernisse()
+    const reach = this.erreichbar(wand)
+    const cand: P[] = []
+    for (let y = 1; y < this.h - 1; y++)
+      for (let x = 1; x < this.w - 1; x++) {
+        const p = { x, y }
+        const k = key(x, y)
+        if (!this.mask[y * this.w + x] || wand.has(k) || !reach.has(k) || this.aufSchlange(p) || cheb(p, this.apple.p) <= 3) continue
+        if (manhattan(p, head) < 9 || this.imWeg(p, 10)) continue
+        // Rundherum frei (auch schraeg): er steht nie in einer Gasse
+        let frei = true
+        for (let dy = -1; dy <= 1 && frei; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const n = { x: x + dx, y: y + dy }
+            if ((dx || dy) && (!this.inside(n) || wand.has(key(n.x, n.y)) || this.aufSchlange(n))) frei = false
+          }
+        if (!frei || this.minients.some((e) => cheb(e.p, p) < 5) || this.powers.some((o) => cheb(o.p, p) <= 2) || this.funde.some((f) => cheb(f.p, p) <= 2)) continue
+        cand.push(p)
+      }
+    if (!cand.length) return false
+    this.minientSetzen(this.r.pick(cand))
+    return true
+  }
+
   /** Felder, die eine Blaetterbombe trifft (ein Plus) */
   bombeFelder(b: Blaetterbombe): P[] {
     return [b.p, ...DIRS.map((d) => ({ x: b.p.x + STEP[d].x, y: b.p.y + STEP[d].y }))].filter((c) => this.inside(c))
@@ -5528,7 +5560,8 @@ export class Game {
 
   /** Platz fuer eine Arena: RADIUS Felder Umkreis ohne feste Bauten (Teiche, Baeume, Haeuser, Tuerme, Lava, Eis), nicht zu
    *  nah und nicht zu weit vom Kopf. Was sonst dort liegt (Mauern, Giftaepfel, Fallen, Wolken, Tiere), verschwindet.
-   *  Der Apfel ist waehrend des Kampfs weg, es kommt nichts Neues dazu */
+   *  Der Apfel ist waehrend des Kampfs weg, es kommt nichts Neues dazu. Mit `lichtung` duerfen Baeume, Teiche und Eis
+   *  im Weg sein (sie verschwinden) und der Platz darf bis 40 Felder weit weg sein */
   protected arenaPlatz(RADIUS: number, lichtung = false): P | null {
     const head = this.body[0]
     const fest = new Set<number>()
@@ -5595,7 +5628,8 @@ export class Game {
   /** Der Steingolem kommt: Arena mit 5 Feldern Umkreis, 4 Sockel im Kreuz um den Bannkreis */
   protected bossStarten() {
     const head = this.body[0]
-    const m = this.arenaPlatz(5)
+    // Ist kein freier Platz da, raeumt er sich einen frei (Baeume, Teiche und Eis verschwinden)
+    const m = this.arenaPlatz(5) ?? this.arenaPlatz(5, true)
     if (!m) return false
     const koerper = this.koerperSet()
     // Sockel im Kreuz um den Bannkreis (Rot oben, Orange rechts, Gelb unten, Gruen links)
@@ -5674,6 +5708,9 @@ export class Game {
     const k = this.freiBoss
     if (!k) return
     this.freiBoss = null
+    // Die kleinen Golems zerfallen mit ihm
+    for (const g of this.minigolems) this.emit({ type: 'minigolem', was: 'schlag', p: { ...g.p } })
+    this.minigolems = []
     const c = this.cfg
     const p = { ...k.kreis.p }
     const wert = c.bossLohn * c.apfelWert * this.apfelStufe()
@@ -5753,6 +5790,10 @@ export class Game {
     const k = this.freiEnt
     if (!k) return
     this.freiEnt = null
+    // Die Mini-Ents welken mit ihm
+    this.minients = []
+    this.bomben = []
+    this.gepackt = null
     const c = this.cfg
     const p = { x: Math.round(k.schale.x), y: Math.round(k.schale.y) }
     const wert = c.entBossLohn * c.apfelWert * this.apfelStufe()

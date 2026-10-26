@@ -113,11 +113,8 @@ const BASIS = {
   ameiseRadius: 2,
   ameiseTakt: 0.8,
   ameiseZurueck: 3,
-  // Kleine Steingolems (Wiese ab Level 60, dazu in den Missionen 11 bis 20): laufen zufaellig, sehen nach vorn, schlagen zu
-  minigolemAb: 60,
-  minigolemMin: 10,
-  minigolemMax: 15,
-  minigolemAnzahl: 2,
+  // Kleine Steingolems (Wiese: 10, 7, 4 und 2 Level vor dem Boss je einer, dazu in den Missionen 6 bis 10): laufen
+  // zufaellig, sehen nach vorn, schlagen zu
   minigolemTakt: 0.75,
   minigolemJagdTakt: 0.5,
   minigolemSicht: 5,
@@ -800,10 +797,6 @@ const SCHEMA_ROH: SchemaGruppe[] = [
   {
     gruppe: 'Wiese: Steingolems, große Tannen, Bosse, Mini-Ents',
     felder: [
-      { key: 'minigolemAb', label: 'Steingolems ab Level', min: 1, max: 10000 },
-      { key: 'minigolemMin', label: 'Neuer Golem alle mindestens', min: 1, max: 200, einheit: 'Level' },
-      { key: 'minigolemMax', label: 'Neuer Golem alle höchstens', min: 1, max: 200, einheit: 'Level' },
-      { key: 'minigolemAnzahl', label: 'Golems höchstens gleichzeitig (60 Level später einer mehr)', min: 0, max: 20 },
       { key: 'minigolemTakt', label: 'Golem läuft ein Feld alle', min: 0.1, max: 5, step: 0.05, einheit: 's' },
       { key: 'minigolemJagdTakt', label: 'Golem auf der Jagd: ein Feld alle', min: 0.1, max: 5, step: 0.05, einheit: 's' },
       { key: 'minigolemSicht', label: 'Golem sieht nach vorn', min: 1, max: 12, einheit: 'Felder' },
@@ -811,9 +804,9 @@ const SCHEMA_ROH: SchemaGruppe[] = [
       { key: 'minigolemRuhe', label: 'Golem nach dem Schlag', min: 0, max: 10, step: 0.1, einheit: 's' },
       { key: 'tanneAb', label: 'Große Tannen ab Level', min: 1, max: 10000 },
       { key: 'tanneAlle', label: 'Neue große Tanne alle', min: 1, max: 500, einheit: 'Level' },
-      { key: 'bossAb', label: 'Boss (Steingolem) auf Level', min: 1, max: 10000 },
+      { key: 'bossAb', label: 'Boss (Steingolem) auf Level (10, 7, 4 und 2 Level vorher je ein kleiner Golem)', min: 1, max: 10000 },
       { key: 'bossLohn', label: 'Boss besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
-      { key: 'entBossAb', label: 'Ent auf Level', min: 1, max: 10000 },
+      { key: 'entBossAb', label: 'Ent auf Level (10, 7, 4 und 2 Level vorher je ein Mini-Ent)', min: 1, max: 10000 },
       { key: 'entBossLohn', label: 'Ent besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
       { key: 'minientWeite', label: 'Mini-Ent wirft bis', min: 1, max: 20, einheit: 'Felder' },
       { key: 'minientWurf', label: 'Mini-Ent wirft alle', min: 0.3, max: 20, step: 0.1, einheit: 's' },

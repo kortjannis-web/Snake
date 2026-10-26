@@ -1147,7 +1147,7 @@ function drawKetten(ctx: CanvasRenderingContext2D, g: Golemkampf, x: number, y: 
 
 /* ================= Anzeige (Bildschirm) ================= */
 
-/** Unten (oben erscheinen die Hinweise): Name und Lebensleiste des Golems (3 Teile), rechts die Herzen der Schlange */
+/** Unten (oben erscheinen die Hinweise): Name und Lebensleiste des Golems (3 Teile) */
 export function drawBossHud(ctx: CanvasRenderingContext2D, g: Golemkampf, vw: number, vh: number, now: number) {
   const go = g.golem
   const w = Math.min(220, vw * 0.48)
@@ -1183,31 +1183,7 @@ export function drawBossHud(ctx: CanvasRenderingContext2D, g: Golemkampf, vw: nu
       ctx.fill()
     }
   }
-  // Herzen rechts (ein verlorenes blinkt kurz)
-  ctx.fillStyle = 'rgba(23, 21, 19, 0.6)'
-  rundRect(ctx, vw - 16 - GOLEM.herzen * 22, by - 6, GOLEM.herzen * 22 + 6, bh + 12, 10)
-  ctx.fill()
-  const weg = now < g.schutzBis
-  for (let i = 0; i < GOLEM.herzen; i++) {
-    const voll = i < g.leben
-    const blinkt = !voll && i === g.leben && weg && Math.sin(now / 70) > 0
-    herz(ctx, vw - 24 - (GOLEM.herzen - 1 - i) * 22, by + bh / 2 + 1, 8, voll || blinkt ? '#FF5A6E' : 'rgba(245, 239, 230, 0.18)', voll)
-  }
   ctx.restore()
-}
-
-function herz(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c: string, rand: boolean) {
-  ctx.fillStyle = c
-  ctx.beginPath()
-  ctx.moveTo(x, y + r * 0.9)
-  ctx.bezierCurveTo(x - r * 1.4, y - r * 0.1, x - r * 0.7, y - r * 1.2, x, y - r * 0.4)
-  ctx.bezierCurveTo(x + r * 0.7, y - r * 1.2, x + r * 1.4, y - r * 0.1, x, y + r * 0.9)
-  ctx.fill()
-  if (rand) {
-    ctx.strokeStyle = 'rgba(23, 21, 19, 0.7)'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-  }
 }
 
 function rundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

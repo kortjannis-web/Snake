@@ -133,14 +133,25 @@ describe('Kampagne', () => {
     expect(missionSkinVorgemerkt('waldgeist')).toBe(false)
   })
 
-  it('weniger Giftaepfel, ab 5 Ameisen, Baeume und Haeuser, Golems 6 bis 10, Mini-Ents ab 16, wenig Froesche, ab 16 Leuchttuerme', () => {
+  it('jede Mission bringt eine neue Sache (nacheinander), keine Gegner-Schlangen, nur ein Leuchtturm (Mission 18)', () => {
     const g = WIESE_MISSIONEN.map((m) => new MissionGame(m))
     expect(g.slice(0, 9).map((x) => x.gift.length)).toEqual([2, 2, 2, 3, 2, 8, 2, 3, 5])
-    for (const x of [...g.slice(4, 9), ...g.slice(10, 19)]) {
-      expect(x.ameisen.length, x.mission.id).toBeGreaterThan(0)
-      expect(x.baeume.length, x.mission.id).toBeGreaterThan(0)
-    }
-    for (const x of [...g.slice(4, 9), ...g.slice(10, 16), ...g.slice(17, 19)]) expect(x.haeuser.length, x.mission.id).toBeGreaterThan(0)
+    // Ab welcher Mission gibt es was zum ersten Mal?
+    const erst = (hat: (x: MissionGame) => boolean) => g.findIndex(hat) + 1
+    expect(erst((x) => x.baeume.some((b) => !b.gross))).toBe(5)
+    expect(erst((x) => x.minigolems.length > 0)).toBe(6)
+    expect(erst((x) => x.eis.length > 0)).toBe(7)
+    expect(erst((x) => x.haeuser.length > 0)).toBe(8)
+    expect(erst((x) => x.ameisen.length > 0)).toBe(9)
+    expect(erst((x) => x.wesen.some((w) => w.art === 'igel'))).toBe(11)
+    expect(erst((x) => x.quellen.length > 0)).toBe(12)
+    expect(erst((x) => x.lava.length > 0)).toBe(13)
+    expect(erst((x) => x.baeume.some((b) => b.gross))).toBe(13)
+    expect(erst((x) => x.minients.length > 0)).toBe(16)
+    expect(erst((x) => x.stoecke.length > 0)).toBe(17)
+    // Keine Gegner-Schlangen, ein einziger Leuchtturm in Mission 18
+    for (const x of g) expect(x.gegner, x.mission.id).toHaveLength(0)
+    expect(g.map((x) => x.tuerme.length)).toEqual(g.map((_, i) => (i === 17 ? 1 : 0)))
     for (const x of g.slice(0, 4)) expect(x.ameisen.length + x.baeume.length + x.haeuser.length, x.mission.id).toBe(0)
     // Kleine Golems langsam ab Mission 6 (1, 1, 2, 3), im Boss-Level ein paar, danach keine mehr
     expect(g.slice(5, 9).map((x) => x.minigolems.length)).toEqual([1, 1, 2, 3])
@@ -151,8 +162,6 @@ describe('Kampagne', () => {
     expect(g[19].minients.length).toBe(2)
     for (const x of g.slice(0, 15)) expect(x.minients, x.mission.id).toHaveLength(0)
     for (const x of g.slice(10)) expect(x.aktiveFroesche.length, x.mission.id).toBeLessThanOrEqual(2)
-    for (const x of g.slice(10, 15)) expect(x.tuerme, x.mission.id).toHaveLength(0)
-    for (const x of g.slice(15, 19)) expect(x.tuerme.length, x.mission.id).toBeGreaterThan(0)
     // Lava, Giftwolken und grosse Tannen erst ab 11
     for (const x of g.slice(0, 10)) expect(x.lava.length + x.quellen.length + x.baeume.filter((b) => b.gross).length, x.mission.id).toBe(0)
     expect(g.slice(10).some((x) => x.lava.length)).toBe(true)
@@ -321,11 +330,9 @@ describe('Kampagne', () => {
     expect(g.schatz).toBeGreaterThan(0)
   })
 
-  it('Missionen 7 bis 9 haben Gegner-Schlangen und Eis, spaete Missionen werden je Apfel schneller', () => {
-    expect(new MissionGame(WIESE_MISSIONEN[6]).gegner).toHaveLength(1)
-    expect(new MissionGame(WIESE_MISSIONEN[7]).gegner).toHaveLength(2)
-    expect(new MissionGame(WIESE_MISSIONEN[8]).gegner).toHaveLength(3)
+  it('Missionen 7 und 9 haben Eis, spaete Missionen werden je Apfel schneller', () => {
     expect(new MissionGame(WIESE_MISSIONEN[6]).eis.length).toBeGreaterThan(0)
+    expect(new MissionGame(WIESE_MISSIONEN[8]).eis.length).toBeGreaterThan(0)
     expect(new MissionGame(WIESE_MISSIONEN[8]).cfg.tempoProLevel).toBeGreaterThan(new MissionGame(WIESE_MISSIONEN[0]).cfg.tempoProLevel)
   })
 
@@ -440,10 +447,10 @@ describe('Kampagne', () => {
   })
 
   it('Ameisenbiss ist in der Mission vorbei', () => {
-    const g = new MissionGame(WIESE_MISSIONEN[6])
+    const g = new MissionGame(WIESE_MISSIONEN[8])
     ruhig(g)
     g.tick = 1e12
-    const a = new MissionGame(WIESE_MISSIONEN[6]).ameisen[0]
+    const a = new MissionGame(WIESE_MISSIONEN[8]).ameisen[0]
     a.next = 0
     g.ameisen = [a]
     legeSchlange(g, a.p, 2, 2)
@@ -471,7 +478,7 @@ describe('Kampagne', () => {
     const n0 = l.lava.reduce((n, s) => n + s.cells.length, 0)
     for (let t = 0; t < LAVA_TAKT * 3 + 100; t += 50) l.update(50)
     expect(l.lava.reduce((n, s) => n + s.cells.length, 0)).toBeGreaterThan(n0)
-    const t = new MissionGame(WIESE_MISSIONEN[15])
+    const t = new MissionGame(WIESE_MISSIONEN[17])
     ruhig(t)
     t.tick = 1e12
     const d0 = t.tuerme[0].dir

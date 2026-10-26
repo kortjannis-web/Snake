@@ -60,7 +60,8 @@ describe('Boss: Steingolem', () => {
     expect(b.raumNr).toBe(0)
     for (const c of b.body) expect(b.imRaum(c)).toBe(true)
     for (const c of b.golemFelder()) expect(b.imRaum(c)).toBe(true)
-    expect(b.leben).toBe(3)
+    // Der Golem hat drei Leben, die Schlange keins extra
+    expect(b.leben).toBe(1)
     expect(b.golem.hp).toBe(3)
   })
 
@@ -94,23 +95,23 @@ describe('Boss: Steingolem', () => {
     expect([...arten].sort()).toEqual(['ansturm', 'sprung', 'stampfen'])
   })
 
-  it('Stampfen trifft im Kreis: ein Herz weniger, danach kurz geschuetzt', () => {
+  it('Stampfen trifft im Kreis: ein Treffer am Kopf ist vorbei', () => {
     const g = still()
     setzeSchlange(g, imRaum(g, 8, 16))
     golemBei(g, 8, 13)
     g.starte('stampfen')
     lauf(g, GOLEM.stampfenWarn - 100)
-    expect(g.leben).toBe(3)
+    expect(g.status).toBe('play')
     lauf(g, 300)
-    expect(g.leben).toBe(2)
-    expect(g.schutzBis).toBeGreaterThan(g.time)
+    expect(g.status).toBe('over')
+    expect(g.cause).toBe('steingolem')
     // Ausserhalb des Kreises passiert nichts
     const h = still()
     setzeSchlange(h, imRaum(h, 8, 25))
     golemBei(h, 8, 13)
     h.starte('stampfen')
     lauf(h, GOLEM.stampfenWarn + 200)
-    expect(h.leben).toBe(3)
+    expect(h.status).toBe('play')
   })
 
   it('Ansturm: rennt bis zur Wand, prallt auf, Brocken fallen', () => {
@@ -118,8 +119,10 @@ describe('Boss: Steingolem', () => {
     golemBei(g, 8, 6)
     setzeSchlange(g, imRaum(g, 8, 20))
     g.starte('ansturm')
+    // Rechtzeitig aus dem Streifen: er rennt vorbei
+    setzeSchlange(g, imRaum(g, 2, 14))
     lauf(g, GOLEM.ansturmWarn + 2500)
-    expect(g.leben).toBe(2)
+    expect(g.status).toBe('play')
     expect(g.golem.y).toBeGreaterThan(g.aktuell.y0 + 20)
     expect(['benommen', 'laufen']).toContain(g.golem.zustand)
     expect(g.brocken.length).toBeGreaterThan(0)
@@ -142,7 +145,7 @@ describe('Boss: Steingolem', () => {
     // Rechtzeitig weg: kein Treffer
     setzeSchlange(g, imRaum(g, 12, 10))
     lauf(g, GOLEM.sprungHalt + GOLEM.sprungFall + 200)
-    expect(g.leben).toBe(3)
+    expect(g.status).toBe('play')
     expect(g.fliegt).toBe(false)
     expect(Math.hypot(g.golem.x - 4, g.golem.y - (g.aktuell.y0 + 22))).toBeLessThan(2)
   })
@@ -216,15 +219,12 @@ describe('Boss: Steingolem', () => {
     for (const k of g.kristalle) expect(g.aktuell.plaetze.some((p) => p.x === k.p.x && p.y === k.p.y)).toBe(true)
   })
 
-  it('ohne aktiven Bannkreis kostet die Beruehrung ein Herz, drei Herzen weg = vorbei', () => {
+  it('ohne aktiven Bannkreis ist die Beruehrung sofort vorbei', () => {
     const g = still()
     g.golem.zustand = 'laufen'
     g.golem.bis = 1e9
-    for (let i = 0; i < 3; i++) {
-      setzeSchlange(g, { x: Math.round(g.golem.x), y: Math.round(g.golem.y) })
-      g.schutzBis = 0
-      lauf(g, 40)
-    }
+    setzeSchlange(g, { x: Math.round(g.golem.x), y: Math.round(g.golem.y) + 1 })
+    lauf(g, 40)
     expect(g.leben).toBe(0)
     expect(g.status).toBe('over')
     expect(g.cause).toBe('steingolem')
@@ -342,6 +342,9 @@ describe('Boss: ein Bot kann ihn besiegen', () => {
     let siege = 0
     for (const seed of [0x5eed10, 1, 2, 3]) {
       const g = new BossGame({ ...boss, seed })
+      // Im Spiel ist ein Treffer vorbei; der einfache Bot bekommt drei Versuche (er prueft, dass die Mechanik durchgeht)
+      g.leben = 3
+      ;(g as unknown as { minigolemTrifft(): void }).minigolemTrifft = () => g.kampf.schaden()
       let ms = 0
       while (g.status === 'play' && ms < 8 * 60_000) {
         const d = botZug(g)
@@ -351,7 +354,7 @@ describe('Boss: ein Bot kann ihn besiegen', () => {
         g.drain()
       }
       if (g.cause === 'ziel') siege++
-      ergebnis.push(`${g.cause} ${(ms / 1000).toFixed(0)} s, ${g.leben} Herzen, Raum ${g.raumNr + 1}, Golem ${g.golem.hp}`)
+      ergebnis.push(`${g.cause} ${(ms / 1000).toFixed(0)} s, Raum ${g.raumNr + 1}, Golem ${g.golem.hp}`)
     }
     console.log('Boss-Bot:', ergebnis.join(' | '))
     expect(siege).toBeGreaterThanOrEqual(3)

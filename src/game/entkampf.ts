@@ -16,7 +16,7 @@
  * - ab Phase 2: schiesst er eine Wurzel durch ein brennendes Feuer, faengt sie Feuer, die Flamme laeuft zu ihm zurueck: Treffer.
  *   Man stellt sich also so hin, dass ein Feuer zwischen einem selbst und ihm liegt (das Feuer haelt die Wurzel auch auf)
  * Ab Phase 2 wandert er zwischen alten Baumstuempfen, ab Phase 3 waechst die Lichtung von aussen zu.
- * Die Schlange hat drei Herzen, nur der Kopf zaehlt. Jeder Treffer am Ent gibt eins zurueck.
+ * Der Ent hat drei Leben (je Phase ein Treffer), die Schlange keins extra: ein Treffer am Kopf ist vorbei.
  * Was der Kampf vom Spiel braucht, kommt wie beim Golem ueber den `KampfWirt`.
  */
 import type { KampfWirt, Pf } from './golemkampf'
@@ -29,7 +29,8 @@ export type EntAngriffArt = 'wurzelbruch' | 'wurzelstoss' | 'dornen' | 'eicheln'
 /** Alle Zeiten in ms, Tempo in Feldern je Sekunde. Je Phase: dichtere Linien, kuerzere Warnungen */
 export const ENT = {
   leben: 3,
-  herzen: 3,
+  /** Die Schlange hat kein Leben extra: ein Treffer ist vorbei (nur der Boss hat drei Leben) */
+  herzen: 1,
   /** Nach einem Treffer am Spieler so lange geschuetzt */
   schutz: 1900,
   warnFaktor: [1, 0.85, 0.72],
@@ -837,7 +838,7 @@ export class Entkampf {
 
   /* ---------------- Treffer ---------------- */
 
-  /** Die Schlange wird getroffen: ein Herz weniger, kurz geschuetzt; ohne Herzen vorbei */
+  /** Die Schlange wird getroffen: vorbei (Kreativ ohne Tod: geht weiter, kurz geschuetzt) */
   schaden(p: Pf = this.kopf) {
     if (this.time < this.schutzBis || this.status !== 'play') return false
     this.leben--
@@ -847,7 +848,7 @@ export class Entkampf {
     return true
   }
 
-  /** Kopf am Stamm: brennt die Rinde (Herzknoten frei), ist es ein Treffer, sonst kostet es ein Herz */
+  /** Kopf am Stamm: brennt die Rinde (Herzknoten frei), ist es ein Treffer, sonst ist es vorbei */
   protected beruehrt() {
     const z = this.ent.zustand
     if (this.versunken || z === 'tot' || z === 'getroffen' || z === 'schlaf') return
@@ -856,7 +857,7 @@ export class Entkampf {
     else this.schaden(this.ent)
   }
 
-  /** Treffer am Ent: ein Herz zurueck, alles Laufende verschwindet, die Feuer gehen aus */
+  /** Treffer am Ent: alles Laufende verschwindet, die Feuer gehen aus */
   protected treffer() {
     const e = this.ent
     if (e.zustand === 'getroffen' || e.zustand === 'tot') return
@@ -866,7 +867,6 @@ export class Entkampf {
     this.schutzBis = Math.max(this.schutzBis, this.time + 1500)
     this.setze('getroffen', ENT.getroffen)
     this.ereignis('treffer')
-    this.leben = Math.min(ENT.herzen, this.leben + 1)
     this.linien = []
     this.eicheln = []
     this.setzlinge.forEach((s) => s.weg < 0 && (s.weg = this.time))

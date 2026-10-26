@@ -1383,8 +1383,8 @@ function handle(e: GameEvent) {
       break
     case 'bossStart':
       haptic.heavy()
-      if (e.boss === 'ent') toast('gegner', 'Boss: der Ent!', 'Hol eine Flamme aus der Glutschale in der Mitte und zünde die 3 Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann fahr durch ihn hindurch. Du hast drei Herzen.')
-      else toast('gegner', 'Boss: der Steingolem!', 'Bring die 4 Kristalle zum Sockel ihrer Farbe. Leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Du hast drei Herzen.')
+      if (e.boss === 'ent') toast('gegner', 'Boss: der Ent!', 'Hol eine Flamme aus der Glutschale in der Mitte und zünde die 3 Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann fahr durch ihn hindurch. Ein Treffer an deinem Kopf ist vorbei.')
+      else toast('gegner', 'Boss: der Steingolem!', 'Bring die 4 Kristalle zum Sockel ihrer Farbe. Leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Ein Treffer an deinem Kopf ist vorbei.')
       break
     case 'bossSieg':
       haptic.success()
@@ -2736,9 +2736,9 @@ function missionStarten(m: MissionDef) {
     closeAllPages()
     newGame(false, false, 'normal', m)
     if (m.art === 'boss' && m.boss === 'ent')
-      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Phasen. Hol eine Flamme aus der Glutschale und zünde die Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann durch ihn hindurch. Später fangen seine Wurzeln an brennenden Feuern Feuer. Drei Herzen, nur der Kopf zählt.')
+      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Phasen. Hol eine Flamme aus der Glutschale und zünde die Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann durch ihn hindurch. Später fangen seine Wurzeln an brennenden Feuern Feuer. Der Ent hat drei Leben, du keins extra: Trifft er deinen Kopf, ist es vorbei.')
     else if (m.art === 'boss')
-      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Räume. Bring die Kristalle zum Sockel ihrer Farbe, leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Je Raum ein Treffer, du hast drei Herzen.')
+      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Räume. Bring die Kristalle zum Sockel ihrer Farbe, leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Je Raum ein Treffer, drei braucht er. Trifft er deinen Kopf, ist es vorbei.')
     else toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. ${m.hinweis ?? 'Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.'}`)
   })
 }

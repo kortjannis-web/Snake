@@ -150,18 +150,44 @@ describe('Kleine Steingolems', () => {
     expect(m.jagt).toBeGreaterThanOrEqual(0)
   })
 
-  it('kommen in der Wiese ab Level 60 (hoechstens 2), sind ein Hindernis', () => {
-    const g = new Game({ screenW: SW, screenH: SH, seed: 11, welt: 'wiese', startLevel: 59 })
+  it('kuendigen den Boss an: auf Level 50, 53, 56 und 58 je einer, sind ein Hindernis, nach dem Boss sind sie weg', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 11, welt: 'wiese', startLevel: 49 })
     expect(g.minigolems).toHaveLength(0)
-    for (let i = 0; i < 40 && g.status === 'play'; i++) {
+    const anzahl: Record<number, number> = {}
+    while (g.level < 60) {
       innen(g).eat({ ...g.apple.p })
       g.wahl = 0
+      anzahl[g.level] = g.minigolems.length
     }
-    expect(g.minigolems.length).toBeGreaterThan(0)
-    expect(g.minigolems.length).toBeLessThanOrEqual(2)
+    expect([50, 52, 53, 55, 56, 57, 58, 59].map((l) => anzahl[l])).toEqual([1, 1, 2, 2, 3, 3, 4, 4])
     const m = g.minigolems[0]
     expect(g.hindernisse().has(key(m.p.x, m.p.y))).toBe(true)
     expect(g.gefahr(m.p)).toBe('minigolem')
+    // Boss auf Level 60 besiegt: die kleinen Golems zerfallen, danach kommen keine mehr
+    g.tick = 1e12
+    lauf(g, 40)
+    const k = g.freiBoss!
+    expect(k).toBeTruthy()
+    k.golem.hp = 0
+    k.golem.zustand = 'tot'
+    k.golem.bis = g.time
+    lauf(g, 40)
+    expect(g.freiBoss).toBeNull()
+    expect(g.minigolems).toHaveLength(0)
+    for (let i = 0; i < 40; i++) {
+      innen(g).eat({ ...g.apple.p })
+      g.wahl = 0
+    }
+    expect(g.minigolems).toHaveLength(0)
+  })
+
+  it('mit Startlevel mitten in den Vorboten (Kreativ) stehen schon so viele da, wie bis dahin gekommen waeren', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 11, welt: 'wiese', startLevel: 56 })
+    expect(g.minigolems).toHaveLength(3)
+    const h = new Game({ screenW: SW, screenH: SH, seed: 11, welt: 'wiese', startLevel: 70 })
+    expect(h.minigolems).toHaveLength(0)
+    const w = new Game({ screenW: SW, screenH: SH, seed: 11, welt: 'winter', startLevel: 56 })
+    expect(w.minigolems).toHaveLength(0)
   })
 })
 
