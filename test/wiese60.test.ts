@@ -228,4 +228,23 @@ describe('Boss im freien Spiel (Wiese, Level 60)', () => {
     lauf(w, 100)
     expect(w.freiBoss).toBeNull()
   })
+
+  it('Admin zum Testen: Kreativ mit Startlevel 60 bringt den Boss gleich (ohne Tod fuellen sich die Herzen auf)', () => {
+    const g = new Game({ screenW: SW, screenH: SH, seed: 5, welt: 'wiese', startLevel: 60, kreativ: { tod: 'anhalten', rueckschlag: false, durchSelbst: false, wachsen: true, laenge: 3 } })
+    g.tick = 1e12
+    lauf(g, 3000)
+    const k = g.freiBoss!
+    expect(k).toBeTruthy()
+    for (let i = 0; i < GOLEM.herzen; i++) {
+      g.schutzBis = 0
+      k.schaden()
+    }
+    expect(g.status).toBe('play')
+    expect(k.leben).toBe(GOLEM.herzen)
+    // Mit hoeherem Startlevel kommt er nicht mehr
+    const h = new Game({ screenW: SW, screenH: SH, seed: 5, welt: 'wiese', startLevel: 61 })
+    h.tick = 1e12
+    lauf(h, 3000)
+    expect(h.freiBoss).toBeNull()
+  })
 })

@@ -306,7 +306,7 @@ export class Game {
   ameisenWeg: { p: P; dir: Dir; t: number }[] = []
   /** Kleine Steingolems (Missionen 11 bis 20, Wiese ab Level 60) */
   minigolems: Minigolem[] = []
-  /** Boss im freien Spiel (Wiese, Level bossAb): der Steingolem mitten auf der Karte, 4 Sockel um einen Bannkreis */
+  /** Boss im freien Spiel (Wiese, Level bossAb, auch im Kreativ-Modus): der Steingolem mitten auf der Karte, 4 Sockel um einen Bannkreis */
   freiBoss: Golemkampf | null = null
   /** Der Boss ist faellig (kommt, sobald keine Gebietswahl mehr offen ist und Platz da ist) */
   protected bossFaellig = false
@@ -470,6 +470,8 @@ export class Game {
       this.gebiet = null
       this.layout()
       this.events = []
+      // Start genau auf dem Boss-Level (Admin: Kreativ mit Startlevel 60): der Boss kommt gleich
+      if (start === this.cfg.bossAb && this.wieseExtras()) this.bossFaellig = true
     }
     this.aufbau = false
   }
@@ -1094,7 +1096,7 @@ export class Game {
     if (R.neuerTurm(c, l)) this.offen.turm++
     if (this.wieseExtras() && l >= c.tanneAb && (l - c.tanneAb) % Math.max(1, c.tanneAlle) === 0) this.offen.tanne++
     // Boss: einmal, wenn dieser Level zum ersten Mal erreicht wird (nicht beim Aufbau, nicht im Kreativ-Modus)
-    if (l === c.bossAb && this.wieseExtras() && !this.kreativ && !this.aufbau) this.bossFaellig = true
+    if (l === c.bossAb && this.wieseExtras() && !this.aufbau) this.bossFaellig = true
     this.bauten()
     // Feste Zeit: mit lilaAb kommt der lila Gegner (immer nur einer)
     if (l === c.lilaAb && !this.aufbau && !this.gegner.some((e) => e.art === 'lila')) this.neuerGegner('lila', true)
@@ -5497,7 +5499,8 @@ export class Game {
         inside: (c) => spiel.inside(c),
         frei: (c) => !spiel.bossWand.has(key(c.x, c.y)),
         emit: (e) => spiel.emit(e),
-        verloren: () => spiel.die('steingolem'),
+        // Kreativ ohne Tod: die Herzen fuellen sich wieder auf
+        verloren: () => (spiel.kreativ && spiel.kreativ.tod !== 'an' && spiel.freiBoss ? (spiel.freiBoss.leben = GOLEM.herzen) : spiel.die('steingolem')),
         besiegt: () => spiel.bossBesiegt(),
       },
       [raum],

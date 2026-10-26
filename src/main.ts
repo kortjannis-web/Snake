@@ -2654,8 +2654,10 @@ let kHinweisZeit = 0
 function feldZustand(i: number): FeldZustand {
   const m = WIESE_MISSIONEN[i]
   if (geschafft(m)) return 'geschafft'
-  return spielbar(m) && offen(m, WIESE_MISSIONEN) ? 'offen' : 'zu'
+  return spielbar(m) && missionOffen(m) ? 'offen' : 'zu'
 }
+/** Offen: die erste, die davor geschafft, oder im Admin-Zugang jede (zum Testen) */
+const missionOffen = (m: MissionDef) => master.frei || offen(m, WIESE_MISSIONEN)
 /** Die Mission, die als naechste dran ist (pulsiert auf der Karte) */
 function naechsteMission() {
   return WIESE_MISSIONEN.find((m) => !geschafft(m) && spielbar(m) && offen(m, WIESE_MISSIONEN)) ?? null
@@ -2730,7 +2732,7 @@ kScroll.addEventListener('click', (e) => {
     kampagneHinweis(`Mission ${m.nr} kommt bald.`)
     return
   }
-  if (!offen(m, WIESE_MISSIONEN)) {
+  if (!missionOffen(m)) {
     audio.click()
     kampagneHinweis(`Schaff erst Mission ${m.nr - 1}.`)
     return
