@@ -840,8 +840,10 @@ export function drawKegel(ctx: CanvasRenderingContext2D, cells: P[], mitte: { x:
   ctx.beginPath()
   for (const c of cells) ctx.rect(c.x * u, c.y * u, u, u)
   ctx.clip()
-  const ex = mitte.x + Math.cos(ang) * u * 8
-  const ey = mitte.y + Math.sin(ang) * u * 8
+  // Lang wie der Kegel (mindestens 8 Felder), so reichen auch weite Kegel (Leuchtturm) bis ans Ende
+  const lang = Math.max(8, ...cells.map((c) => Math.hypot((c.x + 0.5) * u - mitte.x, (c.y + 0.5) * u - mitte.y) / u + 0.5))
+  const ex = mitte.x + Math.cos(ang) * u * lang
+  const ey = mitte.y + Math.sin(ang) * u * lang
   const g = ctx.createLinearGradient(mitte.x, mitte.y, ex, ey)
   g.addColorStop(0, `rgba(255, 222, 110, ${0.92 * a * flacker})`)
   g.addColorStop(1, `rgba(255, 206, 80, ${0.42 * a * flacker})`)

@@ -251,7 +251,6 @@ export class Golemkampf {
     return this.raeume.some((r) => r.tor && !r.tor.offen && r.tor.cells.some((t) => t.x === c.x && t.y === c.y))
   }
 
-  /** Mitte des Raums, den die Kamera zeigen soll (der, in dem der Kopf ist; auf dem Tor der, aus dem er kommt) */
   /** Die Karte ist gewachsen und hat sich verschoben (freies Spiel): alles um dx, dy mitnehmen */
   verschieben(dx: number, dy: number) {
     const mv = (p: Pf) => {
@@ -280,10 +279,16 @@ export class Golemkampf {
     }
   }
 
-  kameraZiel(kopf: Pf): Pf {
+  /** Raum, in dem die Kamera bleibt (der, in dem der Kopf ist; auf dem Tor der, aus dem er kommt) */
+  kameraRaum(kopf: Pf): Raum {
     let r = this.raumBei({ x: Math.round(kopf.x), y: Math.round(kopf.y) })
     if (r < 0) r = this.raeume.findIndex((ra) => kopf.x >= ra.x0 - 1 && kopf.x <= ra.x1 + 1 && kopf.y >= ra.y0 - 1 && kopf.y <= ra.y1 + 1)
-    const ra = this.raeume[Math.max(0, r)]
+    return this.raeume[Math.max(0, r)]
+  }
+
+  /** Mitte dieses Raums */
+  kameraZiel(kopf: Pf): Pf {
+    const ra = this.kameraRaum(kopf)
     return { x: (ra.x0 + ra.x1 + 1) / 2, y: (ra.y0 + ra.y1 + 1) / 2 }
   }
 

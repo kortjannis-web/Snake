@@ -488,6 +488,20 @@ describe('Kampagne', () => {
     for (const tu of t.tuerme) for (const c of tu.kegel) expect(Math.abs(c.x - kopf.x) + Math.abs(c.y - kopf.y)).toBeGreaterThan(2)
   })
 
+  it('Mission 18: der Leuchtturm leuchtet durch die Luecken im Fels weit ueber die Wiese und dreht sich schneller', () => {
+    const g = new MissionGame(WIESE_MISSIONEN[17])
+    ruhig(g)
+    expect(g.turmTakt).toBeLessThan(TURM_TAKT)
+    expect(g.cfg.kegelLaenge).toBeGreaterThan(12)
+    const t = g.tuerme[0]
+    // In jede Richtung reicht er weit (frueher war am Felsring nach 3 Feldern Schluss)
+    for (const d of DIRS) {
+      t.dir = d
+      g['kegel'](t)
+      expect(t.kegel.length, d).toBeGreaterThanOrEqual(2 * 12)
+    }
+  })
+
   it('kleine Steingolems: trifft der Schlag den Kopf, ist die Mission verloren', () => {
     const g = new MissionGame(WIESE_MISSIONEN[5])
     ruhig(g)

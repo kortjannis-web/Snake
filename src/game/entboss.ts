@@ -1,5 +1,6 @@
 /**
- * Boss des Waldes (Mission 20): der Ent auf einer Waldlichtung, die ganz ins Bild passt (wie beim Golem BOSS_BILD).
+ * Boss des Waldes (Mission 20): der Ent auf einer Waldlichtung (Bloecke nach BOSS_BILD, gezeigt in derselben Feldgroesse
+ * wie die anderen Missionen, die Kamera folgt dem Kopf ueber die Lichtung).
  * Drei Phasen, je Phase ein Treffer (siehe entkampf.ts):
  * - Phase 1: Flamme an der Glutschale holen, die 3 Holzstapel anzuenden. Brennen alle gleichzeitig, faengt seine Rinde
  *   Feuer und der Herzknoten liegt frei: durch ihn hindurchfahren
@@ -80,6 +81,10 @@ export class EntBossGame extends MissionGame {
 
   kameraZiel() {
     return this.kampf.kameraZiel()
+  }
+  /** Die Kamera folgt dem Kopf, bleibt aber ueber der Lichtung */
+  kameraBox() {
+    return this.kampf.box
   }
 
   /** Rankenwaende und zugewachsenes Dickicht sind wie Wand */
