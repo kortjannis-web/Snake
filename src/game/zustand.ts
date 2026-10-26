@@ -11,7 +11,7 @@ import { MehrGame, TAUSCH_FELDER } from './mehr'
 export type Zustand = Record<string, unknown>
 
 /** Neu berechenbar oder nur fuer dieses Geraet */
-const OHNE = new Set(['events', 'mask', 'stempel', 'stempelNr', 'schlangeMenge', 'aktiv', 'rennenWaehler'])
+const OHNE = new Set(['events', 'mask', 'stempel', 'stempelNr', 'schlangeMenge', 'aktiv', 'rennenWaehler', 'bossWand'])
 /** Aendert sich nie (steckt schon in den Startwerten) */
 const FEST = new Set(['cfg', 'tempo', 'bw', 'bh', 'modus', 'anzahl', 'kreativ', 'lavaSalz'])
 

@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor' | 'minigolem' | 'licht' | 'kegel' | 'wolke' | 'ameise' | 'bienen'
 
 export type Status = 'play' | 'over'
 
@@ -53,7 +53,20 @@ export type Frosch = {
  *  Dann faellt er ab `fallT` langsam in Richtung `dir` und liegt danach 1-1-3-1 Felder entlang
  *  `dir` (Stamm, Stamm, Krone breit, Spitze), symmetrisch. `gelandet` = Aufschlag schon gemeldet.
  *  `ankDir` = kurz vor dem Kippen angekuendigte Richtung (er wackelt und verliert ein paar Blaetter dorthin) */
-export type Baum = { cells: P[]; root: P; dir: Dir; t: number; kippBei: number | null; fallT: number; gelandet: boolean; ankDir?: Dir }
+export type Baum = {
+  cells: P[]
+  root: P
+  dir: Dir
+  t: number
+  kippBei: number | null
+  fallT: number
+  gelandet: boolean
+  ankDir?: Dir
+  /** Grosse Tanne: steht auf 3 x 3 Feldern und liegt danach 7 Felder lang (faellt also 6 Felder weit) */
+  gross?: boolean
+  /** Mission: wartet, bis die Schlange in der Naehe ist (dann kippt er nach 1 bis 8 Sekunden) */
+  wartet?: boolean
+}
 /** Fenster: Wandfeld des Hauses und Richtung nach aussen */
 export type Fenster = { p: P; d: Dir }
 /** Haus: bleibt stehen. Vier Fenster (eins je Seite), eins davon leuchtet 2 Felder weit */
@@ -205,6 +218,33 @@ export type Ameise = {
   sattBis: number
 }
 
+/** Kleiner Steingolem (Missionen 11 bis 20, im freien Spiel der Wiese ab Level 60). Laeuft immer weiter: je Schritt 70 %
+ *  geradeaus, je 15 % rechts oder links, mit 10 % bleibt er 1 bis 4 s stehen. Er sieht in einem Kegel nach vorn
+ *  (minigolemSicht Felder weit). Sieht er den Kopf, kommt er darauf zu, bis er ihn aus den Augen verliert, und greift an:
+ *  rundum (2 Felder) oder geradeaus (4 Felder), je mit einer halben Sekunde Anlauf. Nur der Kopf zaehlt */
+export type Minigolem = {
+  p: P
+  from: P
+  dir: Dir
+  /** Blickrichtung vor der letzten Drehung (Animation) */
+  altDir: Dir
+  drehT: number
+  t: number
+  /** Letzter Schritt (Animation), naechster Schritt */
+  schrittT: number
+  next: number
+  /** Steht bis dahin still */
+  stehtBis: number
+  /** Seit wann er den Kopf sieht (-1 = sieht ihn nicht) */
+  jagt: number
+  /** Angriff mit Anlauf: rund (Umkreis) oder linie (geradeaus), die Felder, Anlauf ab, Schlag bei */
+  angriff: { art: 'rund' | 'linie'; cells: P[]; ab: number; schlag: number } | null
+  /** Letzter Schlag (Druckwelle), naechster Angriff fruehestens ab */
+  schlagT: number
+  schlagArt: 'rund' | 'linie'
+  ruheBis: number
+}
+
 /** Ereignisse fuer Toene, Vibration und Anzeige */
 /** Boss der Wiese (Mission 10): was der Steingolem gerade tut (fuer Ton, Ruetteln und Teilchen) */
 export type GolemEreignis = 'erwachen' | 'warnung' | 'schlag' | 'ansturm' | 'aufprall' | 'stein' | 'sprung' | 'landung' | 'bann' | 'frei' | 'treffer' | 'zorn' | 'tot' | 'torAuf' | 'torZu' | 'wechsel'
@@ -213,6 +253,10 @@ export type GameEvent =
   | { type: 'golem'; was: GolemEreignis; p: P }
   | { type: 'kristall'; was: 'neu' | 'auf' | 'sockel' | 'alle'; p: P; farbe: number }
   | { type: 'bossSchaden'; leben: number; p: P }
+  /** Boss im freien Spiel: der Kampf beginnt (Mitte des Bannkreises) oder ist gewonnen (Belohnung in Aepfeln) */
+  | { type: 'bossStart'; p: P }
+  | { type: 'bossSieg'; p: P; wert: number }
+  | { type: 'minigolem'; was: 'neu' | 'sieht' | 'laden' | 'schlag'; p: P }
   | { type: 'eat'; level: number; p: P; stufe: number; wer?: number }
   | { type: 'milestone'; level: number }
   | { type: 'expand'; side: Side; add: number; dx: number; dy: number; block?: P; d?: Dir }

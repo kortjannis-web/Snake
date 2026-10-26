@@ -8,7 +8,7 @@
  * naechsten Raum, gebannt in Lichtketten, getroffen mit Splittern, Gebruell, Zerfall zu Geroell). Mit jedem Treffer kommen
  * Risse dazu, beim letzten fehlt ein Stueck der Schulter.
  */
-import { GOLEM, KRISTALL_FARBEN, type BossGame, type Pf, type Raum } from '../game/boss'
+import { GOLEM, KRISTALL_FARBEN, type Golemkampf, type Pf, type Raum } from '../game/golemkampf'
 
 const TAU = Math.PI * 2
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
@@ -30,7 +30,7 @@ const px = (v: number, cell: number) => (v + 0.5) * cell
 /* ================= Boden der Arena ================= */
 
 /** Boden aller Raeume (Platten, Bannkreise, Sockel), dazu die Steintore und die Kristalladern in Raum 3 */
-export function drawBossBoden(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
+export function drawBossBoden(ctx: CanvasRenderingContext2D, g: Golemkampf, cell: number, now: number, reduce: boolean) {
   for (const r of g.raeume) drawRaumBoden(ctx, g, r, cell, now, reduce)
   for (const r of g.raeume) for (const p of r.plaetze) drawAder(ctx, px(p.x, cell), px(p.y, cell), cell, p.x * 7 + p.y)
   for (const r of g.raeume) if (r.tor) drawTor(ctx, r.tor, cell, now, reduce)
@@ -122,7 +122,7 @@ function drawTor(ctx: CanvasRenderingContext2D, tor: { cells: { x: number; y: nu
 }
 
 /** Ein Raum: alte Steinplatten, Runen, Bannkreis, Sockel */
-function drawRaumBoden(ctx: CanvasRenderingContext2D, g: BossGame, raum: Raum, cell: number, now: number, reduce: boolean) {
+function drawRaumBoden(ctx: CanvasRenderingContext2D, g: Golemkampf, raum: Raum, cell: number, now: number, reduce: boolean) {
   const k = raum.kreis
   const cx = px(k.p.x, cell)
   const cy = px(k.p.y, cell)
@@ -396,7 +396,7 @@ function drawKristallForm(ctx: CanvasRenderingContext2D, x: number, y: number, s
 }
 
 /** Kristalle auf dem Feld: schweben, leuchten, tauchen aus dem Boden auf */
-export function drawKristalle(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
+export function drawKristalle(ctx: CanvasRenderingContext2D, g: Golemkampf, cell: number, now: number, reduce: boolean) {
   for (const k of g.kristalle) {
     const x = px(k.p.x, cell)
     const y = px(k.p.y, cell)
@@ -417,7 +417,7 @@ export function drawKristalle(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
 }
 
 /** Getragene Kristalle schweben ueber dem Schwanz der Schlange */
-export function drawGetragen(ctx: CanvasRenderingContext2D, g: BossGame, glieder: Pf[], cell: number, now: number) {
+export function drawGetragen(ctx: CanvasRenderingContext2D, g: Golemkampf, glieder: Pf[], cell: number, now: number) {
   g.traegt.forEach((farbe, i) => {
     const b = glieder[Math.min(glieder.length - 1, 1 + i)]
     if (!b) return
@@ -461,7 +461,7 @@ function warnPfad(ctx: CanvasRenderingContext2D, pfad: () => void, k: number, no
 }
 
 /** Alle Warnungen der aktuellen Attacke (unter der Schlange) */
-export function drawWarnungen(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
+export function drawWarnungen(ctx: CanvasRenderingContext2D, g: Golemkampf, cell: number, now: number, reduce: boolean) {
   const go = g.golem
   const a = go.angriff
   const gx = px(go.x, cell)
@@ -568,7 +568,7 @@ export function drawWarnungen(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
 }
 
 /** Fallende Brocken (ueber allem) und die zerbrochenen am Boden */
-export function drawBrocken(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
+export function drawBrocken(ctx: CanvasRenderingContext2D, g: Golemkampf, cell: number, now: number, reduce: boolean) {
   for (const b of g.brocken) {
     const x = px(b.p.x, cell)
     const y = px(b.p.y, cell)
@@ -605,7 +605,7 @@ function staub(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, a
 }
 
 /** Druckwellen: Stampfen, Landung, Aufprall, Treffer, Gebruell */
-export function drawWellen(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
+export function drawWellen(ctx: CanvasRenderingContext2D, g: Golemkampf, cell: number, now: number, reduce: boolean) {
   if (reduce) return
   for (const w of g.wellen) {
     const t = clamp01((now - w.t) / 700)
@@ -692,7 +692,7 @@ type Haltung = {
   glut: number
 }
 
-function haltung(g: BossGame, now: number, reduce: boolean): Haltung {
+function haltung(g: Golemkampf, now: number, reduce: boolean): Haltung {
   const go = g.golem
   const a = go.angriff
   const t = now - go.seit
@@ -839,7 +839,7 @@ function haltung(g: BossGame, now: number, reduce: boolean): Haltung {
 }
 
 /** Der Golem: Schatten, Beine, Arme, Rumpf, Schultern, Kopf, Runen; dazu Ketten, Sterne, Splitter */
-export function drawGolemBoss(ctx: CanvasRenderingContext2D, g: BossGame, cell: number, now: number, reduce: boolean) {
+export function drawGolemBoss(ctx: CanvasRenderingContext2D, g: Golemkampf, cell: number, now: number, reduce: boolean) {
   const go = g.golem
   const a = go.angriff
   const u = cell * GROESSE
@@ -864,7 +864,7 @@ export function drawGolemBoss(ctx: CanvasRenderingContext2D, g: BossGame, cell: 
   const s = h.s * (1 + hoch * 1.1)
   const tot = go.zustand === 'tot' ? clamp01((now - go.seit) / GOLEM.tot) : 0
   const erwacht = go.zustand === 'schlaf' ? 0 : go.zustand === 'erwachen' ? clamp01((now - go.seit) / GOLEM.erwachen) : 1
-  const schaden = GOLEM.leben - go.hp
+  const schaden = g.golemLeben - go.hp
   const zit = reduce ? 0 : h.zitter * cell * 0.04
   const zx = zit ? (Math.random() - 0.5) * 2 * zit : 0
   const zy = zit ? (Math.random() - 0.5) * 2 * zit : 0
@@ -1113,7 +1113,7 @@ function stern(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c
 }
 
 /** Gebannt: eine Lichtsaeule und sechs Ketten aus Licht vom Kreis zum Golem */
-function drawKetten(ctx: CanvasRenderingContext2D, g: BossGame, x: number, y: number, cell: number, now: number, reduce: boolean) {
+function drawKetten(ctx: CanvasRenderingContext2D, g: Golemkampf, x: number, y: number, cell: number, now: number, reduce: boolean) {
   const k = g.kreis
   const cx = px(k.p.x, cell)
   const cy = px(k.p.y, cell)
@@ -1148,7 +1148,7 @@ function drawKetten(ctx: CanvasRenderingContext2D, g: BossGame, x: number, y: nu
 /* ================= Anzeige (Bildschirm) ================= */
 
 /** Unten (oben erscheinen die Hinweise): Name und Lebensleiste des Golems (3 Teile), rechts die Herzen der Schlange */
-export function drawBossHud(ctx: CanvasRenderingContext2D, g: BossGame, vw: number, vh: number, now: number) {
+export function drawBossHud(ctx: CanvasRenderingContext2D, g: Golemkampf, vw: number, vh: number, now: number) {
   const go = g.golem
   const w = Math.min(220, vw * 0.48)
   const x0 = (vw - w) / 2
@@ -1169,8 +1169,8 @@ export function drawBossHud(ctx: CanvasRenderingContext2D, g: BossGame, vw: numb
   ctx.fillStyle = 'rgba(23, 21, 19, 0.8)'
   rundRect(ctx, x0 - 3, by - 3, w + 6, bh + 6, 7)
   ctx.fill()
-  const teil = (w - 8) / GOLEM.leben
-  for (let i = 0; i < GOLEM.leben; i++) {
+  const teil = (w - 8) / g.golemLeben
+  for (let i = 0; i < g.golemLeben; i++) {
     const voll = i < go.hp
     const verloren = i === go.hp && now - go.trefferT < 700
     const x = x0 + i * (teil + 4)
@@ -1218,4 +1218,172 @@ function rundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
   ctx.arcTo(x, y + h, x, y, r)
   ctx.arcTo(x, y, x + w, y, r)
   ctx.closePath()
+}
+
+/* ================= Kleine Steingolems ================= */
+
+/** Rote Flaeche, in die ein kleiner Golem gleich schlaegt (k = wie weit er schon ausgeholt hat) */
+export function drawMinigolemWarnung(ctx: CanvasRenderingContext2D, cells: Pf[], k: number, now: number, cell: number, reduce: boolean) {
+  if (!cells.length) return
+  warnPfad(ctx, () => {
+    ctx.beginPath()
+    for (const c of cells) ctx.rect(c.x * cell, c.y * cell, cell, cell)
+  }, k, now, cell, reduce)
+}
+
+/** Druckwelle nach dem Schlag: rund ein Ring, geradeaus ein Streifen mit Steinchen (t = 0..1) */
+export function drawMinigolemSchlag(ctx: CanvasRenderingContext2D, x: number, y: number, winkel: number, art: 'rund' | 'linie', t: number, cell: number) {
+  if (t <= 0 || t >= 1) return
+  ctx.save()
+  if (art === 'rund') {
+    const r = cell * (0.6 + 2.0 * easeOut(t))
+    ctx.strokeStyle = `rgba(255, 236, 214, ${0.8 * (1 - t)})`
+    ctx.lineWidth = cell * 0.3 * (1 - t)
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, TAU)
+    ctx.stroke()
+    staub(ctx, x, y, r, 0.4 * (1 - t))
+  } else {
+    ctx.translate(x, y)
+    ctx.rotate(winkel)
+    const l = cell * (0.8 + 3.6 * easeOut(t))
+    const gr = ctx.createLinearGradient(0, 0, l, 0)
+    gr.addColorStop(0, `rgba(255, 236, 214, ${0.15 * (1 - t)})`)
+    gr.addColorStop(1, `rgba(255, 236, 214, ${0.75 * (1 - t)})`)
+    ctx.fillStyle = gr
+    ctx.beginPath()
+    ctx.moveTo(cell * 0.4, -cell * 0.3)
+    ctx.lineTo(l, -cell * 0.45)
+    ctx.lineTo(l + cell * 0.3, 0)
+    ctx.lineTo(l, cell * 0.45)
+    ctx.lineTo(cell * 0.4, cell * 0.3)
+    ctx.closePath()
+    ctx.fill()
+    for (let i = 0; i < 5; i++) {
+      ctx.globalAlpha = 1 - t
+      felsBrocken(ctx, l * (0.35 + i * 0.15), (hash(i * 7) - 0.5) * cell * 0.7, cell * 0.12, i * 5, 1)
+    }
+  }
+  ctx.restore()
+}
+
+/** Kleiner Steingolem von oben (ein Feld, etwas groesser gezeichnet): Beine, Rumpf mit Moos, Schultern, Faeuste, Kopf mit
+ *  gluehenden Augen. lauf: Schrittphase (-1 = steht), auf: Erscheinen (0..1), laden: holt aus (0..1), schlag: hat gerade
+ *  geschlagen (0..1), jagt: hat die Schlange gesehen (Augen rot) */
+export function drawMinigolem(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, winkel: number, lauf: number, auf: number, laden: number, art: 'rund' | 'linie', schlag: number, jagt: boolean, now: number, reduce: boolean) {
+  if (auf <= 0) return
+  const u = cell * 0.6 * auf
+  const schritt = lauf >= 0 ? Math.sin(lauf * TAU) : 0
+  const zit = !reduce && laden > 0.55 ? (Math.random() - 0.5) * cell * 0.05 * laden : 0
+  ctx.save()
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+  ctx.beginPath()
+  ctx.ellipse(x + u * 0.12, y + u * 0.3, u * 1.3, u * 1.1, 0, 0, TAU)
+  ctx.fill()
+  ctx.translate(x + zit, y + zit * 0.6)
+  ctx.rotate(winkel)
+  const s = 1 + (art === 'rund' ? 0.08 : 0.04) * laden - 0.06 * Math.sin(clamp01(schlag) * Math.PI)
+  ctx.scale(s, s)
+  // Beine
+  for (const sy of [-1, 1]) felsBrocken(ctx, -u * 0.45 + schritt * sy * u * 0.25, sy * u * 0.5, u * 0.38, 21 + sy * 4, 1, mix(STEIN, STEIN_DUNKEL, 0.35))
+  // Rumpf, Ruecken, Moos
+  felsBrocken(ctx, 0, 0, u * 0.86, 5, 1, mix(STEIN, STEIN_DUNKEL, 0.12))
+  felsBrocken(ctx, -u * 0.22, 0, u * 0.5, 6, 1, mix(STEIN, STEIN_HELL, 0.12))
+  ctx.fillStyle = rgb(MOOS, 0.85)
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath()
+    ctx.arc(-u * (0.35 + hash(i) * 0.3), (hash(i + 3) - 0.5) * u * 0.9, u * (0.09 + hash(i * 7) * 0.06), 0, TAU)
+    ctx.fill()
+  }
+  // Glut im Kern: beim Ausholen heller
+  const kern: RGB = [255, 150, 50]
+  const kg = ctx.createRadialGradient(u * 0.1, 0, 0, u * 0.1, 0, u * 0.5)
+  kg.addColorStop(0, rgb(mix(kern, [255, 255, 255], 0.4), 0.35 + 0.6 * laden))
+  kg.addColorStop(1, rgb(kern, 0))
+  ctx.fillStyle = kg
+  ctx.beginPath()
+  ctx.arc(u * 0.1, 0, u * 0.5, 0, TAU)
+  ctx.fill()
+  // Faeuste: laufen schwingen sie mit; rund holen beide aus, geradeaus zieht er die rechte zurueck und stoesst sie vor
+  const n = clamp01(schlag)
+  for (const sy of [-1, 1]) {
+    let fx = 0.75 - schritt * sy * 0.2
+    let fy = sy * 0.95
+    let fs = 1
+    if (art === 'rund') {
+      fx = lerp(fx, 0.25, laden)
+      fy = lerp(fy, sy * 0.7, laden)
+      fs = 1 + 0.6 * laden
+      if (n > 0) {
+        fx = lerp(1.0, fx, n)
+        fy = lerp(sy * 1.25, fy, n)
+        fs = lerp(0.85, 1, n)
+      }
+    } else if (sy > 0) {
+      fx = lerp(fx, -0.2, laden)
+      fs = 1 + 0.3 * laden
+      if (n > 0) {
+        fx = lerp(1.6, 0.75, n)
+        fy = lerp(0.35, fy, n)
+      }
+    }
+    // Arm von der Schulter zur Faust
+    ctx.strokeStyle = rgb(mix(STEIN, STEIN_DUNKEL, 0.45))
+    ctx.lineWidth = u * 0.36
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(-u * 0.05, sy * u * 0.75)
+    ctx.lineTo(fx * u, fy * u)
+    ctx.stroke()
+    felsBrocken(ctx, -u * 0.05, sy * u * 0.78, u * 0.36, 51 + sy * 3, 1, mix(STEIN, STEIN_HELL, 0.16))
+    if (fs > 1.05) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${0.2 * (fs - 1)})`
+      ctx.beginPath()
+      ctx.ellipse(fx * u + u * 0.2 * (fs - 1), fy * u + u * 0.25 * (fs - 1), u * 0.36, u * 0.3, 0, 0, TAU)
+      ctx.fill()
+    }
+    felsBrocken(ctx, fx * u, fy * u, u * 0.4 * fs, 41 + sy * 2, 1, mix(STEIN, STEIN_HELL, 0.1))
+  }
+  // Kopf mit Augen (rot, wenn er die Schlange gesehen hat)
+  felsBrocken(ctx, u * 0.62, 0, u * 0.42, 61, 1, mix(STEIN, STEIN_HELL, 0.35))
+  const augen: RGB = jagt || laden > 0 ? [255, 70, 50] : [255, 180, 70]
+  const ag = 0.6 + 0.4 * (reduce ? 1 : Math.sin(now / 260) * 0.5 + 0.5) * (jagt ? 1 : 0.6)
+  for (const sy of [-1, 1]) {
+    const ax = u * 0.8
+    const ay = sy * u * 0.16
+    const gl = ctx.createRadialGradient(ax, ay, 0, ax, ay, u * 0.3)
+    gl.addColorStop(0, rgb(augen, 0.95 * ag))
+    gl.addColorStop(1, rgb(augen, 0))
+    ctx.fillStyle = gl
+    ctx.beginPath()
+    ctx.arc(ax, ay, u * 0.3, 0, TAU)
+    ctx.fill()
+    ctx.fillStyle = rgb(mix(augen, [255, 255, 255], 0.5), ag)
+    ctx.beginPath()
+    ctx.arc(ax, ay, u * 0.07, 0, TAU)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+/** Ausrufezeichen ueber dem Golem, kurz nachdem er die Schlange entdeckt hat (k = 0..1 der Zeit) */
+export function drawMinigolemEntdeckt(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, k: number) {
+  if (k <= 0 || k >= 1) return
+  const a = Math.min(1, (1 - k) * 3)
+  const hoch = cell * (0.75 + 0.15 * easeOut(Math.min(1, k * 4)))
+  ctx.save()
+  ctx.globalAlpha *= a
+  ctx.fillStyle = '#E5463B'
+  ctx.strokeStyle = 'rgba(23, 21, 19, 0.75)'
+  ctx.lineWidth = Math.max(1.5, cell * 0.06)
+  ctx.beginPath()
+  ctx.arc(x, y - hoch, cell * 0.24, 0, TAU)
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillRect(x - cell * 0.035, y - hoch - cell * 0.15, cell * 0.07, cell * 0.17)
+  ctx.beginPath()
+  ctx.arc(x, y - hoch + cell * 0.1, cell * 0.04, 0, TAU)
+  ctx.fill()
+  ctx.restore()
 }

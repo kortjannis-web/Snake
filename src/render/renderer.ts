@@ -12,7 +12,7 @@ import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapf
 import { WUESTE } from '../game/rules'
 import { BossGame, KRISTALL_FARBEN } from '../game/boss'
 import { MissionGame } from '../game/mission'
-import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, drawKristalle, drawWarnungen, drawWellen } from './golem'
+import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, drawKristalle, drawMinigolem, drawMinigolemEntdeckt, drawMinigolemSchlag, drawMinigolemWarnung, drawWarnungen, drawWellen } from './golem'
 import type { BergKacheln } from './berge'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { abgrundKachel, drawAbgrund, drawSprudeln, drawVulkanBoden, type AbgrundKachel } from './vulkan'
@@ -809,11 +809,14 @@ export class Renderer {
     for (const b of g.baeume) {
       if (!b.cells.some((c) => sicht(c, 3))) continue
       const s = this.reduce ? 1 : backOut(clamp01((now - b.t) / 520))
-      const art = this.baumArt(b.root, g.ursprung)
+      // Grosse Tanne: immer eine Tanne, stehend gut ein Drittel groesser, liegend 7 Felder lang
+      const art: BaumArt = b.gross ? 'tanne' : this.baumArt(b.root, g.ursprung)
+      const gr = b.gross ? 1.38 : 1
+      const lang = b.gross ? 1.75 : 1
       const stehend = (off?: P, a = 1) => {
         ctx.globalAlpha = a
-        if (welt.schnee) drawBaumStehendSchnee(ctx, art === 'weihnacht', b.root, cell, off ? 1 : s, now, off)
-        else drawBaumStehend(ctx, art, b.root, cell, off ? 1 : s, now, off)
+        if (welt.schnee) drawBaumStehendSchnee(ctx, art === 'weihnacht', b.root, cell, (off ? 1 : s) * gr, now, off)
+        else drawBaumStehend(ctx, art, b.root, cell, (off ? 1 : s) * gr, now, off)
         ctx.globalAlpha = 1
       }
       if (art === 'kristall' || art === 'pilz') licht(px(b.root.x), px(b.root.y), cell * 2.4)
@@ -831,8 +834,8 @@ export class Renderer {
       if (p >= 1) {
         // Liegender Baum (mit Schatten, teuer zu rastern): als Bild
         const bewegt = art === 'kristall' || art === 'pilz' || art === 'palme'
-        if (s >= 1 && !bewegt) this.bild(`baum-${welt.id}-${art}-${b.dir}-${(b.root.x * 3 + b.root.y) % 4}`, b.root, cell, 4, (_c, _o, mitte) => drawBaumLiegend(_c, art, mitte, b.dir, cell, 1, 0, 1, welt.schnee))
-        else drawBaumLiegend(ctx, art, b.root, b.dir, cell, s, now, 1, welt.schnee)
+        if (s >= 1 && !bewegt) this.bild(`baum-${welt.id}-${art}-${b.dir}-${(b.root.x * 3 + b.root.y) % 4}${b.gross ? '-gross' : ''}`, b.root, cell, b.gross ? 7 : 4, (_c, _o, mitte) => drawBaumLiegend(_c, art, mitte, b.dir, cell, 1, 0, 1, welt.schnee, lang))
+        else drawBaumLiegend(ctx, art, b.root, b.dir, cell, s, now, 1, welt.schnee, lang)
         continue
       }
       // Faellt: immer schneller (wie mit Schwerkraft). Von oben gesehen wird der liegende Baum
@@ -841,9 +844,9 @@ export class Renderer {
       const k = Math.sin((Math.PI / 2) * p * p)
       ctx.fillStyle = `rgba(12, 40, 32, ${0.2 * clamp01(p * 6) * (1 - k * 0.6)})`
       for (const c of b.cells) ctx.fillRect(c.x * cell, c.y * cell, cell, cell)
-      drawBaumLiegend(ctx, art, b.root, b.dir, cell, 1, now, k, welt.schnee)
+      drawBaumLiegend(ctx, art, b.root, b.dir, cell, 1, now, k, welt.schnee, lang)
       const d = STEP[b.dir]
-      stehend({ x: d.x * k * 2, y: d.y * k * 2 }, 1 - k)
+      stehend({ x: d.x * k * 2 * lang, y: d.y * k * 2 * lang }, 1 - k)
     }
     for (const h of g.haeuser) {
       if (!h.cells.some((c) => sicht(c, 3))) continue
@@ -886,7 +889,7 @@ export class Renderer {
     }
 
     // Boss-Arena: Bannkreis, Sockel, rote Warnungen, Kristalle
-    const boss = g instanceof BossGame ? g : null
+    const boss = g instanceof BossGame ? g.kampf : g.freiBoss
     if (boss) {
       drawBossBoden(ctx, boss, cell, now, this.reduce)
       drawWarnungen(ctx, boss, cell, now, this.reduce)
@@ -972,6 +975,28 @@ export class Renderer {
       if (!sicht(am.p)) continue
       const k = clamp01((now - am.t) / AMEISE_WEG)
       drawAmeiseWelt(ctx, welt, px(am.p.x), px(am.p.y), cell * (1 + k * 0.4), DIR_WINKEL[am.dir], -1, 1, 0, 1 - k, now)
+    }
+
+    // Kleine Steingolems: holen sie aus, wird rot, wohin sie schlagen; entdecken sie dich, steht ein Ausrufezeichen ueber ihnen
+    for (const mg of g.minigolems) {
+      const an = mg.angriff
+      if (an && sicht(mg.p, 5)) drawMinigolemWarnung(ctx, an.cells, clamp01((now - an.ab) / Math.max(1, an.schlag - an.ab)), now, cell, this.reduce)
+    }
+    for (const mg of g.minigolems) {
+      if (!sicht(mg.p, 3)) continue
+      const k = this.reduce ? 1 : easeOut(clamp01((now - mg.schrittT) / 300))
+      const x = px(lerp(mg.from.x, mg.p.x, k))
+      const y = px(lerp(mg.from.y, mg.p.y, k))
+      const a0 = DIR_WINKEL[mg.altDir]
+      let a1 = DIR_WINKEL[mg.dir]
+      while (a1 - a0 > Math.PI) a1 -= Math.PI * 2
+      while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
+      const ang = lerp(a0, a1, this.reduce ? 1 : easeOut(clamp01((now - mg.drehT) / 220)))
+      const an = mg.angriff
+      const laden = an ? clamp01((now - an.ab) / Math.max(1, an.schlag - an.ab)) : 0
+      drawMinigolem(ctx, x, y, cell, ang, k < 1 ? ((now - mg.schrittT) / 600) % 1 : -1, this.reduce ? 1 : backOut(clamp01((now - mg.t) / 420)), laden, an?.art ?? mg.schlagArt, clamp01((now - mg.schlagT) / 350), mg.jagt >= 0, now, this.reduce)
+      if (!this.reduce) drawMinigolemSchlag(ctx, x, y, DIR_WINKEL[mg.dir], mg.schlagArt, (now - mg.schlagT) / 450, cell)
+      if (mg.jagt >= 0) drawMinigolemEntdeckt(ctx, x, y, cell, (now - mg.jagt) / 900)
     }
 
     // Einschlaege: Schatten als Warnung, danach der liegende Block (bis zum naechsten Apfel)

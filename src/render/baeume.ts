@@ -941,17 +941,18 @@ export function drawBaumStehendSchnee(ctx: CanvasRenderingContext2D, weihnacht: 
   ctx.restore()
 }
 
-/** Liegender Baum ab Stamm `root` in Richtung `dir`. kipp (0..1): beim Umfallen, wie weit er schon ausgestreckt ist */
-export function drawBaumLiegend(ctx: CanvasRenderingContext2D, art: BaumArt, root: P, dir: Dir, cell: number, s: number, now: number, kipp = 1, schnee = false) {
+/** Liegender Baum ab Stamm `root` in Richtung `dir`. kipp (0..1): beim Umfallen, wie weit er schon ausgestreckt ist.
+ *  laenge: so viel laenger als ein normaler Baum (grosse Tanne 1,75: die Spitze liegt 6 Felder vom Stamm) */
+export function drawBaumLiegend(ctx: CanvasRenderingContext2D, art: BaumArt, root: P, dir: Dir, cell: number, s: number, now: number, kipp = 1, schnee = false, laenge = 1) {
   if (s <= 0 || kipp <= 0) return
   const u = cell
   const seed = root.x * 3.7 + root.y * 1.3
   ctx.save()
   ctx.translate((root.x + 0.5) * u, (root.y + 0.5) * u)
   ctx.rotate(ROT[dir])
-  if (kipp < 1) {
+  if (kipp * laenge !== 1) {
     ctx.translate(-0.45 * u, 0)
-    ctx.scale(kipp, 1)
+    ctx.scale(kipp * laenge, 1)
     ctx.translate(0.45 * u, 0)
   }
   ctx.scale(Math.min(1, s), Math.min(1, s))

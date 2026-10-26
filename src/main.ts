@@ -1356,6 +1356,18 @@ function handle(e: GameEvent) {
       if (e.was === 'bann') toast('gebiet', 'Gebannt!', 'Jetzt durch den Golem hindurchfahren.')
       if (e.was === 'torAuf' && game instanceof BossGame) toast('gebiet', `Raum ${game.raumNr + 1} von ${game.raeume.length}`, `Das Tor ist offen: dem Golem nach. Hier brauchst du ${game.sockel.length} Kristalle.`)
       break
+    case 'minigolem':
+      if (e.was === 'neu' || nah(e.p, 0.6)) audio.minigolem(e.was)
+      if (e.was === 'schlag' && nah(e.p, 0.4)) haptic.medium()
+      break
+    case 'bossStart':
+      haptic.heavy()
+      toast('gegner', 'Boss: der Steingolem!', 'Bring die 4 Kristalle zum Sockel ihrer Farbe. Leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Du hast drei Herzen.')
+      break
+    case 'bossSieg':
+      haptic.success()
+      toast('aepfel', 'Steingolem besiegt!', `+${e.wert} Äpfel. Weiter geht es mit dem Apfel.`)
+      break
     case 'kristall':
       audio.kristall(e.was, e.farbe)
       if (e.was !== 'neu') haptic.light()
@@ -3670,6 +3682,8 @@ if (!gesperrt) {
   const dm = WIESE_MISSIONEN[devMission - 1]
   if (dm) newGame(false, false, 'normal', dm)
 }
+/** Nur beim Entwickeln: das laufende Spiel fuer die Konsole und Browser-Tests (window.spiel()) */
+if (import.meta.env.DEV) Object.assign(window, { spiel: () => game })
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)
 if (!nativ && import.meta.env.PROD && 'serviceWorker' in navigator) {

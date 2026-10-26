@@ -2,6 +2,7 @@
 import type { Cause, Side } from '../game/types'
 import { drawSchlange, GEGNER_SKIN, LILA_SKIN } from '../render/skins'
 import { drawBaumLiegend } from '../render/baeume'
+import { drawMinigolem } from '../render/golem'
 import { C, drawAmeise, drawApfel, drawEis, drawErz, drawFalle, drawLava, drawFrosch, drawHaus, drawKegel, drawLicht, drawPower, drawStein, drawTeich, drawTurm, drawWolkenFeld, rund } from '../render/sprites'
 
 export type Mini =
@@ -22,6 +23,7 @@ export type Mini =
   | 'gegner'
   | 'lila'
   | 'ameise'
+  | 'golem'
   | 'lava'
   | 'eis'
   | 'erz'
@@ -84,6 +86,9 @@ export function drawMini(cv: HTMLCanvasElement, kind: Mini, t = 0, side: Side = 
     }
     case 'ameise':
       drawAmeise(ctx, mid, mid + cell * 0.1, big * 0.9, -0.5, -1, 1, 1)
+      break
+    case 'golem':
+      drawMinigolem(ctx, mid, mid + cell * 0.1, big * 1.15, -Math.PI / 2, -1, 1, 0, 'rund', 1, true, t, true)
       break
     case 'erfolg': {
       // Medaille mit Stern
@@ -308,4 +313,10 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   fata: 'gift',
   steingolem: 'mauer',
   steintor: 'mauer',
+  minigolem: 'golem',
+  licht: 'haus',
+  kegel: 'turm',
+  wolke: 'wolke',
+  ameise: 'ameise',
+  bienen: 'ameise',
 }

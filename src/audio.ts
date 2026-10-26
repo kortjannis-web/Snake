@@ -311,6 +311,26 @@ class Audio {
         break
     }
   }
+  /** Kleiner Steingolem: Grummeln beim Erscheinen, Knurren beim Entdecken, Ausholen, dumpfer Schlag */
+  minigolem(was: string) {
+    switch (was) {
+      case 'neu':
+        this.noise(0.5, 'lowpass', 220, 0.18, { to: 380, attack: 0.15 })
+        this.tone(70, 0.5, 'sawtooth', 0.07, { to: 90, filter: 280, attack: 0.1 })
+        break
+      case 'sieht':
+        this.tone(110, 0.3, 'sawtooth', 0.09, { to: 150, filter: 600, vib: 7 })
+        break
+      case 'laden':
+        this.tone(130, 0.4, 'sawtooth', 0.08, { to: 196, filter: 700, attack: 0.1 })
+        this.noise(0.3, 'lowpass', 500, 0.08, { attack: 0.1 })
+        break
+      case 'schlag':
+        this.tone(95, 0.35, 'sine', 0.35, { to: 40 })
+        this.noise(0.35, 'lowpass', 600, 0.3, { to: 110 })
+        break
+    }
+  }
   /** Kristalle: auftauchen, aufheben, in den Sockel setzen, alle sechs leuchten */
   kristall(was: string, farbe = 0) {
     const k = 1 + farbe * 0.06
