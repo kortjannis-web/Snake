@@ -345,6 +345,8 @@ describe('Boss: ein Bot kann ihn besiegen', () => {
       // Im Spiel ist ein Treffer vorbei; der einfache Bot bekommt drei Versuche (er prueft, dass die Mechanik durchgeht)
       g.leben = 3
       ;(g as unknown as { minigolemTrifft(): void }).minigolemTrifft = () => g.kampf.schaden()
+      // Die kleinen Golems jagen, bis die Sicht abreisst; ihnen weicht der einfache Bot nicht aus (eigene Tests in wiese60/mission)
+      ;(g as unknown as { minigolemTakt(): void }).minigolemTakt = () => {}
       let ms = 0
       while (g.status === 'play' && ms < 8 * 60_000) {
         const d = botZug(g)

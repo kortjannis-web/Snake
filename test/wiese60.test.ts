@@ -150,6 +150,29 @@ describe('Kleine Steingolems', () => {
     expect(m.jagt).toBeGreaterThanOrEqual(0)
   })
 
+  it('auf der Jagd behaelt er den Kopf, egal wie weit, nur ein Hindernis dazwischen bricht die Sicht ab', () => {
+    const g = wiese()
+    // Unten auf der Karte, Blick nach oben
+    const unten = { x: Math.floor(g.w / 2), y: g.h - 2 }
+    innen(g).minigolemSetzen(unten, 'u')
+    const m = g.minigolems[0]
+    m.next = 1e12
+    m.ruheBis = 1e12
+    setzeSchlange(g, { x: unten.x, y: unten.y - DEFAULTS.minigolemSicht }, 'r')
+    lauf(g, 60)
+    expect(m.jagt).toBeGreaterThanOrEqual(0)
+    // Ganz oben, weit ausserhalb der Sichtweite, aber freie Sicht: jagt weiter
+    setzeSchlange(g, { x: unten.x + 1, y: 2 }, 'r')
+    expect(unten.y - 2).toBeGreaterThan(DEFAULTS.minigolemSicht + 2)
+    lauf(g, 60)
+    expect(g.status).toBe('play')
+    expect(m.jagt).toBeGreaterThanOrEqual(0)
+    // Eine Mauer dazwischen: verliert ihn
+    g.mauern = [{ cells: [-1, 0, 1].map((dx) => ({ x: unten.x + dx, y: unten.y - 3 })), grown: 3, t: [0, 0, 0], next: 0 }]
+    lauf(g, 60)
+    expect(m.jagt).toBe(-1)
+  })
+
   it('kuendigen den Boss an: auf Level 50, 53, 56 und 58 je einer, sind ein Hindernis, nach dem Boss sind sie weg', () => {
     const g = new Game({ screenW: SW, screenH: SH, seed: 11, welt: 'wiese', startLevel: 49 })
     expect(g.minigolems).toHaveLength(0)

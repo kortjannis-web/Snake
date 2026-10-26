@@ -220,7 +220,7 @@ export type Ameise = {
 
 /** Kleiner Steingolem (Missionen 11 bis 20, im freien Spiel der Wiese ab Level 60). Laeuft immer weiter: je Schritt 70 %
  *  geradeaus, je 15 % rechts oder links, mit 10 % bleibt er 1 bis 4 s stehen. Er sieht in einem Kegel nach vorn
- *  (minigolemSicht Felder weit). Sieht er den Kopf, kommt er darauf zu, bis er ihn aus den Augen verliert, und greift an:
+ *  (minigolemSicht Felder weit). Sieht er den Kopf, kommt er darauf zu, egal wie weit, bis etwas die Sicht versperrt, und greift an:
  *  rundum (2 Felder) oder geradeaus (4 Felder), je mit einer halben Sekunde Anlauf. Nur der Kopf zaehlt */
 export type Minigolem = {
   p: P
@@ -245,8 +245,8 @@ export type Minigolem = {
   ruheBis: number
 }
 
-/** Mini-Ent (Missionen 16 bis 20): kleines Baumwesen, steht verwurzelt und bewegt sich nicht. Ist der Kopf in Reichweite,
- *  wirft er eine Blaetterbombe (Schatten, dann platzt sie im Plus). Faehrt der Kopf direkt an ihm vorbei (Nachbarfeld seitlich),
+/** Mini-Ent (Missionen 16 bis 20): kleines Baumwesen, steht verwurzelt und bewegt sich nicht. Ist der Kopf in Reichweite
+ *  (minientWeite Felder in jede Richtung), bemerkt er ihn und wirft, bis etwas die Sicht versperrt, Blaetterbomben (Schatten, dann platzt sie im Plus). Faehrt der Kopf direkt an ihm vorbei (Nachbarfeld seitlich),
  *  packt er zu: dann bleibt eine halbe Sekunde, um in die Gegenrichtung wegzuziehen */
 export type MiniEnt = {
   p: P
@@ -260,6 +260,8 @@ export type MiniEnt = {
   griffPause: number
   /** Letzter Griff (Animation) */
   griffT: number
+  /** Hat den Kopf bemerkt (seit, -1: nein); er behaelt ihn, bis etwas die Sicht versperrt */
+  jagt: number
 }
 /** Blaetterbombe eines Mini-Ents: fliegt von `von` nach `p` (Schatten bis `bis`), platzt dort im Plus */
 export type Blaetterbombe = { von: P; p: P; t: number; bis: number; fertig: boolean }
@@ -276,7 +278,7 @@ export type EntEreignis =
 export type GameEvent =
   | { type: 'golem'; was: GolemEreignis; p: P }
   | { type: 'ent'; was: EntEreignis; p: P }
-  | { type: 'minient'; was: 'wurf' | 'platzt' | 'griff' | 'los'; p: P }
+  | { type: 'minient'; was: 'sieht' | 'wurf' | 'platzt' | 'griff' | 'los'; p: P }
   | { type: 'kristall'; was: 'neu' | 'auf' | 'sockel' | 'alle'; p: P; farbe: number }
   | { type: 'bossSchaden'; leben: number; p: P }
   /** Boss im freien Spiel: der Kampf beginnt (Mitte des Bannkreises) oder ist gewonnen (Belohnung in Aepfeln) */
