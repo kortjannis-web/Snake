@@ -361,13 +361,41 @@ describe('Mini-Ents', () => {
     e.wurfNext = 0
     setzeSchlange(g, { x: e.p.x - 3, y: e.p.y + 2 }, 'u')
     g.tick = 1e12
+    // Erst bemerkt er den Kopf (Ausrufezeichen), kurz danach wirft er
     lauf(g, 40)
+    expect(e.jagt).toBeGreaterThanOrEqual(0)
+    expect(g.bomben).toHaveLength(0)
+    lauf(g, 400)
     expect(g.bomben).toHaveLength(1)
     const b = g.bomben[0]
     // Die Schlange steht still: also genau auf den Kopf
     expect(b.p).toEqual(g.body[0])
     lauf(g, DEFAULTS.minientFlug * 1000 + 100)
     expect(g.cause).toBe('blaetterbombe')
+  })
+
+  it('bemerkt den Kopf auf 4 Felder in jede Richtung (auch hinter sich und schraeg) und behaelt ihn, bis etwas die Sicht versperrt', () => {
+    const { g, e } = mitMiniEnt()
+    e.griffPause = Infinity
+    g.tick = 1e12
+    // 5 Felder weg: bemerkt nichts
+    setzeSchlange(g, { x: e.p.x + 5, y: e.p.y }, 'u')
+    lauf(g, 100)
+    expect(e.jagt).toBe(-1)
+    // Schraeg 4 Felder (Ecke des Quadrats): bemerkt
+    setzeSchlange(g, { x: e.p.x + 4, y: e.p.y + 4 }, 'u')
+    lauf(g, 40)
+    expect(e.jagt).toBeGreaterThanOrEqual(0)
+    // Weit weg, aber freie Sicht: behaelt ihn und wirft weiter
+    setzeSchlange(g, { x: e.p.x + 9, y: e.p.y }, 'u')
+    e.wurfNext = 0
+    lauf(g, 40)
+    expect(e.jagt).toBeGreaterThanOrEqual(0)
+    expect(g.bomben.length).toBeGreaterThan(0)
+    // Eine Mauer dazwischen: verliert ihn
+    g.mauern = [{ cells: [-1, 0, 1].map((dy) => ({ x: e.p.x + 2, y: e.p.y + dy })), grown: 3, t: [0, 0, 0], next: 0 }]
+    lauf(g, 40)
+    expect(e.jagt).toBe(-1)
   })
 
   it('packt zu, wenn der Kopf seitlich vorbeifaehrt: Wisch von ihm weg befreit, sonst nach einer halben Sekunde vorbei', () => {

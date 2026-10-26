@@ -399,6 +399,10 @@ class Audio {
   /** Mini-Ent: Wurf, platzende Blaetterbombe, Griff, losgerissen */
   minient(was: string) {
     switch (was) {
+      case 'sieht':
+        this.noise(0.3, 'bandpass', 700, 0.08, { to: 1100, q: 2 })
+        this.tone(165, 0.3, 'triangle', 0.08, { to: 220, vib: 6 })
+        break
       case 'wurf':
         this.noise(0.25, 'bandpass', 900, 0.1, { to: 1800, q: 1 })
         break

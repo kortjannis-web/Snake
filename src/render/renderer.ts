@@ -1118,7 +1118,11 @@ export class Renderer {
     }
 
     // Mini-Ents: stehen verwurzelt, drehen sich zum Kopf
-    for (const me of g.minients) if (sicht(me.p, 3)) drawMiniEnt(ctx, me, cell, now, !!g.gepackt && g.gepackt.p.x === me.p.x && g.gepackt.p.y === me.p.y, this.reduce)
+    for (const me of g.minients) {
+      if (!sicht(me.p, 3)) continue
+      drawMiniEnt(ctx, me, cell, now, !!g.gepackt && g.gepackt.p.x === me.p.x && g.gepackt.p.y === me.p.y, this.reduce)
+      if (me.jagt >= 0) drawMinigolemEntdeckt(ctx, px(me.p.x), px(me.p.y), cell * 1.15, (now - me.jagt) / 900)
+    }
     // Spuren (Teilchen hinter den Schlangen)
     if (!this.reduce) this.spuren.draw(ctx, cell, now)
 

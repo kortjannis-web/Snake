@@ -117,7 +117,7 @@ const BASIS = {
   // zufaellig, sehen nach vorn, schlagen zu
   minigolemTakt: 0.75,
   minigolemJagdTakt: 0.5,
-  minigolemSicht: 5,
+  minigolemSicht: 7,
   minigolemLaden: 0.5,
   minigolemRuhe: 1.2,
   // Grosse Tannen (Wiese ab Level 60): stehen auf 3 x 3 Feldern und fallen 6 Felder weit
@@ -130,7 +130,7 @@ const BASIS = {
   entBossAb: 100,
   entBossLohn: 40,
   // Mini-Ents (Missionen 16 bis 20): werfen Blaetterbomben, packen zu, wenn man direkt vorbeifaehrt
-  minientWeite: 6,
+  minientWeite: 4,
   minientWurf: 2.6,
   minientFlug: 1.1,
   minientGriff: 0.5,
@@ -810,7 +810,7 @@ const SCHEMA_ROH: SchemaGruppe[] = [
       { key: 'bossLohn', label: 'Boss besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
       { key: 'entBossAb', label: 'Ent auf Level (10, 7, 4 und 2 Level vorher je ein Mini-Ent)', min: 1, max: 10000 },
       { key: 'entBossLohn', label: 'Ent besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
-      { key: 'minientWeite', label: 'Mini-Ent wirft bis', min: 1, max: 20, einheit: 'Felder' },
+      { key: 'minientWeite', label: 'Mini-Ent bemerkt dich bis', min: 1, max: 20, einheit: 'Felder' },
       { key: 'minientWurf', label: 'Mini-Ent wirft alle', min: 0.3, max: 20, step: 0.1, einheit: 's' },
       { key: 'minientFlug', label: 'Blätterbombe fliegt', min: 0.2, max: 5, step: 0.05, einheit: 's' },
       { key: 'minientGriff', label: 'Mini-Ent packt: Zeit zum Wegziehen', min: 0.1, max: 5, step: 0.05, einheit: 's' },

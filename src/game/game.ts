@@ -5281,9 +5281,8 @@ export class Game {
         continue
       }
       sperre ??= this.sichtSperre()
-      // Sehen: erst im Kegel nach vorn; auf der Jagd behaelt er den Kopf, solange er nah ist und nichts dazwischen
-      const sieht =
-        g.jagt >= 0 ? cheb(head, g.p) <= c.minigolemSicht + 1 && this.sichtFrei(g.p, head, sperre) : this.imSichtkegel(g, head) && this.sichtFrei(g.p, head, sperre)
+      // Sehen: erst im Kegel nach vorn; auf der Jagd behaelt er den Kopf, egal wie weit, bis etwas die Sicht versperrt
+      const sieht = (g.jagt >= 0 || this.imSichtkegel(g, head)) && this.sichtFrei(g.p, head, sperre)
       if (sieht && g.jagt < 0) {
         g.jagt = this.time
         g.stehtBis = 0
@@ -5418,7 +5417,7 @@ export class Game {
   /** Mini-Ent auf ein Feld setzen (Missionen) */
   protected minientSetzen(p: P) {
     const i = this.minients.length
-    this.minients.push({ p: { ...p }, winkel: Math.PI / 2, t: this.time, wurfNext: this.time + 1500 + i * 700, wurfT: -1e9, griffPause: 0, griffT: -1e9 })
+    this.minients.push({ p: { ...p }, winkel: Math.PI / 2, t: this.time, wurfNext: this.time + 1500 + i * 700, wurfT: -1e9, griffPause: 0, griffT: -1e9, jagt: -1 })
   }
 
   /** Neuer Mini-Ent (freies Spiel, vor dem Ent): weit weg vom Kopf, nicht in seiner Bahn, rundherum frei, nicht am Apfel */
@@ -5488,11 +5487,17 @@ export class Game {
           continue
         }
       }
-      // Werfen, wenn der Kopf in Reichweite ist und nichts Hohes dazwischen steht
-      if (t < e.wurfNext) continue
-      if (Math.hypot(head.x - e.p.x, head.y - e.p.y) > c.minientWeite || manhattan(head, e.p) < 2) continue
+      // Bemerken: Kopf hoechstens minientWeite Felder weg (in jede Richtung) und nichts Hohes dazwischen;
+      // danach behaelt er ihn, egal wie weit, bis etwas die Sicht versperrt
       sperre ??= this.sichtSperre()
-      if (!this.sichtFrei(e.p, head, sperre)) continue
+      const sieht = (e.jagt >= 0 || cheb(head, e.p) <= c.minientWeite) && this.sichtFrei(e.p, head, sperre)
+      if (sieht && e.jagt < 0) {
+        e.jagt = t
+        e.wurfNext = Math.max(e.wurfNext, t + 400)
+        this.emit({ type: 'minient', was: 'sieht', p: { ...e.p } })
+      } else if (!sieht && e.jagt >= 0) e.jagt = -1
+      // Werfen, solange er den Kopf sieht
+      if (e.jagt < 0 || t < e.wurfNext || manhattan(head, e.p) < 2) continue
       // Dorthin, wo der Kopf sein wird, wenn sie landet (sonst auf den Kopf)
       const schritte = Math.round((c.minientFlug * 1000) / Math.max(60, this.takt))
       const d = STEP[this.dir]
