@@ -14,9 +14,10 @@
  * Zeit: `time` laeuft nur, solange `update()` aufgerufen wird (Pause = nicht
  * aufrufen). Alle Zeitpunkte im Spiel beziehen sich auf `time`.
  */
+import { GOLEM, Golemkampf, type Raum } from './golemkampf'
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Baum, Bienenstock, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
+import type { Ameise, Baum, Bienenstock, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, Minigolem, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
 
 const { STEP, OPP, DIRS } = R
 
@@ -303,6 +304,15 @@ export class Game {
   eis: Eis[] = []
   ameisen: Ameise[] = []
   ameisenWeg: { p: P; dir: Dir; t: number }[] = []
+  /** Kleine Steingolems (Missionen 11 bis 20, Wiese ab Level 60) */
+  minigolems: Minigolem[] = []
+  /** Boss im freien Spiel (Wiese, Level bossAb, auch im Kreativ-Modus): der Steingolem mitten auf der Karte, 4 Sockel um einen Bannkreis */
+  freiBoss: Golemkampf | null = null
+  /** Der Boss ist faellig (kommt, sobald keine Gebietswahl mehr offen ist und Platz da ist) */
+  protected bossFaellig = false
+  protected bossVersuch = 0
+  /** Hindernisse waehrend des Bosskampfs (je Bild neu): dort tritt der Golem nicht hin */
+  protected bossWand = new Set<number>()
   /** Sandbox ohne Fortschritt: Welt bleibt, wie sie ist (nur der Apfel wandert) */
   statisch = false
   /** Power-ups auf der Karte */
@@ -344,9 +354,11 @@ export class Game {
   events: GameEvent[] = []
 
   protected next: Record<Art, number>
+  /** Naechster kleiner Steingolem (Level) */
+  protected golemNext = 0
   protected lastSpawn = -1e9
   /** Faellige Baeume, Haeuser und Tuerme, die noch keinen Platz gefunden haben */
-  protected offen = { baum: 0, haus: 0, turm: 0, eis: 0 }
+  protected offen = { baum: 0, haus: 0, turm: 0, eis: 0, tanne: 0 }
 
   constructor(o: GameOpts) {
     this.weltId = o.welt ?? (o.wueste ? 'wueste' : o.vulkan ? 'vulkan' : '')
@@ -399,6 +411,7 @@ export class Game {
     if (this.formZufall) this.ursprung = { x: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bw, y: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bh }
     for (const b of this.blocks) this.startBloecke.add(weltKey(b.x - this.ursprung.x / this.bw, b.y - this.ursprung.y / this.bh))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
+    this.golemNext = this.cfg.minigolemAb
     this.tick = R.takt(this.cfg, this.tempo, 1)
 
     // Start in der Mitte der Karte, im Tageslevel in der Mitte des ersten Blocks
@@ -443,6 +456,7 @@ export class Game {
     this.apples = start - 1
     this.tick = R.takt(this.cfg, this.tempo, this.level)
     for (const k of ['falle', 'wolke', 'frosch', 'gegner', 'ameise'] as const) this.next[k] = Math.max(this.next[k], start + 1)
+    this.golemNext = Math.max(this.golemNext, start + 1)
     if (sb) {
       this.statisch = !sb.weiter
       this.wachsRest = Math.max(0, Math.round(sb.laenge) - this.body.length)
@@ -456,6 +470,8 @@ export class Game {
       this.gebiet = null
       this.layout()
       this.events = []
+      // Start genau auf dem Boss-Level (Admin: Kreativ mit Startlevel 60): der Boss kommt gleich
+      if (start === this.cfg.bossAb && this.wieseExtras()) this.bossFaellig = true
     }
     this.aufbau = false
   }
@@ -464,11 +480,13 @@ export class Game {
 
   /** Spielzeit weiterdrehen (dt in ms). Logik nur im Spiel, Zeit laeuft fuer Animationen weiter */
   update(dt: number) {
+    const vorher = this.time
     this.zeitTakt(dt)
-    if (this.status !== 'play') return
+    if (this.status !== 'play') return this.freiBoss?.update(0)
     this.schritte()
     if (this.status !== 'play') return
     this.weltTakt()
+    if (this.status === 'play') this.bossTakt(this.time - vorher)
   }
 
   /** Zeit weiter, Abgelaufenes aufraeumen */
@@ -511,6 +529,7 @@ export class Game {
     this.froschTakt()
     this.gegnerTakt()
     this.ameisenTakt()
+    this.minigolemTakt()
     this.fallenTakt()
     this.sandwurmTakt()
     this.einschlaegeTakt()
@@ -763,6 +782,8 @@ export class Game {
     if (pi >= 0) this.powerAn(this.powers.splice(pi, 1)[0].art, n)
     const fi = this.funde.findIndex((f) => same(f.p, n))
     if (fi >= 0) this.fundNehmen(this.funde.splice(fi, 1)[0].art, n)
+    // Bosskampf im freien Spiel: Kristalle, Sockel, Treffer
+    this.freiBoss?.einsammeln(n)
   }
 
   /** Erz eingesammelt: Gold 3, Diamant 6, Rubin 10, Opal 20 mal aktueller Apfel */
@@ -935,6 +956,7 @@ export class Game {
     if (this.teiche.some((t) => t.drying === undefined && t.cells.some((p) => same(p, n)))) return 'teich'
     if (this.fallen.some((f) => same(f.p, n))) return 'falle'
     if (this.froesche.some((f) => f.gone === undefined && same(f.p, n))) return 'frosch'
+    if (this.minigolems.some((g) => same(g.p, n))) return 'minigolem'
     if (this.baeume.some((b) => b.cells.some((p) => same(p, n)))) return 'baum'
     if (this.haeuser.some((h) => h.cells.some((p) => same(p, n)))) return 'haus'
     if (this.tuerme.some((t) => t.cells.some((p) => same(p, n)))) return 'turm'
@@ -1072,6 +1094,9 @@ export class Game {
     if (R.neuerBaum(c, l)) this.offen.baum++
     if (R.neuesHaus(c, l)) this.offen.haus++
     if (R.neuerTurm(c, l)) this.offen.turm++
+    if (this.wieseExtras() && l >= c.tanneAb && (l - c.tanneAb) % Math.max(1, c.tanneAlle) === 0) this.offen.tanne++
+    // Boss: einmal, wenn dieser Level zum ersten Mal erreicht wird (nicht beim Aufbau, nicht im Kreativ-Modus)
+    if (l === c.bossAb && this.wieseExtras() && !this.aufbau) this.bossFaellig = true
     this.bauten()
     // Feste Zeit: mit lilaAb kommt der lila Gegner (immer nur einer)
     if (l === c.lilaAb && !this.aufbau && !this.gegner.some((e) => e.art === 'lila')) this.neuerGegner('lila', true)
@@ -1081,6 +1106,7 @@ export class Game {
   protected bauten() {
     const felder = this.felder()
     while (this.offen.baum > 0 && this.baeume.length < R.baumMax(this.cfg, felder) && this.neuerBaum()) this.offen.baum--
+    while (this.offen.tanne > 0 && this.baeume.length < R.baumMax(this.cfg, felder) && this.neuerBaum(!this.aufbau, true)) this.offen.tanne--
     while (this.offen.haus > 0 && this.haeuser.length < R.hausMax(this.cfg, felder) && this.neuesHaus()) this.offen.haus--
     while (this.offen.turm > 0 && this.tuerme.length < R.turmMax(this.cfg, felder) && this.neuerTurm()) this.offen.turm--
     while (this.offen.eis > 0 && this.eis.length < R.eisMax(this.cfg, felder) && this.neuesEisFeld()) this.offen.eis--
@@ -1116,6 +1142,11 @@ export class Game {
       const [a, b] = R.pause(this.cfg, k, this.level)
       this.next[k] = this.level + this.r.int(a, b)
       this.spawn(k)
+    }
+    if (this.wieseExtras() && this.level >= this.cfg.minigolemAb && this.level >= this.golemNext) {
+      const c = this.cfg
+      this.golemNext = this.level + this.r.int(Math.min(c.minigolemMin, c.minigolemMax), Math.max(c.minigolemMin, c.minigolemMax))
+      this.neuerMinigolem()
     }
   }
 
@@ -3660,6 +3691,12 @@ export class Game {
       mv(a.heim)
     })
     this.ameisenWeg.forEach((a) => mv(a.p))
+    for (const g of this.minigolems) {
+      mv(g.p)
+      mv(g.from)
+      g.angriff?.cells.forEach(mv)
+    }
+    this.freiBoss?.verschieben(dx, dy)
     this.abgeschnitten.forEach((a) => a.cells.forEach(mv))
     this.einschlaege.forEach((e) => e.cells.forEach(mv))
     for (const w of [...this.wesen, ...this.wesenWeg.map((x) => x.w)]) {
@@ -3755,6 +3792,7 @@ export class Game {
     this.tuerme.forEach((t) => t.cells.forEach(add))
     this.lava.forEach((l) => l.cells.forEach(add))
     this.ameisen.forEach((a) => add(a.p))
+    this.minigolems.forEach((g) => add(g.p))
     this.wesen.forEach((w) => !FLIEGT.has(w.art) && add(w.p))
     this.einschlaege.forEach((e) => this.einschlagLiegt(e) && e.cells.forEach(add))
     this.ranken.forEach((r) => r.cells.slice(0, r.grown).forEach(add))
@@ -4106,35 +4144,37 @@ export class Game {
   /* ================= Baeume, Haeuser, Tuerme ================= */
 
   /** Tanne irgendwo mit Abstand, bleibt fuer immer. Im Spiel steht sie erst (Plus) und kippt nach
-   *  baumKippMin bis baumKippMax Sekunden um; beim Aufbau der Welt liegt sie schon (1-1-3-1) */
-  protected neuerBaum(stehend = !this.aufbau) {
+   *  baumKippMin bis baumKippMax Sekunden um; beim Aufbau der Welt liegt sie schon (1-1-3-1).
+   *  Grosse Tanne: steht auf 3 x 3 Feldern und liegt danach 7 Felder lang */
+  protected neuerBaum(stehend = !this.aufbau, gross = false) {
     const r = this.r
     const c = this.cfg
     const ctx = this.platzKontext()
     for (let versuch = 0; versuch < 500; versuch++) {
       const dir = r.pick(DIRS)
       const root = { x: r.int(0, this.w - 1), y: r.int(0, this.h - 1) }
-      const cells = stehend ? R.BAUM_STEHEND.map((o) => ({ x: root.x + o.x, y: root.y + o.y })) : this.baumLiegend(root, dir)
+      const cells = stehend ? (gross ? R.TANNE_STEHEND : R.BAUM_STEHEND).map((o) => ({ x: root.x + o.x, y: root.y + o.y })) : this.baumLiegend(root, dir, gross)
       if (!this.platzOk(cells, 'mauer', ctx)) continue
       const lo = Math.min(c.baumKippMin, c.baumKippMax) * 1000
       const hi = Math.max(c.baumKippMin, c.baumKippMax) * 1000
       const kippBei = stehend ? this.time + r.int(Math.round(lo), Math.round(hi)) : null
-      this.baeume.push({ cells, root, dir, t: this.time, kippBei, fallT: -1e9, gelandet: true })
+      this.baeume.push({ cells, root, dir, t: this.time, kippBei, fallT: -1e9, gelandet: true, ...(gross ? { gross } : {}) })
       return true
     }
     return false
   }
 
-  /** Felder einer liegenden Tanne (1-1-3-1) ab dem Stamm `root` in Richtung `dir` */
-  protected baumLiegend(root: P, dir: Dir) {
+  /** Felder einer liegenden Tanne (1-1-3-1, gross 1-1-1-3-3-1-1) ab dem Stamm `root` in Richtung `dir` */
+  protected baumLiegend(root: P, dir: Dir, gross = false) {
     const d = STEP[dir]
     const q = { x: -d.y, y: d.x }
-    return R.BAUM_FORM.map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
+    return (gross ? R.TANNE_FORM : R.BAUM_FORM).map((f) => ({ x: root.x + d.x * f.a + q.x * f.q, y: root.y + d.y * f.a + q.y * f.q }))
   }
 
   /** Stehende Baeume kippen, wenn ihre Zeit um ist. Gelandet: dumpfer Schlag */
   protected baeumeTakt() {
     for (const b of this.baeume) {
+      if (b.wartet) continue
       if (b.kippBei !== null && !b.ankDir && this.time >= b.kippBei - R.BAUM_WARNUNG) b.ankDir = this.baumAnkuendigen(b)
       if (b.kippBei !== null && this.time >= b.kippBei) this.baumKippen(b)
       if (!b.gelandet && this.time >= b.fallT + R.BAUM_FALL) {
@@ -4155,7 +4195,7 @@ export class Game {
     const start = (b.root.x * 7 + b.root.y * 13) % 4
     for (let i = 0; i < 4; i++) {
       const dir = DIRS[(start + i) % 4]
-      if (this.baumLiegend(b.root, dir).every(frei)) return dir
+      if (this.baumLiegend(b.root, dir, b.gross).every(frei)) return dir
     }
     return undefined
   }
@@ -4182,7 +4222,7 @@ export class Game {
     // Angekuendigte Richtung zuerst (die Reihenfolge der Zufallszahlen bleibt gleich)
     if (b.ankDir) reihe.sort((x, y) => Number(y === b.ankDir) - Number(x === b.ankDir))
     for (const dir of reihe) {
-      const cells = this.baumLiegend(b.root, dir)
+      const cells = this.baumLiegend(b.root, dir, b.gross)
       if (!cells.every(frei)) continue
       vorher ??= this.erreichbar(wand)
       if (!this.keinAbschluss(cells, wand, vorher)) continue
@@ -4333,6 +4373,7 @@ export class Game {
 
   /** Haelt die Mindestzahl an Ereignissen (Fallen, Wolken, Froesche) */
   protected regie() {
+    if (this.freiBoss) return
     const min = R.mindestEreignisse(this.cfg, this.level)
     if (this.aktiveEreignisse() >= min || this.time - this.lastSpawn < 2500) return
     const arten = (['falle', 'wolke', 'frosch'] as const).filter((k) => this.level >= R.ab(this.cfg, k))
@@ -5101,6 +5142,389 @@ export class Game {
     this.setback(this.cfg.ameiseZurueck, 'ameise')
   }
 
+  /* ================= Kleine Steingolems ================= */
+
+  /** Kommen grosse Tannen, kleine Steingolems und der Boss? (freies Spiel in der Wiese; nicht im Mehrspieler) */
+  protected wieseExtras() {
+    return this.weltId === 'wiese' && !this.statisch
+  }
+
+  /** Hoechstzahl kleiner Golems: minigolemAnzahl, 60 Level spaeter einer mehr */
+  protected minigolemMax() {
+    const c = this.cfg
+    return Math.max(0, Math.round(c.minigolemAnzahl)) + (this.level >= c.minigolemAb + 60 ? 1 : 0)
+  }
+
+  /** Neuer kleiner Steingolem: weit weg vom Kopf, nicht in seiner Bahn, mit Platz drumherum */
+  neuerMinigolem(egal = false) {
+    if (!egal && this.minigolems.length >= this.minigolemMax()) return false
+    const head = this.body[0]
+    const wand = this.hindernisse()
+    const reach = this.erreichbar(wand)
+    const cand: P[] = []
+    for (let y = 0; y < this.h; y++)
+      for (let x = 0; x < this.w; x++) {
+        const p = { x, y }
+        const k = key(x, y)
+        if (!this.mask[y * this.w + x] || wand.has(k) || !reach.has(k) || this.aufSchlange(p) || cheb(p, this.apple.p) <= 2) continue
+        if (manhattan(p, head) < 9 || this.imWeg(p, 10) || this.freieNachbarn(p, wand) < 3) continue
+        cand.push(p)
+      }
+    if (!cand.length) return false
+    const p = this.r.pick(cand)
+    const dirs = DIRS.filter((d) => this.golemFrei({ x: p.x + STEP[d].x, y: p.y + STEP[d].y }, wand))
+    const dir = dirs.length ? this.r.pick(dirs) : this.r.pick(DIRS)
+    this.minigolemSetzen(p, dir)
+    return true
+  }
+
+  /** Golem auf ein Feld setzen (auch fuer die Missionen) */
+  protected minigolemSetzen(p: P, dir: Dir) {
+    const t = this.time
+    this.minigolems.push({ p: { ...p }, from: { ...p }, dir, altDir: dir, drehT: -1e9, t, schrittT: -1e9, next: t + 900, stehtBis: 0, jagt: -1, angriff: null, schlagT: -1e9, schlagArt: 'rund', ruheBis: 0 })
+    this.emit({ type: 'minigolem', was: 'neu', p: { ...p } })
+  }
+
+  /** Darf ein Golem auf dieses Feld? (frei, nicht in die Schlange, nicht auf den Apfel, Power-ups oder Erze) */
+  protected golemFrei(c: P, wand: Set<number>) {
+    if (!this.inside(c) || wand.has(key(c.x, c.y)) || this.aufSchlange(c)) return false
+    return !same(c, this.apple.p) && !this.powers.some((o) => same(o.p, c)) && !this.funde.some((f) => same(f.p, c))
+  }
+
+  /** Was die Sicht der Golems versperrt: Rand (Berge), Mauern, Haeuser, Baeume, Tuerme */
+  protected sichtSperre() {
+    const s = this.bauSet()
+    for (const m of this.mauern) m.cells.slice(0, m.grown).forEach((c) => s.add(key(c.x, c.y)))
+    return s
+  }
+
+  /** Freie Sicht von a nach b (Mitte zu Mitte, nichts Hohes dazwischen und kein Rand) */
+  sichtFrei(a: P, b: P, sperre = this.sichtSperre()) {
+    const n = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y)) * 3
+    for (let i = 1; i < n; i++) {
+      const c = { x: Math.round(a.x + ((b.x - a.x) * i) / n), y: Math.round(a.y + ((b.y - a.y) * i) / n) }
+      if (same(c, a) || same(c, b)) continue
+      if (!this.inside(c) || sperre.has(key(c.x, c.y))) return false
+    }
+    return true
+  }
+
+  /** Liegt das Feld im Sichtkegel? Nach vorn 1 bis minigolemSicht Felder, je weiter, desto breiter (seitlich bis zur halben Weite) */
+  imSichtkegel(g: Minigolem, c: P) {
+    const d = STEP[g.dir]
+    const vor = (c.x - g.p.x) * d.x + (c.y - g.p.y) * d.y
+    const quer = Math.abs((c.x - g.p.x) * d.y - (c.y - g.p.y) * d.x)
+    return vor >= 1 && vor <= this.cfg.minigolemSicht && quer <= Math.ceil(vor / 2)
+  }
+
+  /** Kleine Steingolems: bummeln, sehen, jagen, schlagen zu */
+  protected minigolemTakt() {
+    if (!this.minigolems.length) return
+    const c = this.cfg
+    const head = this.body[0]
+    let wand: Set<number> | null = null
+    let sperre: Set<number> | null = null
+    for (const g of this.minigolems) {
+      // Holt aus: nach der Ladezeit schlaegt er zu, getroffen wird nur, wer dann mit dem Kopf in der Flaeche ist
+      if (g.angriff) {
+        if (this.time < g.angriff.schlag) continue
+        const a = g.angriff
+        g.angriff = null
+        g.schlagT = this.time
+        g.schlagArt = a.art
+        g.ruheBis = this.time + c.minigolemRuhe * 1000
+        g.next = Math.max(g.next, this.time + 350)
+        this.emit({ type: 'minigolem', was: 'schlag', p: { ...g.p } })
+        if (a.cells.some((p) => same(p, this.body[0]))) this.minigolemTrifft()
+        if (this.status !== 'play') return
+        continue
+      }
+      sperre ??= this.sichtSperre()
+      // Sehen: erst im Kegel nach vorn; auf der Jagd behaelt er den Kopf, solange er nah ist und nichts dazwischen
+      const sieht =
+        g.jagt >= 0 ? cheb(head, g.p) <= c.minigolemSicht + 1 && this.sichtFrei(g.p, head, sperre) : this.imSichtkegel(g, head) && this.sichtFrei(g.p, head, sperre)
+      if (sieht && g.jagt < 0) {
+        g.jagt = this.time
+        g.stehtBis = 0
+        this.emit({ type: 'minigolem', was: 'sieht', p: { ...g.p } })
+      } else if (!sieht && g.jagt >= 0) g.jagt = -1
+      // In Reichweite: ausholen (kurz nachdem er den Kopf entdeckt hat und nicht gleich nach dem letzten Schlag)
+      if (g.jagt >= 0 && this.time >= g.ruheBis && this.time - g.jagt >= 250) {
+        const a = this.golemAngriff(g, head, sperre)
+        if (a) {
+          g.angriff = a
+          this.emit({ type: 'minigolem', was: 'laden', p: { ...g.p } })
+          continue
+        }
+      }
+      if (this.time < g.next || this.time < g.stehtBis) continue
+      wand ??= this.hindernisse()
+      if (g.jagt >= 0) this.golemJagt(g, head, wand)
+      else this.golemBummelt(g, wand)
+    }
+  }
+
+  /** Angriff, wenn der Kopf in Reichweite ist: rundum bis 2 Felder (auch schraeg), sonst geradeaus bis 4 Felder */
+  protected golemAngriff(g: Minigolem, head: P, sperre: Set<number>): Minigolem['angriff'] {
+    const ab = this.time
+    const schlag = ab + this.cfg.minigolemLaden * 1000
+    if (cheb(head, g.p) <= 2) {
+      const cells: P[] = []
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++) {
+          const p = { x: g.p.x + dx, y: g.p.y + dy }
+          if ((dx || dy) && this.inside(p)) cells.push(p)
+        }
+      return { art: 'rund', cells, ab, schlag }
+    }
+    const dx = head.x - g.p.x
+    const dy = head.y - g.p.y
+    if ((dx !== 0 && dy !== 0) || Math.abs(dx + dy) > 4) return null
+    const d: Dir = dx > 0 ? 'r' : dx < 0 ? 'l' : dy > 0 ? 'd' : 'u'
+    const cells: P[] = []
+    for (let i = 1; i <= 4; i++) {
+      const p = { x: g.p.x + STEP[d].x * i, y: g.p.y + STEP[d].y * i }
+      if (!this.inside(p) || sperre.has(key(p.x, p.y))) break
+      cells.push(p)
+    }
+    if (!cells.some((p) => same(p, head))) return null
+    if (d !== g.dir) {
+      g.altDir = g.dir
+      g.dir = d
+      g.drehT = this.time
+    }
+    return { art: 'linie', cells, ab, schlag }
+  }
+
+  protected golemSchritt(g: Minigolem, d: Dir, wand: Set<number>, takt: number) {
+    const n = { x: g.p.x + STEP[d].x, y: g.p.y + STEP[d].y }
+    wand.delete(key(g.p.x, g.p.y))
+    wand.add(key(n.x, n.y))
+    if (d !== g.dir) {
+      g.altDir = g.dir
+      g.dir = d
+      g.drehT = this.time
+    }
+    g.from = { ...g.p }
+    g.p = n
+    g.schrittT = this.time
+    g.next = this.time + takt
+  }
+
+  /** Bummeln: 10 % stehen bleiben (1 bis 4 s), sonst 70 % geradeaus, je 15 % rechts oder links. Geht es dort nicht weiter,
+   *  nimmt er eine der anderen Richtungen, zuletzt kehrt er um */
+  protected golemBummelt(g: Minigolem, wand: Set<number>) {
+    const takt = this.cfg.minigolemTakt * 1000
+    if (this.r.next() < 0.1) {
+      g.stehtBis = this.time + this.r.int(1000, 4000)
+      g.next = g.stehtBis
+      return
+    }
+    const z = this.r.next()
+    const rechts = R.CW[g.dir]
+    const links = OPP[rechts]
+    const wahl = z < 0.7 ? g.dir : z < 0.85 ? rechts : links
+    const reihe = [wahl, ...this.r.shuffle([g.dir, rechts, links].filter((d) => d !== wahl)), OPP[g.dir]]
+    const d = reihe.find((o) => this.golemFrei({ x: g.p.x + STEP[o].x, y: g.p.y + STEP[o].y }, wand))
+    if (!d) {
+      g.next = this.time + takt
+      return
+    }
+    this.golemSchritt(g, d, wand, takt)
+  }
+
+  /** Jagd: ein Feld naeher an den Kopf (die laengere Achse zuerst), nie in die Schlange */
+  protected golemJagt(g: Minigolem, head: P, wand: Set<number>) {
+    const takt = this.cfg.minigolemJagdTakt * 1000
+    const hier = manhattan(g.p, head)
+    const dx = head.x - g.p.x
+    const dy = head.y - g.p.y
+    const reihe = [...DIRS].sort((a, b) => {
+      const da = manhattan({ x: g.p.x + STEP[a].x, y: g.p.y + STEP[a].y }, head)
+      const db = manhattan({ x: g.p.x + STEP[b].x, y: g.p.y + STEP[b].y }, head)
+      if (da !== db) return da - db
+      const achse = (d: Dir) => (STEP[d].x !== 0 ? Math.abs(dx) : Math.abs(dy))
+      return achse(b) - achse(a) || Number(b === g.dir) - Number(a === g.dir)
+    })
+    const d = reihe.find((o) => {
+      const n = { x: g.p.x + STEP[o].x, y: g.p.y + STEP[o].y }
+      return manhattan(n, head) <= hier && this.golemFrei(n, wand)
+    })
+    if (!d) {
+      // Kein Weg naeher heran: wenigstens zum Kopf schauen
+      const blick: Dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'd' : 'u'
+      if (blick !== g.dir) {
+        g.altDir = g.dir
+        g.dir = blick
+        g.drehT = this.time
+      }
+      g.next = this.time + takt
+      return
+    }
+    this.golemSchritt(g, d, wand, takt)
+  }
+
+  /** Der Schlag trifft den Kopf: vorbei (Schild faengt ab, als Geist nichts) */
+  protected minigolemTrifft() {
+    if (this.geist()) return
+    if (this.kreativ && this.kreativ.tod !== 'an') return
+    if (this.schildBrechen()) return
+    this.die('minigolem')
+  }
+
+  /* ================= Boss im freien Spiel ================= */
+
+  /** Je Bild: faelligen Boss starten, laufenden Kampf weiterdrehen */
+  protected bossTakt(d: number) {
+    if (this.bossFaellig && !this.freiBoss && this.wahl === 0 && this.time >= this.bossVersuch) {
+      if (this.bossStarten()) this.bossFaellig = false
+      else this.bossVersuch = this.time + 1000
+    }
+    const k = this.freiBoss
+    if (!k) return
+    this.bossWand = this.hindernisse()
+    k.update(d)
+  }
+
+  /** Arena suchen: ein Platz mit 5 Feldern Umkreis ohne feste Bauten (Teiche, Baeume, Haeuser, Tuerme, Lava, Eis),
+   *  nicht zu nah und nicht zu weit vom Kopf. Was sonst dort liegt (Mauern, Giftaepfel, Fallen, Wolken, Tiere), verschwindet.
+   *  Der Apfel ist waehrend des Kampfs weg, es kommt nichts Neues dazu */
+  protected bossStarten() {
+    const head = this.body[0]
+    const fest = new Set<number>()
+    const add = (p: P) => fest.add(key(p.x, p.y))
+    this.teiche.forEach((t) => t.cells.forEach(add))
+    this.baeume.forEach((b) => b.cells.forEach(add))
+    this.haeuser.forEach((h) => h.cells.forEach(add))
+    this.tuerme.forEach((t) => t.cells.forEach(add))
+    this.lava.forEach((l) => l.cells.forEach(add))
+    this.eis.forEach((e) => e.cells.forEach(add))
+    this.lavaOffen.forEach(add)
+    const RADIUS = 5
+    const scheibe: P[] = []
+    for (let dy = -RADIUS; dy <= RADIUS; dy++) for (let dx = -RADIUS; dx <= RADIUS; dx++) if (dx * dx + dy * dy <= RADIUS * RADIUS + 1) scheibe.push({ x: dx, y: dy })
+    const koerper = this.koerperSet()
+    let best: P | null = null
+    let bestS = -Infinity
+    for (let y = RADIUS; y < this.h - RADIUS; y++)
+      for (let x = RADIUS; x < this.w - RADIUS; x++) {
+        const m = { x, y }
+        const dist = manhattan(m, head)
+        if (dist < 8 || dist > 22) continue
+        if (!scheibe.every((o) => {
+          const c = { x: m.x + o.x, y: m.y + o.y }
+          return this.inside(c) && !fest.has(key(c.x, c.y)) && !koerper.has(key(c.x, c.y))
+        }))
+          continue
+        const sc = -Math.abs(dist - 12) + this.r.next()
+        if (sc > bestS) {
+          bestS = sc
+          best = m
+        }
+      }
+    if (!best) return false
+    const m = best
+    // Platz machen: was nicht fest steht, verschwindet aus der Arena
+    const nah = (p: P) => (p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= (RADIUS + 1) ** 2
+    if (this.mauern.some((w) => w.cells.some(nah))) {
+      this.weg.push(...this.mauern.filter((w) => w.cells.some(nah)).map((w) => ({ cells: w.cells.slice(0, w.grown), t: this.time })))
+      this.mauern = this.mauern.filter((w) => !w.cells.some(nah))
+    }
+    this.gift = this.gift.filter((g) => !nah(g.p))
+    this.fallen = this.fallen.filter((f) => !nah(f.p))
+    this.wolken = this.wolken.filter((w) => !w.cells.some(nah) && !nah(w.c))
+    this.froesche = this.froesche.filter((f) => !nah(f.p))
+    this.ameisen = this.ameisen.filter((a) => !nah(a.p))
+    this.minigolems = this.minigolems.filter((g) => !nah(g.p))
+    this.wesen = this.wesen.filter((w) => !nah(w.p))
+    this.einschlaege = this.einschlaege.filter((e) => !e.cells.some(nah))
+    // Waehrend des Kampfs gibt es keinen Apfel
+    this.apple = { p: { x: -1000, y: -1000 }, t: this.time }
+    // Sockel im Kreuz um den Bannkreis (Rot oben, Orange rechts, Gelb unten, Gruen links)
+    const sockel = [{ x: 0, y: -4 }, { x: 4, y: 0 }, { x: 0, y: 4 }, { x: -4, y: 0 }].map((o, i) => ({ p: { x: m.x + o.x, y: m.y + o.y }, farbe: i, an: false, t: -1e9 }))
+    // Der Golem erwacht auf der Seite, die vom Kopf weg zeigt
+    const wand = this.hindernisse()
+    const passt = (p: P) => {
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const c = { x: p.x + dx, y: p.y + dy }
+        if (!this.inside(c) || wand.has(key(c.x, c.y)) || koerper.has(key(c.x, c.y))) return false
+      }
+      return true
+    }
+    let golem = m
+    let gs = -Infinity
+    for (let dy = -7; dy <= 7; dy++)
+      for (let dx = -7; dx <= 7; dx++) {
+        const p = { x: m.x + dx, y: m.y + dy }
+        const r = Math.hypot(dx, dy)
+        if (r < 4.5 || r > 7.5 || !passt(p)) continue
+        const sc = manhattan(p, head) + this.r.next()
+        if (sc > gs) {
+          gs = sc
+          golem = p
+        }
+      }
+    const raum: Raum = { nr: 0, x0: -1e6, x1: 1e6, y0: -1e6, y1: 1e6, kreis: { p: { ...m }, r: GOLEM.bannR }, sockel, golem: { ...golem }, plaetze: [], tor: null, nah: 9 }
+    const spiel = this
+    this.bossWand = wand
+    this.freiBoss = new Golemkampf(
+      {
+        get time() {
+          return spiel.time
+        },
+        get body() {
+          return spiel.body
+        },
+        get dir() {
+          return spiel.dir
+        },
+        get r() {
+          return spiel.r
+        },
+        get status() {
+          return spiel.status
+        },
+        get w() {
+          return spiel.w
+        },
+        get h() {
+          return spiel.h
+        },
+        get schutzBis() {
+          return spiel.schutzBis
+        },
+        set schutzBis(v: number) {
+          spiel.schutzBis = v
+        },
+        inside: (c) => spiel.inside(c),
+        frei: (c) => !spiel.bossWand.has(key(c.x, c.y)),
+        emit: (e) => spiel.emit(e),
+        // Kreativ ohne Tod: die Herzen fuellen sich wieder auf
+        verloren: () => (spiel.kreativ && spiel.kreativ.tod !== 'an' && spiel.freiBoss ? (spiel.freiBoss.leben = GOLEM.herzen) : spiel.die('steingolem')),
+        besiegt: () => spiel.bossBesiegt(),
+      },
+      [raum],
+      { leben: 1 },
+    )
+    this.freiBoss.kristallAb = this.time + GOLEM.erwachen
+    this.emit({ type: 'bossStart', p: { ...m } })
+    return true
+  }
+
+  /** Der Golem ist zerfallen: Belohnung, dann geht es mit dem Apfel weiter */
+  protected bossBesiegt() {
+    const k = this.freiBoss
+    if (!k) return
+    this.freiBoss = null
+    const c = this.cfg
+    const p = { ...k.kreis.p }
+    const wert = c.bossLohn * c.apfelWert * this.apfelStufe()
+    this.verdient += wert
+    this.emit({ type: 'bossSieg', p, wert })
+    if (wert > 0) this.emit({ type: 'geld', wert, p, quelle: 'gegner' })
+    this.neuerApfel()
+  }
+
   /* ================= Eis ================= */
 
   /** Eisfeld (eisMin bis eisMax Felder), bleibt liegen. Mit einem Feld Luft zu festen Hindernissen
@@ -5192,6 +5616,7 @@ export class Game {
     this.tuerme = []
     this.gegner = []
     this.ameisen = []
+    this.minigolems = []
     this.lava = []
     this.eis = []
     this.lavaOffen = []

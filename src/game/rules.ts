@@ -113,6 +113,22 @@ const BASIS = {
   ameiseRadius: 2,
   ameiseTakt: 0.8,
   ameiseZurueck: 3,
+  // Kleine Steingolems (Wiese ab Level 60, dazu in den Missionen 11 bis 20): laufen zufaellig, sehen nach vorn, schlagen zu
+  minigolemAb: 60,
+  minigolemMin: 10,
+  minigolemMax: 15,
+  minigolemAnzahl: 2,
+  minigolemTakt: 0.75,
+  minigolemJagdTakt: 0.5,
+  minigolemSicht: 5,
+  minigolemLaden: 0.5,
+  minigolemRuhe: 1.2,
+  // Grosse Tannen (Wiese ab Level 60): stehen auf 3 x 3 Feldern und fallen 6 Felder weit
+  tanneAb: 60,
+  tanneAlle: 30,
+  // Boss im freien Spiel (Wiese): auf diesem Level kommt der Steingolem mit 4 Sockeln, Belohnung mal Apfelwert
+  bossAb: 60,
+  bossLohn: 25,
   // Gegner-Schlangen
   gegnerAb: 100,
   gegnerMin: 30,
@@ -773,6 +789,24 @@ const SCHEMA_ROH: SchemaGruppe[] = [
     ],
   },
   {
+    gruppe: 'Wiese: Steingolems, große Tannen, Boss',
+    felder: [
+      { key: 'minigolemAb', label: 'Steingolems ab Level', min: 1, max: 10000 },
+      { key: 'minigolemMin', label: 'Neuer Golem alle mindestens', min: 1, max: 200, einheit: 'Level' },
+      { key: 'minigolemMax', label: 'Neuer Golem alle höchstens', min: 1, max: 200, einheit: 'Level' },
+      { key: 'minigolemAnzahl', label: 'Golems höchstens gleichzeitig (60 Level später einer mehr)', min: 0, max: 20 },
+      { key: 'minigolemTakt', label: 'Golem läuft ein Feld alle', min: 0.1, max: 5, step: 0.05, einheit: 's' },
+      { key: 'minigolemJagdTakt', label: 'Golem auf der Jagd: ein Feld alle', min: 0.1, max: 5, step: 0.05, einheit: 's' },
+      { key: 'minigolemSicht', label: 'Golem sieht nach vorn', min: 1, max: 12, einheit: 'Felder' },
+      { key: 'minigolemLaden', label: 'Golem holt aus', min: 0.1, max: 5, step: 0.05, einheit: 's' },
+      { key: 'minigolemRuhe', label: 'Golem nach dem Schlag', min: 0, max: 10, step: 0.1, einheit: 's' },
+      { key: 'tanneAb', label: 'Große Tannen ab Level', min: 1, max: 10000 },
+      { key: 'tanneAlle', label: 'Neue große Tanne alle', min: 1, max: 500, einheit: 'Level' },
+      { key: 'bossAb', label: 'Boss (Steingolem) auf Level', min: 1, max: 10000 },
+      { key: 'bossLohn', label: 'Boss besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
+    ],
+  },
+  {
     gruppe: 'Lava',
     felder: [
       { key: 'lavaChance', label: 'Chance, dass ein Block ein Lavafeld im Stein hat', min: 0, max: 100, einheit: '%' },
@@ -1144,6 +1178,22 @@ export const BAUM_STEHEND: P[] = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 0 
 export const BAUM_FALL = 1600
 /** So lange vor dem Kippen wackelt ein Baum und verliert Blaetter in die Fallrichtung (ms) */
 export const BAUM_WARNUNG = 1500
+/** Grosse Tanne von oben: 3 x 3 Felder um den Stamm */
+export const TANNE_STEHEND: P[] = [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((x) => ({ x, y })))
+/** Liegende grosse Tanne 1-1-1-3-3-1-1: drei Felder Stamm, die Krone zwei Reihen breit, die Spitze 6 Felder vom Stamm */
+export const TANNE_FORM: { a: number; q: number }[] = [
+  { a: 0, q: 0 },
+  { a: 1, q: 0 },
+  { a: 2, q: 0 },
+  { a: 3, q: -1 },
+  { a: 3, q: 0 },
+  { a: 3, q: 1 },
+  { a: 4, q: -1 },
+  { a: 4, q: 0 },
+  { a: 4, q: 1 },
+  { a: 5, q: 0 },
+  { a: 6, q: 0 },
+]
 /** Liegende Tanne 1-1-3-1 (symmetrisch): Felder entlang der Achse (a) und quer dazu (q) */
 export const BAUM_FORM: { a: number; q: number }[] = [
   { a: 0, q: 0 },

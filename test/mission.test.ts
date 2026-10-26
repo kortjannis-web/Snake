@@ -1,19 +1,61 @@
 import { describe, expect, it } from 'vitest'
 import { key } from '../src/game/game'
-import { MissionGame, querKarte } from '../src/game/mission'
+import { BAUM_NAH, LAVA_TAKT, LICHT_TAKT, MissionGame, querKarte, TURM_TAKT } from '../src/game/mission'
 import { MISSION_BLOCK, MISSION_LOHN, missionSkinVorgemerkt, spielbar, WIESE_MISSIONEN } from '../src/game/missionen'
 import { DIRS, STEP } from '../src/game/rules'
 import type { Dir, P } from '../src/game/types'
 
 const m1 = WIESE_MISSIONEN[0]
 
-/** Naechster Schritt auf kuerzestem Weg zum naechsten Apfel (Hindernisse, Gift, Eis und der eigene Koerper gesperrt) */
+/** Naechster Schritt auf kuerzestem Weg zum naechsten Apfel (Hindernisse, Gift, Eis, Licht, Lichtkegel, Wolken und der
+ *  eigene Koerper gesperrt) */
 function weg(g: MissionGame): Dir | null {
+  return zumApfel(g) ?? ausweichen(g)
+}
+
+/** Gefaehrliche Felder fuer den Kopf (fuer den Test-Bot) */
+function sperren(g: MissionGame) {
   const zu = g.hindernisse()
   for (const a of g.aepfel) zu.delete(key(a.p.x, a.p.y))
   for (const gf of g.gift) zu.add(key(gf.p.x, gf.p.y))
   for (const e of g.eis) for (const c of e.cells) zu.add(key(c.x, c.y))
+  for (const h of g.haeuser) for (const c of h.strahl) zu.add(key(c.x, c.y))
+  for (const t of g.tuerme) for (const c of t.kegel) zu.add(key(c.x, c.y))
+  for (const w of g.wolken) for (const c of [...w.cells, ...w.pending]) zu.add(key(c.x, c.y))
   for (const b of g.body.slice(0, -1)) zu.add(key(b.x, b.y))
+  return zu
+}
+
+/** Kein Weg frei (Licht oder Kegel im Weg): in die Richtung mit dem meisten Platz, bis es wieder geht */
+function ausweichen(g: MissionGame): Dir | null {
+  const zu = sperren(g)
+  const h = g.body[0]
+  let best: Dir | null = null
+  let bestN = -1
+  for (const d of DIRS) {
+    const n = { x: h.x + STEP[d].x, y: h.y + STEP[d].y }
+    if (!g.inside(n) || zu.has(key(n.x, n.y))) continue
+    const seen = new Set([key(n.x, n.y)])
+    const q = [n]
+    for (let i = 0; i < q.length && seen.size < 60; i++)
+      for (const e of DIRS) {
+        const m = { x: q[i].x + STEP[e].x, y: q[i].y + STEP[e].y }
+        const k = key(m.x, m.y)
+        if (seen.has(k) || !g.inside(m) || zu.has(k)) continue
+        seen.add(k)
+        q.push(m)
+      }
+    const wert = seen.size + (d === g.dir ? 0.5 : 0)
+    if (wert > bestN) {
+      bestN = wert
+      best = d
+    }
+  }
+  return best
+}
+
+function zumApfel(g: MissionGame): Dir | null {
+  const zu = sperren(g)
   const ziel = new Set(g.aepfel.map((a) => key(a.p.x, a.p.y)))
   const h = g.body[0]
   const von = new Map<number, { p: P; erst: Dir | null }>([[key(h.x, h.y), { p: h, erst: null }]])
@@ -34,18 +76,71 @@ function weg(g: MissionGame): Dir | null {
   return null
 }
 
+/** Was sich bewegt oder spaeter kommt (Tiere, Golems, Gegner, Wolken), raus: so laeuft der Test sicher durch */
+function ruhig(g: MissionGame) {
+  g.froesche = []
+  g.gegner = []
+  g.ameisen = []
+  g.minigolems = []
+  g.stoecke = []
+  g.wesen = []
+  g.quellen = []
+}
+
+/** Schlange (3 lang, senkrecht) auf freie Felder der Karte in der Naehe von p legen */
+function legeSchlange(g: MissionGame, p: P, min = 0, max = 5) {
+  const zu = g.hindernisse()
+  for (let r = min; r <= max; r++)
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue
+        const body = [0, 1, 2].map((i) => ({ x: p.x + dx, y: p.y + dy + i }))
+        if (!body.every((b) => g.inside(b) && !zu.has(key(b.x, b.y)))) continue
+        g.body = body
+        g.prev = body.map((b) => ({ ...b }))
+        g.dir = 'u'
+        return body[0]
+      }
+  throw new Error('kein Platz')
+}
+
 describe('Kampagne', () => {
-  it('Wiese: 10 Missionen, 5 Schatz, 10 Boss, alle spielbar, Belohnung steigt, Skin beim Boss', () => {
-    expect(WIESE_MISSIONEN).toHaveLength(10)
-    expect(WIESE_MISSIONEN[4].art).toBe('schatz')
-    expect(WIESE_MISSIONEN[9].art).toBe('boss')
-    expect(WIESE_MISSIONEN.filter(spielbar).map((m) => m.nr)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  it('Wiese: 20 Missionen, 5 und 15 Schatz, 10 Boss, alle spielbar, Belohnung steigt, Skins bei 10 und 20', () => {
+    expect(WIESE_MISSIONEN).toHaveLength(20)
+    expect(WIESE_MISSIONEN.filter((m) => m.art === 'schatz').map((m) => m.nr)).toEqual([5, 15])
+    expect(WIESE_MISSIONEN.filter((m) => m.art === 'boss').map((m) => m.nr)).toEqual([10])
+    expect(WIESE_MISSIONEN.filter(spielbar).map((m) => m.nr)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1))
     expect(WIESE_MISSIONEN.map((m) => m.lohn)).toEqual(MISSION_LOHN)
     expect(WIESE_MISSIONEN[0].lohn).toBe(6)
-    // Nur der Boss bringt einen Skin; der zweite ist fuer Mission 20 vorgemerkt
-    expect(WIESE_MISSIONEN.filter((m) => m.skin).map((m) => m.nr)).toEqual([10])
-    expect(missionSkinVorgemerkt('schatzhueter')).toBe(true)
+    // Der Boss bringt den Steingolem, das Golem-Heer (20) den Schatzhueter
+    expect(WIESE_MISSIONEN.filter((m) => m.skin).map((m) => m.nr)).toEqual([10, 20])
+    expect(WIESE_MISSIONEN[19].skin).toBe('schatzhueter')
+    expect(missionSkinVorgemerkt('schatzhueter')).toBe(false)
     expect(missionSkinVorgemerkt('steingolem')).toBe(false)
+  })
+
+  it('weniger Giftaepfel, ab 5 Ameisen, Baeume und Haeuser, ab 11 Golems (gegen 20 immer mehr), wenig Froesche, ab 16 Leuchttuerme', () => {
+    const g = WIESE_MISSIONEN.map((m) => new MissionGame(m))
+    expect(g.slice(0, 9).map((x) => x.gift.length)).toEqual([2, 2, 2, 3, 2, 8, 2, 3, 5])
+    for (const x of [...g.slice(4, 9), ...g.slice(10)]) {
+      expect(x.ameisen.length, x.mission.id).toBeGreaterThan(0)
+      expect(x.baeume.length, x.mission.id).toBeGreaterThan(0)
+    }
+    for (const x of [...g.slice(4, 9), ...g.slice(10, 16), ...g.slice(17)]) expect(x.haeuser.length, x.mission.id).toBeGreaterThan(0)
+    for (const x of g.slice(0, 4)) expect(x.ameisen.length + x.baeume.length + x.haeuser.length, x.mission.id).toBe(0)
+    const golems = g.slice(10).map((x) => x.minigolems.length)
+    expect(golems[0]).toBeGreaterThanOrEqual(2)
+    expect(golems[9]).toBe(7)
+    for (let i = 1; i < golems.length; i++) expect(golems[i], `wiese-${i + 11}`).toBeGreaterThanOrEqual(golems[i - 1] - 1)
+    for (const x of g.slice(0, 10)) expect(x.minigolems, x.mission.id).toHaveLength(0)
+    for (const x of g.slice(10)) expect(x.aktiveFroesche.length, x.mission.id).toBeLessThanOrEqual(2)
+    for (const x of g.slice(10, 15)) expect(x.tuerme, x.mission.id).toHaveLength(0)
+    for (const x of g.slice(15)) expect(x.tuerme.length, x.mission.id).toBeGreaterThan(0)
+    // Lava, Giftwolken und grosse Tannen erst ab 11
+    for (const x of g.slice(0, 10)) expect(x.lava.length + x.quellen.length + x.baeume.filter((b) => b.gross).length, x.mission.id).toBe(0)
+    expect(g.slice(10).some((x) => x.lava.length)).toBe(true)
+    expect(g.slice(10).some((x) => x.quellen.length)).toBe(true)
+    expect(g.slice(10).some((x) => x.baeume.some((b) => b.gross))).toBe(true)
   })
 
   it('jede Karte: gleich breite Zeilen, ganze Bloecke, Berg rundherum', () => {
@@ -63,13 +158,37 @@ describe('Kampagne', () => {
     }
   })
 
+  it('Karten fair: kein Apfel im Fensterlicht, Ameisen und Giftquellen mit Abstand zu Aepfeln, ab 11 keine Sackgassen', () => {
+    const cheb = (p: P, q: P) => Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y))
+    for (const m of WIESE_MISSIONEN) {
+      const g = new MissionGame(m)
+      const aepfel = g.aepfel.map((a) => a.p)
+      for (const a of aepfel) {
+        for (const h of g.haeuser) for (const c of h.cells) expect(cheb(a, c), m.id).toBeGreaterThan(2)
+        for (const am of g.ameisen) expect(cheb(a, am.p), m.id).toBeGreaterThan(2)
+      }
+      for (const q of g.quellen) for (const p of [...aepfel, ...g.gift.map((x) => x.p), ...g.funde.map((f) => f.p)]) expect(cheb(q.p, p), m.id).toBeGreaterThan(2)
+      if (m.nr < 11) continue
+      // Sackgasse: ein freies Feld mit hoechstens einem freien Nachbarn (darin kommt man nicht mehr heraus)
+      const zu = g.hindernisse()
+      for (const a of g.aepfel) zu.delete(key(a.p.x, a.p.y))
+      for (const x of [...g.ameisen, ...g.minigolems, ...g.froesche, ...g.wesen]) zu.delete(key(x.p.x, x.p.y))
+      for (const e of g.gegner) for (const b of e.body) zu.delete(key(b.x, b.y))
+      const frei = (x: number, y: number) => g.inside({ x, y }) && !zu.has(key(x, y))
+      for (let y = 0; y < g.h; y++)
+        for (let x = 0; x < g.w; x++)
+          if (frei(x, y)) expect(DIRS.filter((d) => frei(x + STEP[d].x, y + STEP[d].y)).length, `${m.id} ${x},${y}`).toBeGreaterThan(1)
+    }
+  })
+
   it('Missionen 1 bis 7: keine Gasse schmaler als 3 Felder (erst ab 8 wird es eng)', () => {
     for (const m of WIESE_MISSIONEN.slice(0, 7)) {
       const g = new MissionGame(m)
       const zu = g.hindernisse()
-      // Aepfel, Froesche und Gegner bleiben nicht, wo sie sind: zaehlen nicht als Wand
+      // Aepfel, Froesche, Ameisen und Gegner bleiben nicht, wo sie sind: zaehlen nicht als Wand
       for (const a of g.aepfel) zu.delete(key(a.p.x, a.p.y))
       for (const f of g.froesche) zu.delete(key(f.p.x, f.p.y))
+      for (const a of g.ameisen) zu.delete(key(a.p.x, a.p.y))
       for (const e of g.gegner) for (const b of e.body) zu.delete(key(b.x, b.y))
       const frei = (x: number, y: number) => g.inside({ x, y }) && !zu.has(key(x, y))
       // Ein Pass ist eng, wenn man waagrecht und senkrecht nur 1 oder 2 Felder Platz hat und beidseits weiterkommt
@@ -97,7 +216,7 @@ describe('Kampagne', () => {
     expect(g.dir).toBe('u')
     expect(g.ziel).toBe(10)
     expect(g.aepfel).toHaveLength(10)
-    expect(g.gift).toHaveLength(3)
+    expect(g.gift).toHaveLength(2)
     expect(g.froesche).toHaveLength(5)
     expect(g.teiche).toHaveLength(3)
     expect(g.mauern).toHaveLength(3)
@@ -152,13 +271,12 @@ describe('Kampagne', () => {
     expect(g.aepfel).toHaveLength(0)
   })
 
-  it('Missionen 2 bis 9 lassen sich schaffen (ohne Froesche und Gegner)', () => {
-    for (const m of WIESE_MISSIONEN.slice(1, 9)) {
+  it('Missionen 2 bis 9 und 11 bis 20 lassen sich schaffen (ohne Tiere, Golems, Gegner und Wolken)', () => {
+    for (const m of [...WIESE_MISSIONEN.slice(1, 9), ...WIESE_MISSIONEN.slice(10)]) {
       const g = new MissionGame(m)
-      g.froesche = []
-      g.gegner = []
+      ruhig(g)
       let schritte = 0
-      while (g.status === 'play' && schritte++ < 9000) {
+      while (g.status === 'play' && schritte++ < 20000) {
         const d = weg(g)
         if (d && !g.queue.length) g.turn(d, false)
         g.update(g.tick)
@@ -169,6 +287,7 @@ describe('Kampagne', () => {
   })
 
   it('Schatz-Level: Edelsteine liegen da und zaehlen fuer die Belohnung', () => {
+    expect(new MissionGame(WIESE_MISSIONEN[14]).funde).toHaveLength(8)
     const g = new MissionGame(WIESE_MISSIONEN[4])
     expect(g.funde).toHaveLength(7)
     const f = g.funde[0]
@@ -235,13 +354,12 @@ describe('Kampagne', () => {
     }
   })
 
-  it('Querformat: Missionen 1 bis 9 lassen sich genauso schaffen (ohne Froesche und Gegner)', () => {
-    for (const m of WIESE_MISSIONEN.slice(0, 9)) {
+  it('Querformat: Missionen 1 bis 9 und 11 bis 20 lassen sich genauso schaffen (ohne Tiere, Golems, Gegner und Wolken)', () => {
+    for (const m of [...WIESE_MISSIONEN.slice(0, 9), ...WIESE_MISSIONEN.slice(10)]) {
       const g = new MissionGame(m, true)
-      g.froesche = []
-      g.gegner = []
+      ruhig(g)
       let schritte = 0
-      while (g.status === 'play' && schritte++ < 9000) {
+      while (g.status === 'play' && schritte++ < 20000) {
         const d = weg(g)
         if (d && !g.queue.length) g.turn(d, false)
         g.update(g.tick)
@@ -249,5 +367,109 @@ describe('Kampagne', () => {
       expect(g.cause, m.id).toBe('ziel')
       expect(g.gegessen, m.id).toBe(g.ziel)
     }
+  })
+
+  it('ab Mission 5: Baeume warten, bis der Kopf nah ist, und kippen dann nach 1 bis 8 Sekunden (nie auf die Schlange)', () => {
+    const g = new MissionGame(WIESE_MISSIONEN[4])
+    ruhig(g)
+    g.tick = 1e12
+    const b = g.baeume[0]
+    expect(b.wartet).toBe(true)
+    for (let i = 0; i < 100; i++) g.update(50)
+    expect(b.kippBei).toBe(Infinity)
+    // Kopf auf BAUM_NAH Felder heran (Koerper liegt unterhalb)
+    legeSchlange(g, b.root, 3, BAUM_NAH)
+    g.update(20)
+    expect(b.wartet).toBe(false)
+    expect(b.kippBei! - g.time).toBeGreaterThanOrEqual(900)
+    expect(b.kippBei! - g.time).toBeLessThanOrEqual(8000)
+    for (let i = 0; i < 220 && b.kippBei !== null; i++) g.update(50)
+    expect(b.kippBei).toBeNull()
+    for (const c of b.cells) expect(g.body.some((p) => p.x === c.x && p.y === c.y)).toBe(false)
+  })
+
+  it('Haeuser: das Licht wechselt alle paar Sekunden, nie auf die Schlange; hineinlaufen = verloren', () => {
+    const g = new MissionGame(WIESE_MISSIONEN[8])
+    ruhig(g)
+    g.tick = 1e12
+    const h = g.haeuser[0]
+    const wechsel = new Set<number>()
+    for (let i = 0; i < 300; i++) {
+      g.update(50)
+      wechsel.add(h.lichtT)
+      for (const c of h.strahl) expect(g.body.some((p) => p.x === c.x && p.y === c.y)).toBe(false)
+    }
+    // 15 Sekunden: mindestens dreimal ein neues Fenster (oder kurz dunkel)
+    expect(wechsel.size).toBeGreaterThanOrEqual(3)
+    expect(LICHT_TAKT).toBeLessThanOrEqual(5000)
+    // Kopf direkt vor das Licht: ein Schritt hinein ist vorbei
+    while (h.licht < 0) g.update(50)
+    const s0 = h.strahl[0]
+    const f = h.fenster[h.licht]
+    const d = { x: s0.x - f.p.x, y: s0.y - f.p.y }
+    const kopf = { x: s0.x + d.x * 2, y: s0.y + d.y * 2 }
+    g.body = [kopf, { x: kopf.x + d.x, y: kopf.y + d.y }, { x: kopf.x + d.x * 2, y: kopf.y + d.y * 2 }]
+    g.prev = g.body.map((p) => ({ ...p }))
+    g.dir = d.x > 0 ? 'l' : d.x < 0 ? 'r' : d.y > 0 ? 'u' : 'd'
+    g.tick = 100
+    g.lichtNext = g.lichtNext.map(() => 1e12)
+    for (let i = 0; i < 40 && g.status === 'play'; i++) g.update(20)
+    expect(g.cause).toBe('licht')
+  })
+
+  it('Ameisenbiss ist in der Mission vorbei', () => {
+    const g = new MissionGame(WIESE_MISSIONEN[6])
+    ruhig(g)
+    g.tick = 1e12
+    const a = new MissionGame(WIESE_MISSIONEN[6]).ameisen[0]
+    a.next = 0
+    g.ameisen = [a]
+    legeSchlange(g, a.p, 2, 2)
+    for (let i = 0; i < 100 && g.status === 'play'; i++) g.update(50)
+    expect(g.cause).toBe('ameise')
+  })
+
+  it('Giftwolken steigen immer wieder aus ihren Quellen, Lava breitet sich mit der Zeit aus, Leuchttuerme drehen sich', () => {
+    const w = new MissionGame(WIESE_MISSIONEN[11])
+    ruhig(w)
+    w.quellen = new MissionGame(WIESE_MISSIONEN[11]).quellen
+    w.tick = 1e12
+    let wolken = 0
+    let vorher = 0
+    for (let i = 0; i < 1200; i++) {
+      w.update(50)
+      if (w.wolken.length > vorher) wolken += w.wolken.length - vorher
+      vorher = w.wolken.length
+    }
+    // 60 Sekunden, drei Quellen: jede mindestens zweimal
+    expect(wolken).toBeGreaterThanOrEqual(6)
+    const l = new MissionGame(WIESE_MISSIONEN[12])
+    ruhig(l)
+    l.tick = 1e12
+    const n0 = l.lava.reduce((n, s) => n + s.cells.length, 0)
+    for (let t = 0; t < LAVA_TAKT * 3 + 100; t += 50) l.update(50)
+    expect(l.lava.reduce((n, s) => n + s.cells.length, 0)).toBeGreaterThan(n0)
+    const t = new MissionGame(WIESE_MISSIONEN[15])
+    ruhig(t)
+    t.tick = 1e12
+    const d0 = t.tuerme[0].dir
+    for (let i = 0; i * 50 < TURM_TAKT + 100; i++) t.update(50)
+    expect(t.tuerme[0].dir).not.toBe(d0)
+    const kopf = t.body[0]
+    for (const tu of t.tuerme) for (const c of tu.kegel) expect(Math.abs(c.x - kopf.x) + Math.abs(c.y - kopf.y)).toBeGreaterThan(2)
+  })
+
+  it('kleine Steingolems: trifft der Schlag den Kopf, ist die Mission verloren', () => {
+    const g = new MissionGame(WIESE_MISSIONEN[10])
+    ruhig(g)
+    g.tick = 1e12
+    const m = new MissionGame(WIESE_MISSIONEN[10]).minigolems[0]
+    m.next = 1e12
+    m.jagt = 0
+    g.minigolems = [m]
+    g.body = [{ x: m.p.x + 1, y: m.p.y + 1 }, { x: m.p.x + 1, y: m.p.y + 2 }, { x: m.p.x + 1, y: m.p.y + 3 }].filter((p) => g.inside(p))
+    g.prev = g.body.map((p) => ({ ...p }))
+    for (let i = 0; i < 60 && g.status === 'play'; i++) g.update(20)
+    expect(g.cause).toBe('minigolem')
   })
 })

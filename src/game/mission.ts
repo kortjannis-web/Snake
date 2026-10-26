@@ -5,13 +5,32 @@
  * - nichts kommt dazu: keine Mauern nach jedem Apfel, keine Power-ups, keine Ereignisse
  * - Froesche bleiben im Tal (sie huepfen nicht ueber den Rand in die Berge)
  * - Edelsteine (Schatz-Level) zaehlen mit: beim ersten Abschluss gibt es ihren Wert in Aepfeln dazu
+ * - ab Mission 5: Baeume kippen, wenn die Schlange nah ist (nach 1 bis 8 Sekunden), in Haeusern wechselt das Licht alle
+ *   paar Sekunden (nie auf die Schlange), Ameisen; ab Mission 11 kleine Steingolems, Giftwolken aus Quellen, Lava, die sich
+ *   ausbreitet, grosse Tannen, ab 16 Leuchttuerme, die sich drehen
+ * - es gibt kein Level, das zurueckfallen koennte: Fensterlicht, Lichtkegel, Giftwolke, Ameisenbiss und Bienen = verloren
  *
  * `apple` ist immer der naechste Apfel zum Kopf (dorthin zeigt der Pfeil am Bildrand), `aepfel` sind alle, die noch liegen.
  */
-import { BLOCK_PLUS, Game, key } from './game'
+import { BLOCK_PLUS, Game, key, WESEN_TAKT } from './game'
 import { MISSION_BILD, type MissionDef } from './missionen'
-import { DEFAULTS, DIRS, erzWert, FROSCH_ANLAUF, OPP, STEP, type ErzArt } from './rules'
-import type { Dir, P } from './types'
+import { CW, DEFAULTS, DIRS, erzWert, FROSCH_ANLAUF, OPP, STEP, type ErzArt } from './rules'
+import type { Cause, Dir, Haus, P, Turm } from './types'
+
+/** So lange (ms) leuchtet ein Fenster, dann wechselt das Licht */
+export const LICHT_TAKT = 4000
+/** So oft (ms) dreht sich ein Leuchtturm eine Vierteldrehung weiter */
+export const TURM_TAKT = 3200
+/** So oft (ms) breitet sich jeder Lavasee um ein Feld aus (dazu wie im freien Spiel jeden 2. Apfel) */
+export const LAVA_TAKT = 6000
+/** Pause (ms), bis aus einer Quelle die naechste Giftwolke steigt */
+export const QUELLE_PAUSE = 4500
+/** Stehende Baeume kippen, wenn der Kopf so nah ist (Felder, auch schraeg), nach 1 bis 8 Sekunden */
+export const BAUM_NAH = 5
+export const BAUM_TIMER: [number, number] = [1000, 8000]
+
+const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+const cheb = (a: P, b: P) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
 
 export type MissionApfel = { p: P; t: number }
 
@@ -40,6 +59,18 @@ export type MissionKarte = {
   plaetze: P[]
   /** Wiese, auf die der Golem nicht tritt (Durchgaenge zu den Kammern) */
   sperre: P[]
+  /** Ameisen, Stamm stehender Baeume und grosser Tannen, Haeuser und Leuchttuerme (je Gruppe), Lavaseen,
+   *  Quellen der Giftwolken, kleine Steingolems, Bienenstoecke, Igel */
+  ameisen: P[]
+  baeume: P[]
+  tannen: P[]
+  haeuser: P[][]
+  tuerme: P[][]
+  lava: P[][]
+  quellen: P[]
+  minigolems: P[]
+  stoecke: P[]
+  igel: P[]
 }
 
 /** Zusammenhaengende Gruppen (4er-Nachbarschaft) */
@@ -87,10 +118,23 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
     tore: [],
     plaetze: [],
     sperre: [],
+    ameisen: [],
+    baeume: [],
+    tannen: [],
+    haeuser: [],
+    tuerme: [],
+    lava: [],
+    quellen: [],
+    minigolems: [],
+    stoecke: [],
+    igel: [],
   }
   const mauer: P[] = []
   const teich: P[] = []
   const eis: P[] = []
+  const haus: P[] = []
+  const turm: P[] = []
+  const lava: P[] = []
   const ERZ: Record<string, ErzArt> = { $: 'gold', '*': 'dia', '%': 'rubin' }
   zeilen.forEach((z, y) => {
     for (let x = 0; x < z.length; x++) {
@@ -143,6 +187,36 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
         case 'x':
           k.sperre.push(p)
           break
+        case 'a':
+          k.ameisen.push(p)
+          break
+        case 'Y':
+          k.baeume.push(p)
+          break
+        case 'Z':
+          k.tannen.push(p)
+          break
+        case 'H':
+          haus.push(p)
+          break
+        case 'J':
+          turm.push(p)
+          break
+        case 'L':
+          lava.push(p)
+          break
+        case 'C':
+          k.quellen.push(p)
+          break
+        case 'M':
+          k.minigolems.push(p)
+          break
+        case 'b':
+          k.stoecke.push(p)
+          break
+        case 'I':
+          k.igel.push(p)
+          break
         default:
           if (z[x] >= '1' && z[x] <= '6') k.sockel.push({ p, i: Number(z[x]) - 1 })
       }
@@ -151,6 +225,9 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
   k.mauern = gruppen(mauer)
   k.teiche = gruppen(teich)
   k.eis = gruppen(eis)
+  k.haeuser = gruppen(haus)
+  k.tuerme = gruppen(turm)
+  k.lava = gruppen(lava)
   return k
 }
 
@@ -196,6 +273,12 @@ export class MissionGame extends Game {
   schatz = 0
   /** Quer gedreht (Querformat, PC): man spielt von links nach rechts */
   readonly quer: boolean
+  /** Naechster Lichtwechsel je Haus, naechste Drehung je Leuchtturm (Spielzeit) */
+  lichtNext: number[] = []
+  protected turmNext: number[] = []
+  protected lavaNext = LAVA_TAKT
+  /** Quellen der Giftwolken: naechste Wolke ab (Infinity = eine steigt gerade) */
+  quellen: { p: P; next: number }[] = []
 
   constructor(m: MissionDef, quer = false) {
     const k = karteVon(m, quer)
@@ -246,6 +329,7 @@ export class MissionGame extends Game {
     this.eis = k.eis.map((cells) => ({ cells: cells.map((c) => ({ ...c })), t: -1e9 }))
     this.funde = k.funde.map((f) => ({ p: { ...f.p }, art: f.art, t: 0 }))
     for (const kopf of k.gegner) this.gegnerSetzen(kopf)
+    this.dingeSetzen(k)
     // Alle Aepfel liegen von Anfang an da und ploppen beim Start auf
     this.aepfel = k.aepfel.map((p) => ({ p: { ...p }, t: 0 }))
     this.zielWaehlen()
@@ -303,6 +387,7 @@ export class MissionGame extends Game {
 
   override update(dt: number) {
     super.update(dt)
+    if (this.status === 'play') this.missionTakt()
     if (this.status === 'play') this.zielWaehlen()
   }
 
@@ -329,6 +414,14 @@ export class MissionGame extends Game {
     return s
   }
 
+  /** Schliesst etwas ab? Hier zaehlen die Aepfel als Wiese: auch sie muessen erreichbar bleiben (Baeume, Lava) */
+  protected override keinAbschluss(cells: P[], wand: Set<number>) {
+    if (!this.aepfel?.length) return super.keinAbschluss(cells, wand)
+    const w = new Set(wand)
+    for (const a of this.aepfel) w.delete(key(a.p.x, a.p.y))
+    return super.keinAbschluss(cells, w)
+  }
+
   /** Froesche huepfen nicht ueber den Rand in die Berge: vorher in eine Richtung mit Wiese drehen */
   protected override froschTakt() {
     for (const f of this.froesche) {
@@ -343,5 +436,168 @@ export class MissionGame extends Game {
       f.hopAt = this.time + FROSCH_ANLAUF + 300
     }
     super.froschTakt()
+  }
+
+  /* ================= Neues ab Mission 5 ================= */
+
+  /** Ameisen, Baeume, Haeuser, Leuchttuerme, Lava, Giftwolken-Quellen, Steingolems, Bienenstoecke und Igel von der Karte */
+  protected dingeSetzen(k: MissionKarte) {
+    const r = this.r
+    // Wohin am meisten Platz ist (fest, damit es jedes Mal gleich ist)
+    const weitesteRichtung = (p: P) => {
+      const frei = (d: Dir) => {
+        let n = 0
+        while (n < 6 && this.inside({ x: p.x + STEP[d].x * (n + 1), y: p.y + STEP[d].y * (n + 1) })) n++
+        return n
+      }
+      return [...DIRS].sort((a, b) => frei(b) - frei(a))[0]
+    }
+    this.ameisen = k.ameisen.map((p, i) => ({ p: { ...p }, from: { ...p }, heim: { ...p }, dir: DIRS[i % 4], t: 0, schrittT: -1e9, next: this.cfg.ameiseTakt * 1000, alarm: -1, sattBis: 0 }))
+    // Baeume stehen und warten, bis die Schlange in die Naehe kommt
+    const baum = (root: P, gross: boolean) => {
+      const form = gross ? [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((x) => ({ x, y }))) : [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]
+      return { cells: form.map((o) => ({ x: root.x + o.x, y: root.y + o.y })), root: { ...root }, dir: 'u' as Dir, t: 0, kippBei: Infinity, fallT: -1e9, gelandet: true, wartet: true, ...(gross ? { gross } : {}) }
+    }
+    this.baeume = [...k.baeume.map((p) => baum(p, false)), ...k.tannen.map((p) => baum(p, true))]
+    // Haeuser: je Seite ein Fenster, das Licht wechselt alle paar Sekunden
+    this.haeuser = k.haeuser.map((cells) => {
+      const drin = new Set(cells.map((c) => key(c.x, c.y)))
+      const fenster = DIRS.map((d) => {
+        const rand = cells.filter((c) => !drin.has(key(c.x + STEP[d].x, c.y + STEP[d].y)))
+        return { p: { ...r.pick(rand) }, d }
+      })
+      return { cells: cells.map((c) => ({ ...c })), t: 0, fenster, licht: -1, lichtT: 0, strahl: [], kamin: r.int(0, cells.length - 1), klein: cells.length <= 4 } as Haus
+    })
+    for (const h of this.haeuser) this.lichtFuer(h, true)
+    this.lichtNext = this.haeuser.map((_, i) => LICHT_TAKT + i * 900)
+    // Leuchttuerme (2 x 2): schauen am Anfang dorthin, wo ihr Kegel am weitesten von der Schlange weg ist
+    this.tuerme = k.tuerme.map((cells) => {
+      const c = { x: Math.min(...cells.map((p) => p.x)), y: Math.min(...cells.map((p) => p.y)) }
+      const t: Turm = { c, cells: cells.map((p) => ({ ...p })), dir: 'u', t: 0, kegel: [], kegelT: 0, altDir: 'u' }
+      let best = -1
+      for (const d of DIRS) {
+        t.dir = d
+        this.kegel(t)
+        const ab = t.kegel.length ? Math.min(...t.kegel.map((p) => manhattan(p, this.body[0]))) : 99
+        if (ab > best) {
+          best = ab
+          t.altDir = d
+        }
+      }
+      t.dir = t.altDir
+      this.kegel(t)
+      return t
+    })
+    this.turmNext = this.tuerme.map((_, i) => TURM_TAKT + i * 1100)
+    // Lavaseen breiten sich aus (um lavaMehr Felder)
+    const mehr = this.mission.lavaMehr ?? 10
+    this.lava = k.lava.map((cells) => ({ cells: cells.map((c) => ({ ...c })), t: cells.map(() => -1e9), ziel: cells.length + mehr }))
+    this.quellen = k.quellen.map((p, i) => ({ p: { ...p }, next: 2500 + i * 2600 }))
+    for (const p of k.minigolems) this.minigolemSetzen(p, weitesteRichtung(p))
+    this.stoecke = k.stoecke.map((p) => ({ p: { ...p }, t: 0, bis: Infinity, ruhe: 0 }))
+    this.wesen = k.igel.map((p) => ({ art: 'igel' as const, p: { ...p }, from: { ...p }, dir: weitesteRichtung(p), t: 0, schrittT: 0, next: WESEN_TAKT.igel, heim: { ...p }, sattBis: 0, wurfNext: 0 }))
+  }
+
+  /** Kein Level, das zurueckfallen koennte: was im freien Spiel Level kostet (Licht, Kegel, Wolke, Ameise, Bienen), ist hier vorbei */
+  override setback(_n: number, grund: Parameters<Game['setback']>[1]) {
+    const cause: Cause = grund === 'wolke' || grund === 'licht' || grund === 'kegel' || grund === 'ameise' || grund === 'bienen' ? grund : 'gegner'
+    this.die(cause)
+  }
+
+  /** Nach einem Apfel kommt nichts dazu und nichts wechselt (Licht und Tuerme laufen nach der Zeit), nur das Ziel */
+  protected override layout() {
+    this.neuerApfel()
+  }
+
+  /** Fensterlicht: nie auf die Schlange, nicht nah vor den Kopf (auch nicht in seine Bahn). Passt kein anderes Fenster,
+   *  bleibt das alte an (wenn es noch frei ist), sonst bleibt das Haus dunkel */
+  protected override lichtFuer(h: Haus, erstes = false) {
+    const head = this.body[0]
+    const bau = this.bauSet()
+    const weite = this.cfg.lichtWeite
+    const frei = (s: P[]) => s.length >= weite && !s.some((p) => this.aufSchlange(p))
+    for (const i of this.r.shuffle([0, 1, 2, 3].filter((i) => erstes || i !== h.licht))) {
+      const s = this.strahlVon(h, i, bau)
+      if (!frei(s) || s.some((p) => manhattan(p, head) <= 3 || this.imWeg(p, 5))) continue
+      h.licht = i
+      h.strahl = s
+      h.lichtT = this.time
+      return
+    }
+    const alt = h.licht >= 0 ? this.strahlVon(h, h.licht, bau) : []
+    if (h.licht >= 0 && frei(alt)) {
+      h.strahl = alt
+      return
+    }
+    h.licht = -1
+    h.strahl = []
+    h.lichtT = this.time
+  }
+
+  /** Leuchtturm-Kegel wie im freien Spiel (2 breit, endet an Bauten und vor der Schlange), dazu bleibt der Kopf frei:
+   *  der Kegel endet schon 3 Felder vor ihm und nicht in seiner Bahn, so trifft ein Drehen nie aus dem Nichts */
+  protected override kegel(t: Turm) {
+    const d = STEP[t.dir]
+    const drin = new Set(t.cells.map((c) => key(c.x, c.y)))
+    const vorn = t.cells.filter((c) => !drin.has(key(c.x + d.x, c.y + d.y)))
+    const bau = this.bauSet()
+    const head = this.body[0]
+    t.kegel = []
+    for (const s of vorn)
+      for (let i = 1; i <= this.cfg.kegelLaenge; i++) {
+        const c = { x: s.x + d.x * i, y: s.y + d.y * i }
+        if (!this.inside(c) || bau.has(key(c.x, c.y)) || this.aufSchlange(c) || manhattan(c, head) <= 2 || this.imWeg(c, 4)) break
+        t.kegel.push(c)
+      }
+    t.kegelT = this.time
+  }
+
+  /** Stehende Baeume wachen auf, wenn der Kopf nah ist: dann kippen sie nach 1 bis 8 Sekunden */
+  protected override baeumeTakt() {
+    const h = this.body[0]
+    for (const b of this.baeume) {
+      if (!b.wartet || cheb(b.root, h) > BAUM_NAH) continue
+      b.wartet = false
+      b.kippBei = this.time + this.r.int(BAUM_TIMER[0], BAUM_TIMER[1])
+    }
+    super.baeumeTakt()
+  }
+
+  /** Zeitgesteuert: Lichtwechsel, Leuchttuerme drehen, Lava breitet sich aus, Giftwolken steigen aus den Quellen */
+  protected missionTakt() {
+    const t = this.time
+    this.haeuser.forEach((h, i) => {
+      if (t < this.lichtNext[i]) return
+      this.lichtNext[i] = t + LICHT_TAKT
+      const vorher = h.licht
+      this.lichtFuer(h)
+      if (h.licht !== vorher) this.emit({ type: 'light' })
+    })
+    this.tuerme.forEach((tu, i) => {
+      if (t < this.turmNext[i]) return
+      this.turmNext[i] = t + TURM_TAKT
+      tu.altDir = tu.dir
+      tu.dir = CW[tu.dir]
+      this.kegel(tu)
+    })
+    if (this.lava.length && t >= this.lavaNext) {
+      this.lavaNext = t + LAVA_TAKT
+      this.lavaWachsen()
+    }
+    const h = this.body[0]
+    for (const q of this.quellen) {
+      const aktiv = this.wolken.some((w) => w.c.x === q.p.x && w.c.y === q.p.y)
+      if (aktiv) continue
+      if (q.next === Infinity) q.next = t + QUELLE_PAUSE
+      if (t < q.next) continue
+      // Nicht direkt neben dem Kopf aufsteigen
+      if (cheb(q.p, h) <= 2 || this.aufSchlange(q.p)) {
+        q.next = t + 800
+        continue
+      }
+      q.next = Infinity
+      this.wolken.push({ c: { ...q.p }, t, stage: 0, maxStage: this.mission.wolkeStufe ?? 2, nextAt: t + this.cfg.wolkeTakt * 1000, until: Infinity, cells: [{ ...q.p }], pending: [], bornAt: [t] })
+      this.emit({ type: 'cloud' })
+    }
   }
 }

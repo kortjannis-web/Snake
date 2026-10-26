@@ -395,6 +395,11 @@ export class MehrGame extends Game {
     this.wechsel(vorher)
   }
 
+  /** Steingolems, grosse Tannen und der Boss gibt es nur allein */
+  protected wieseExtras() {
+    return false
+  }
+
   /** Jedes Ereignis bekommt den Spieler, um den es geht (fuer Toene und Anzeige auf den anderen Geraeten) */
   protected emit(e: GameEvent) {
     const m = e as GameEvent & { wer?: number }

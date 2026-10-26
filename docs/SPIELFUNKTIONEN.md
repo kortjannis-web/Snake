@@ -124,6 +124,12 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Höchstens einer je ca. 150 Felder. Ist die Karte voll, kommt keiner mehr dazu.
 - Berühren = Tod, stehend wie liegend (auch während er fällt).
 
+## 9a. Große Tannen (Wiese, ab Level 60, seit 1.46)
+
+- Nur in der Wiese: ab Level 60 **alle 30 Level eine große Tanne** (einstellbar: Master-Einstellungen → Wiese: Steingolems, große Tannen, Boss). Sie zählt wie ein Baum (dieselbe Höchstzahl je Kartengröße).
+- **Steht auf 3 × 3 Feldern** (von oben eine große Tanne), kippt wie die anderen Bäume nach 10 bis 60 Sekunden, aber **viel weiter**: Sie liegt danach **7 Felder lang** (drei Felder Stamm, zwei Reihen Krone drei Felder breit, dann die Spitze), die Spitze **6 Felder vom Stamm**.
+- Dieselben Regeln wie bei den Bäumen: nie auf die Schlange (auch nicht knapp vor den Kopf), nie auf andere Dinge, schließt nichts ab, liegt die Schlange rundherum, wartet sie. Berühren = Tod.
+
 ## 10. Giftwolken (ab Level 110)
 
 - Etwa **alle 5 bis 7 Level** (ab Level 190 alle 4 bis 6) entsteht eine Wolke auf einem Feld.
@@ -182,6 +188,19 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - Sie läuft nie in die Schlange oder in Hindernisse. **Der Kopf zertritt sie** (sie verschwindet, kein Tod): so kann man sich wehren.
 - Gerade lange Schlangen, die neben einer Ameise entlangziehen, werden erwischt.
 - **Seit 1.43 liegt nichts zum Einsammeln in ihrem Revier:** Apfel, Power-ups und Erze (Spitzhacke) kommen nie in den Umkreis einer Ameise (ihr Umkreis plus 2 Felder, auch schräg, um ihren Platz und ihr Zuhause). Eine neue Ameise setzt sich nie so nah an den Apfel, ein Power-up oder ein Erz. Wer etwas holt, wird also nicht gebissen.
+
+## 12b2. Kleine Steingolems (Wiese ab Level 60, Missionen 11 bis 20, seit 1.46)
+
+- Ein kleiner Golem aus Fels (ein Feld), mit Moos, Fäusten und glühenden Augen. Im freien Spiel der **Wiese** ab Level 60 **alle 10 bis 15 Level einer**, höchstens **2** gleichzeitig, 60 Level später 3 (alles einstellbar). Er setzt sich weit weg vom Kopf und nie in dessen Bahn. Im Mehrspieler gibt es ihn nicht.
+- **Läuft immer weiter** (ein Feld alle 0,75 s): bei jedem Schritt mit **10 %** bleibt er **1 bis 4 Sekunden** stehen, sonst **70 % geradeaus, 15 % rechts, 15 % links**. Geht es dort nicht weiter, nimmt er eine der anderen Richtungen, zuletzt kehrt er um. Nie in die Schlange, nie auf Apfel, Power-ups oder Erze, nie in Hindernisse.
+- **Unsichtbarer Sichtkegel nach vorn**: 1 bis **5 Felder** weit, je weiter, desto breiter (seitlich bis zur halben Weite, aufgerundet). Mauern, Häuser, Bäume, Türme und der Kartenrand (Berge) versperren die Sicht. Es zählt nur der **Kopf** der Schlange.
+- **Sieht er den Kopf**, erscheint ein rotes Ausrufezeichen, seine Augen werden rot und er **kommt auf den Kopf zu** (ein Feld alle 0,5 s). Er behält ihn im Blick, solange der Kopf höchstens 6 Felder weg ist und nichts dazwischen steht; sonst **verliert er den Fokus** und bummelt weiter.
+- **Angriff** (frühestens 0,25 s nachdem er den Kopf entdeckt hat): Er holt **eine halbe Sekunde** aus, die Fläche wird **rot** angezeigt, dann schlägt er zu.
+  - **Rundum** (Kopf höchstens 2 Felder weg, auch schräg): alle Felder **2 um ihn herum** (5 × 5).
+  - **Geradeaus** (Kopf in einer Linie, 3 bis 4 Felder weg): **4 Felder** in diese Richtung (er dreht sich dorthin), endet an Mauern, Häusern, Bäumen und Türmen.
+  - Getroffen wird nur, **wer beim Schlag mit dem Kopf in der Fläche ist**. Der Körper darf darin liegen. Kopf getroffen = vorbei (Schild fängt ab, als Geist nichts). Danach ruht er 1,2 s.
+- Mit dem Kopf in ihn hineinfahren = vorbei („Vom kleinen Steingolem erschlagen“).
+- Töne beim Erscheinen, Entdecken, Ausholen und Schlag, Vibration beim Schlag in der Nähe.
 
 ## 12c. Lava (von Anfang an, im Stein)
 
@@ -345,30 +364,45 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 ## 16-0a. Kampagne (Startmenü → Kampagne, seit 1.36.0)
 
 - Neben dem freien Spiel (Spielen) gibt es **feste Missionen**, je Welt 10. Den Anfang macht die **Wiese**; die anderen Welten folgen.
-- **Karte der Kampagne:** eine weite Wiese mit Hügeln, Bäumen, Blumen und einem Teich, die nur **nach oben und unten** scrollt (links und rechts läuft sie aus dem Bild). Darauf 10 runde Missionsfelder auf einem geschwungenen Weg: **Mission 5 ist das Schatz-Level** (Schatztruhe), **Mission 10 das Boss-Level** (Totenschädel), darüber Nebel und „Coming Soon“.
+- **Karte der Kampagne:** eine weite Wiese mit Hügeln, Bäumen, Blumen und einem Teich, die nur **nach oben und unten** scrollt (links und rechts läuft sie aus dem Bild). Darauf **20** runde Missionsfelder auf einem geschwungenen Weg (seit 1.46): **Mission 5 und 15 sind Schatz-Level** (Schatztruhe), **Mission 10 das Boss-Level** (Totenschädel), darüber Nebel und „Coming Soon“.
 - **Die eigene Schlange als Weg:** Anfangs liegt nur ihr Kopf kurz vor Mission 1. Tippt man eine Mission an, **wächst die Schlange weich gebogen bis zu diesem Feld**, danach startet die Mission. So wird sie mit jeder neuen Mission länger. Sie trägt das gewählte Aussehen; Effekte und Spur sind auf der Karte etwas schwächer (75 %).
-- **Alle 10 Missionen sind spielbar (seit 1.43).** Gespielt wird eine Mission erst, wenn die davor geschafft ist; geschaffte Missionen werden grün mit Stern und lassen sich beliebig wiederholen.
+- **Alle 20 Missionen sind spielbar (10 seit 1.43, 11 bis 20 seit 1.46).** Gespielt wird eine Mission erst, wenn die davor geschafft ist; geschaffte Missionen werden grün mit Stern und lassen sich beliebig wiederholen.
 - **Missionen sind fest:** die Karte ist von Hand gebaut und bei jedem Spielen gleich (Start, Äpfel, Mauern, Teiche, Giftäpfel, Frösche, Eis, Gegner, Edelsteine). Statt Erde liegen **Berge** um die Täler (Fuß mit Bäumen, Fels, oben Schnee); dagegen = vorbei („Gegen den Berg gefahren“). Auch mitten in der Wiese können Berge stehen (Hügel).
 - **Querformat (PC, seit 1.45.0):** ist das Spielfeld breiter als hoch, ist die Mission **um 90 Grad gedreht**: aus unten wird links, man startet links und spielt nach rechts. Das Bild ist dann breit statt hoch (23 × 12 statt 12 × 23 Felder), die Felder werden deutlich größer (Full HD: etwa 72 statt 41 Pixel). Alles liegt an derselben Stelle, nur gedreht; die Steuerung bleibt wie sie ist (Pfeil rechts = nach rechts). Am Handy hochkant bleibt alles wie bisher.
 - **Schwierigkeit steigt:** mehr Äpfel, längere Schlange am Start, mehr Gefahren. Bis Mission 7 ist jeder Pass und jede Gasse mindestens 3 Felder breit (so muss man nicht hin und her tippen, im Test geprüft), erst **ab Mission 8 wird es eng** (2 Felder). Ab Mission 6 wird die Schlange je Apfel etwas schneller (6: 0,3 %, 7: 0,45 %, 8: 0,6 %, 9: 0,75 % je Apfel statt 0,12 %).
 
 | Nr. | Name | Karte | Äpfel | Start | Belohnung |
 |---|---|---|---|---|---|
-| 1 | Erste Schritte | 4 Täler, breite Pässe (4 bis 5 Felder), 3 Giftäpfel, 5 Frösche, 3 Teiche, 3 Mauern | 10 | 3 | 6 |
-| 2 | Am Bach | drei Bäche quer durchs Tal, je eine Furt; 4 Giftäpfel, 3 Frösche | 12 | 3 | 8 |
-| 3 | Froschteich | zwei große Teiche, 11 Frösche, 3 Giftäpfel | 12 | 4 | 10 |
-| 4 | Steinmauern | Mauern in Schlangenlinie von Rand zu Rand, Winkel und Haken; 5 Giftäpfel | 15 | 4 | 12 |
-| 5 | Schatztor (Schatz) | oben (quer: rechts) die Schatzkammer hinter einem Tor im Berg: 4 Gold, 2 Diamanten, 1 Rubin | 16 | 4 | 20 + Edelsteine |
-| 6 | Giftige Wiese | 15 Giftäpfel zwischen 16 Äpfeln, drei Felder hinter Pässen | 16 | 4 | 14 |
-| 7 | Hügelland | Hügel (Berge) in der Wiese, 4 Eisflächen, 1 Gegner-Schlange | 16 | 5 | 16 |
-| 8 | Enge Pässe | Rücken mit 2er-Pässen, Mauergassen, 2 Gegner-Schlangen | 16 | 5 | 18 |
-| 9 | Sturm im Tal | vier Abschnitte hinter versetzten engen Pässen, Eis vor Teichen, 3 Gegner, 7 Frösche | 20 | 6 | 22 |
+| 1 | Erste Schritte | 4 Täler, breite Pässe (4 bis 5 Felder), 2 Giftäpfel, 5 Frösche, 3 Teiche, 3 Mauern | 10 | 3 | 6 |
+| 2 | Am Bach | drei Bäche quer durchs Tal, je eine Furt; 2 Giftäpfel, 3 Frösche | 12 | 3 | 8 |
+| 3 | Froschteich | zwei große Teiche, 11 Frösche, 2 Giftäpfel | 12 | 4 | 10 |
+| 4 | Steinmauern | Mauern in Schlangenlinie von Rand zu Rand, Winkel und Haken; 3 Giftäpfel | 15 | 4 | 12 |
+| 5 | Schatztor (Schatz) | oben (quer: rechts) die Schatzkammer hinter einem Tor im Berg: 4 Gold, 2 Diamanten, 1 Rubin; 2 Giftäpfel, neu: 1 Ameise, 2 Bäume, 1 Haus | 16 | 4 | 20 + Edelsteine |
+| 6 | Giftige Wiese | 8 Giftäpfel zwischen 16 Äpfeln, drei Felder hinter Pässen; 1 Ameise, 2 Bäume, 1 Haus | 16 | 4 | 14 |
+| 7 | Hügelland | Hügel (Berge) in der Wiese, 4 Eisflächen, 1 Gegner-Schlange; 2 Ameisen, 2 Bäume, 1 Haus | 16 | 5 | 16 |
+| 8 | Enge Pässe | Rücken mit 2er-Pässen, Mauergassen, 2 Gegner-Schlangen; 2 Ameisen, 2 Bäume, 2 Häuser | 16 | 5 | 18 |
+| 9 | Sturm im Tal | vier Abschnitte hinter versetzten engen Pässen, Eis vor Teichen, 3 Gegner, 7 Frösche; 3 Ameisen, 3 Bäume, 2 Häuser | 20 | 6 | 22 |
 | 10 | Der Wächter der Wiese (Boss) | drei Räume des Steingolems mit 3, 4 und 6 Kristallen (siehe unten) | – | 4 | 40 + Skin **Steingolem** |
+| 11 | Golemwiese | die ersten 2 kleinen Steingolems, 3 Häuser, 3 Bäume, 2 Ameisen, der mittlere Pass 2 Felder | 16 | 6 | 24 |
+| 12 | Giftnebel | 3 Blöcke breit: 3 Quellen, aus denen immer wieder Giftwolken steigen (bis 3 × 3), 2 Golems, Felsen | 18 | 6 | 26 |
+| 13 | Lavafelder | 3 Lavaseen, die sich ausbreiten, enge Pässe, 3 Golems, die erste große Tanne | 18 | 6 | 28 |
+| 14 | Tannenwald | 3 Blöcke breit: 6 große Tannen, 4 Bäume, 3 Golems, Felsen | 20 | 7 | 30 |
+| 15 | Schatzhöhle (Schatz) | oben hinter dem Tor die Schatzkammer: 4 Gold, 2 Diamanten, 2 Rubine, 2 Golems wachen; Lava, eine Giftquelle | 16 | 6 | 45 + Edelsteine |
+| 16 | Leuchttürme | 3 Blöcke breit: 3 Leuchttürme drehen ihren Kegel, 3 Golems, Lava, 2 Häuser | 20 | 7 | 32 |
+| 17 | Bienenhain | 3 Bienenstöcke, 2 Igel, 2 Giftquellen, 2 Leuchttürme, 4 Golems, 2 große Tannen | 20 | 7 | 34 |
+| 18 | Steinbruch | lange Schlucht, alle Pässe 2 Felder, 5 Golems, 2 Lavaseen, 2 Leuchttürme, Eis, 1 Gegner-Schlange | 22 | 7 | 36 |
+| 19 | Brennende Täler | 3 Blöcke breit: 3 Lavaseen, 3 Giftquellen, 5 Golems, 2 Leuchttürme, 2 Gegner, 3 große Tannen | 24 | 8 | 40 |
+| 20 | Das Golem-Heer | 3 Blöcke breit: 7 Golems, 3 Leuchttürme, Lava, 2 Giftquellen, Bienenstock, 2 Gegner, große Tannen | 25 | 8 | 60 + Skin **Schatzhüter** |
 
+- **Ab Mission 5 (seit 1.46):** Ameisen (`a`, beißen wie im freien Spiel, siehe 12b), **Bäume** (`Y`, Stamm einer stehenden Tanne, von oben ein Plus): Sie warten, bis der **Kopf auf 5 Felder** (auch schräg) herankommt, dann kippen sie nach **1 bis 8 Sekunden** (zufällig, je Mission fest) in eine freie Richtung, nie auf die Schlange. **Häuser** (`H`, zusammenhängende Felder, je Seite ein Fenster): Das **Licht wechselt alle 4 Sekunden** (je Haus versetzt), nie auf ein Feld der Schlange, nie bis 3 Felder vor den Kopf und nicht in seine Bahn; passt kein anderes Fenster, bleibt das alte an oder das Haus dunkel.
+- **Ab Mission 11:** **kleine Steingolems** (`M`, siehe 12b2), **große Tannen** (`Z`, 3 × 3, fallen 6 Felder weit, gleiche Regel wie die Bäume), **Lava** (`L`, ein See je Gruppe, breitet sich **alle 6 Sekunden** und jeden 2. Apfel um ein Feld aus, bis zu 8 bis 10 Felder mehr, nie über Äpfel und ohne etwas abzuschließen), **Giftwolken-Quellen** (`C`: alle paar Sekunden steigt dort eine Wolke auf, wächst bis 3 × 3 und löst sich auf, dann 4,5 s Pause; nicht, solange der Kopf direkt daneben ist), **Bienenstöcke** (`b`) und **Igel** (`I`). **Ab Mission 16 Leuchttürme** (`J`, 2 × 2, wie die Jägertürme): der Kegel (2 breit, 6 lang) dreht sich **alle 3,2 Sekunden** eine Vierteldrehung, endet vor der Schlange und 3 Felder vor dem Kopf (nie in seiner Bahn). Ab Mission 11 gibt es kaum noch Frösche (höchstens 2), dafür engere Pässe und Karten bis **3 Blöcke breit** (39 Felder), mit Felsen und Mauern darin.
+- **Getestet (seit 1.46):** Ein Bot schafft die Missionen 2 bis 9 und 11 bis 20, hochkant und quer (ohne Tiere, Golems, Gegner und Wolken; Licht, Kegel und Wolken umfährt er). Jede Karte ist geprüft: alles erreichbar, keine Sackgassen, kein Apfel im Fensterlicht, keine Giftwolke direkt an einem Apfel (`test/mission.test.ts`). Golems, große Tannen und der Boss im freien Spiel: `test/wiese60.test.ts`.
+- **Kein Level zum Zurückfallen:** Was im freien Spiel Level kostet, ist in der Mission **vorbei**: Fensterlicht („Ins Fensterlicht gelaufen“), Lichtkegel, Giftwolke, Ameisenbiss, Bienen.
 - **Neue Kartenzeichen:** `E` Eis (rutschig, dort lässt sich nicht lenken; in der Wiese bricht es nicht), `R` rote Gegner-Schlange (3 lang, liegt dorthin, wo am meisten Platz ist), `$` `*` `%` Gold, Diamant, Rubin. Edelsteine zählen im Schatz-Level für die Belohnung (Gold 3, Diamant 6, Rubin 10 Äpfel), nicht als Währung während der Mission.
 - **Äpfel:** alle liegen von Anfang an da, die Reihenfolge ist egal. **Der zuletzt übrige leuchtet.** Oben rechts steht „x / N“, oben in der Leiste die Nummer der Mission. Der Pfeil am Bildrand zeigt zum nächsten Apfel. Alle geholt: „Mission geschafft!“. Beim Start ein kurzer Hinweis zur Mission.
 - **Regeln:** wie im freien Spiel (jedes Hindernis tödlich, 10 ms Reaktionszeit, wachsen alle 2 Äpfel), aber **nichts kommt dazu**: keine neuen Mauern, keine Power-ups, keine Ereignisse. Frösche hüpfen nicht in die Berge. Tod = „Nochmal“ startet die Mission neu. Immer mit den Standardwerten (Master-Einstellungen gelten hier nicht).
-- **Belohnung beim ersten Abschluss** (steigt mit der Mission, siehe Tabelle), Wiederholen bringt nichts extra. Der **Skin Steingolem** (Mission 10) gibt es nur hier (im Shop mit Schloss „Mission 10 · Wiese“); fehlt er, kommt er beim nächsten Abschluss nach. Der Skin **Schatzhüter** ist für Mission 20 (Boss der nächsten Welt) vorgemerkt und bis dahin im Shop versteckt; wer ihn schon hat, behält ihn. Die in der Mission gegessenen Äpfel zählen nicht als Währung. Missionen zählen nicht für Rekord, Tagesrekord, Online-Bestenliste und Erfolge.
+- **Belohnung beim ersten Abschluss** (steigt mit der Mission, siehe Tabelle), Wiederholen bringt nichts extra. Der **Skin Steingolem** (Mission 10) und der **Skin Schatzhüter** (Mission 20, seit 1.46) gibt es nur hier (im Shop mit Schloss „Mission 10 · Wiese“ bzw. „Mission 20 · Wiese“); fehlt einer, kommt er beim nächsten Abschluss nach. Die in der Mission gegessenen Äpfel zählen nicht als Währung. Missionen zählen nicht für Rekord, Tagesrekord, Online-Bestenliste und Erfolge.
+- **Admin (seit 1.46):** Im Admin-Zugang (Optionen → Admin, Passwort) ist **jede Mission offen**, auch ohne die davor geschafft zu haben, zum Testen. Den Boss des freien Spiels testet man im Kreativ-Modus (nur Admin) mit **Startlevel 60** in der Wiese: er kommt dann sofort (ohne Tod füllen sich die Herzen wieder auf).
 - Gespeichert im Gerät (`snake-kampagne`: geschaffte Missionen, wie weit die Schlange auf der Karte reicht).
 
 ### 16-0b. Boss: der Steingolem (Mission 10)
@@ -390,6 +424,15 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 - **Getestet:** Ein Bot, der den roten Flächen ausweicht, Kristalle bringt, den Golem in den Kreis lockt und ihm durch die Tore folgt, schafft alle drei Räume in 2,5 bis 3,5 Minuten (`test/boss.test.ts`, `test/boss-bot.ts`).
 - Zum Ausprobieren beim Entwickeln: `?mission=10` startet die Mission direkt (nur im Dev-Server).
 - **Technik:** `src/game/missionen.ts` (Missionen, Karten als Text), `src/game/mission.ts` (MissionGame auf Basis des Endlos-Spiels), `src/game/boss.ts` (BossGame: Golem, Kristalle, Sockel, Bannkreis; alle Zeiten in `GOLEM`), `src/render/golem.ts` (Golem, Arena, Warnungen, Anzeige), `src/render/berge.ts` (Berge als vorgezeichnete Kacheln), `src/render/kampagne.ts` (Karte: Hintergrund einmal als Bild, Felder als kleine Bilder, je Bild nur Ausschnitt und Schlange), `src/kampagne.ts` (Fortschritt).
+
+### 16-0c. Boss im freien Spiel (Wiese, Level 60, seit 1.46)
+
+- Erreicht man im freien Spiel der **Wiese** zum ersten Mal **Level 60** (einstellbar: `bossAb`), erwacht **einmal je Runde** der Steingolem aus Mission 10 **mitten auf der Karte**. Ist gerade eine Gebietswahl offen, kommt er, sobald sie erledigt ist. Nicht beim Start mit höherem Level und nicht im Mehrspieler; startet man genau auf Level 60 (Admin: Kreativ mit Startlevel 60), kommt er gleich.
+- Er sucht sich einen Platz mit 5 Feldern Umkreis ohne Teiche, Bäume, Häuser, Türme, Lava und Eis, 8 bis 22 Felder vom Kopf. Was sonst dort liegt (Mauern, Giftäpfel, Fallen, Wolken, Frösche, Ameisen, Golems), verschwindet. Um einen **Bannkreis** stehen **4 Sockel** im Kreuz (Rot oben, Orange rechts, Gelb unten, Grün links).
+- **Solange er kämpft, gibt es keinen Apfel** und es kommt nichts Neues dazu (keine Fallen, Wolken oder Frösche aus der Regie). Die Kristalle liegen höchstens 9 Felder vom Kreis entfernt.
+- Ablauf wie in Mission 10 (ein Raum): **Kristalle einsammeln und zum Sockel gleicher Farbe bringen**, leuchten alle vier, bannt der Kreis den Golem, sobald er hineintritt, dann **mit dem Kopf durch ihn hindurch: ein Treffer genügt**. Er greift mit Stampfen, Ansturm (mit Felsbrocken) und Sprung an, alles rot angekündigt. Die Schlange hat **drei Herzen** (unten rechts, Kopf und Hals zählen), ohne Herzen: „Vom Steingolem zerschmettert“. Er tritt nicht auf Hindernisse.
+- **Besiegt:** er zerfällt zu Geröll, es gibt **25 × Apfelwert** (bei Level 60 also 50 Äpfel; einstellbar: `bossLohn`), der Apfel kommt zurück und es geht normal weiter.
+- Technik: der Kampf steckt seit 1.46 in `src/game/golemkampf.ts` (`Golemkampf`), das Mission-10-Spiel (`BossGame`) und das freie Spiel (`Game.freiBoss`) nutzen dieselbe Logik und Darstellung.
 
 ## 16-1. Tagesrekord und Erfolge
 
