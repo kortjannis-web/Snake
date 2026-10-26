@@ -12,7 +12,7 @@ import { drawEisbaer, drawEisblock, drawEisRisse, drawEiszapfenFall, drawEiszapf
 import { WUESTE } from '../game/rules'
 import { BossGame, KRISTALL_FARBEN } from '../game/boss'
 import { EntBossGame } from '../game/entboss'
-import { drawBomben, drawBombenWarnung, drawEicheln, drawEntBoss, drawEntHud, drawEntLinien, drawEntWarnungen, drawGetrageneFlamme, drawGriff, drawLaubsturm, drawLichtung, drawMiniEnt, drawRueckfeuer, drawSetzlinge, drawWaldrand } from './ent'
+import { drawBomben, drawBombenWarnung, drawEicheln, drawEntBoss, drawEntHud, drawEntLinien, drawEntWarnungen, drawGetrageneFlamme, drawGriff, drawLaubsturm, drawLichtung, drawMiniEnt, drawRueckfeuer, drawSetzlinge, drawLichtungsRand } from './ent'
 import { MissionGame } from '../game/mission'
 import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, drawKristalle, drawMinigolem, drawMinigolemEntdeckt, drawMinigolemSchlag, drawMinigolemWarnung, drawWarnungen, drawWellen } from './golem'
 import type { BergKacheln } from './berge'
@@ -913,7 +913,7 @@ export class Renderer {
     // Lichtung des Ents: Stuempfe, Holzstapel, Glutschale, rote Warnungen, Wurzeln und Ranken (unter der Schlange)
     const ent = g instanceof EntBossGame ? g.kampf : g.freiEnt
     if (ent) {
-      if (g instanceof EntBossGame) drawWaldrand(ctx, ent, cell, (x, y) => g.inside({ x, y }), now, this.reduce)
+      drawLichtungsRand(ctx, ent, cell, g instanceof EntBossGame ? (x, y) => g.inside({ x, y }) : null)
       drawLichtung(ctx, ent, cell, now, this.reduce)
       drawEntWarnungen(ctx, ent, cell, now, this.reduce)
       drawEntLinien(ctx, ent, cell, now, this.reduce)

@@ -143,6 +143,25 @@ function blatt(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, w
   ctx.restore()
 }
 
+/** Weicher orangener Schein, einmal gerendert (statt je Flamme und Bild einen Verlauf zu bauen) */
+let scheinCv: HTMLCanvasElement | null = null
+function schein(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, a: number) {
+  if (!scheinCv) {
+    scheinCv = document.createElement('canvas')
+    scheinCv.width = scheinCv.height = 64
+    const c = scheinCv.getContext('2d')!
+    const g = c.createRadialGradient(32, 32, 0, 32, 32, 32)
+    g.addColorStop(0, 'rgba(255, 160, 60, 1)')
+    g.addColorStop(1, 'rgba(255, 120, 30, 0)')
+    c.fillStyle = g
+    c.fillRect(0, 0, 64, 64)
+  }
+  const alt = ctx.globalAlpha
+  ctx.globalAlpha = alt * a
+  ctx.drawImage(scheinCv, x - r, y - r, r * 2, r * 2)
+  ctx.globalAlpha = alt
+}
+
 /** Flamme (Tropfenform, flackert) */
 function flamme(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, now: number, seed: number, a = 1) {
   if (r <= 0 || a <= 0) return
@@ -151,13 +170,7 @@ function flamme(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, 
   const sw = Math.sin(now / 110 + seed) * r * 0.2
   ctx.save()
   ctx.globalAlpha *= a
-  const g = ctx.createRadialGradient(x, y - h * 0.2, 0, x, y - h * 0.2, r * 2.2)
-  g.addColorStop(0, 'rgba(255, 170, 60, 0.45)')
-  g.addColorStop(1, 'rgba(255, 120, 30, 0)')
-  ctx.fillStyle = g
-  ctx.beginPath()
-  ctx.arc(x, y - h * 0.2, r * 2.2, 0, TAU)
-  ctx.fill()
+  schein(ctx, x, y - h * 0.2, r * 2.2, 0.45)
   for (const [s, c] of [
     [1, '#E8501E'],
     [0.7, '#FF9A2E'],
@@ -271,13 +284,7 @@ function holz(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number,
 /** Glutschale: Steinschale mit gluehenden Kohlen, aus der die Flamme kommt */
 function schale(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, now: number, reduce: boolean) {
   const p = reduce ? 0.6 : 0.5 + 0.5 * Math.sin(now / 320)
-  const gl = ctx.createRadialGradient(x, y, 0, x, y, cell * 1.6)
-  gl.addColorStop(0, `rgba(255, 130, 40, ${0.3 + 0.2 * p})`)
-  gl.addColorStop(1, 'rgba(255, 100, 30, 0)')
-  ctx.fillStyle = gl
-  ctx.beginPath()
-  ctx.arc(x, y, cell * 1.6, 0, TAU)
-  ctx.fill()
+  schein(ctx, x, y, cell * 1.6, 0.3 + 0.2 * p)
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
   ctx.beginPath()
   ctx.ellipse(x + cell * 0.06, y + cell * 0.12, cell * 0.55, cell * 0.45, 0, 0, TAU)
@@ -327,8 +334,35 @@ function dickicht(ctx: CanvasRenderingContext2D, x: number, y: number, cell: num
   }
 }
 
-/** Waldrand: dichte Baumkronen rund um die Lichtung, nur auf Feldern, die nicht zur Karte gehoeren */
-export function drawWaldrand(ctx: CanvasRenderingContext2D, k: Entkampf, cell: number, karte: (x: number, y: number) => boolean, now: number, reduce: boolean) {
+/** Waldrand und Farne aendern sich kaum: einmal in ein Bild zeichnen, dann nur noch kopieren (neu, wenn sich Feldgroesse,
+ *  Lage oder das Dickicht aendern) */
+let randBild: { key: string; cv: HTMLCanvasElement; x0: number; y0: number } | null = null
+
+/** Waldrand (nur Mission: dichte Baumkronen auf den Feldern rund um die Lichtung, die nicht zur Karte gehoeren) und Farne
+ *  am Rand der Lichtung, die zeigen, wie weit sie reicht */
+export function drawLichtungsRand(ctx: CanvasRenderingContext2D, k: Entkampf, cell: number, karte: ((x: number, y: number) => boolean) | null) {
+  const b = k.box
+  const x0 = b.x0 - 3
+  const y0 = b.y0 - 3
+  const w = b.x1 - b.x0 + 7
+  const h = b.y1 - b.y0 + 7
+  const dpr = Math.min(2, Math.abs(ctx.getTransform().a) / 1 || 1)
+  const key = `${cell}|${dpr}|${x0},${y0},${w},${h}|${k.dickicht.size}|${karte ? 1 : 0}`
+  if (randBild?.key !== key) {
+    const cv = randBild?.cv ?? document.createElement('canvas')
+    cv.width = Math.ceil(w * cell * dpr)
+    cv.height = Math.ceil(h * cell * dpr)
+    const c = cv.getContext('2d')!
+    c.setTransform(dpr, 0, 0, dpr, -x0 * cell * dpr, -y0 * cell * dpr)
+    c.clearRect(x0 * cell, y0 * cell, w * cell, h * cell)
+    if (karte) waldrand(c, k, cell, karte)
+    farne(c, k, cell)
+    randBild = { key, cv, x0, y0 }
+  }
+  ctx.drawImage(randBild.cv, x0 * cell, y0 * cell, w * cell, h * cell)
+}
+
+function waldrand(ctx: CanvasRenderingContext2D, k: Entkampf, cell: number, karte: (x: number, y: number) => boolean) {
   const b = k.box
   const krone = (x: number, y: number) => {
     // Nah an der Lichtung? (sonst bleibt es Erde)
@@ -342,20 +376,28 @@ export function drawWaldrand(ctx: CanvasRenderingContext2D, k: Entkampf, cell: n
       const cx = px(x, cell) + (h - 0.5) * cell * 0.6
       const cy = px(y, cell) + (hash(x * 7 + y * 3) - 0.5) * cell * 0.6
       const r = cell * (1.05 + h * 0.35)
-      const wind = reduce ? 0 : Math.sin(now / 1300 + x * 0.7 + y) * cell * 0.04
       ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
       ctx.beginPath()
       ctx.arc(cx + r * 0.15, cy + r * 0.2, r, 0, TAU)
       ctx.fill()
       ctx.fillStyle = rgb(mix(LAUB_DUNKEL, LAUB, h * 0.6))
       ctx.beginPath()
-      ctx.arc(cx + wind, cy, r, 0, TAU)
+      ctx.arc(cx, cy, r, 0, TAU)
       ctx.fill()
       ctx.fillStyle = rgb(mix(LAUB, LAUB_HELL, h * 0.5), 0.8)
       ctx.beginPath()
-      ctx.arc(cx + wind - r * 0.25, cy - r * 0.25, r * 0.5, 0, TAU)
+      ctx.arc(cx - r * 0.25, cy - r * 0.25, r * 0.5, 0, TAU)
       ctx.fill()
     }
+}
+
+function farne(ctx: CanvasRenderingContext2D, k: Entkampf, cell: number) {
+  for (const c of k.randFelder()) {
+    const h = hash(c.x * 13 + c.y * 7)
+    const x = px(c.x, cell)
+    const y = px(c.y, cell)
+    for (let i = 0; i < 3; i++) blatt(ctx, x + (hash(c.x + i * 3) - 0.5) * cell * 0.5, y + (hash(c.y + i * 5) - 0.5) * cell * 0.5, cell * (0.2 + h * 0.1), h * TAU + i * 2.1, i === 1 ? LAUB_DUNKEL : LAUB, 0.75)
+  }
 }
 
 /** Boden der Lichtung (unter der Schlange): Stuempfe, Dickicht, Holzstapel, Glutschale */
@@ -379,14 +421,6 @@ export function drawLichtung(ctx: CanvasRenderingContext2D, k: Entkampf, cell: n
     if (i === e.platz && e.zustand !== 'abtauchen' && e.zustand !== 'auftauchen') return
     stumpf(ctx, px(s.x, cell), px(s.y, cell), cell, i * 17 + 3)
   })
-  // Farne am Rand zeigen, wie weit die Lichtung reicht
-  for (const c of k.randFelder()) {
-    const h = hash(c.x * 13 + c.y * 7)
-    const x = px(c.x, cell)
-    const y = px(c.y, cell)
-    const wind = reduce ? 0 : Math.sin(now / 1100 + c.x + c.y) * 0.12
-    for (let i = 0; i < 3; i++) blatt(ctx, x + (hash(c.x + i * 3) - 0.5) * cell * 0.5, y + (hash(c.y + i * 5) - 0.5) * cell * 0.5, cell * (0.2 + h * 0.1), h * TAU + i * 2.1 + wind, i === 1 ? LAUB_DUNKEL : LAUB, 0.75)
-  }
   for (const kk of k.dickicht) {
     const x = (kk % 4096) - 1
     const y = Math.floor(kk / 4096) - 1
@@ -891,7 +925,7 @@ export function drawLaubsturm(ctx: CanvasRenderingContext2D, k: Entkampf, vw: nu
     ctx.fillStyle = `rgba(46, 70, 34, ${0.38 * st})`
     ctx.fillRect(0, 0, vw, vh)
   }
-  const n = reduce ? 30 : 110
+  const n = reduce ? 30 : 80
   const cell = Math.max(vw, vh) / 30
   for (let i = 0; i < n; i++) {
     const tempo = 0.35 + hash(i) * 0.5

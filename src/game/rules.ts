@@ -428,7 +428,8 @@ const grund = (haeufig: GrundArt[] = []) => Object.fromEntries(GRUND_ARTEN.map((
 /** Je Welt: Stufe je Ding (Grund-Dinge und die Tiere/Dinge der Welt; deren Name = Anfang ihrer Config-Schluessel) */
 export const WELT_STUFEN = {
   wiese: { ...grund(['teich', 'frosch']), igel: 2, huegel: 2, bienenstock: 2 },
-  wueste: { ...grund(['baum', 'frosch', 'ameise']), klapper: 2, skorpion: 2, krabbe: 2, erdmaennchen: 2, mumie: 2, fata: 2 },
+  // Kein Eis in der Wueste
+  wueste: { ...grund(['baum', 'frosch', 'ameise']), eis: 0, klapper: 2, skorpion: 2, krabbe: 2, erdmaennchen: 2, mumie: 2, fata: 2 },
   winter: { ...grund(), robbe: 2, schneemann: 2, eisbaer: 2 },
   bergwerk: { ...grund(), zwerg: 2, golem: 2, netz: 2 },
   zauberwald: { ...grund(), einhorn: 2, fee: 2, ent: 2, pilzring: 2 },
@@ -529,7 +530,8 @@ export function mitStufen(c: Config, welt: string): Config {
   const turm = (c[stufeKey(w, 'turm')] ?? 2) > 0 ? c.turmAb : NIE
   const level = neuLevels(c, reihe.length, [c.mauerAb, turm, c.lilaAb])
   for (const art of Object.keys(WELT_STUFEN[w])) {
-    const stufe = c[stufeKey(w, art)] ?? 2
+    // Eis in der Wueste gibt es nie (auch nicht, wenn eine alte Einstellung es noch einschaltet)
+    const stufe = w === 'wueste' && art === 'eis' ? 0 : (c[stufeKey(w, art)] ?? 2)
     const n = stufeAlle(c, stufe)
     const platz = reihe.indexOf(art)
     const ab = stufe <= 0 || platz < 0 ? NIE : level[platz]
