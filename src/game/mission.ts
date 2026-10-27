@@ -21,6 +21,8 @@ import type { Cause, Dir, Haus, P, Turm } from './types'
 export const LICHT_TAKT = 4000
 /** So oft (ms) dreht sich ein Leuchtturm eine Vierteldrehung weiter */
 export const TURM_TAKT = 3200
+/** So lange (ms) vor jeder Drehung zeigt ein Leuchtturm schwach, wohin sein Licht gleich faellt */
+export const TURM_WARNUNG = 700
 /** So oft (ms) breitet sich jeder Lavasee um ein Feld aus (dazu wie im freien Spiel jeden 2. Apfel) */
 export const LAVA_TAKT = 6000
 /** Pause (ms), bis aus einer Quelle die naechste Giftwolke steigt */
@@ -308,6 +310,8 @@ export class MissionGame extends Game {
   /** Naechster Lichtwechsel je Haus, naechste Drehung je Leuchtturm (Spielzeit) */
   lichtNext: number[] = []
   protected turmNext: number[] = []
+  /** Je Leuchtturm: wohin sein Licht nach der naechsten Drehung faellt (kurz vorher angekuendigt, sonst null) */
+  turmVorschau: (P[] | null)[] = []
   protected lavaNext = LAVA_TAKT
   /** Quellen der Giftwolken: naechste Wolke ab (Infinity = eine steigt gerade) */
   quellen: { p: P; next: number }[] = []
@@ -573,22 +577,27 @@ export class MissionGame extends Game {
     h.lichtT = this.time
   }
 
-  /** Leuchtturm-Kegel wie im freien Spiel (2 breit, endet an Bauten und vor der Schlange), dazu bleibt der Kopf frei:
-   *  der Kegel endet schon 3 Felder vor ihm und nicht in seiner Bahn, so trifft ein Drehen nie aus dem Nichts */
+  /** Leuchtturm-Kegel (2 breit): endet nur an Bauten und am Rand. Er faellt auch ueber die Schlange, aber nur der Kopf
+   *  nimmt Schaden (der Koerper liegt einfach im Licht). Dreht er sich auf den Kopf, ist es vorbei; dafuer zeigt er
+   *  TURM_WARNUNG ms vorher, wohin er sich dreht */
   protected override kegel(t: Turm) {
-    const d = STEP[t.dir]
+    t.kegel = this.kegelFelder(t, t.dir)
+    t.kegelT = this.time
+  }
+
+  protected kegelFelder(t: Turm, dir: Dir): P[] {
+    const d = STEP[dir]
     const drin = new Set(t.cells.map((c) => key(c.x, c.y)))
     const vorn = t.cells.filter((c) => !drin.has(key(c.x + d.x, c.y + d.y)))
     const bau = this.bauSet()
-    const head = this.body[0]
-    t.kegel = []
+    const out: P[] = []
     for (const s of vorn)
       for (let i = 1; i <= this.cfg.kegelLaenge; i++) {
         const c = { x: s.x + d.x * i, y: s.y + d.y * i }
-        if (!this.inside(c) || bau.has(key(c.x, c.y)) || this.aufSchlange(c) || manhattan(c, head) <= 2 || this.imWeg(c, 4)) break
-        t.kegel.push(c)
+        if (!this.inside(c) || bau.has(key(c.x, c.y))) break
+        out.push(c)
       }
-    t.kegelT = this.time
+    return out
   }
 
   /** Stehende Baeume wachen auf, wenn der Kopf nah ist: dann kippen sie nach 1 bis 8 Sekunden */
@@ -613,11 +622,16 @@ export class MissionGame extends Game {
       if (h.licht !== vorher) this.emit({ type: 'light' })
     })
     this.tuerme.forEach((tu, i) => {
+      // Kurz vorher ankuendigen, wohin das Licht gleich faellt
+      if (t >= this.turmNext[i] - TURM_WARNUNG && !this.turmVorschau[i]) this.turmVorschau[i] = this.kegelFelder(tu, CW[tu.dir])
       if (t < this.turmNext[i]) return
       this.turmNext[i] = t + this.turmTakt
+      this.turmVorschau[i] = null
       tu.altDir = tu.dir
       tu.dir = CW[tu.dir]
       this.kegel(tu)
+      // Dreht er sich auf den Kopf: Treffer (nur der Kopf zaehlt)
+      if (this.imKegel(this.body[0])) this.treffer(this.body[0])
     })
     if (this.lava.length && t >= this.lavaNext) {
       this.lavaNext = t + LAVA_TAKT

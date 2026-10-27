@@ -18,7 +18,7 @@ import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, d
 import type { BergKacheln } from './berge'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { abgrundKachel, drawAbgrund, drawSprudeln, drawVulkanBoden, type AbgrundKachel } from './vulkan'
-import { BAUM_FALL, BAUM_WARNUNG, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
+import { BAUM_FALL, BAUM_WARNUNG, CW, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
 import type { Dir, Funke, GameEvent, Gegner, P, Wesen } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
@@ -878,8 +878,8 @@ export class Renderer {
     }
 
     // Jaegertuerme: Kegel dreht sich mit, blendet nach jedem Wechsel ein
-    for (const t of g.tuerme) {
-      if (!t.cells.some((c) => sicht(c, 8)) && !t.kegel.some((c) => sicht(c))) continue
+    g.tuerme.forEach((t, i) => {
+      if (!t.cells.some((c) => sicht(c, 8)) && !t.kegel.some((c) => sicht(c))) return
       const k = this.reduce ? 1 : easeOut(clamp01((now - t.kegelT) / 500))
       const a0 = DIR_WINKEL[t.altDir]
       let a1 = DIR_WINKEL[t.dir]
@@ -887,9 +887,12 @@ export class Renderer {
       while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
       const ang = lerp(a0, a1, k)
       const mitte = { x: (t.c.x + 1) * cell, y: (t.c.y + 1) * cell }
+      // Mission (Leuchtturm): kurz vor der Drehung schwach und pulsierend, wohin das Licht gleich faellt
+      const vorschau = g instanceof MissionGame ? g.turmVorschau[i] : null
+      if (vorschau) drawKegel(ctx, vorschau, mitte, DIR_WINKEL[CW[t.dir]], cell, this.reduce ? 0.3 : 0.22 + 0.14 * Math.sin(now / 60), now)
       drawKegel(ctx, t.kegel, mitte, DIR_WINKEL[t.dir], cell, k * clamp01((now - t.t) / 600), now)
       drawTurm(ctx, mitte.x, mitte.y, cell, ang, this.reduce ? 1 : backOut(clamp01((now - t.t) / 520)), now)
-    }
+    })
 
     // Fallen: ploppen auf, blinken kurz vor dem Ende, schnappen zu
     for (const f of g.fallen) {
