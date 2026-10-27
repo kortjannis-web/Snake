@@ -21,6 +21,7 @@ function sperren(g: MissionGame) {
   for (const e of g.eis) for (const c of e.cells) zu.add(key(c.x, c.y))
   for (const h of g.haeuser) for (const c of h.strahl) zu.add(key(c.x, c.y))
   for (const t of g.tuerme) for (const c of t.kegel) zu.add(key(c.x, c.y))
+  for (const v of g.turmVorschau) for (const c of v ?? []) zu.add(key(c.x, c.y))
   for (const w of g.wolken) for (const c of [...w.cells, ...w.pending]) zu.add(key(c.x, c.y))
   for (const b of g.body.slice(0, -1)) zu.add(key(b.x, b.y))
   return zu
@@ -484,8 +485,6 @@ describe('Kampagne', () => {
     const d0 = t.tuerme[0].dir
     for (let i = 0; i * 50 < TURM_TAKT + 100; i++) t.update(50)
     expect(t.tuerme[0].dir).not.toBe(d0)
-    const kopf = t.body[0]
-    for (const tu of t.tuerme) for (const c of tu.kegel) expect(Math.abs(c.x - kopf.x) + Math.abs(c.y - kopf.y)).toBeGreaterThan(2)
   })
 
   it('Mission 18: der Leuchtturm leuchtet durch die Luecken im Fels weit ueber die Wiese und dreht sich schneller', () => {
@@ -500,6 +499,46 @@ describe('Kampagne', () => {
       g['kegel'](t)
       expect(t.kegel.length, d).toBeGreaterThanOrEqual(2 * 12)
     }
+  })
+
+  it('Mission 18: das Licht faellt ueber die Schlange, nur der Kopf nimmt Schaden; vor jeder Drehung zeigt er, wohin', () => {
+    const neu = () => {
+      const g = new MissionGame(WIESE_MISSIONEN[17])
+      ruhig(g)
+      g.tick = 1e12
+      return g
+    }
+    // Koerper quer im Licht, der Kopf daneben: nichts passiert, der Kegel geht ueber den Koerper hinweg
+    const g = neu()
+    const t = g.tuerme[0]
+    t.dir = 'u'
+    g['kegel'](t)
+    const spalte = t.kegel.filter((c) => c.x === t.c.x).sort((a, b) => b.y - a.y)
+    const k = spalte.find((c, i) => i >= 4 && [-1, 0, 1, 2].every((dx) => g.inside({ x: c.x + dx, y: c.y })))!
+    g.body = [{ x: k.x - 1, y: k.y }, { x: k.x, y: k.y }, { x: k.x + 1, y: k.y }, { x: k.x + 2, y: k.y }]
+    g.prev = g.body.map((p) => ({ ...p }))
+    g['kegel'](t)
+    expect(t.kegel.some((c) => c.x === k.x && c.y === k.y)).toBe(true)
+    expect(t.kegel.some((c) => c.x === k.x && c.y === k.y - 3)).toBe(true)
+    for (let i = 0; i < 10; i++) g.update(50)
+    expect(g.cause ?? g.status).toBe('play')
+    // Kopf genau dort, wohin er sich als Naechstes dreht: erst die Ankuendigung, dann ist es vorbei
+    const h = neu()
+    const tu = h.tuerme[0]
+    tu.dir = 'u'
+    h['kegel'](tu)
+    const ziel = h['kegelFelder'](tu, 'r') as P[]
+    const z = ziel[6]
+    h.body = [{ ...z }, { x: z.x, y: z.y + 1 }, { x: z.x, y: z.y + 2 }]
+    h.prev = h.body.map((p) => ({ ...p }))
+    h['turmNext'][0] = h.time + 1000
+    h.turmVorschau[0] = null
+    for (let i = 0; i < 8; i++) h.update(50)
+    expect((h.turmVorschau[0] as P[] | null)?.some((c) => c.x === z.x && c.y === z.y)).toBe(true)
+    expect(h.cause ?? h.status).toBe('play')
+    for (let i = 0; i < 20 && h.status === 'play'; i++) h.update(50)
+    expect(h.status).toBe('over')
+    expect(h.cause).toBe('kegel')
   })
 
   it('kleine Steingolems: trifft der Schlag den Kopf, ist die Mission verloren', () => {

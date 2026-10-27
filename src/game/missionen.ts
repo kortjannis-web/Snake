@@ -1449,7 +1449,7 @@ const BAU: Bau[] = [
   { karte: WIESE_15, richtung: 'u', laenge: 6, seed: 0x5eed15, tempoProApfel: 0.85, wolkeStufe: 2, lavaMehr: 8, hinweis: 'Ganz oben hinter dem Tor liegt der Schatz, Ameisen bewachen ihn.' },
   { karte: WIESE_16, richtung: 'u', laenge: 7, seed: 0x5eed16, tempoProApfel: 0.95, lavaMehr: 8, hinweis: 'Neu: ein Mini-Ent. Er wirft Blätterbomben. Fährst du direkt an ihm vorbei, packt er zu: dann sofort von ihm weg wischen.' },
   { karte: WIESE_17, richtung: 'u', laenge: 7, seed: 0x5eed17, tempoProApfel: 1, wolkeStufe: 2, hinweis: 'Neu: Bienenstöcke. Zu nah dran, und der Schwarm kommt. Dazu Igel, Wolken und zwei Mini-Ents.' },
-  { karte: WIESE_18, richtung: 'u', laenge: 7, seed: 0x5eed18, tempoProApfel: 1, lavaMehr: 8, turm: { laenge: 16, takt: 2400 }, hinweis: 'In der Mitte steht der Leuchtturm. Sein Licht fällt durch die Lücken im Fels weit über die Wiese und dreht sich schnell. Wer ins Licht fährt, hat verloren.' },
+  { karte: WIESE_18, richtung: 'u', laenge: 7, seed: 0x5eed18, tempoProApfel: 1, lavaMehr: 8, turm: { laenge: 16, takt: 2400 }, hinweis: 'In der Mitte steht der Leuchtturm. Sein Licht fällt durch die Lücken im Fels weit über die Wiese und dreht sich schnell. Kurz vorher siehst du schwach, wohin. Trifft es deinen Kopf, ist es vorbei.' },
   { karte: WIESE_19, richtung: 'u', laenge: 8, seed: 0x5eed19, tempoProApfel: 1.05, wolkeStufe: 2, lavaMehr: 10, hinweis: 'Im dunklen Forst: drei Mini-Ents, Lava, Giftwolken und große Tannen. Der Ent ist nah.' },
   { karte: WIESE_20, richtung: 'u', laenge: 4, seed: 0x5eed20, bild: BOSS_BILD, boss: 'ent' },
 ]
