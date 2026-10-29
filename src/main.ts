@@ -250,6 +250,8 @@ function newGame(alsKreativ = istKreativ, tages = istTages, modus: SpielModus = 
     // Kampagne: feste Karte, immer gleich (Berge rundherum, alle Aepfel liegen schon da).
     // Im Querformat (PC) ist sie um 90 Grad gedreht: man spielt von links nach rechts und die Felder sind groesser
     const mg = missionSpiel(laufMission, stage.clientWidth > stage.clientHeight)
+    // Schatz-Level: die Edelsteine gibt es nur beim ersten Mal, danach liegen sie nicht mehr da
+    if (laufMission.art === 'schatz' && geschafft(laufMission)) mg.funde = []
     game = mg
     const id = mg.quer ? `${laufMission.id}:quer` : laufMission.id
     let b = bergeJe.get(id)

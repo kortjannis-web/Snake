@@ -423,6 +423,8 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 ### 16-0a2. Unter der Erde: Missionen 21 bis 30 (seit 1.49)
 
 - **Neues Bild, gleiche Welt:** Ab Mission 21 bleibt es die Wiese (Wald), aber immer öfter geht es **unter die Erde**, als hätte man sich durchgegraben: der Boden ist **Stein** (Pflaster mit Erde in den Fugen, ab und zu ein Grasbüschel), die Wände sind **Erde** mit Steinen, Kohle und herabhängenden **Wurzeln**, je tiefer desto dunkler; **manche Abschnitte sind gemauert** (Feldsteine), ab und zu brennt eine **Fackel**. Welche Berge zu Erdwänden werden, ergibt sich aus der Karte: was näher am Steinboden liegt als an der Wiese. Kartenzeichen `,` (Steinboden); Äpfel, Gift, Lava usw. liegen auf dem Boden, der ihnen am nächsten ist.
+- **Steinboden seit 1.50 ruhiger:** kontrastarm, ein, zwei flache Pflastersteine je Feld, damit er nicht ablenkt (gleich in den Missionen und in den Kerkern des freien Spiels).
+- **Schätze nur einmal (seit 1.50):** In den Schatz-Leveln (Mission 5, 15 und 25) liegen die Edelsteine nur, bis die Mission einmal geschafft ist; spielt man sie noch einmal, sind sie weg (die Belohnung gab es ohnehin nur beim ersten Mal).
 - **Breite Gänge:** Gänge und Gassen sind **mindestens 3 Felder breit** (oft 4 bis 5), dazwischen immer wieder weite Hallen und Räume. Nur der Schleichweg in Mission 24 ist absichtlich 2 breit (im Test geprüft).
 - **Weniger Äpfel:** 21: 8, 22: 6, 23: 6, 24: 5, 25: 5 (+ Edelsteine), 26: 4, 27: keine (3 Siegel), **28 und 29: nur noch 3**, 30: keine (Boss).
 
@@ -432,7 +434,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 | 22 | Säulenhalle | große Halle mit Säulen zwischen zwei Wäldern, Seitengänge | 6 | 7 | 44 |
 | 23 | Moderkeller | zwei weite Gewölbe, drei Gänge dazwischen, 3 Giftquellen | 6 | 7 | 46 |
 | 24 | Glutgang | breiter Gang (5) in Kehren, Lava in den Ecken, enger Schleichweg (2) in der Mitte, oben ein Mini-Ent | 5 | 8 | 48 |
-| 25 | Schatzgewölbe (Schatz) | zwei Gänge mit Kammern, oben die Schatzkammer (4 Gold, 2 Diamanten, 2 Rubine) | 5 | 7 | 65 + Edelsteine |
+| 25 | Schatzgewölbe (Schatz) | seit 1.50: ein Gang (3 breit) windet sich in Kehren nach oben, dazu ein Mittelgang; an den Gängen **acht Nischen mit je einem Schatz**, oben die Schatzkammer (zusammen 5 Gold, 3 Diamanten, 3 Rubine) | 5 | 7 | 65 + Edelsteine |
 | 26 | Runenhallen | fast nur unter der Erde: 9 Hallen im Raster, 1 Mini-Ent, neu: **1 Käfigkopf** | 4 | 8 | 50 |
 | 27 | Die drei Siegel | Fels-Labyrinth im Wald (Gassen 3 bis 4 breit), 3 kleine Höhlen mit je einem **Siegel**, oben die **große Tür**; 1 Käfigkopf | – (3 Siegel) | 8 | 55 |
 | 28 | Hinter der Tür | **nur unter der Erde**: Gänge 3 bis 4 breit zwischen weiten Hallen, 2 Käfigköpfe | 3 | 8 | 58 |
@@ -446,7 +448,7 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
 
 ### 16-0a3. Boss: der Käfigmeister (Mission 30, seit 1.49)
 
-- **Das Labyrinth:** 52 × 72 Felder unter der Erde, Gänge 3 bis 4 breit, **sechs Räume** (je 11 × 9, je zwei Säulen als Deckung), zwei links, zwei rechts übereinander, dazwischen Gänge, Quergänge und ein Mittelgang. Unten der Start, oben der Vorplatz mit der **Tür hinaus** (von Anfang an zu sehen, aber zu). Drei Käfigköpfe streifen durch die Gänge.
+- **Das Labyrinth:** 52 × 72 Felder unter der Erde, Gänge 3 bis 4 breit, **sechs Räume** (je 11 × 9, je zwei Säulen und seit 1.50 je zwei **Bücherschränke** als Deckung; Schränke sind Hindernisse und halten Strahlen auf, „Gegen einen Bücherschrank gefahren“). Seit 1.50 liegen **Augen** (einzeln und in Haufen, die Pupillen schauen zum Kopf, ab und zu blinzelt eins) und **Bücher** (zu und aufgeschlagen) am Boden, dicht in seinen Räumen, selten in den Gängen. zwei links, zwei rechts übereinander, dazwischen Gänge, Quergänge und ein Mittelgang. Unten der Start, oben der Vorplatz mit der **Tür hinaus** (von Anfang an zu sehen, aber zu). Drei Käfigköpfe streifen durch die Gänge.
 - **Suchen:** Der Käfigmeister (ein Gelehrter in dunkler Robe, der Kopf in einem großen Eisenkäfig, vor sich ein aufgeschlagenes Buch mit leuchtenden Runen) **erscheint in einem zufälligen der sechs Räume** (Glockenton, „Der Käfigmeister ist erschienen“). Kein Pfeil zeigt hin, auch die Leiste unten verrät den Raum nicht („IRGENDWO …“): man muss ihn suchen.
 - **Kampf:** Betritt man **seinen Raum**, erwacht er („GEFUNDEN“). Im Raum liegen **Flammen** (höchstens zwei gleichzeitig, nie direkt am Kopf oder an ihm). **Jede geholte Flamme fliegt im Bogen auf ihn zu** und trifft ihn. **Fünf Flammen kosten ihn ein Leben** (links unten die fünf Punkte, die Leiste schrumpft). Dann schreit er und **verschwindet**.
 - **Wieder suchen:** Danach wählt er einen **zufälligen Raum, auch denselben**, und **erscheint dort erst, wenn man diesen Raum nicht sieht** (Kopf weiter als 6 Felder vom Raum entfernt). Steht man noch im selben Raum, taucht er also erst wieder auf, wenn man gegangen ist.
@@ -458,7 +460,17 @@ Stand: Version 1.15.0 (18.10.2026). Alle Zahlen sind Standardwerte. Sie stehen i
   4. **Teleport:** er verschwindet (0,45 s) und taucht an einer anderen Stelle im Raum wieder auf, mindestens 5 Felder vom Kopf. Ist der Kopf ganz nah, teleportiert er sich lieber.
 - Hineinfahren ist vorbei („Vom Käfigmeister erwischt“). Oben rechts stehen die Flammen dieses Lebens („x / 5“).
 - **Getestet** (`test/meister.test.ts`): Erscheinen nur außer Sicht, Flammen und Leben, alle vier Angriffe (Säulen geben Deckung, der Körper darf im Zauber liegen), Tür und Ziel, Querformat; ein Bot, der ausweicht und sucht, besiegt ihn in fünf Varianten (hochkant und quer, anderer Zufall).
-- **Technik:** `src/game/kaefigboss.ts` (`KaefigBossGame`, alle Zeiten in `MEISTER`), Zeichnungen in `src/render/meister.ts`.
+- **Fairer Teleport (seit 1.50):** Wo er auftaucht, wird beim Auftauchen noch einmal geprüft: nie näher als 5 Felder am Kopf, nie in dessen Fahrtrichtung (6 Felder) und nie direkt neben einer Flamme; sonst sucht er sich eine andere Stelle.
+- **Technik:** Der Kampf steckt seit 1.50 in `src/game/meisterkampf.ts` (`Meisterkampf`, alle Zeiten in `MEISTER`; Mission 30 und freies Spiel nutzen dieselbe Logik), das Labyrinth in `src/game/kaefigboss.ts` (`KaefigBossGame`), Zeichnungen in `src/render/meister.ts` und `src/render/kerker.ts`.
+
+### 16-0a4. Kerker und Käfigmeister im freien Spiel (Wiese, Level 145 bis 150, seit 1.50)
+
+- **Vorboten:** Auf **Level 145, 147 und 149** (5, 3 und 1 Level vor `meisterAb` = 150) gräbt sich je ein **Kerker** in die Erde: an einer zufälligen Stelle des Kartenrands (10 bis 50 Felder vom Kopf) ein **Gang** (5 breit, 9 lang) nach außen, am Ende ein **großer Raum** (17 × 14), rundherum bleibt Erde. Gang und Raum haben Steinboden, im Raum liegen Augen und Bücher. Groß, weil die Schlange auf diesem Level lang ist. Beben, „Ein Kerker hat sich aufgetan“. **Aus jedem Kerker kommt ein Käfigkopf** (wie in der Kampagne). In die Kerker kommt sonst nichts (kein Apfel, keine Power-ups); neue Gebiete legen sich nie über einen Kerker; Kerker meiden Lava im Stein.
+- **Level 150: der Käfigmeister.** Er erscheint in einem der **drei Kerker-Räume** (nur dort, wo man gerade nicht hinsieht), man muss ihn suchen. In seinem Raum liegen Flammen, jede fliegt auf ihn; **zwei Flammen je Raum** (`meisterFlammen`) kosten ihn ein Leben, dann verschwindet er und taucht in einem zufälligen Kerker wieder auf (auch im selben, sobald man ihn nicht sieht). **Drei Leben.** Angriffe wie in Mission 30. Solange er kämpft, gibt es keinen Apfel und keine Ereignisse. Ein Treffer am Kopf ist vorbei (Kreativ ohne Tod: nichts).
+- **Besiegt:** **50 × Apfelwert** (`meisterLohn`) und **das nächste Level** (wie ein Apfel), die Käfigköpfe zerfallen, der Apfel ist wieder da. **Sobald die Schlange ganz aus den Kerkern heraus ist, schließen sich alle drei**: die Gänge werden wieder Erde (was darin lag, ist weg).
+- Nicht in anderen Welten und nicht im Mehrspieler. Im Admin (Wahrscheinlichkeiten) einstellbar: `meisterAb`, `meisterFlammen`, `meisterLohn`. Zum Testen: Kreativ mit Startlevel 150 (die drei Kerker sind dann schon da).
+- **Getestet** (`test/kerker.test.ts`): Kerker auf 145, 147, 149 (je ein Käfigkopf, Größe, Erde rundherum, keine Überlappung, Platz bei 20 Karten), der Kampf auf 150 mit drei Leben und zwei Flammen je Raum, das nächste Level, das Schließen erst, wenn die Schlange draußen ist.
+- **Technik:** `neuerKerker`, `meisterStarten`, `meisterBesiegt`, `kerkerSchliessen` in `src/game/game.ts` (`KERKER`, `KERKER_VORBOTEN`), die Käfigköpfe laufen seit 1.50 im Grundspiel (`kaefigTakt`).
 
 ### 16-0b. Boss: der Steingolem (Mission 10)
 
