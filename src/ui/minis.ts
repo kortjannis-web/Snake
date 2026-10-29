@@ -326,4 +326,5 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   kaefigstrahl: 'gegner',
   dungeontuer: 'mauer',
   kaefigmeister: 'gegner',
+  regal: 'mauer',
 }

@@ -129,6 +129,11 @@ const BASIS = {
   // Ent (Wiese): auf diesem Level einmal der Ent auf einer Lichtung (3 Holzstapel, ein Treffer), Belohnung mal Apfelwert
   entBossAb: 100,
   entBossLohn: 40,
+  // Kaefigmeister (Wiese): 5, 3 und 1 Level vorher je ein Kerker mit einem Kaefigkopf, auf diesem Level der Boss in den drei
+  // Kerker-Raeumen (drei Leben, je Leben so viele Flammen), Belohnung mal Apfelwert
+  meisterAb: 150,
+  meisterFlammen: 2,
+  meisterLohn: 50,
   // Mini-Ents (Missionen 16 bis 20): werfen Blaetterbomben, packen zu, wenn man direkt vorbeifaehrt
   minientWeite: 4,
   minientWurf: 2.6,
@@ -810,6 +815,9 @@ const SCHEMA_ROH: SchemaGruppe[] = [
       { key: 'bossLohn', label: 'Boss besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
       { key: 'entBossAb', label: 'Ent auf Level (10, 7, 4 und 2 Level vorher je ein Mini-Ent)', min: 1, max: 10000 },
       { key: 'entBossLohn', label: 'Ent besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
+      { key: 'meisterAb', label: 'Käfigmeister auf Level (5, 3 und 1 Level vorher je ein Kerker mit Käfigkopf)', min: 1, max: 10000 },
+      { key: 'meisterFlammen', label: 'Käfigmeister: Flammen je Leben', min: 1, max: 10 },
+      { key: 'meisterLohn', label: 'Käfigmeister besiegt bringt', min: 0, max: 1000, einheit: '× Apfelwert' },
       { key: 'minientWeite', label: 'Mini-Ent bemerkt dich bis', min: 1, max: 20, einheit: 'Felder' },
       { key: 'minientWurf', label: 'Mini-Ent wirft alle', min: 0.3, max: 20, step: 0.1, einheit: 's' },
       { key: 'minientFlug', label: 'Blätterbombe fliegt', min: 0.2, max: 5, step: 0.05, einheit: 's' },

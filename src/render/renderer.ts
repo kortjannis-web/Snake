@@ -16,7 +16,7 @@ import { drawBomben, drawBombenWarnung, drawEicheln, drawEntBoss, drawEntHud, dr
 import { MissionGame } from '../game/mission'
 import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, drawKristalle, drawMinigolem, drawMinigolemEntdeckt, drawMinigolemSchlag, drawMinigolemWarnung, drawWarnungen, drawWellen } from './golem'
 import type { BergKacheln } from './berge'
-import { drawKaefigEntdeckt, drawKaefigkopf, drawKaefigStrahl, drawKaefigWarnung, drawSiegel, drawTuer } from './kerker'
+import { drawAugen, drawBuchAmBoden, drawKaefigEntdeckt, drawKaefigkopf, drawKaefigStrahl, drawKaefigWarnung, drawRegal, drawSiegel, drawSteinboden, drawTuer } from './kerker'
 import { KAEFIG } from '../game/mission'
 import { KaefigBossGame, MEISTER } from '../game/kaefigboss'
 import { drawMeister, drawMeisterAngriff, drawMeisterFlamme, drawMeisterFlug, drawMeisterHud, drawMeisterKreis } from './meister'
@@ -392,6 +392,8 @@ export class Renderer {
       }
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
+    } else if (e.type === 'kerker') {
+      if (!this.reduce) this.shake = { until: g.time + 600, amp: cell * 0.12 }
     } else if (e.type === 'tuerAuf') {
       if (!this.reduce) this.shake = { until: g.time + 700, amp: cell * 0.12 }
     } else if (e.type === 'fund') {
@@ -705,6 +707,13 @@ export class Renderer {
       }
     }
 
+    // Kerker im freien Spiel (vor dem Kaefigmeister): Steinboden, im Raum Augen und Buecher
+    if (g.kerker.length)
+      for (const k of g.kerker)
+        for (const c of k.cells) {
+          if (!sicht(c, 1)) continue
+          drawSteinboden(ctx, c.x, c.y, cell)
+        }
     // Schrumpfende Karte: die Zone ist dunkelrot gestreift, der naechste Ring blinkt
     if (this.mehr?.zone) {
       const { zellen, bald } = this.mehr.zone
@@ -934,11 +943,13 @@ export class Renderer {
     // Dungeon: die grosse Tuer (Mission 27), die Siegel und die Ankuendigung der Kaefigkopf-Strahlen
     const mg = g instanceof MissionGame ? g : null
     if (mg?.tuer.length) drawTuer(ctx, mg.tuer, cell, mg.tuerAuf >= 0 ? (now - mg.tuerAuf) / 1000 + 0.001 : 0, mg.siegelZiel - mg.siegel.length, mg.siegelZiel, now, this.reduce)
-    if (mg)
-      for (const z of mg.kaefige) {
-        const an = z.angriff
-        if (an && sicht(z.p, 9)) drawKaefigWarnung(ctx, z.p, an.cells, clamp01((now - an.ab) / Math.max(1, an.los - an.ab)), cell, now, this.reduce)
-      }
+    // Reich des Kaefigmeisters: Augen und Buecher am Boden (vor allem in seinen Raeumen), Buecherschraenke
+    this.augenUndBuecher(g, cell, now, sicht, px(head.x), px(head.y), { x0, y0, x1, y1 })
+    if (mg) for (const r of mg.karte.regale) if (r.some((c) => sicht(c, 2))) drawRegal(ctx, r, cell)
+    for (const z of g.kaefige) {
+      const an = z.angriff
+      if (an && sicht(z.p, 9)) drawKaefigWarnung(ctx, z.p, an.cells, clamp01((now - an.ab) / Math.max(1, an.los - an.ab)), cell, now, this.reduce)
+    }
     // Kein Apfel, wo der Pfeil auf ein Siegel oder die offene Tuer zeigt
     const keinApfel = !!mg && (mg.siegel.includes(g.apple) || mg.tuer.some((t) => t === g.apple.p))
 
@@ -1053,8 +1064,7 @@ export class Renderer {
       if (mg.jagt >= 0) drawMinigolemEntdeckt(ctx, x, y, cell, (now - mg.jagt) / 900)
     }
     // Kaefigkoepfe: torkeln geradeaus, sehen sie dich, bleiben sie stehen (Ausrufezeichen) und werfen Strahlen
-    if (g instanceof MissionGame)
-      for (const z of g.kaefige) {
+    for (const z of g.kaefige) {
         if (!sicht(z.p, 10)) continue
         if (z.strahl.length) drawKaefigStrahl(ctx, z.p, z.strahl, (now - z.strahlT) / KAEFIG.strahl, cell, now)
         if (!sicht(z.p, 2)) continue
@@ -1072,10 +1082,11 @@ export class Renderer {
         if (z.jagt >= 0) drawKaefigEntdeckt(ctx, x, y, cell, (now - z.jagt) / 900)
         licht(x, y, cell * 1.4)
       }
-    // Der Kaefigmeister (Mission 30): Flammen im Raum, Angriffe, er selbst, Flammen im Flug
-    if (g instanceof KaefigBossGame) {
-      const M = g.meister
-      for (const f of g.flammen) if (sicht(f.p)) {
+    // Der Kaefigmeister (Mission 30 und freies Spiel): Flammen im Raum, Angriffe, er selbst, Flammen im Flug
+    const meister = g instanceof KaefigBossGame ? g.kampf : g.freiMeister
+    if (meister) {
+      const M = meister.meister
+      for (const f of meister.flammen) if (sicht(f.p)) {
         drawMeisterFlamme(ctx, px(f.p.x), px(f.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - f.t) / 380)), now, this.reduce)
         licht(px(f.p.x), px(f.p.y), cell * 2)
       }
@@ -1098,7 +1109,7 @@ export class Renderer {
         if (M.zustand === 'getroffen' || M.zustand === 'tot') drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - M.t) / 900, now)
         if (sichtbar > 0) licht(px(M.p.x), px(M.p.y), cell * 2.4)
       }
-      for (const f of g.fluege) drawMeisterFlug(ctx, f.von, M.p, (now - f.t) / MEISTER.flug, cell, now)
+      for (const f of meister.fluege) drawMeisterFlug(ctx, f.von, M.p, (now - f.t) / MEISTER.flug, cell, now)
     }
 
     // Einschlaege: Schatten als Warnung, danach der liegende Block (bis zum naechsten Apfel)
@@ -1401,7 +1412,8 @@ export class Renderer {
     if (g.status === 'play' && !boss && !ent) this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
     if (boss) drawBossHud(ctx, boss, vw, vh, now)
-    if (g instanceof KaefigBossGame) drawMeisterHud(ctx, g, vw, vh, now)
+    if (g instanceof KaefigBossGame) drawMeisterHud(ctx, g.kampf, vw, vh, now)
+    else if (g.freiMeister) drawMeisterHud(ctx, g.freiMeister, vw, vh, now)
     if (ent) {
       drawLaubsturm(ctx, ent, vw, vh, now, this.reduce)
       drawEntHud(ctx, ent, vw, vh, now)
@@ -2283,6 +2295,35 @@ export class Renderer {
     // Freigegrabene Felder ausserhalb der Bloecke
     ctx.fillStyle = 'rgba(245, 239, 230, 0.2)'
     for (const c of g.extra) ctx.fillRect(x0 + c.x * s, y0 + c.y * s, Math.max(1, s), Math.max(1, s))
+  }
+
+  /** Augen und Buecher am Boden: in den Raeumen des Kaefigmeisters (Mission 30) und in den Kerkern des freien Spiels,
+   *  dicht in den Raeumen, selten in den Gaengen. Fest je Feld (Weltkoordinaten), die Augen schauen zum Kopf */
+  private augenUndBuecher(g: Game, cell: number, now: number, sicht: (p: P, m?: number) => boolean, kx: number, ky: number, feld: { x0: number; y0: number; x1: number; y1: number }) {
+    const { ctx } = this
+    const deko = (c: P, imRaum: boolean) => {
+      const w = g.welt_(c)
+      const z = feldZufall(w.x * 7 + 3, w.y * 5 + 11)
+      const px = (c.x + 0.5) * cell
+      const py = (c.y + 0.5) * cell
+      if (z < (imRaum ? 0.07 : 0.015)) drawAugen(ctx, px, py, cell, w.x * 31 + w.y * 17, kx, ky, now, this.reduce)
+      else if (z > (imRaum ? 0.95 : 0.99)) drawBuchAmBoden(ctx, px, py, cell, w.x * 13 + w.y * 7)
+    }
+    if (g instanceof KaefigBossGame) {
+      const frei = g.hindernisse()
+      const { x0, y0, x1, y1 } = feld
+      for (let y = y0; y <= y1; y++)
+        for (let x = x0; x <= x1; x++) {
+          const c = { x, y }
+          if (!g.inside(c) || frei.has(key(x, y)) || !g.dungeonSet.has(key(x, y))) continue
+          deko(c, g.raeume.some((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1))
+        }
+      return
+    }
+    for (const k of g.kerker) {
+      const r = k.raum
+      for (const c of k.cells) if (sicht(c) && !g.aufSchlange(c) && !g.kaefige.some((z) => z.p.x === c.x && z.p.y === c.y)) deko(c, c.x >= r.x0 && c.x <= r.x1 && c.y >= r.y0 && c.y <= r.y1)
+    }
   }
 
   /** Pfeil am Bildrand, wenn der Apfel ausserhalb liegt */
