@@ -55,6 +55,8 @@ import {
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 /** S-Kurve mit flachem Anfang und Ende (auch die Beschleunigung setzt weich ein) */
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
+const DIRS4: P[] = [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }]
+
 /** Weiches Maximum: wie Math.max, nur ohne Knick an der Uebergabestelle */
 const weichMax = (a: number, b: number, k: number) => (a + b + Math.sqrt((a - b) * (a - b) + k * k)) / 2
 /** Kamera: Bereich-Kamera mit festem Ausschnitt, die neue Bereiche frueh und weich vorwegnimmt,
@@ -2301,13 +2303,10 @@ export class Renderer {
    *  dicht in den Raeumen, selten in den Gaengen. Fest je Feld (Weltkoordinaten), die Augen schauen zum Kopf */
   private augenUndBuecher(g: Game, cell: number, now: number, sicht: (p: P, m?: number) => boolean, kx: number, ky: number, feld: { x0: number; y0: number; x1: number; y1: number }) {
     const { ctx } = this
-    const deko = (c: P, imRaum: boolean) => {
+    // Buecher: fest je Feld (Weltkoordinaten), dichter in seinen Raeumen
+    const buch = (c: P, imRaum: boolean) => {
       const w = g.welt_(c)
-      const z = feldZufall(w.x * 7 + 3, w.y * 5 + 11)
-      const px = (c.x + 0.5) * cell
-      const py = (c.y + 0.5) * cell
-      if (z < (imRaum ? 0.07 : 0.015)) drawAugen(ctx, px, py, cell, w.x * 31 + w.y * 17, kx, ky, now, this.reduce)
-      else if (z > (imRaum ? 0.95 : 0.99)) drawBuchAmBoden(ctx, px, py, cell, w.x * 13 + w.y * 7)
+      if (feldZufall(w.x * 7 + 3, w.y * 5 + 11) > (imRaum ? 0.96 : 0.992)) drawBuchAmBoden(ctx, (c.x + 0.5) * cell, (c.y + 0.5) * cell, cell, w.x * 13 + w.y * 7)
     }
     if (g instanceof KaefigBossGame) {
       const frei = g.hindernisse()
@@ -2316,13 +2315,18 @@ export class Renderer {
         for (let x = x0; x <= x1; x++) {
           const c = { x, y }
           if (!g.inside(c) || frei.has(key(x, y)) || !g.dungeonSet.has(key(x, y))) continue
-          deko(c, g.raeume.some((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1))
+          buch(c, g.raeume.some((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1))
         }
-      return
     }
     for (const k of g.kerker) {
       const r = k.raum
-      for (const c of k.cells) if (sicht(c) && !g.aufSchlange(c) && !g.kaefige.some((z) => z.p.x === c.x && z.p.y === c.y)) deko(c, c.x >= r.x0 && c.x <= r.x1 && c.y >= r.y0 && c.y <= r.y1)
+      for (const c of k.cells) if (sicht(c) && !g.aufSchlange(c)) buch(c, c.x >= r.x0 && c.x <= r.x1 && c.y >= r.y0 && c.y <= r.y1)
+    }
+    // Augen: kleine Haeufchen, meist an Waenden und in Ecken; sie schauen zum Kopf
+    for (const a of g.augen) {
+      if (!sicht(a.p) || g.aufSchlange(a.p)) continue
+      const d = DIRS4.find((o) => !g.inside({ x: a.p.x + o.x, y: a.p.y + o.y })) ?? null
+      drawAugen(ctx, (a.p.x + 0.5) * cell, (a.p.y + 0.5) * cell, cell, a.n, a.seed, d, kx, ky, now, this.reduce)
     }
   }
 

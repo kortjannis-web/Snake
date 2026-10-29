@@ -315,6 +315,7 @@ export type GameEvent =
   | { type: 'siegel'; p: P; rest: number }
   | { type: 'tuerAuf'; p: P }
   | { type: 'kerker'; was: 'auf' | 'zu'; p: P }
+  | { type: 'augen'; art: 'unscharf' | 'invertiert' | 'wellig'; p: P }
   | { type: 'meister'; was: 'erscheint' | 'erwacht' | 'laden' | 'aoe' | 'weg' | 'teleport' | 'flamme' | 'trifft' | 'getroffen' | 'tot'; p: P; leben?: number }
   | { type: 'eat'; level: number; p: P; stufe: number; wer?: number }
   | { type: 'milestone'; level: number }

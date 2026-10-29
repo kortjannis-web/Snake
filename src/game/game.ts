@@ -138,6 +138,14 @@ export const KERKER_VORBOTEN = [5, 3, 1] as const
 /** Kerker im freien Spiel: Gang (breit x lang), dann ein grosser Raum (breit x tief); gross, weil die Schlange dann lang ist */
 export const KERKER = { gang: 5, lang: 9, raumB: 17, raumT: 14 } as const
 
+/** Augen am Boden (Reich des Kaefigmeisters): ein kleines Haeufchen aus n Augen. Ab AUGEN_GEFAHR Augen ist es ein
+ *  Augenfeld (deutlich als Klumpen zu sehen): faehrt der Kopf darueber, sieht man AUGEN_BLICK ms lang schlecht
+ *  (verschwommen, Farben umgekehrt oder wellig). Ein oder zwei Augen tun nichts */
+export type Augenfeld = { p: P; n: number; seed: number }
+export type BlickArt = 'unscharf' | 'invertiert' | 'wellig'
+export const AUGEN_BLICK = 5000
+export const AUGEN_GEFAHR = 3
+
 /** Ein Kerker im freien Spiel: Gang aus der Karte in die Erde, am Ende ein Raum mit Augen; dort erscheint der Kaefigmeister */
 export type Kerker = { cells: P[]; raum: MeisterRaum; mund: P[]; t: number }
 
@@ -387,6 +395,9 @@ export class Game {
   kaefige: Kaefig[] = []
   /** Freies Spiel (Wiese): Kerker vor dem Kaefigmeister (Level meisterAb - 5, - 3, - 1), der Kaefigmeister selbst */
   kerker: Kerker[] = []
+  /** Augen am Boden (Mission 30 und Kerker) und was sie gerade mit dem Blick machen */
+  augen: Augenfeld[] = []
+  augenBlick: { art: BlickArt; ab: number; bis: number } | null = null
   freiMeister: Meisterkampf | null = null
   protected meisterFaellig = false
   protected meisterVersuch = 0
@@ -837,6 +848,13 @@ export class Game {
     this.freiBoss?.einsammeln(n)
     this.freiEnt?.einsammeln(n)
     this.freiMeister?.einsammeln(n)
+    // Augenfeld (drei oder mehr Augen): der Blick verschwimmt, die Farben kehren sich um oder das Bild wird wellig
+    const auge = this.augen.find((a) => a.n >= AUGEN_GEFAHR && same(a.p, n))
+    if (auge) {
+      const art = this.r.pick<BlickArt>(['unscharf', 'invertiert', 'wellig'])
+      this.augenBlick = { art, ab: this.time, bis: this.time + AUGEN_BLICK }
+      this.emit({ type: 'augen', art, p: { ...n } })
+    }
   }
 
   /** Erz eingesammelt: Gold 3, Diamant 6, Rubin 10, Opal 20 mal aktueller Apfel */
@@ -3778,6 +3796,7 @@ export class Game {
     this.freiBoss?.verschieben(dx, dy)
     this.freiEnt?.verschieben(dx, dy)
     this.freiMeister?.verschieben(dx, dy)
+    this.augen.forEach((a) => mv(a.p))
     for (const k of this.kerker) {
       k.cells.forEach(mv)
       k.mund.forEach(mv)
@@ -5814,6 +5833,9 @@ export class Game {
       const mitte = mv(feld(Math.floor(W / 2), L + Math.ceil(RT / 2)))
       const k: Kerker = { cells: neu.map(mv), mund: mund.map(mv), raum: { nr: this.kerker.length, mitte, x0: Math.min(...rx), x1: Math.max(...rx), y0: Math.min(...ry), y1: Math.max(...ry) }, t: this.time }
       this.kerker.push(k)
+      // Augen: meist an den Waenden und in den Ecken, selten mitten im Raum (nie am Mund)
+      const mundNah = (c: P) => k.mund.some((m) => cheb(m, c) <= 2)
+      this.augen.push(...this.augenVerteilen(k.cells, mundNah))
       // Aus dem Raum kommt ein Kaefigkopf, er geht zum Gang hinaus
       const zd = OPP[d]
       this.kaefige.push({ p: { ...mitte }, from: { ...mitte }, dir: zd, altDir: zd, drehT: -1e9, t: this.time, schrittT: -1e9, next: this.time + 1500, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 })
@@ -5821,6 +5843,21 @@ export class Game {
       return true
     }
     return false
+  }
+
+  /** Augen verteilen: in Ecken oft, an Waenden manchmal, mitten im Raum ab und zu. Knapp die Haelfte sind Klumpen aus
+   *  3 oder 4 Augen (gefaehrlich), der Rest ein oder zwei einzelne. Nicht auf Feldern, fuer die `tabu` gilt */
+  protected augenVerteilen(cells: P[], tabu: (c: P) => boolean): Augenfeld[] {
+    const out: Augenfeld[] = []
+    for (const c of cells) {
+      if (tabu(c)) continue
+      const wand = DIRS.filter((d) => !this.inside({ x: c.x + STEP[d].x, y: c.y + STEP[d].y })).length
+      const chance = wand >= 2 ? 0.3 : wand === 1 ? 0.045 : 0.014
+      if (this.r.next() >= chance) continue
+      const klumpen = this.r.next() < 0.45
+      out.push({ p: { ...c }, n: klumpen ? (this.r.next() < 0.75 ? 3 : 4) : this.r.int(1, 2), seed: this.r.int(0, 1e6) })
+    }
+    return out
   }
 
   /** Level meisterAb: der Kaefigmeister erscheint in einem der Kerker-Raeume (fehlen Kerker, graben sie sich jetzt) */
@@ -5896,6 +5933,7 @@ export class Game {
     this.ameisen = this.ameisen.filter((x) => !drin(x.p))
     this.wesen = this.wesen.filter((x) => !drin(x.p))
     this.mauern = this.mauern.filter((m) => !m.cells.some(drin))
+    this.augen = this.augen.filter((a) => !drin(a.p))
     this.wolken = this.wolken.filter((w) => !w.cells.some(drin))
     const mitte = this.kerker[0]?.raum.mitte
     this.kerker = []

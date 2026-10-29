@@ -49,6 +49,13 @@ export class KaefigBossGame extends MissionGame {
       raeume,
       { flammen: MEISTER.flammen, leben: MEISTER.leben },
     )
+    // Augen am Boden: meist an den Waenden und in Ecken, nicht am Start, nicht an der Tuer und nicht in der Raummitte
+    const start = this.body[0]
+    const zu = this.hindernisse()
+    const felder: P[] = []
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.inside({ x, y }) && !zu.has(key(x, y)) && this.dungeonSet.has(key(x, y))) felder.push({ x, y })
+    const cheb = (a: P, b: P) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
+    this.augen = this.augenVerteilen(felder, (c) => cheb(c, start) <= 5 || this.tuer.some((t) => cheb(t, c) <= 2) || raeume.some((r) => cheb(r.mitte, c) <= 1))
   }
 
   /* Der Kampf (fuer Darstellung und Tests direkt am Spiel) */

@@ -36,6 +36,10 @@ describe('Kerker und Kaefigmeister im freien Spiel (Wiese)', () => {
     }
     expect([144, 145, 146, 147, 148, 149].map((l) => anzahl[l])).toEqual([0, 1, 1, 2, 2, 3])
     expect(g.kaefige).toHaveLength(3)
+    // Augen liegen in den Kerkern (meist an den Waenden)
+    const kerkerFelder = new Set(g.kerker.flatMap((k) => k.cells.map((c) => key(c.x, c.y))))
+    expect(g.augen.length).toBeGreaterThan(3)
+    for (const a of g.augen) expect(kerkerFelder.has(key(a.p.x, a.p.y))).toBe(true)
     for (const k of g.kerker) {
       // Gang und Raum gehoeren zur Karte, alles ist vom Mund aus erreichbar, der Raum ist gross
       expect(k.cells.length).toBe(KERKER.gang * KERKER.lang + KERKER.raumB * KERKER.raumT)
@@ -113,6 +117,7 @@ describe('Kerker und Kaefigmeister im freien Spiel (Wiese)', () => {
     kopfAuf(g, draussen)
     lauf(g, 100)
     expect(g.kerker).toHaveLength(0)
+    expect(g.augen).toHaveLength(0)
     for (const kk of kerkerFelder) expect(g.inside({ x: (kk % 4096) - 1, y: Math.floor(kk / 4096) - 1 })).toBe(false)
   })
 

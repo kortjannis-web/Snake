@@ -38,47 +38,62 @@ export function drawSteinboden(c: CanvasRenderingContext2D, x: number, y: number
   for (let i = 0; i < 2; i++) c.fillRect(x * cell + hash2(x, y, 44 + i) * cell, y * cell + hash2(x, y, 48 + i) * cell, cell * 0.06, cell * 0.06)
 }
 
-/** Augen am Boden (Kaefigmeister: in seinen Raeumen und in den Kerkern): eins bis vier glasige Augaepfel, die Pupillen
- *  schauen zum Kopf der Schlange (kx, ky in Pixeln), ab und zu blinzelt eins */
-export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, seed: number, kx: number, ky: number, now: number, reduce: boolean) {
-  const n = 1 + Math.floor(hash(seed) * 4)
+/** Augen am Boden (Reich des Kaefigmeisters): ein kleines Haeufchen aus n Augaepfeln, gedeckt und unauffaellig (wie
+ *  verstaubt), die Pupillen schauen zum Kopf der Schlange (kx, ky in Pixeln), ab und zu blinzelt eins. Ein oder zwei
+ *  ruecken an die Wand (wand = Richtung zur Wand oder null); ab drei ist es ein Klumpen mitten im Feld auf einem dunklen
+ *  Fleck: daran erkennt man das gefaehrliche Augenfeld */
+export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, n: number, seed: number, wand: P | null, kx: number, ky: number, now: number, reduce: boolean) {
+  const klumpen = n >= 3
+  // Ein Klumpen (gefaehrlich) liegt mitten im Feld, einzelne Augen ruecken an die Wand
+  const mx = x + (wand && !klumpen ? wand.x * cell * 0.22 : 0)
+  const my = y + (wand && !klumpen ? wand.y * cell * 0.22 : 0)
+  // Unter dem Haeufchen etwas Schmutz, unter einem Klumpen ein dunkler Fleck mit leichtem violettem Schimmer
+  if (klumpen) {
+    const g = ctx.createRadialGradient(mx, my, 0, mx, my, cell * 0.5)
+    g.addColorStop(0, 'rgba(60, 30, 70, 0.32)')
+    g.addColorStop(0.7, 'rgba(70, 40, 90, 0.14)')
+    g.addColorStop(1, 'rgba(70, 40, 90, 0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(mx, my, cell * 0.5, 0, TAU)
+    ctx.fill()
+  } else {
+    ctx.fillStyle = 'rgba(40, 26, 20, 0.18)'
+    ctx.beginPath()
+    ctx.ellipse(mx, my + cell * 0.04, cell * (0.2 + n * 0.06), cell * (0.15 + n * 0.04), 0, 0, TAU)
+    ctx.fill()
+  }
   for (let i = 0; i < n; i++) {
-    const ax = x + (hash(seed + i * 3 + 1) - 0.5) * cell * 0.7
-    const ay = y + (hash(seed + i * 3 + 2) - 0.5) * cell * 0.7
-    const r = cell * (0.1 + hash(seed + i * 5) * 0.08) * (n === 1 ? 1.5 : 1)
-    ctx.fillStyle = 'rgba(30, 10, 10, 0.35)'
+    const a = (i / Math.max(1, n)) * TAU + hash(seed) * TAU
+    const d = n === 1 ? 0 : cell * (klumpen ? 0.15 : 0.13)
+    const ax = mx + Math.cos(a) * d
+    const ay = my + Math.sin(a) * d * 0.8
+    const r = cell * (0.085 + hash(seed + i * 5) * 0.035) * (klumpen ? 1.2 : 1)
+    ctx.fillStyle = 'rgba(30, 16, 12, 0.22)'
     ctx.beginPath()
     ctx.ellipse(ax + r * 0.2, ay + r * 0.3, r * 1.05, r * 0.9, 0, 0, TAU)
     ctx.fill()
-    const zu = !reduce && (now / 3700 + hash(seed + i)) % 1 < 0.04
-    ctx.fillStyle = '#E9E2D0'
+    const zu = !reduce && (now / 4100 + hash(seed + i)) % 1 < 0.035
+    // Gedeckt: graugelblich statt weiss, damit es sich nicht vom Boden abhebt
+    ctx.fillStyle = '#A99F8C'
     ctx.beginPath()
-    ctx.ellipse(ax, ay, r, zu ? r * 0.15 : r * 0.9, 0, 0, TAU)
+    ctx.ellipse(ax, ay, r, zu ? r * 0.15 : r * 0.88, 0, 0, TAU)
     ctx.fill()
     if (zu) continue
-    // Feine rote Adern
-    ctx.strokeStyle = 'rgba(170, 40, 40, 0.45)'
-    ctx.lineWidth = Math.max(0.5, r * 0.08)
-    ctx.beginPath()
-    ctx.moveTo(ax - r * 0.9, ay)
-    ctx.lineTo(ax - r * 0.4, ay - r * 0.15)
-    ctx.moveTo(ax + r * 0.85, ay + r * 0.2)
-    ctx.lineTo(ax + r * 0.4, ay + r * 0.05)
-    ctx.stroke()
     const w = Math.atan2(ky - ay, kx - ax)
-    const px = ax + Math.cos(w) * r * 0.4
-    const py = ay + Math.sin(w) * r * 0.35
-    ctx.fillStyle = hash(seed + i * 7) < 0.5 ? '#6B4FA0' : '#3E6E8E'
+    const px = ax + Math.cos(w) * r * 0.38
+    const py = ay + Math.sin(w) * r * 0.32
+    ctx.fillStyle = hash(seed + i * 7) < 0.5 ? '#5E4F72' : '#4A5E66'
     ctx.beginPath()
     ctx.arc(px, py, r * 0.45, 0, TAU)
     ctx.fill()
-    ctx.fillStyle = '#120C10'
+    ctx.fillStyle = '#1C1416'
     ctx.beginPath()
     ctx.arc(px, py, r * 0.22, 0, TAU)
     ctx.fill()
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+    ctx.fillStyle = 'rgba(255, 250, 240, 0.35)'
     ctx.beginPath()
-    ctx.arc(px - r * 0.15, py - r * 0.15, r * 0.1, 0, TAU)
+    ctx.arc(px - r * 0.14, py - r * 0.14, r * 0.08, 0, TAU)
     ctx.fill()
   }
 }
