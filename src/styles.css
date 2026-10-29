@@ -3551,29 +3551,149 @@ html[data-install] #app {
   white-space: pre-wrap;
 }
 
-/* Patchnotes: ueber allem, einmal nach einem Update */
+/* Patchnotes: ueber allem, einmal nach einem Update. Vier Folien wie ein kleiner Trailer, oben die Fortschrittsbalken */
 .screen--patch {
   z-index: 40;
 }
 
 .patch {
-  text-align: left;
-}
-
-.patch .card__title,
-.patch .card__sub {
-  text-align: center;
-}
-
-.patch__liste {
-  display: grid;
   gap: 10px;
-  margin: 0 0 6px;
-  padding-left: 22px;
-  font: 500 0.95rem/1.45 var(--sans);
+  width: min(100%, 400px);
+  padding: 14px 14px 12px;
+  text-align: left;
+  overflow: hidden;
 }
 
-.patch__liste li::marker {
+.patch__kopf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.patch__balken {
+  display: flex;
+  flex: 1;
+  gap: 5px;
+}
+
+.patch__balken i {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(245, 239, 230, 0.16);
+}
+
+.patch__balken i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--orange);
+  transform: scaleX(var(--f, 0));
+  transform-origin: left;
+}
+
+.patch__zu {
+  width: 36px;
+  height: 36px;
+}
+
+.patch__zu svg {
+  width: 18px;
+  height: 18px;
+}
+
+.patch__buehne {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.patch__band {
+  display: flex;
+  transition: transform 0.45s var(--ease);
+}
+
+.patch__folie {
+  flex: 0 0 100%;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.patch__video {
+  position: relative;
+  width: min(100%, calc(46vh * 360 / 404));
+  margin: 0 auto 12px;
+  aspect-ratio: 360 / 404;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--mokka-tief);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(245, 239, 230, 0.06);
+}
+
+.patch__video video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.patch__unter {
+  margin: 0 4px 2px;
+  font: 700 0.72rem/1.2 var(--sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--orange);
-  font-weight: 700;
+}
+
+.patch .patch__titel {
+  margin: 0 4px 6px;
+  font: 500 1.75rem/1.1 var(--serif);
+}
+
+.patch__text {
+  margin: 0 4px;
+  min-height: 4.4em;
+  font: 500 0.95rem/1.45 var(--sans);
+  color: var(--creme-leise);
+}
+
+.patch__knoepfe {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+}
+
+.patch__knoepfe .btn {
+  min-height: 52px;
+  font-size: 1.05rem;
+}
+
+#patch-zurueck {
+  padding: 0 16px;
+}
+
+#patch-zurueck[disabled] {
+  opacity: 0.35;
+}
+
+.patch .fine {
+  margin: 0;
+}
+
+/* Kleine Bildschirme: Video kleiner, damit alles ohne Scrollen passt */
+@media (max-height: 640px) {
+  .patch__video {
+    width: min(100%, calc(38vh * 360 / 404));
+  }
+  .patch__text {
+    min-height: 0;
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .patch__band {
+    transition: none;
+  }
 }

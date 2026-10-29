@@ -13,7 +13,8 @@
     "server": "wrangler dev --config server/wrangler.toml",
     "server:deploy": "wrangler deploy --config server/wrangler.toml",
     "vapid": "node scripts/vapid.mjs",
-    "skin-videos": "node scripts/skin-videos.mjs"
+    "skin-videos": "node scripts/skin-videos.mjs",
+    "patch-videos": "node scripts/patch-videos.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.2",

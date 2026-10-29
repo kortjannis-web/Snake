@@ -2777,15 +2777,82 @@ $('feedback-senden').addEventListener('click', async () => {
 })
 
 /* ================= Patchnotes ================= */
-/** Einmal je Geraet nach einem Update: was neu ist */
+/** Einmal je Geraet nach einem Update: vier Folien mit kurzen Trailern, weiterklicken oder wischen. Oben fuellen sich die
+ *  Balken mit dem Video der aktuellen Folie */
+const patchFolien = [...document.querySelectorAll<HTMLElement>('.patch__folie')]
+const patchVideos = patchFolien.map((f) => f.querySelector('video')!)
+const patchBalken = [...document.querySelectorAll<HTMLElement>('#patch-balken i')]
+let patchNr = 0
+let patchTakt = 0
+function patchZeigen(nr: number) {
+  patchNr = Math.max(0, Math.min(patchFolien.length - 1, nr))
+  $('patch-band').style.transform = `translateX(${-patchNr * 100}%)`
+  patchFolien.forEach((f, i) => f.setAttribute('aria-hidden', String(i !== patchNr)))
+  patchVideos.forEach((v, i) => {
+    if (i !== patchNr) return v.pause()
+    v.preload = 'auto'
+    // Naechste Folie schon laden, damit es beim Weiterklicken sofort laeuft
+    if (patchVideos[i + 1] && patchVideos[i + 1].preload === 'none') patchVideos[i + 1].preload = 'metadata'
+    v.currentTime = 0
+    if (!reduce) void v.play().catch(() => {})
+  })
+  $<HTMLButtonElement>('patch-zurueck').disabled = patchNr === 0
+  const letzte = patchNr === patchFolien.length - 1
+  const weiter = $('patch-weiter')
+  weiter.replaceChildren(letzte ? "Los geht's" : 'Weiter')
+  const ico = document.createElement('span')
+  setIcon(ico, letzte ? 'Check' : 'ChevronRight')
+  if (letzte) weiter.prepend(ico)
+  else weiter.append(ico)
+}
+function patchBalkenTakt() {
+  const v = patchVideos[patchNr]
+  const f = v.duration ? v.currentTime / v.duration : 0
+  patchBalken.forEach((b, i) => b.style.setProperty('--f', i < patchNr ? '1' : i === patchNr ? f.toFixed(3) : '0'))
+  patchTakt = requestAnimationFrame(patchBalkenTakt)
+}
+function patchAuf() {
+  $('patch-welten').textContent = `${WELTEN.length} Welten, jede mit eigenen Gefahren, Tieren und Belohnungen: ${WELTEN.map((w) => w.name).join(', ').replace(/, ([^,]*)$/, ' und $1')}.`
+  $('patch-version').textContent = `Version ${__APP_VERSION__}`
+  show('patchnotes', true)
+  patchZeigen(0)
+  patchTakt = requestAnimationFrame(patchBalkenTakt)
+}
 function patchZu() {
   audio.click()
   patchnotesGesehen()
   show('patchnotes', false)
+  cancelAnimationFrame(patchTakt)
+  for (const v of patchVideos) v.pause()
 }
-$('patch-ok').addEventListener('click', patchZu)
-$('patch-version').textContent = `Version ${__APP_VERSION__}`
-if (patchnotesNeu() && !devMission && !params.has('raum')) show('patchnotes', true)
+$('patch-zu').addEventListener('click', patchZu)
+$('patch-zurueck').addEventListener('click', () => {
+  audio.click()
+  patchZeigen(patchNr - 1)
+})
+$('patch-weiter').addEventListener('click', () => {
+  if (patchNr === patchFolien.length - 1) return patchZu()
+  audio.click()
+  patchZeigen(patchNr + 1)
+})
+// Mit "Bewegung reduzieren" laufen die Videos nicht von selbst: Tippen startet und haelt an
+if (reduce) patchVideos.forEach((v) => v.addEventListener('click', () => (v.paused ? void v.play().catch(() => {}) : v.pause())))
+// Wischen zwischen den Folien
+{
+  let x0: number | null = null
+  const buehne = $('patch-buehne')
+  buehne.addEventListener('pointerdown', (e) => (x0 = e.clientX))
+  buehne.addEventListener('pointerup', (e) => {
+    if (x0 === null) return
+    const dx = e.clientX - x0
+    x0 = null
+    if (Math.abs(dx) < 40) return
+    audio.click()
+    patchZeigen(patchNr + (dx < 0 ? 1 : -1))
+  })
+  buehne.addEventListener('pointercancel', () => (x0 = null))
+}
+if (patchnotesNeu() && !devMission && !params.has('raum')) patchAuf()
 $('btn-master-reset').addEventListener('click', () => {
   if (!confirm('Alle Master-Einstellungen auf Standard zurücksetzen?')) return
   resetConfig()

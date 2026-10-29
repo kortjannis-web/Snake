@@ -124,17 +124,66 @@
       </section>
 
       <!-- Pause -->
-      <!-- Patchnotes: einmal nach einem Update -->
+      <!-- Patchnotes: einmal nach einem Update, vier Folien mit kurzen Trailern (public/patch, npm run patch-videos) -->
       <section class="screen screen--dim screen--patch" id="patchnotes" role="dialog" aria-modal="true" aria-labelledby="patch-titel">
         <div class="card patch">
-          <h2 class="card__title" id="patch-titel">Neu im Spiel</h2>
-          <p class="card__sub" id="patch-version"></p>
-          <ol class="patch__liste">
-            <li>Es gibt Kampagnen bis Level 30, inklusive 3 Bossen und neuen Gegnern.</li>
-            <li>Alle neuen Sachen kommen auch im Endlos-Modus vor: bei Level 60, 100 und 150.</li>
-            <li>Es gibt jetzt einen Feedback-Knopf (das orange Ausrufezeichen oben). Lasst dort gerne all eure Kritik, Ideen und Feedback da. Ich setze alles um, was ihr sagt 👌🏼</li>
-          </ol>
-          <button class="btn btn--play" id="patch-ok"><span data-icon="Check"></span>Los geht's</button>
+          <div class="patch__kopf">
+            <div class="patch__balken" id="patch-balken" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <button class="icon-btn patch__zu" id="patch-zu" aria-label="Patchnotes schließen" data-icon="X"></button>
+          </div>
+          <div class="patch__buehne" id="patch-buehne">
+            <div class="patch__band" id="patch-band">
+            <article class="patch__folie" data-nr="0">
+              <div class="patch__video">
+                <video muted playsinline loop preload="auto" poster="patch/kampagne.webp" aria-hidden="true">
+                  <source src="patch/kampagne.mp4" type="video/mp4" />
+                  <source src="patch/kampagne.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 1 von 4</p>
+              <h2 class="patch__titel" id="patch-titel">Kampagne bis Level 30</h2>
+              <p class="patch__text">Drei Bosse und neue Gegner: der Steingolem, der Ent und tief unter der Erde der Käfigmeister mit seinen Käfigköpfen.</p>
+            </article>
+            <article class="patch__folie" data-nr="1" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="patch/endlos.webp" aria-hidden="true">
+                  <source src="patch/endlos.mp4" type="video/mp4" />
+                  <source src="patch/endlos.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 2 von 4</p>
+              <h2 class="patch__titel">Auch im Endlos-Modus</h2>
+              <p class="patch__text">Alle neuen Sachen kommen auch im Endlos-Modus vor: bei Level 60, 100 und 150.</p>
+            </article>
+            <article class="patch__folie" data-nr="2" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="patch/feedback.webp" aria-hidden="true">
+                  <source src="patch/feedback.mp4" type="video/mp4" />
+                  <source src="patch/feedback.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 3 von 4</p>
+              <h2 class="patch__titel">Euer Feedback</h2>
+              <p class="patch__text">Oben im Startmenü gibt es jetzt das orange Ausrufezeichen. Lasst dort gerne all eure Kritik, Ideen und Feedback da. Ich setze alles um, was ihr sagt 👌🏼</p>
+            </article>
+            <article class="patch__folie" data-nr="3" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="patch/welten.webp" aria-hidden="true">
+                  <source src="patch/welten.mp4" type="video/mp4" />
+                  <source src="patch/welten.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 4 von 4</p>
+              <h2 class="patch__titel">Alle Welten</h2>
+              <p class="patch__text" id="patch-welten">Wiese, Wüste, Winter, Bergwerk, Zauberwald, Gruselwald und Vulkan.</p>
+            </article>
+            </div>
+          </div>
+          <div class="patch__knoepfe">
+            <button class="btn btn--ghost" id="patch-zurueck"><span data-icon="ChevronLeft"></span>Zurück</button>
+            <button class="btn btn--play" id="patch-weiter">Weiter<span data-icon="ChevronRight"></span></button>
+          </div>
+          <p class="fine" id="patch-version"></p>
         </div>
       </section>
 

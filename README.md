@@ -107,6 +107,7 @@ npm run icons      # Icons und Startbild aus scripts/icons.mjs neu erzeugen
 npm run server     # Snake-Server lokal (http://localhost:8787), dann VITE_SNAKE_SERVER=http://localhost:8787 npm run dev
 npm run vapid      # Schlüsselpaar für Push-Einladungen erzeugen (siehe docs/MEHRSPIELER-EINRICHTEN.md)
 npm run skin-videos # Shop-Vorschauen neu als Videos rendern (nur nach Änderungen am Aussehen; braucht ffmpeg und Playwright)
+npm run patch-videos # Trailer der Patchnotes neu rendern (public/patch; braucht ffmpeg und Playwright)
 ```
 
 Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung `?level=150`
