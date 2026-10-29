@@ -1,12 +1,16 @@
-// Szenen fuer die Patchnotes-Videos (scripts/patch-videos.mjs): das echte Spiel mit dem echten Renderer, gesteuert vom
-// Autopiloten, Bild fuer Bild mit fester Zeit. Wird mit esbuild fuer den Browser gebuendelt, nicht Teil der App.
+// Szenen fuer die Videos der Patchnotes und des Spielfuehrers (scripts/patch-videos.mjs): das echte Spiel mit dem echten
+// Renderer, gesteuert vom Autopiloten, Bild fuer Bild mit fester Zeit. Wird mit esbuild fuer den Browser gebuendelt, nicht
+// Teil der App.
 import { autopilot } from '../src/game/autopilot'
 import { missionSpiel } from '../src/game/boss'
 import { Game, key } from '../src/game/game'
+import { DUELL, GEGNER_MODI, MehrGame, type Modus } from '../src/game/mehr'
 import { WIESE_MISSIONEN } from '../src/game/missionen'
 import type { P } from '../src/game/types'
+import { MEHR_BILD } from '../src/multi/protokoll'
 import { BergKacheln } from '../src/render/berge'
 import { Renderer } from '../src/render/renderer'
+import { skinVon } from '../src/render/skins'
 import { WELTEN } from '../src/render/welten'
 
 /** Zeit fuer Renderer und Animationen: steht, bis die Aufnahme sie weiterdreht */
@@ -35,7 +39,11 @@ type Szene = {
   vorlauf?: number
   titel?: string
   unter?: string
+  /** Mehrspieler: Modus und Skins der Spieler (die erste Schlange ist die eigene, die Kamera folgt ihr) */
+  mehr?: { modus: Modus; skins: string[] }
 }
+
+const NAMEN = ['Du', 'Mia', 'Ben', 'Lea']
 
 let cv: HTMLCanvasElement
 let r: Renderer
@@ -114,7 +122,15 @@ function szene(neu: Szene, w: number, h: number) {
   r.resize(w, h)
   r.minikarte = false
   const quer = false
-  if (s.mission) {
+  r.mehr = null
+  r.skin = skinVon('klassik')
+  if (s.mehr) {
+    const { modus, skins } = s.mehr
+    const spieler = skins.map((skin, i) => ({ id: `s${i}`, name: NAMEN[i], skin }))
+    g = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: s.seed ?? 7, modus, spieler, tempo: 'normal', leben: 3, cfg: GEGNER_MODI.includes(modus) ? DUELL : {} })
+    r.welt = WELTEN[0]
+    r.skin = skinVon(skins[0])
+  } else if (s.mission) {
     const m = WIESE_MISSIONEN[s.mission - 1]
     const mg = missionSpiel(m, quer)
     g = mg
@@ -138,7 +154,10 @@ function szene(neu: Szene, w: number, h: number) {
   const feld = s.feld ?? 22
   r.cellFor = () => feld
   // Kaefigmeister: erst einmal erscheinen lassen (er kommt nur, solange man seinen Raum nicht sieht)
-  for (let t = 0; t < (s.vorher ?? 0); t += 50) g.update(50)
+  for (let t = 0; t < (s.vorher ?? 0); t += 50) {
+    if (g instanceof MehrGame) mehrLenken(g)
+    g.update(50)
+  }
   const ziel = zielVon()
   if (ziel) {
     const k = s.hin === 'kaefig' ? freiNahe(ziel, 0, 3) : freiNahe(ziel, s.nah ?? 3, s.weit ?? 7)
@@ -160,18 +179,53 @@ function szene(neu: Szene, w: number, h: number) {
   szeneZeit = 0
 }
 
+/** Mehrspieler: jede Schlange faehrt mit dem Autopiloten, danach steht wieder die eigene in den Feldern von Game */
+function mehrLenken(m: MehrGame) {
+  m.schlangen.forEach((sl, i) => {
+    if (sl.tot || sl.raus) return
+    m.wechsel(i)
+    if (m.queue.length) return
+    const d = autopilot(m)
+    if (d) m.lenke(i, d)
+  })
+  m.wechsel(0)
+}
+
+/** Mehrspieler: die anderen Schlangen fuer den Renderer */
+function mehrAnzeige(m: MehrGame) {
+  m.sichern()
+  r.mehr = {
+    andere: m.schlangen.slice(1).map((sl) => ({
+      body: sl.body,
+      prev: sl.prev,
+      dir: sl.dir,
+      alpha: Math.min(1, Math.max(0, (m.time - sl.last) / m.tick)),
+      tot: false,
+      deck: m.modus === 'koop' ? 0.9 : 1,
+      name: sl.name,
+      skin: skinVon(sl.skin),
+    })),
+    ichTot: false,
+    wahlSichtbar: false,
+    zone: m.modus === 'royale' ? m.zone() : undefined,
+    blasen: [],
+  }
+}
+
 /** Ein Bild weiter: Spiel und Uhr um dt, zeichnen, Titel darueber; ein = Ein- und Ausblenden (0..1) */
 function schritt(dt: number, zeichnen = true, ein = 1) {
   uhr += dt
   szeneZeit += dt
   if (g.status === 'over') g.status = 'play'
-  if (g.status === 'play' && !g.queue.length) {
+  if (g instanceof MehrGame) mehrLenken(g)
+  else if (g.status === 'play' && !g.queue.length) {
     const d = autopilot(g)
     if (d) g.turn(d, false)
   }
   g.update(dt)
   g.drain()
   if (!zeichnen) return
+  if (g instanceof MehrGame) mehrAnzeige(g)
   r.draw(g)
   const ctx = cv.getContext('2d')!
   const dpr = cv.width / r.vw

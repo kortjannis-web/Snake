@@ -39,7 +39,7 @@ import { apfelFarben, drawApfel } from './render/sprites'
 import { abmelden, abonniere, abonniereHall, abonniereSozial, adminFeedback, adminFeedbackLoeschen, adminLoeschen, feedbackSenden, type Feedback, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { beiCloud } from './cloud'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, masterPruefen, patchnotesGesehen, patchnotesNeu, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
+import { config, fuehrerGesehen, fuehrerNeu, heuteBest, heuteDatum, kreativ, master, masterFreischalten, masterPruefen, patchnotesGesehen, patchnotesNeu, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, missionLohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon, type Welt } from './render/welten'
@@ -2773,71 +2773,70 @@ $('feedback-senden').addEventListener('click', async () => {
   }
 })
 
-/* ================= Patchnotes ================= */
-/** Einmal je Geraet nach einem Update: vier Folien mit kurzen Trailern, weiterklicken oder wischen. Oben fuellen sich die
- *  Balken mit dem Video der aktuellen Folie */
-const patchFolien = [...document.querySelectorAll<HTMLElement>('.patch__folie')]
-const patchVideos = patchFolien.map((f) => f.querySelector('video')!)
-const patchBalken = [...document.querySelectorAll<HTMLElement>('#patch-balken i')]
-let patchNr = 0
-let patchTakt = 0
-function patchZeigen(nr: number) {
-  patchNr = Math.max(0, Math.min(patchFolien.length - 1, nr))
-  $('patch-band').style.transform = `translateX(${-patchNr * 100}%)`
-  patchFolien.forEach((f, i) => f.setAttribute('aria-hidden', String(i !== patchNr)))
-  patchVideos.forEach((v, i) => {
-    if (i !== patchNr) return v.pause()
-    v.preload = 'auto'
-    // Naechste Folie schon laden, damit es beim Weiterklicken sofort laeuft
-    if (patchVideos[i + 1] && patchVideos[i + 1].preload === 'none') patchVideos[i + 1].preload = 'metadata'
-    v.currentTime = 0
-    if (!reduce) void v.play().catch(() => {})
+/* ================= Patchnotes und Spielfuehrer ================= */
+/** Folien mit kurzen Trailern wie eine kleine Praesentation: weiterklicken oder wischen, oben fuellen sich die Balken mit dem
+ *  Video der aktuellen Folie. Genutzt von den Patchnotes (einmal je Geraet nach einem Update) und vom Spielfuehrer (Fragezeichen) */
+function trailer(root: HTMLElement, knoepfe: { zu: HTMLElement; zurueck: HTMLButtonElement; weiter: HTMLElement }, beimSchliessen: () => void) {
+  const folien = [...root.querySelectorAll<HTMLElement>('.patch__folie')]
+  const videos = folien.map((f) => f.querySelector('video')!)
+  const balken = [...root.querySelectorAll<HTMLElement>('.patch__balken i')]
+  const band = root.querySelector<HTMLElement>('.patch__band')!
+  let nr = 0
+  let takt = 0
+  function zeigen(n: number) {
+    nr = Math.max(0, Math.min(folien.length - 1, n))
+    band.style.transform = `translateX(${-nr * 100}%)`
+    folien.forEach((f, i) => f.setAttribute('aria-hidden', String(i !== nr)))
+    videos.forEach((v, i) => {
+      if (i !== nr) return v.pause()
+      v.preload = 'auto'
+      // Naechste Folie schon laden, damit es beim Weiterklicken sofort laeuft
+      if (videos[i + 1] && videos[i + 1].preload === 'none') videos[i + 1].preload = 'metadata'
+      v.currentTime = 0
+      if (!reduce) void v.play().catch(() => {})
+    })
+    knoepfe.zurueck.disabled = nr === 0
+    const letzte = nr === folien.length - 1
+    knoepfe.weiter.replaceChildren(letzte ? "Los geht's" : 'Weiter')
+    const ico = document.createElement('span')
+    setIcon(ico, letzte ? 'Check' : 'ChevronRight')
+    if (letzte) knoepfe.weiter.prepend(ico)
+    else knoepfe.weiter.append(ico)
+  }
+  function balkenTakt() {
+    const v = videos[nr]
+    const f = v.duration ? v.currentTime / v.duration : 0
+    balken.forEach((b, i) => b.style.setProperty('--f', i < nr ? '1' : i === nr ? f.toFixed(3) : '0'))
+    takt = requestAnimationFrame(balkenTakt)
+  }
+  function auf() {
+    show(root.id, true)
+    zeigen(0)
+    cancelAnimationFrame(takt)
+    takt = requestAnimationFrame(balkenTakt)
+  }
+  function zu() {
+    audio.click()
+    beimSchliessen()
+    show(root.id, false)
+    cancelAnimationFrame(takt)
+    for (const v of videos) v.pause()
+  }
+  knoepfe.zu.addEventListener('click', zu)
+  knoepfe.zurueck.addEventListener('click', () => {
+    audio.click()
+    zeigen(nr - 1)
   })
-  $<HTMLButtonElement>('patch-zurueck').disabled = patchNr === 0
-  const letzte = patchNr === patchFolien.length - 1
-  const weiter = $('patch-weiter')
-  weiter.replaceChildren(letzte ? "Los geht's" : 'Weiter')
-  const ico = document.createElement('span')
-  setIcon(ico, letzte ? 'Check' : 'ChevronRight')
-  if (letzte) weiter.prepend(ico)
-  else weiter.append(ico)
-}
-function patchBalkenTakt() {
-  const v = patchVideos[patchNr]
-  const f = v.duration ? v.currentTime / v.duration : 0
-  patchBalken.forEach((b, i) => b.style.setProperty('--f', i < patchNr ? '1' : i === patchNr ? f.toFixed(3) : '0'))
-  patchTakt = requestAnimationFrame(patchBalkenTakt)
-}
-function patchAuf() {
-  $('patch-welten').textContent = `${WELTEN.length} Welten, jede mit eigenen Gefahren, Tieren und Belohnungen: ${WELTEN.map((w) => w.name).join(', ').replace(/, ([^,]*)$/, ' und $1')}.`
-  $('patch-version').textContent = `Version ${__APP_VERSION__}`
-  show('patchnotes', true)
-  patchZeigen(0)
-  patchTakt = requestAnimationFrame(patchBalkenTakt)
-}
-function patchZu() {
-  audio.click()
-  patchnotesGesehen()
-  show('patchnotes', false)
-  cancelAnimationFrame(patchTakt)
-  for (const v of patchVideos) v.pause()
-}
-$('patch-zu').addEventListener('click', patchZu)
-$('patch-zurueck').addEventListener('click', () => {
-  audio.click()
-  patchZeigen(patchNr - 1)
-})
-$('patch-weiter').addEventListener('click', () => {
-  if (patchNr === patchFolien.length - 1) return patchZu()
-  audio.click()
-  patchZeigen(patchNr + 1)
-})
-// Mit "Bewegung reduzieren" laufen die Videos nicht von selbst: Tippen startet und haelt an
-if (reduce) patchVideos.forEach((v) => v.addEventListener('click', () => (v.paused ? void v.play().catch(() => {}) : v.pause())))
-// Wischen zwischen den Folien
-{
+  knoepfe.weiter.addEventListener('click', () => {
+    if (nr === folien.length - 1) return zu()
+    audio.click()
+    zeigen(nr + 1)
+  })
+  // Mit "Bewegung reduzieren" laufen die Videos nicht von selbst: Tippen startet und haelt an
+  if (reduce) videos.forEach((v) => v.addEventListener('click', () => (v.paused ? void v.play().catch(() => {}) : v.pause())))
+  // Wischen zwischen den Folien
   let x0: number | null = null
-  const buehne = $('patch-buehne')
+  const buehne = root.querySelector<HTMLElement>('.patch__buehne')!
   buehne.addEventListener('pointerdown', (e) => (x0 = e.clientX))
   buehne.addEventListener('pointerup', (e) => {
     if (x0 === null) return
@@ -2845,10 +2844,44 @@ if (reduce) patchVideos.forEach((v) => v.addEventListener('click', () => (v.paus
     x0 = null
     if (Math.abs(dx) < 40) return
     audio.click()
-    patchZeigen(patchNr + (dx < 0 ? 1 : -1))
+    zeigen(nr + (dx < 0 ? 1 : -1))
   })
   buehne.addEventListener('pointercancel', () => (x0 = null))
+  return {
+    auf,
+    zu,
+    get offen() {
+      return root.hasAttribute('data-open')
+    },
+  }
 }
+
+const patchnotes = trailer($('patchnotes'), { zu: $('patch-zu'), zurueck: $<HTMLButtonElement>('patch-zurueck'), weiter: $('patch-weiter') }, patchnotesGesehen)
+function patchAuf() {
+  $('patch-welten').textContent = `${WELTEN.length} Welten, jede mit eigenen Gefahren, Tieren und Belohnungen: ${WELTEN.map((w) => w.name).join(', ').replace(/, ([^,]*)$/, ' und $1')}.`
+  $('patch-version').textContent = `Version ${__APP_VERSION__}`
+  patchnotes.auf()
+}
+
+/** Spielfuehrer: das Fragezeichen oben im Startmenue, mit rotem Punkt, bis man ihn einmal geoeffnet hat */
+const fuehrerRoot = $('fuehrer')
+const fuehrer = trailer(
+  fuehrerRoot,
+  { zu: fuehrerRoot.querySelector<HTMLElement>('[data-trailer="zu"]')!, zurueck: fuehrerRoot.querySelector<HTMLButtonElement>('[data-trailer="zurueck"]')!, weiter: fuehrerRoot.querySelector<HTMLElement>('[data-trailer="weiter"]')! },
+  () => {},
+)
+$('fuehrer-punkt').hidden = !fuehrerNeu()
+$('btn-fuehrer').addEventListener('click', () => {
+  audio.click()
+  fuehrerGesehen()
+  $('fuehrer-punkt').hidden = true
+  fuehrer.auf()
+})
+// Letzte Folie: die ausfuehrliche Anleitung mit allen Gefahren
+$('fuehrer-mehr').addEventListener('click', () => {
+  fuehrer.zu()
+  openPage('help')
+})
 if (patchnotesNeu() && !devMission && !params.has('raum')) patchAuf()
 $('btn-master-reset').addEventListener('click', () => {
   if (!confirm('Alle Master-Einstellungen auf Standard zurücksetzen?')) return
@@ -3197,7 +3230,8 @@ window.addEventListener('blur', pause)
 // Android: Zuruecktaste
 if (nativ) {
   void App.addListener('backButton', () => {
-    if ($('patchnotes').hasAttribute('data-open')) return patchZu()
+    if (patchnotes.offen) return patchnotes.zu()
+    if (fuehrer.offen) return fuehrer.zu()
     if (page()) return closePage()
     if (mode === 'mehr') return
     if (mode === 'play') return pause()
@@ -4000,8 +4034,17 @@ if (!gesperrt) {
   const dm = WIESE_MISSIONEN[devMission - 1]
   if (dm) newGame(false, false, 'normal', dm)
 }
-/** Nur beim Entwickeln: das laufende Spiel fuer die Konsole und Browser-Tests (window.spiel()) */
-if (import.meta.env.DEV) Object.assign(window, { spiel: () => game })
+/** Nur beim Entwickeln: das laufende Spiel fuer die Konsole und Browser-Tests (window.spiel()), und wo auf dem Bildschirm
+ *  eine Mission der Karte liegt (window.missionFeld(nr), fuer die Videos des Spielfuehrers) */
+if (import.meta.env.DEV)
+  Object.assign(window, {
+    spiel: () => game,
+    missionFeld: (nr: number) => {
+      const r = kScroll.getBoundingClientRect()
+      const p = karte.feldMitte(nr)
+      return { x: r.left + (r.width - karte.w) / 2 + p.x, y: r.top + p.y - kScroll.scrollTop }
+    },
+  })
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)
 if (!nativ && import.meta.env.PROD && 'serviceWorker' in navigator) {
