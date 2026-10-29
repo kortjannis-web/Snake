@@ -17,7 +17,7 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 
 Mit Supabase (kostenlos) gibt es die Hall of Snakes (fehlt ein Spieler oder kommen Skin und Rekord nicht an: [`docs/SPIELER-LOESCHEN.md`](docs/SPIELER-LOESCHEN.md), Teil 0) (der **Name ist zugleich der Account**: derselbe Name auf einem anderen Gerät = derselbe Account, ohne Passwort; Einrichtung Schritt 2b): alle Spieler nach Rekord, Gold oder Silber sortiert, dazu Freunde und das Tageslevel.
 Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). **Alle Supabase-Einstellungen, Selbsttest, automatische Updates, Fehlersuche und Ideen fürs Online-Erlebnis:** [`docs/SUPABASE-KOMPLETT.md`](docs/SUPABASE-KOMPLETT.md). Ohne Einrichtung läuft das
-Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge von selbst, die Android-App
+Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge bei allen Spielern von selbst (hängt der Service Worker, lädt sie hart neu, siehe `docs/SPIELFUNKTIONEN.md` 18), die Android-App
 weist auf dem Startbildschirm auf eine neuere APK hin.
 
 ## Mehrspieler
@@ -121,7 +121,7 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `public/skins/` Shop-Vorschauen: Standbild (WebP) für jede Farbe, jeden Skin, jedes Accessoire und jede Spur, bewegte zusätzlich als kurzes Video (MP4 und WebM), erzeugt von `scripts/skin-videos.mjs`
 - `src/audio.ts` alle Töne und die Musik per Web Audio, keine Dateien
 - `src/main.ts` Menüs, Spielschleife, Speicher (Rekord und Statistik im Gerät)
-- `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Update-Hinweis der Android-App
+- `src/online.ts` Bestenliste über Supabase (optional, nur mit Zugangsdaten beim Bauen), `src/update.ts` Versionsvergleich mit `version.json` (Update-Hinweis der Android-App, Absicherung der Web-App)
 - `supabase/migrations/` Datenbank der Bestenliste (Tabellen, Regeln, Schummelschutz)
 - `src/game/mehr.ts` Mehrspieler-Logik (mehrere Schlangen, Leben, Abstand, Gebiete), `src/game/zustand.ts` Spielstand verschicken und übernehmen
 - `src/multi/` Mehrspieler in der App (Verbindung, Lobby, Anzeige) und das gemeinsame Protokoll
