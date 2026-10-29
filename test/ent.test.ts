@@ -211,11 +211,25 @@ describe('Ent (Mission 20)', () => {
     expect(r.cells.some((c) => k.istWand(c))).toBe(false)
   })
 
-  it('ab Phase 2 wandert er zwischen den Stuempfen; ein freier Stumpf ist wie Wand', () => {
+  it('in Phase 2 bleibt er stehen, ab Phase 3 wandert er zwischen den Stuempfen; ein freier Stumpf ist wie Wand', () => {
+    // Phase 2: kein Wandern, auch nach vielen Attacken
+    const p2 = entSpiel()
+    const k2 = ruhigerEnt(p2)
+    p2.schutzBis = 1e12
+    k2.ent.phase = 1
+    k2.ent.angriffe = ENT.wandernNach + 3
+    k2.ent.bis = p2.time
+    setzeSchlange(p2, { x: 8, y: 26 }, 'u')
+    const platz2 = k2.ent.platz
+    lauf(p2, ENT.abtauchen + 100)
+    expect(k2.ent.zustand).not.toBe('abtauchen')
+    expect(k2.ent.zustand).not.toBe('auftauchen')
+    expect(k2.ent.platz).toBe(platz2)
+    // Phase 3: er wandert
     const g = entSpiel()
     const k = ruhigerEnt(g)
     g.schutzBis = 1e12
-    k.ent.phase = 1
+    k.ent.phase = 2
     k.ent.angriffe = ENT.wandernNach
     k.ent.bis = g.time
     setzeSchlange(g, { x: 8, y: 26 }, 'u')
@@ -315,7 +329,8 @@ describe('Ent (Mission 20)', () => {
       const h = g.body[0]
       const ok = (d: Dir) => {
         const n = { x: h.x + STEP[d].x, y: h.y + STEP[d].y }
-        return g.gefahr(n, g.body.slice(0, -1)) === null && !g.body.slice(1).some((b) => b.x === n.x && b.y === n.y)
+        // Angekuendigte Sprosse (gleich Dickicht) meidet er auch
+        return g.gefahr(n, g.body.slice(0, -1)) === null && !g.body.slice(1).some((b) => b.x === n.x && b.y === n.y) && !k.sprosse.some((s) => s.p.x === n.x && s.p.y === n.y)
       }
       if (!ok(g.dir) || i % 37 === 0) {
         const d = DIRS.filter((x) => x !== OPP[g.dir] && ok(x))

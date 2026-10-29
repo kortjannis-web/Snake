@@ -1378,8 +1378,8 @@ function handle(e: GameEvent) {
       if (e.was === 'flamme') toast('gebiet', 'Du trägst eine Flamme', 'Fahr durch einen Holzstapel, um ihn anzuzünden.')
       if (e.was === 'brennt') toast('gebiet', 'Die Rinde brennt!', 'Sein Herzknoten liegt frei: fahr jetzt durch den Ent hindurch.')
       if (e.was === 'zorn' && kampf && kampf.ent.phase === 1 && kampf.entLeben > 1 && kampf.ent.hp === kampf.entLeben - 1)
-        toast('gegner', 'Phase 2', 'Er wandert zwischen den Stümpfen. Zünde Feuer an und stell dich so, dass ein Feuer zwischen dir und ihm liegt: Seine Wurzeln fangen dort Feuer.')
-      if (e.was === 'zorn' && kampf && kampf.ent.phase === 2 && kampf.ent.hp === 1 && kampf.entLeben > 1) toast('gegner', 'Phase 3', 'Die Lichtung wächst von außen zu. Ein letzter Treffer!')
+        toast('gegner', 'Phase 2', 'Durch ihn hindurch geht jetzt nicht mehr. Zünde ein Feuer an und stell dich so, dass es zwischen dir und ihm liegt: Seine Wurzeln fangen dort Feuer.')
+      if (e.was === 'zorn' && kampf && kampf.ent.phase === 2 && kampf.ent.hp === 1 && kampf.entLeben > 1) toast('gegner', 'Phase 3', 'Jetzt wandert er zwischen den Baumstümpfen, und die Lichtung wächst von außen zu. Ein letzter Treffer!')
       break
     }
     case 'kaefig':

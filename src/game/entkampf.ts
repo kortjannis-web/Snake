@@ -15,7 +15,8 @@
  * - Phase 1: brennen alle Stapel gleichzeitig, faengt seine Rinde Feuer und der Herzknoten liegt frei: durch ihn fahren = Treffer
  * - ab Phase 2: schiesst er eine Wurzel durch ein brennendes Feuer, faengt sie Feuer, die Flamme laeuft zu ihm zurueck: Treffer.
  *   Man stellt sich also so hin, dass ein Feuer zwischen einem selbst und ihm liegt (das Feuer haelt die Wurzel auch auf)
- * Ab Phase 2 wandert er zwischen alten Baumstuempfen, ab Phase 3 waechst die Lichtung von aussen zu.
+ * In Phase 2 bleibt er stehen (erst einmal das Rueckfeuer herausfinden), ab Phase 3 wandert er zwischen alten Baumstuempfen
+ * und die Lichtung waechst von aussen zu.
  * Der Ent hat drei Leben (je Phase ein Treffer), die Schlange keins extra: ein Treffer am Kopf ist vorbei.
  * Was der Kampf vom Spiel braucht, kommt wie beim Golem ueber den `KampfWirt`.
  */
@@ -72,7 +73,7 @@ export const ENT = {
   zorn: 1700,
   abtauchen: 900,
   auftauchen: 900,
-  /** Ab Phase 2: nach so vielen Attacken wandert er zum naechsten Stumpf */
+  /** Ab Phase 3: nach so vielen Attacken wandert er zum naechsten Stumpf */
   wandernNach: 2,
   /** Phase 3: so oft waechst die Lichtung ein Feld weiter zu (hoechstens zuwachsenMax), Vorwarnung */
   zuwachsen: 5200,
@@ -386,8 +387,8 @@ export class Entkampf {
             this.ereignis('tot')
           } else {
             e.phase = Math.min(2, this.entLeben - e.hp)
-            // Neue Phase: gleich nach dem Gebruell wandert er zum ersten Mal
-            e.angriffe = ENT.wandernNach
+            // Phase 3: gleich nach dem Gebruell wandert er zum ersten Mal (in Phase 2 bleibt er stehen)
+            e.angriffe = e.phase >= 2 ? ENT.wandernNach : 0
             this.setze('zorn', ENT.zorn)
             this.ereignis('zorn')
             if (e.phase >= 2 && this.zuwachsNext === Infinity) this.zuwachsNext = t + ENT.zorn + 1500
@@ -421,10 +422,10 @@ export class Entkampf {
     e.winkel += Math.max(-max, Math.min(max, dw))
   }
 
-  /** Naechste Attacke, ab Phase 2 nach ein paar Attacken erst zum naechsten Stumpf */
+  /** Naechste Attacke, ab Phase 3 nach ein paar Attacken erst zum naechsten Stumpf */
   protected weiter() {
     const e = this.ent
-    if (e.phase >= 1 && e.angriffe >= ENT.wandernNach && this.stuempfe.length > 1) {
+    if (e.phase >= 2 && e.angriffe >= ENT.wandernNach && this.stuempfe.length > 1) {
       e.angriffe = 0
       this.setze('abtauchen', ENT.abtauchen)
       this.ereignis('abtauchen')
