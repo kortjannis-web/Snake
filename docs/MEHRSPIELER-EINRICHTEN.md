@@ -61,7 +61,7 @@ Wer später 5 $/Monat für Cloudflare zahlt, könnte die Rechnung auf den Server
 2. Warten, bis der Lauf grün ist (ca. 1 Minute).
 3. Auf den Lauf klicken → **deploy** → Schritt **Veroeffentlichen** aufklappen. Dort steht eine Zeile wie
    `https://snake-server.jannis.workers.dev`. Diese Adresse kopieren.
-4. Kontrolle: Die Adresse im Browser öffnen. Es erscheint `Snake-Server, Protokoll 2`.
+4. Kontrolle: Die Adresse im Browser öffnen. Es erscheint `Snake-Server, Protokoll 2`, darunter, ob Benachrichtigungen für Web/iPhone und die Android-App eingerichtet sind.
 
 ## Schritt 5: Die App mit dem Server verbinden (Variable)
 
