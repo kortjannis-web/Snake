@@ -236,7 +236,7 @@ export function patchnotesGesehen() {
 
 /** Spielfuehrer hinter dem Fragezeichen: roter Punkt, bis man ihn einmal geoeffnet hat. Neue Kennung = der Punkt kommt wieder */
 const FKEY = 'snake.fuehrer'
-export const FUEHRER = '1'
+export const FUEHRER = '2'
 export function fuehrerNeu() {
   return read<{ v?: string }>(FKEY, {}).v !== FUEHRER
 }
