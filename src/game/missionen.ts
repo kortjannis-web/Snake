@@ -37,6 +37,7 @@
  *      der Karte (Apfel, Gift ...) bekommen den Boden, der ihnen am naechsten ist
  *   z  Kaefigkopf (ab Mission 26: schlendert, sieht nach vorn, wirft Energiestrahlen in die acht Richtungen der Dame)
  *   @  Siegel (Mission 27: statt Aepfeln), D die grosse Tuer (zu, bis alle Siegel geholt sind; hindurch = geschafft)
+ * Nur im Kaefigmeister-Level (30): m Mitte eines der sechs Raeume, D die Tuer hinaus (zu, bis er besiegt ist)
  */
 import type { Dir } from './types'
 
@@ -74,7 +75,7 @@ export type MissionDef = {
   wolkeStufe?: number
   /** Lavaseen breiten sich um so viele Felder aus */
   lavaMehr?: number
-  /** Noch nicht gebaut, aber vorgemerkt: Boss der Dungeons (Mission 30) */
+  /** Boss der Dungeons (Mission 30): der Kaefigmeister im Labyrinth */
   dungeonBoss?: boolean
   /** Leuchtturm: so lang ist sein Kegel (Felder) und so oft (ms) dreht er sich eine Vierteldrehung weiter
    *  (sonst wie im freien Spiel 6 Felder und TURM_TAKT) */
@@ -1990,6 +1991,87 @@ const WIESE_29 = [
   '#######################################',
 ] as const
 
+/**
+ * Mission 30 (Boss): der Kaefigmeister. Ein weites Labyrinth unter der Erde (Gaenge 3 bis 4 breit) mit sechs Raeumen
+ * (m = Mitte, 11 x 9, je zwei Saeulen als Deckung). In einem zufaelligen Raum erscheint er, man muss ihn suchen; im Raum
+ * fuenf Flammen holen (jede fliegt auf ihn), dann verschwindet er und erscheint woanders, dreimal. Oben die Tuer (D) hinaus,
+ * sie geht erst auf, wenn er besiegt ist. Drei Kaefigkoepfe streifen durch die Gaenge
+ */
+const WIESE_30 = [
+  '####################################################',
+  '####################################################',
+  '#######################DDDDDD#######################',
+  '#################,,,,,,,,,,,,,,,,,,#################',
+  '#################,,,,,,,,,,,,,,,,,,#################',
+  '#################,,,,,,,,,,,,,,,,,,#################',
+  '#################,,,,,,,,,,,,,,,,,,#################',
+  '#################,,,,,,,,,,,,,,,,,,#################',
+  '#################,,,###,,,,#####,,,#################',
+  '#################,,,###,,,,#####,,,#################',
+  '####,,,,,,,,,,,##,,,###,,,,#####,,,##,,,,,,,,,,,####',
+  '####,,,,,,,,,,,##,,,###,,,,#####,,,##,,,,,,,,,,,####',
+  '####,,,,,,,,,,,##,,,###,,,,#####,,,##,,,,,,,,,,,####',
+  '####,,,#,,,,,,,,,,,,###,,,,#####,,,,,,,,#,,,,,,,####',
+  '####,,,,,m,,,,,,,,,,###,,,,#####,,,,,,,,,,m,,,,,####',
+  '####,,,,,,,#,,,,,,,,###,,,,#####,,,,,,,,,,,,#,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '########,,,############,,,,##############,,,########',
+  '########,,,############,,,,##############,,,########',
+  '########,,,############,,,,##############,,,########',
+  '########,,,############,,,,##############,,,########',
+  '########,,,############,,,,##############,,,########',
+  '########,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#######',
+  '########,,,,,,z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#######',
+  '########,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#######',
+  '########,,,####################,,,#######,,,########',
+  '########,,,####################,,,#######,,,########',
+  '########,,,####################,,,#######,,,########',
+  '########,,,####################,,,#######,,,########',
+  '####,,,,,,,,,,,################,,,###,,,,,,,,,,,####',
+  '####,,,,,,,,,,,################,,,###,,,,,,,,,,,####',
+  '####,,,,,,,,,,,################,,,###,,,,,,,,,,,####',
+  '####,,,#,,,,,,,,,,,,,##########,,,,,,,,,#,,,,,,,####',
+  '####,,,,,m,,,,,,,,,,,##########,,,,,,,,,,,m,,,,,####',
+  '####,,,,,,,#,,,,,,,,,##########,,,,,,,,,,,,,#,,,####',
+  '####,,,,,,,,,,,###,,,################,,,,,,,,,,,####',
+  '####,,,,,,,,,,,###,,,################,,,,,,,,,,,####',
+  '####,,,,,,,,,,,###,,,################,,,,,,,,,,,####',
+  '####,,,###########,,,########################,,,####',
+  '####,,,###########,,,########################,,,####',
+  '####,,,###########,,,########################,,,####',
+  '####,,,###########,,,########################,,,####',
+  '####,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,####',
+  '####,,,,,,,,,,,,,,,,,,,,z,,,,,,,,,,,,,,,z,,,,,,,####',
+  '####,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,####',
+  '####,,,################,,,,##################,,,####',
+  '####,,,################,,,,##################,,,####',
+  '####,,,################,,,,##################,,,####',
+  '####,,,################,,,,##################,,,####',
+  '####,,,################,,,,##################,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '####,,,#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,####',
+  '####,,,,,m,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,m,,,,,####',
+  '####,,,,,,,#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '####,,,,,,,,,,,########,,,,##########,,,,,,,,,,,####',
+  '########,,,############,,,,##############,,,########',
+  '########,,,#########,,,,,,,,,,,,#########,,,########',
+  '########,,,#########,,,,,,,,,,,,#########,,,########',
+  '#########,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#########',
+  '#########,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#########',
+  '#########,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#########',
+  '####################,,,,,S,,,,,,####################',
+  '####################,,,,,,,,,,,,####################',
+  '####################,,,,,,,,,,,,####################',
+  '####################################################',
+  '####################################################',
+] as const
+
 /** Belohnung je Mission (beim ersten Abschluss), steigt mit der Schwierigkeit */
 export const MISSION_LOHN = [6, 8, 10, 12, 20, 14, 16, 18, 22, 40, 24, 26, 28, 30, 45, 32, 34, 36, 40, 60, 42, 44, 46, 48, 65, 50, 55, 58, 62, 90]
 /** Skins der Kampagne: Steingolem (Boss, Mission 10), Schatzhueter (Schatzhoehle, Mission 15), Waldgeist (Ent, Mission 20) */
@@ -2028,7 +2110,7 @@ const BAU: Bau[] = [
   { karte: WIESE_27, richtung: 'u', laenge: 8, seed: 0x5eed27, tempoProApfel: 1.05, hinweis: 'Keine Äpfel: Hol die drei Siegel aus den Dungeon-Kammern im Labyrinth. Dann leuchtet oben die große Tür orange: fahr hindurch.' },
   { karte: WIESE_28, richtung: 'u', laenge: 8, seed: 0x5eed28, tempoProApfel: 1.1, hinweis: 'Hinter der großen Tür: ab hier nur noch unter der Erde. Gänge und Hallen, nur drei Äpfel.' },
   { karte: WIESE_29, richtung: 'u', laenge: 8, seed: 0x5eed29, tempoProApfel: 1.1, lavaMehr: 4, wolkeStufe: 2, hinweis: 'Tief unter der Erde: Lava, Giftnebel und drei Käfigköpfe. Ihr Herr ist nah.' },
-  { dungeonBoss: true },
+  { karte: WIESE_30, richtung: 'u', laenge: 6, seed: 0x5eed30, dungeonBoss: true },
 ]
 
 const NAMEN = [
@@ -2038,7 +2120,7 @@ const NAMEN = [
 ]
 
 /** Die 30 Missionen der Wiese. 5, 15 und 25 sind Schatz-Level, 10 und 20 die Bosse (Steingolem und Ent), ab 21 kommen
- *  Dungeons dazu (28 und 29 nur Dungeon), 30 ist der Boss der Dungeons (noch nicht gebaut, auf der Karte ausgegraut) */
+ *  Dungeons dazu (28 bis 30 nur unter der Erde), 30 ist der Boss der Dungeons: der Kaefigmeister */
 export const WIESE_MISSIONEN: MissionDef[] = NAMEN.map((name, i) => ({
   // Mission 20 war frueher das Golem-Heer: der Ent hat eine eigene Id, so zaehlt er fuer alle als neu (mit Belohnung)
   id: i === 19 ? 'wiese-20-ent' : `wiese-${i + 1}`,

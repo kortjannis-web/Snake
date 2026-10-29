@@ -346,6 +346,41 @@ class Audio {
         break
     }
   }
+  /** Kaefigmeister: Glocke beim Erscheinen, Fluestern beim Erwachen, Laden, Strahl, Runen, Teleport, Flammen, Schrei */
+  meister(was: string) {
+    switch (was) {
+      case 'erscheint':
+        ;[196, 233, 311].forEach((f, i) => this.tone(f, 1.6, 'sine', 0.08, { delay: i * 0.18 }))
+        break
+      case 'erwacht':
+        this.tone(147, 1.2, 'sawtooth', 0.07, { to: 98, filter: 500, vib: 6, attack: 0.2 })
+        this.noise(0.8, 'bandpass', 1800, 0.06, { to: 600, q: 3, attack: 0.3 })
+        break
+      case 'laden':
+        this.tone(330, 0.9, 'triangle', 0.06, { to: 990, attack: 0.25 })
+        break
+      case 'aoe':
+        ;[523, 622, 740].forEach((f, i) => this.tone(f, 0.5, 'triangle', 0.05, { delay: i * 0.09 }))
+        break
+      case 'weg':
+      case 'teleport':
+        this.tone(880, 0.35, 'sine', 0.06, { to: was === 'weg' ? 220 : 1320 })
+        break
+      case 'flamme':
+        this.noise(0.4, 'bandpass', 1200, 0.1, { to: 2600, q: 2 })
+        break
+      case 'trifft':
+        this.noise(0.35, 'lowpass', 900, 0.2, { to: 200 })
+        this.tone(220, 0.3, 'square', 0.05, { to: 110, filter: 900 })
+        break
+      case 'getroffen':
+      case 'tot':
+        this.tone(392, 1.1, 'sawtooth', 0.09, { to: 98, filter: 1200, vib: 9 })
+        this.noise(1, 'bandpass', 2000, 0.12, { to: 300, q: 2 })
+        if (was === 'tot') [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.45, 'triangle', 0.1, { delay: 1 + i * 0.12 }))
+        break
+    }
+  }
   /** Siegel aufgehoben (hoeher, je weniger fehlen), die grosse Tuer geht auf */
   siegel(rest: number) {
     const f = [784, 659, 523][Math.min(2, rest)] ?? 523

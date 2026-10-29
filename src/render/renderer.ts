@@ -18,6 +18,8 @@ import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, d
 import type { BergKacheln } from './berge'
 import { drawKaefigEntdeckt, drawKaefigkopf, drawKaefigStrahl, drawKaefigWarnung, drawSiegel, drawTuer } from './kerker'
 import { KAEFIG } from '../game/mission'
+import { KaefigBossGame, MEISTER } from '../game/kaefigboss'
+import { drawMeister, drawMeisterAngriff, drawMeisterFlamme, drawMeisterFlug, drawMeisterHud, drawMeisterKreis } from './meister'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { abgrundKachel, drawAbgrund, drawSprudeln, drawVulkanBoden, type AbgrundKachel } from './vulkan'
 import { BAUM_FALL, BAUM_WARNUNG, CW, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
@@ -1070,6 +1072,34 @@ export class Renderer {
         if (z.jagt >= 0) drawKaefigEntdeckt(ctx, x, y, cell, (now - z.jagt) / 900)
         licht(x, y, cell * 1.4)
       }
+    // Der Kaefigmeister (Mission 30): Flammen im Raum, Angriffe, er selbst, Flammen im Flug
+    if (g instanceof KaefigBossGame) {
+      const M = g.meister
+      for (const f of g.flammen) if (sicht(f.p)) {
+        drawMeisterFlamme(ctx, px(f.p.x), px(f.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - f.t) / 380)), now, this.reduce)
+        licht(px(f.p.x), px(f.p.y), cell * 2)
+      }
+      if (M.angriff && sicht(M.p, 24)) drawMeisterAngriff(ctx, M.angriff, M.p, cell, now, this.reduce)
+      const a = M.angriff
+      let sichtbar = 0
+      if (M.zustand === 'erscheint') sichtbar = clamp01((now - M.t) / MEISTER.erscheinen)
+      else if (M.zustand === 'wartet' || M.zustand === 'kampf') {
+        sichtbar = 1
+        if (a?.art === 'teleport') sichtbar = now < a.los ? 1 - clamp01((now - a.ab) / MEISTER.teleportWeg) : clamp01((now - a.los) / MEISTER.teleportDa)
+      } else if (M.zustand === 'getroffen' || M.zustand === 'tot') sichtbar = 1 - clamp01((now - M.t) / 700)
+      if (sicht(M.p, 3)) {
+        const laden = a && a.art !== 'teleport' && now < a.los ? clamp01((now - a.ab) / Math.max(1, a.los - a.ab)) : 0
+        drawMeister(ctx, px(M.p.x), px(M.p.y), cell, M.winkel, sichtbar, laden, clamp01(1 - (now - M.trefferT) / 300), now, this.reduce)
+        if (M.zustand === 'erscheint') drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - M.t) / MEISTER.erscheinen, now)
+        if (a?.art === 'teleport') {
+          drawMeisterKreis(ctx, px(M.von.x), px(M.von.y), cell, (now - a.ab) / 700, now)
+          if (now >= a.los) drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - a.los) / 700, now)
+        }
+        if (M.zustand === 'getroffen' || M.zustand === 'tot') drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - M.t) / 900, now)
+        if (sichtbar > 0) licht(px(M.p.x), px(M.p.y), cell * 2.4)
+      }
+      for (const f of g.fluege) drawMeisterFlug(ctx, f.von, M.p, (now - f.t) / MEISTER.flug, cell, now)
+    }
 
     // Einschlaege: Schatten als Warnung, danach der liegende Block (bis zum naechsten Apfel)
     for (const e of g.einschlaege) {
@@ -1371,6 +1401,7 @@ export class Renderer {
     if (g.status === 'play' && !boss && !ent) this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
     if (boss) drawBossHud(ctx, boss, vw, vh, now)
+    if (g instanceof KaefigBossGame) drawMeisterHud(ctx, g, vw, vh, now)
     if (ent) {
       drawLaubsturm(ctx, ent, vw, vh, now, this.reduce)
       drawEntHud(ctx, ent, vw, vh, now)
@@ -2257,6 +2288,8 @@ export class Renderer {
   /** Pfeil am Bildrand, wenn der Apfel ausserhalb liegt */
   private drawZeiger(g: Game, ox: number, oy: number, now: number) {
     const { ctx, cell, vw, vh } = this
+    // Kein Ziel auf der Karte (Kaefigmeister: man muss ihn suchen)
+    if (g.apple.p.x < -100) return
     const ax = (g.apple.p.x + 0.5) * cell + ox
     const ay = (g.apple.p.y + 0.5) * cell + oy
     const m = cell * 0.5

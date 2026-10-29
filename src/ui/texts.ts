@@ -41,6 +41,7 @@ export const CAUSE: Record<Cause, string> = {
   kaefig: 'In den Käfigkopf gelaufen',
   kaefigstrahl: 'Vom Strahl des Käfigkopfs getroffen',
   dungeontuer: 'Gegen die verschlossene Tür gefahren',
+  kaefigmeister: 'Vom Käfigmeister erwischt',
   minigolem: 'Vom kleinen Steingolem erschlagen',
   licht: 'Ins Fensterlicht gelaufen',
   kegel: 'Vom Lichtkegel des Turms erwischt',

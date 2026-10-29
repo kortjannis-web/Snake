@@ -115,13 +115,13 @@ function legeSchlange(g: MissionGame, p: P, min = 0, max = 5) {
 }
 
 describe('Kampagne', () => {
-  it('Wiese: 30 Missionen, 5, 15 und 25 Schatz, 10, 20 und 30 Boss, 1 bis 29 spielbar, Belohnung steigt, Skins bei 10, 15 und 20', () => {
+  it('Wiese: 30 Missionen, 5, 15 und 25 Schatz, 10, 20 und 30 Boss, alle spielbar, Belohnung steigt, Skins bei 10, 15 und 20', () => {
     expect(WIESE_MISSIONEN).toHaveLength(30)
     expect(WIESE_MISSIONEN.filter((m) => m.art === 'schatz').map((m) => m.nr)).toEqual([5, 15, 25])
     expect(WIESE_MISSIONEN.filter((m) => m.art === 'boss').map((m) => m.nr)).toEqual([10, 20, 30])
-    // Der Boss der Dungeons ist vorgemerkt, aber noch nicht gebaut (auf der Karte ausgegraut)
+    // Der Boss der Dungeons: der Kaefigmeister
     expect(WIESE_MISSIONEN[29].dungeonBoss).toBe(true)
-    expect(spielbar(WIESE_MISSIONEN[29])).toBe(false)
+    expect(WIESE_MISSIONEN[29].name).toBe('Der Käfigmeister')
     expect(WIESE_MISSIONEN[9].boss).toBe('golem')
     expect(WIESE_MISSIONEN[19].boss).toBe('ent')
     expect(WIESE_MISSIONEN[19].name).toBe('Der Ent')
@@ -129,7 +129,7 @@ describe('Kampagne', () => {
     // Der Ent ist neu (frueher war Mission 20 das Golem-Heer): eigene Id, damit er fuer alle wieder offen ist
     expect(WIESE_MISSIONEN[19].id).toBe('wiese-20-ent')
     expect(new Set(WIESE_MISSIONEN.map((m) => m.id)).size).toBe(30)
-    expect(GEBAUT.map((m) => m.nr)).toEqual(Array.from({ length: 29 }, (_, i) => i + 1))
+    expect(GEBAUT.map((m) => m.nr)).toEqual(Array.from({ length: 30 }, (_, i) => i + 1))
     for (let i = 1; i < MISSION_LOHN.length; i++) if (WIESE_MISSIONEN[i].art === 'normal') expect(MISSION_LOHN[i]).toBeGreaterThan(MISSION_LOHN[i - 1] - 25)
     expect(WIESE_MISSIONEN.map((m) => m.lohn)).toEqual(MISSION_LOHN)
     expect(WIESE_MISSIONEN[0].lohn).toBe(6)
@@ -164,7 +164,7 @@ describe('Kampagne', () => {
     // Kaefigkoepfe kuendigen den Kaefigmeister an wie die Golems und Mini-Ents: 26 bis 29 je 1, 1, 2, 3
     expect(g.slice(25, 29).map((x) => x.kaefige.length)).toEqual([1, 1, 2, 3])
     expect(g.map((x) => x.siegel.length)).toEqual(g.map((_, i) => (i === 26 ? 3 : 0)))
-    expect(g.map((x) => x.tuer.length > 0)).toEqual(g.map((_, i) => i === 26))
+    expect(g.map((x) => x.tuer.length > 0)).toEqual(g.map((_, i) => i === 26 || i === 29))
     // Keine Gegner-Schlangen, ein einziger Leuchtturm in Mission 18
     for (const x of g) expect(x.gegner, x.mission.id).toHaveLength(0)
     expect(g.map((x) => x.tuerme.length)).toEqual(g.map((_, i) => (i === 17 ? 1 : 0)))
@@ -387,8 +387,8 @@ describe('Kampagne', () => {
     }
   })
 
-  it('Mission 28 und 29 sind ganz Dungeon, die Wiese davor hat Wald und Dungeon gemischt', () => {
-    for (const m of WIESE_MISSIONEN.slice(20, 29)) {
+  it('Mission 28 bis 30 sind ganz Dungeon, die Wiese davor hat Wald und Dungeon gemischt', () => {
+    for (const m of WIESE_MISSIONEN.slice(20, 30)) {
       const g = new MissionGame(m)
       let frei = 0
       let kerker = 0

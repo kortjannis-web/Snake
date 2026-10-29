@@ -89,6 +89,8 @@ export type MissionKarte = {
   tuer: P[]
   siegel: P[]
   kaefige: P[]
+  /** Kaefigmeister (Mission 30): Mitten der sechs Raeume, in denen er erscheinen kann */
+  raeume: P[]
 }
 
 /** Zusammenhaengende Gruppen (4er-Nachbarschaft) */
@@ -155,6 +157,7 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
     tuer: [],
     siegel: [],
     kaefige: [],
+    raeume: [],
   }
   const mauer: P[] = []
   const teich: P[] = []
@@ -275,6 +278,9 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
           break
         case 'z':
           k.kaefige.push(p)
+          break
+        case 'm':
+          k.raeume.push(p)
           break
         default:
           if (z[x] >= '1' && z[x] <= '6') k.sockel.push({ p, i: Number(z[x]) - 1 })

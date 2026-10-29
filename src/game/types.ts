@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor' | 'minigolem' | 'licht' | 'kegel' | 'wolke' | 'ameise' | 'bienen' | 'minient' | 'blaetterbombe' | 'entboss' | 'kaefig' | 'kaefigstrahl' | 'dungeontuer'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor' | 'minigolem' | 'licht' | 'kegel' | 'wolke' | 'ameise' | 'bienen' | 'minient' | 'blaetterbombe' | 'entboss' | 'kaefig' | 'kaefigstrahl' | 'dungeontuer' | 'kaefigmeister'
 
 export type Status = 'play' | 'over'
 
@@ -314,6 +314,7 @@ export type GameEvent =
   | { type: 'kaefig'; was: 'sieht' | 'laden' | 'strahl'; p: P }
   | { type: 'siegel'; p: P; rest: number }
   | { type: 'tuerAuf'; p: P }
+  | { type: 'meister'; was: 'erscheint' | 'erwacht' | 'laden' | 'aoe' | 'weg' | 'teleport' | 'flamme' | 'trifft' | 'getroffen' | 'tot'; p: P; leben?: number }
   | { type: 'eat'; level: number; p: P; stufe: number; wer?: number }
   | { type: 'milestone'; level: number }
   | { type: 'expand'; side: Side; add: number; dx: number; dy: number; block?: P; d?: Dir }

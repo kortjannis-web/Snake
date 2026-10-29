@@ -16,6 +16,7 @@
  * Der Kampf selbst steckt in golemkampf.ts (er laeuft genauso im freien Spiel auf Level 60), hier nur die Raeume der Mission.
  */
 import { EntBossGame } from './entboss'
+import { KaefigBossGame } from './kaefigboss'
 import { key } from './game'
 import { GOLEM, Golemkampf, RAUM_H, type GolemAngriffArt, type Pf, type Raum } from './golemkampf'
 import { MissionGame } from './mission'
@@ -218,4 +219,4 @@ export class BossGame extends MissionGame {
 
 /** Das passende Spiel zur Mission: Boss-Level mit Golem oder Ent, sonst die normale Mission */
 export const missionSpiel = (m: MissionDef, quer = false): MissionGame =>
-  m.art === 'boss' ? (m.boss === 'ent' ? new EntBossGame(m, quer) : new BossGame(m, quer)) : new MissionGame(m, quer)
+  m.dungeonBoss ? new KaefigBossGame(m, quer) : m.art === 'boss' ? (m.boss === 'ent' ? new EntBossGame(m, quer) : new BossGame(m, quer)) : new MissionGame(m, quer)

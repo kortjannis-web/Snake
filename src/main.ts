@@ -15,6 +15,7 @@ import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
 import { BossGame, GOLEM, missionSpiel } from './game/boss'
+import { KaefigBossGame, MEISTER } from './game/kaefigboss'
 import { ENT, EntBossGame } from './game/entboss'
 import { karteVon, MissionGame } from './game/mission'
 import { spielbar, WIESE_MISSIONEN, type MissionDef } from './game/missionen'
@@ -1388,6 +1389,16 @@ function handle(e: GameEvent) {
       haptic.medium()
       toast('gebiet', e.rest ? `Siegel geholt, noch ${e.rest}` : 'Alle Siegel geholt!', e.rest ? 'Sammle alle Siegel, dann öffnet sich die große Tür.' : 'Die große Tür leuchtet orange: fahr hindurch.')
       break
+    case 'meister':
+      audio.meister(e.was)
+      if (e.was === 'getroffen' || e.was === 'tot') haptic.heavy()
+      else if (e.was === 'trifft' || e.was === 'erscheint') haptic.medium()
+      else if (e.was === 'flamme') haptic.light()
+      if (e.was === 'erscheint') toast('gegner', 'Der Käfigmeister ist erschienen', 'Irgendwo in einem der sechs Räume. Such ihn!')
+      if (e.was === 'erwacht') toast('gebiet', 'Er hat dich bemerkt', 'Hol die Flammen in seinem Raum: Jede fliegt auf ihn. Fünf, dann verschwindet er.')
+      if (e.was === 'getroffen') toast('gegner', `Er ist verschwunden, noch ${e.leben === 1 ? 'ein Leben' : `${e.leben} Leben`}`, 'Gleich taucht er in einem Raum wieder auf, den du nicht siehst. Vielleicht sogar in diesem.')
+      if (e.was === 'tot') toast('aepfel', 'Der Käfigmeister ist besiegt!', 'Oben ist die Tür offen: raus aus dem Labyrinth.')
+      break
     case 'tuerAuf':
       audio.tuerAuf()
       haptic.heavy()
@@ -2753,10 +2764,13 @@ function missionStarten(m: MissionDef) {
     setzeErreicht(m.welt, m.nr)
     closeAllPages()
     newGame(false, false, 'normal', m)
-    if (m.art === 'boss' && m.boss === 'ent')
+    if (m.dungeonBoss)
+      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Er haust in einem der sechs Räume des Labyrinths: such ihn. In seinem Raum liegen Flammen, jede fliegt auf ihn. Fünf Flammen, und er verschwindet, bis er woanders wieder auftaucht. Drei Leben hat er, dann geht oben die Tür hinaus auf. Nur dein Kopf zählt.')
+    else if (m.art === 'boss' && m.boss === 'ent')
       toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Phasen. Hol eine Flamme aus der Glutschale und zünde die Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann durch ihn hindurch. Später fangen seine Wurzeln an brennenden Feuern Feuer. Der Ent hat drei Leben, du keins extra: Trifft er deinen Kopf, ist es vorbei.')
     else if (m.art === 'boss')
       toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Räume. Bring die Kristalle zum Sockel ihrer Farbe, leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Je Raum ein Treffer, drei braucht er. Trifft er deinen Kopf, ist es vorbei.')
+    else if (!karteVon(m).aepfel.length) toast('gebiet', `Mission ${m.nr}: ${m.name}`, m.hinweis ?? '')
     else toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. ${m.hinweis ?? 'Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.'}`)
   })
 }
@@ -3046,6 +3060,12 @@ function frame(now: number) {
       renderer.sonderApfel = false
     } else if (game instanceof BossGame) {
       const t = `${game.sockel.filter((s) => s.an).length} / ${game.sockel.length}`
+      const zt = $('tages-ziel')
+      if (zt.textContent !== t) zt.textContent = t
+      renderer.sonderApfel = false
+    } else if (game instanceof KaefigBossGame) {
+      // Kaefigmeister: Flammen dieses Lebens
+      const t = game.meister.zustand === 'tot' ? '✓' : `${game.meister.treffer} / ${MEISTER.flammen}`
       const zt = $('tages-ziel')
       if (zt.textContent !== t) zt.textContent = t
       renderer.sonderApfel = false
