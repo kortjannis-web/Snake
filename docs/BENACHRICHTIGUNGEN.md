@@ -88,6 +88,9 @@ GitHub → **Actions**, jeweils links den Namen anklicken → rechts **Run workf
 
 ### 2.4 Ausprobieren
 
+0. Kontrolle am Server: die Adresse aus `VITE_SNAKE_SERVER` im Browser öffnen. Dort muss stehen
+   `Benachrichtigungen Web/iPhone: an`.
+
 1. Snake auf dem Handy vom Home-Bildschirm öffnen (Web-App, nicht die APK).
 2. Die App fragt einmal „Benachrichtigungen aktivieren?“ → **Ja, aktivieren** → im System **Erlauben**.
    (Kam die Frage nicht: **Optionen** → **Benachrichtigungen** einschalten.)

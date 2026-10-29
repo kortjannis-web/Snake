@@ -102,10 +102,10 @@ die Live-Funktion. Du kannst es gefahrlos ein zweites Mal ausführen.
 
 ## Schritt 6: Veröffentlichen (Merge) und GitHub Pages einschalten
 
-> **Wichtig:** Die Workflows veröffentlichen nur vom **Standardzweig** des Repos. Bei dir heißt der aktuell
-> `ccr-f3b75153-2ubdai` (nicht `main`). Änderungen sind erst für alle da, wenn sie dort gelandet sind.
+> **Wichtig:** Die Workflows veröffentlichen nur vom **Standardzweig** des Repos (bei dir `main`, früher
+> `ccr-f3b75153-2ubdai`). Änderungen sind erst für alle da, wenn sie dort gelandet sind.
 
-1. Auf GitHub öffnest du den Zweig `ccr-8176dd72-g179c3` und klickst **Compare & pull request** → **Create pull request** →
+1. Auf GitHub öffnest du den Zweig mit den Änderungen und klickst **Compare & pull request** → **Create pull request** →
    **Merge pull request**. (Oder sag mir Bescheid, dann erstelle ich den Pull Request für dich.)
 2. **Settings** → **Pages** → bei **Source** **GitHub Actions** wählen. (Nur beim allerersten Mal.)
 3. Reiter **Actions**: Zwei Läufe starten, **Web-App (GitHub Pages)** und **Android-APK**. Warte, bis beide ein grünes Häkchen

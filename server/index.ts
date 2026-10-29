@@ -164,7 +164,14 @@ async function melden(req: Request, env: Env): Promise<Response> {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
-    if (url.pathname === '/') return new Response(`Snake-Server, Protokoll ${PROTOKOLL}`, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
+    // Startseite: Protokoll und ob Benachrichtigungen eingerichtet sind (zum Pruefen nach dem Eintragen der Schluessel)
+    if (url.pathname === '/') {
+      const supabase = !!(env.SUPABASE_URL && env.SUPABASE_ANON_KEY)
+      const web = supabase && !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)
+      const android = supabase && !!dienstkonto(env.FCM_DIENSTKONTO)
+      const text = `Snake-Server, Protokoll ${PROTOKOLL}\nBenachrichtigungen Web/iPhone: ${web ? 'an' : 'aus'}\nBenachrichtigungen Android-App: ${android ? 'an' : 'aus'}`
+      return new Response(text, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
+    }
     if (url.pathname === '/einladen') return einladen(req, env)
     if (url.pathname === '/melden') return melden(req, env)
     const m = url.pathname.match(/^\/raum\/([A-Za-z0-9]{4,8})$/)
