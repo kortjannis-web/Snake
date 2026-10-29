@@ -36,10 +36,10 @@ import { Renderer } from './render/renderer'
 import { BergKacheln } from './render/berge'
 import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abmelden, abonniere, abonniereHall, abonniereSozial, adminLoeschen, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abmelden, abonniere, abonniereHall, abonniereSozial, adminFeedback, adminFeedbackLoeschen, adminLoeschen, feedbackSenden, type Feedback, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { beiCloud } from './cloud'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, masterPruefen, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
+import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, masterPruefen, patchnotesGesehen, patchnotesNeu, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, missionLohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon, type Welt } from './render/welten'
@@ -48,7 +48,7 @@ import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help } from './ui/texts'
 
 type Mode = 'home' | 'ready' | 'play' | 'paused' | 'over' | 'mehr'
-type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'shopteil' | 'liste' | 'mehr' | 'hall' | 'chat' | 'kampagne'
+type Page = 'help' | 'stats' | 'settings' | 'kreativ' | 'master' | 'shop' | 'shopteil' | 'liste' | 'mehr' | 'hall' | 'chat' | 'kampagne' | 'feedback'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const nativ = Capacitor.isNativePlatform()
@@ -142,10 +142,8 @@ const devMission = import.meta.env.DEV ? Number(params.get('mission')) || 0 : 0
 
 mountIcons(document)
 $('version').textContent = __APP_VERSION__
-// Kreativ-Modus nur fuer den Admin: passt das gespeicherte Passwort nicht, verschwindet der Zugang
-void masterPruefen().then((ok) => {
-  if (!ok) $('btn-kreativ-home').hidden = true
-})
+// Admin-Zugang (Kreativ-Modus, alle Welten): passt das gespeicherte Passwort nicht mehr, ist er wieder zu
+void masterPruefen()
 
 /* ================= Groesse ================= */
 
@@ -206,6 +204,7 @@ function openPage(p: Page) {
     hallLiveAn()
   }
   if (p === 'kampagne') kampagneOeffnen()
+  if (p === 'feedback') feedbackOeffnen()
   if (p === 'mehr' || p === 'hall') pushFragen()
   show(p, true)
 }
@@ -1754,7 +1753,7 @@ type Teil = 'farben' | 'skins' | 'acc' | 'spuren' | 'effekte' | 'welten'
 let shopTeil: Teil = 'farben'
 /** Welcher Teil der Schlange gerade eine Farbe bekommt (zwei- und dreifarbig) */
 let farbTeil = 0
-const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren', effekte: 'Effekte', welten: 'Welten' }
+const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren', effekte: 'Effekte', welten: 'Map' }
 /** Welt-Vorschauen (gezeichnet, im Shop bewegt) */
 const weltCanvas: { cv: HTMLCanvasElement; welt: Welt }[] = []
 function weltVorschauCanvas(welt: Welt) {
@@ -1822,22 +1821,13 @@ function renderShop() {
     })
     box.append(b)
   }
-  // Welten: breiter Knopf mit der aktuellen Welt
-  const b = document.createElement('button')
-  b.className = 'aussehen__kachel aussehen__kachel--breit'
-  const frei = WELTEN.filter(weltOffen).length
-  b.append(weltVorschauCanvas(renderer.welt))
-  const t = document.createElement('b')
-  t.textContent = 'Welten'
-  const s = document.createElement('span')
-  s.textContent = `${frei} von ${WELTEN.length} frei · ${renderer.welt.name}`
-  b.append(t, s)
-  b.addEventListener('click', () => {
-    shopTeil = 'welten'
-    openPage('shopteil')
-  })
-  box.append(b)
 }
+/** Map (Startmenue unten, seit 1.52; frueher im Aussehen): alle Welten */
+$('btn-map').addEventListener('click', () => {
+  audio.unlock()
+  shopTeil = 'welten'
+  openPage('shopteil')
+})
 
 /** Karte fuer eine kaufbare Sache. an = gerade getragen */
 function shopKarte(id: string, name: string, an: boolean, waehlen: () => void, zeile = false) {
@@ -2198,6 +2188,9 @@ function kaufen(id: string, waehlen: () => void, knopf?: HTMLElement) {
 const toastQueue: (() => void)[] = []
 let toastBusy = false
 function toast(mini: Parameters<typeof drawMini>[1], title: string, text: string, o: { pfeil?: Side; minus?: boolean; stufe?: number } = {}) {
+  // Keine Hinweise im Spiel (seit 1.52): solange eine Runde laeuft (Endlos, Mission, Mehrspieler, auch am Spielende),
+  // wird nichts eingeblendet. Rueckmeldungen in den Menues (Kopiert, Fehler ...) bleiben
+  if (mode !== 'home') return
   const { pfeil, minus = false, stufe = 1 } = o
   const show = () => {
     const el = document.createElement('div')
@@ -2238,7 +2231,6 @@ function toastsClear() {
 
 function updateHome() {
   modusZeichnen()
-  $('btn-kreativ-home').hidden = !master.frei
   $('home-best').textContent = stats.best ? `Heute: ${heuteBest() || '–'} · Rekord: ${stats.best}` : 'Iss Äpfel, die Karte wächst mit.'
   updateGeld()
   const cv = $<HTMLCanvasElement>('home-apple')
@@ -2585,11 +2577,11 @@ $('btn-admin').addEventListener('click', async () => {
       return
     }
     // Ab jetzt: Kreativ-Modus und alle Welten
-    $('btn-kreativ-home').hidden = false
     renderer.welt = aktiveWelt()
   }
   openPage('master')
   void adminListe()
+  void adminFeedbackListe()
 })
 
 /** Admin: alle Spieler (aus der Hall of Snakes) mit Loeschen-Knopf, nach Namen filterbar */
@@ -2649,6 +2641,209 @@ async function adminListe(neu = true) {
   info.textContent = `${treffer.length} von ${adminZeilen.length} Spielern`
 }
 $('admin-suche').addEventListener('input', () => void adminListe(false))
+
+/** Admin: Feedback der Spieler, neuestes zuerst, jeder Eintrag mit seinen Punkten und Loeschen-Knopf */
+async function adminFeedbackListe() {
+  const box = $('admin-feedback-liste')
+  const info = $('admin-feedback-info')
+  if (!onlineAktiv) {
+    info.textContent = 'Online ist nicht eingerichtet.'
+    return
+  }
+  info.textContent = 'Lädt …'
+  let liste: Feedback[]
+  try {
+    liste = await adminFeedback(master.code)
+  } catch (e) {
+    info.textContent = e instanceof Error ? e.message : 'Keine Verbindung.'
+    return
+  }
+  box.replaceChildren()
+  for (const f of liste) {
+    const el = document.createElement('div')
+    el.className = 'feedback-eintrag'
+    const kopf = document.createElement('div')
+    kopf.className = 'feedback-eintrag__kopf'
+    const wer = document.createElement('span')
+    const datum = new Date(f.erstellt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+    wer.textContent = `${f.name || 'Ohne Namen'} · ${datum}${f.version ? ` · ${f.version}` : ''}`
+    const weg = document.createElement('button')
+    weg.className = 'icon-btn admin-weg'
+    weg.setAttribute('aria-label', 'Feedback löschen')
+    setIcon(weg, 'Trash2')
+    weg.addEventListener('click', async () => {
+      if (!confirm('Dieses Feedback löschen?')) return
+      try {
+        await adminFeedbackLoeschen(master.code, f.id)
+        void adminFeedbackListe()
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Das hat nicht geklappt.')
+      }
+    })
+    kopf.append(wer, weg)
+    const ul = document.createElement('ul')
+    for (const p of f.punkte) {
+      const li = document.createElement('li')
+      li.textContent = p
+      ul.append(li)
+    }
+    el.append(kopf, ul)
+    box.append(el)
+  }
+  info.textContent = liste.length ? `${liste.length} Mal Feedback` : 'Noch kein Feedback.'
+}
+$('admin-feedback').addEventListener('toggle', () => {
+  if ($<HTMLDetailsElement>('admin-feedback').open) void adminFeedbackListe()
+})
+
+/* ================= Feedback ================= */
+/** Feedback-Seite: einzelne Punkte (je ein Feld), bleiben stehen, bis sie abgeschickt sind */
+let feedbackEntwurf: string[] = ['']
+const FEEDBACK_MAX = 20
+function feedbackFelder() {
+  const box = $('feedback-punkte')
+  box.replaceChildren()
+  feedbackEntwurf.forEach((text, i) => {
+    const zeile = document.createElement('div')
+    zeile.className = 'feedback-punkt'
+    const nr = document.createElement('span')
+    nr.className = 'feedback-punkt__nr'
+    nr.textContent = `${i + 1}.`
+    const feld = document.createElement('textarea')
+    feld.maxLength = 1000
+    feld.rows = 3
+    feld.value = text
+    feld.placeholder = i === 0 ? 'Was fällt dir auf? Was wünschst du dir?' : 'Noch etwas'
+    feld.setAttribute('aria-label', `Punkt ${i + 1}`)
+    feld.addEventListener('input', () => (feedbackEntwurf[i] = feld.value))
+    zeile.append(nr, feld)
+    if (feedbackEntwurf.length > 1) {
+      const weg = document.createElement('button')
+      weg.className = 'icon-btn'
+      weg.setAttribute('aria-label', `Punkt ${i + 1} entfernen`)
+      setIcon(weg, 'X')
+      weg.addEventListener('click', () => {
+        audio.click()
+        feedbackEntwurf.splice(i, 1)
+        feedbackFelder()
+      })
+      zeile.append(weg)
+    }
+    box.append(zeile)
+  })
+  $<HTMLButtonElement>('feedback-plus').disabled = feedbackEntwurf.length >= FEEDBACK_MAX
+}
+function feedbackOeffnen() {
+  $('feedback-info').textContent = ''
+  feedbackFelder()
+}
+$('feedback-plus').addEventListener('click', () => {
+  if (feedbackEntwurf.length >= FEEDBACK_MAX) return
+  audio.click()
+  feedbackEntwurf.push('')
+  feedbackFelder()
+  $('feedback-punkte').querySelector<HTMLTextAreaElement>('.feedback-punkt:last-child textarea')?.focus()
+})
+$('feedback-senden').addEventListener('click', async () => {
+  const knopf = $<HTMLButtonElement>('feedback-senden')
+  const info = $('feedback-info')
+  const punkte = feedbackEntwurf.map((t) => t.trim()).filter(Boolean)
+  if (!punkte.length) {
+    info.textContent = 'Schreib erst etwas.'
+    return
+  }
+  audio.click()
+  knopf.disabled = true
+  info.textContent = 'Wird geschickt …'
+  try {
+    await feedbackSenden(punkte, __APP_VERSION__)
+    feedbackEntwurf = ['']
+    feedbackFelder()
+    info.textContent = 'Danke! Dein Feedback ist angekommen.'
+  } catch (e) {
+    info.textContent = e instanceof Error ? e.message : 'Das hat nicht geklappt. Bist du online?'
+  } finally {
+    knopf.disabled = false
+  }
+})
+
+/* ================= Patchnotes ================= */
+/** Einmal je Geraet nach einem Update: vier Folien mit kurzen Trailern, weiterklicken oder wischen. Oben fuellen sich die
+ *  Balken mit dem Video der aktuellen Folie */
+const patchFolien = [...document.querySelectorAll<HTMLElement>('.patch__folie')]
+const patchVideos = patchFolien.map((f) => f.querySelector('video')!)
+const patchBalken = [...document.querySelectorAll<HTMLElement>('#patch-balken i')]
+let patchNr = 0
+let patchTakt = 0
+function patchZeigen(nr: number) {
+  patchNr = Math.max(0, Math.min(patchFolien.length - 1, nr))
+  $('patch-band').style.transform = `translateX(${-patchNr * 100}%)`
+  patchFolien.forEach((f, i) => f.setAttribute('aria-hidden', String(i !== patchNr)))
+  patchVideos.forEach((v, i) => {
+    if (i !== patchNr) return v.pause()
+    v.preload = 'auto'
+    // Naechste Folie schon laden, damit es beim Weiterklicken sofort laeuft
+    if (patchVideos[i + 1] && patchVideos[i + 1].preload === 'none') patchVideos[i + 1].preload = 'metadata'
+    v.currentTime = 0
+    if (!reduce) void v.play().catch(() => {})
+  })
+  $<HTMLButtonElement>('patch-zurueck').disabled = patchNr === 0
+  const letzte = patchNr === patchFolien.length - 1
+  const weiter = $('patch-weiter')
+  weiter.replaceChildren(letzte ? "Los geht's" : 'Weiter')
+  const ico = document.createElement('span')
+  setIcon(ico, letzte ? 'Check' : 'ChevronRight')
+  if (letzte) weiter.prepend(ico)
+  else weiter.append(ico)
+}
+function patchBalkenTakt() {
+  const v = patchVideos[patchNr]
+  const f = v.duration ? v.currentTime / v.duration : 0
+  patchBalken.forEach((b, i) => b.style.setProperty('--f', i < patchNr ? '1' : i === patchNr ? f.toFixed(3) : '0'))
+  patchTakt = requestAnimationFrame(patchBalkenTakt)
+}
+function patchAuf() {
+  $('patch-welten').textContent = `${WELTEN.length} Welten, jede mit eigenen Gefahren, Tieren und Belohnungen: ${WELTEN.map((w) => w.name).join(', ').replace(/, ([^,]*)$/, ' und $1')}.`
+  $('patch-version').textContent = `Version ${__APP_VERSION__}`
+  show('patchnotes', true)
+  patchZeigen(0)
+  patchTakt = requestAnimationFrame(patchBalkenTakt)
+}
+function patchZu() {
+  audio.click()
+  patchnotesGesehen()
+  show('patchnotes', false)
+  cancelAnimationFrame(patchTakt)
+  for (const v of patchVideos) v.pause()
+}
+$('patch-zu').addEventListener('click', patchZu)
+$('patch-zurueck').addEventListener('click', () => {
+  audio.click()
+  patchZeigen(patchNr - 1)
+})
+$('patch-weiter').addEventListener('click', () => {
+  if (patchNr === patchFolien.length - 1) return patchZu()
+  audio.click()
+  patchZeigen(patchNr + 1)
+})
+// Mit "Bewegung reduzieren" laufen die Videos nicht von selbst: Tippen startet und haelt an
+if (reduce) patchVideos.forEach((v) => v.addEventListener('click', () => (v.paused ? void v.play().catch(() => {}) : v.pause())))
+// Wischen zwischen den Folien
+{
+  let x0: number | null = null
+  const buehne = $('patch-buehne')
+  buehne.addEventListener('pointerdown', (e) => (x0 = e.clientX))
+  buehne.addEventListener('pointerup', (e) => {
+    if (x0 === null) return
+    const dx = e.clientX - x0
+    x0 = null
+    if (Math.abs(dx) < 40) return
+    audio.click()
+    patchZeigen(patchNr + (dx < 0 ? 1 : -1))
+  })
+  buehne.addEventListener('pointercancel', () => (x0 = null))
+}
+if (patchnotesNeu() && !devMission && !params.has('raum')) patchAuf()
 $('btn-master-reset').addEventListener('click', () => {
   if (!confirm('Alle Master-Einstellungen auf Standard zurücksetzen?')) return
   resetConfig()
@@ -2996,6 +3191,7 @@ window.addEventListener('blur', pause)
 // Android: Zuruecktaste
 if (nativ) {
   void App.addListener('backButton', () => {
+    if ($('patchnotes').hasAttribute('data-open')) return patchZu()
     if (page()) return closePage()
     if (mode === 'mehr') return
     if (mode === 'play') return pause()
@@ -3373,10 +3569,14 @@ async function freundeLaden() {
 function badgeZeichnen() {
   let n = anfragen.filter((a) => a.richtung === 'ein').length
   for (const z of ungelesen.values()) n += z
-  const b = $('online-badge')
-  b.hidden = n === 0
-  b.textContent = n > 99 ? '99+' : String(n)
-  $('btn-mehr').setAttribute('aria-label', n ? `Online, ${n} neu` : 'Online')
+  // Am Online-Knopf (Hall of Snakes) und am Knopf der Hall im Startmenue
+  for (const id of ['online-badge', 'hall-badge']) {
+    const b = $(id)
+    b.hidden = n === 0
+    b.textContent = n > 99 ? '99+' : String(n)
+  }
+  $('btn-mehr').setAttribute('aria-label', n ? `Online spielen, ${n} neu` : 'Online spielen')
+  $('btn-hall').setAttribute('aria-label', n ? `Hall of Snakes, ${n} neu` : 'Hall of Snakes')
 }
 
 /** Offene Freundschaftsanfragen auf der Mehrspieler-Seite */

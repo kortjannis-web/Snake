@@ -87,7 +87,7 @@
               <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
               <span class="geld-pille geld-pille--trophaee" title="Gold-Trophäen aus Mehrspieler-Siegen, Silber-Trophäen: alle bisher verdienten Äpfel"><span data-icon="Trophy" aria-hidden="true"></span><b id="home-trophaeen" aria-label="Gold-Trophäen">0</b><span class="silber" data-icon="Trophy" aria-hidden="true"></span><b id="home-silber" aria-label="Silber-Trophäen">0</b></span>
             </div>
-            <button class="icon-btn" id="btn-kreativ-home" data-go="kreativ" aria-label="Kreativ-Modus" title="Kreativ-Modus (Admin)" data-icon="Pencil" hidden></button>
+            <button class="icon-btn icon-btn--feedback" id="btn-feedback" data-go="feedback" aria-label="Feedback geben" title="Feedback" data-icon="CircleAlert"></button>
             <button class="icon-btn" data-go="help" aria-label="Anleitung" title="Anleitung" data-icon="CircleHelp"></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
@@ -109,17 +109,81 @@
               <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Täglich</button>
             </div>
             <div class="home__paar home__paar--eins" id="home-online" hidden>
-              <button class="btn btn--ghost" id="btn-hall" data-go="hall"><span data-icon="Crown"></span>Hall of Snakes</button>
+              <button class="btn btn--ghost btn--badge" id="btn-hall" data-go="hall"><span data-icon="Crown"></span>Hall of Snakes<i class="tile-badge" id="hall-badge" hidden></i></button>
             </div>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
             <div class="home__row home__row--4 home__row--flex">
               <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Aussehen</button>
-              <button class="tile-btn" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online<i class="tile-badge" id="online-badge" hidden></i></button>
+              <button class="tile-btn" id="btn-map"><span data-icon="Map"></span>Map</button>
               <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
               <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Patchnotes: einmal nach einem Update, vier Folien mit kurzen Trailern (public/patch, npm run patch-videos) -->
+      <section class="screen screen--dim screen--patch" id="patchnotes" role="dialog" aria-modal="true" aria-labelledby="patch-titel">
+        <div class="card patch">
+          <div class="patch__kopf">
+            <div class="patch__balken" id="patch-balken" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <button class="icon-btn patch__zu" id="patch-zu" aria-label="Patchnotes schließen" data-icon="X"></button>
+          </div>
+          <div class="patch__buehne" id="patch-buehne">
+            <div class="patch__band" id="patch-band">
+            <article class="patch__folie" data-nr="0">
+              <div class="patch__video">
+                <video muted playsinline loop preload="auto" poster="patch/kampagne.webp" aria-hidden="true">
+                  <source src="patch/kampagne.mp4" type="video/mp4" />
+                  <source src="patch/kampagne.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 1 von 4</p>
+              <h2 class="patch__titel" id="patch-titel">Kampagne bis Level 30</h2>
+              <p class="patch__text">Drei Bosse und neue Gegner: der Steingolem, der Ent und tief unter der Erde der Käfigmeister mit seinen Käfigköpfen.</p>
+            </article>
+            <article class="patch__folie" data-nr="1" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="patch/endlos.webp" aria-hidden="true">
+                  <source src="patch/endlos.mp4" type="video/mp4" />
+                  <source src="patch/endlos.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 2 von 4</p>
+              <h2 class="patch__titel">Auch im Endlos-Modus</h2>
+              <p class="patch__text">Alle neuen Sachen kommen auch im Endlos-Modus vor: bei Level 60, 100 und 150.</p>
+            </article>
+            <article class="patch__folie" data-nr="2" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="patch/feedback.webp" aria-hidden="true">
+                  <source src="patch/feedback.mp4" type="video/mp4" />
+                  <source src="patch/feedback.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 3 von 4</p>
+              <h2 class="patch__titel">Euer Feedback</h2>
+              <p class="patch__text">Oben im Startmenü gibt es jetzt das orange Ausrufezeichen. Lasst dort gerne all eure Kritik, Ideen und Feedback da. Ich setze alles um, was ihr sagt 👌🏼</p>
+            </article>
+            <article class="patch__folie" data-nr="3" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="patch/welten.webp" aria-hidden="true">
+                  <source src="patch/welten.mp4" type="video/mp4" />
+                  <source src="patch/welten.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Neu · 4 von 4</p>
+              <h2 class="patch__titel">Alle Welten, neues Menü</h2>
+              <p class="patch__text" id="patch-welten">Wiese, Wüste, Winter, Bergwerk, Zauberwald, Gruselwald und Vulkan.</p>
+              <p class="patch__text patch__text--extra">Ihr findet sie jetzt unten im Menü unter <b>Map</b>. Und der <b>Online-Modus</b> steckt ab sofort in der <b>Hall of Snakes</b>.</p>
+            </article>
+            </div>
+          </div>
+          <div class="patch__knoepfe">
+            <button class="btn btn--ghost" id="patch-zurueck"><span data-icon="ChevronLeft"></span>Zurück</button>
+            <button class="btn btn--play" id="patch-weiter">Weiter<span data-icon="ChevronRight"></span></button>
+          </div>
+          <p class="fine" id="patch-version"></p>
         </div>
       </section>
 
@@ -493,6 +557,11 @@
               <div class="liste" id="admin-liste"></div>
               <p class="fine" id="admin-info"></p>
             </details>
+            <details class="master zeitleiste" id="admin-feedback">
+              <summary><span data-icon="CircleAlert"></span>Feedback der Spieler</summary>
+              <div class="liste feedback-liste" id="admin-feedback-liste"></div>
+              <p class="fine" id="admin-feedback-info"></p>
+            </details>
             <p class="hinweis">Wahrscheinlichkeiten: wie oft etwas kommt, je Welt. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
             <div id="master-list"></div>
             <div class="master">
@@ -505,6 +574,23 @@
         </div>
       </section>
 
+      <!-- Feedback: einzelne Punkte schreiben, gehen an den Admin -->
+      <section class="screen screen--page" id="feedback">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Feedback</h2>
+          </header>
+          <div class="page__body">
+            <p class="hinweis">Kritik, Ideen, Wünsche, Fehler: alles her damit. Jeder Punkt ein eigenes Feld.</p>
+            <div class="feedback-punkte" id="feedback-punkte"></div>
+            <button class="btn btn--ghost" id="feedback-plus"><span data-icon="Plus"></span>Noch ein Punkt</button>
+            <button class="btn btn--play" id="feedback-senden"><span data-icon="Send"></span>Abschicken</button>
+            <p class="fine" id="feedback-info" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+
       <!-- Hall of Snakes: alle Spieler mit Schlange, Name, Trophaeen und Rekord -->
       <section class="screen screen--page" id="hall">
         <div class="page">
@@ -513,6 +599,8 @@
             <h2>Hall of Snakes</h2>
           </header>
           <div class="page__body">
+            <!-- Online-Modus (seit 1.52 hier statt unten im Startmenue): Raeume, Freunde, Anfragen, Chat -->
+            <button class="btn btn--play btn--badge hall-online" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online spielen<i class="tile-badge" id="online-badge" hidden></i></button>
             <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
               <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
               <div class="liste-name__row">

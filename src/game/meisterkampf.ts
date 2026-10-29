@@ -40,6 +40,8 @@ export const MEISTER = {
   teleportWeg: 450,
   teleportDa: 450,
   getroffen: 1200,
+  /** Sieht man ihn zum ersten Mal (je Erscheinen), steht er kurz und lacht, den Kopf im Kaefig in den Nacken gelegt */
+  lachen: 1700,
   /** So weit um seinen Raum herum sieht man ihn: erst ausserhalb erscheint er dort */
   sicht: 6,
   /** Strahlen reichen hoechstens so weit */
@@ -80,6 +82,8 @@ export type Meister = {
   letzte: MeisterAngriffArt | null
   /** Letzter Flammentreffer (Aufblitzen) */
   trefferT: number
+  /** Seit wann er lacht (je Erscheinen einmal, sobald man ihn sieht) */
+  lachT: number
 }
 
 export type MeisterWirt = {
@@ -120,7 +124,7 @@ export class Meisterkampf {
     this.flammenJeLeben = o.flammen ?? MEISTER.flammen
     const raum = wirt.r.int(0, Math.max(0, raeume.length - 1))
     const p = raeume[raum]?.mitte ?? { x: 0, y: 0 }
-    this.meister = { zustand: 'weg', t: wirt.time, raum, p: { ...p }, von: { ...p }, leben: o.leben ?? MEISTER.leben, treffer: 0, winkel: Math.PI / 2, angriff: null, next: 0, letzte: null, trefferT: -1e9 }
+    this.meister = { zustand: 'weg', t: wirt.time, raum, p: { ...p }, von: { ...p }, leben: o.leben ?? MEISTER.leben, treffer: 0, winkel: Math.PI / 2, angriff: null, next: 0, letzte: null, trefferT: -1e9, lachT: -1e9 }
   }
 
   /** Ist p in Raum nr? */
@@ -255,10 +259,16 @@ export class Meisterkampf {
         }
         return
       case 'wartet':
+        // Sieht man ihn, lacht er erst einmal (steht still, der Kopf im Kaefig liegt im Nacken)
+        if (M.lachT < M.t && this.raumInSicht(M.raum)) {
+          M.lachT = t
+          this.wirt.emit({ type: 'meister', was: 'lacht', p: { ...M.p } })
+        }
         if (!this.imRaum(h)) return
         M.zustand = 'kampf'
         M.t = t
-        M.next = t + MEISTER.erwachen
+        // Waehrend er lacht, greift er noch nicht an
+        M.next = Math.max(t + MEISTER.erwachen, M.lachT + MEISTER.lachen)
         this.wirt.emit({ type: 'meister', was: 'erwacht', p: { ...M.p } })
         this.flammenNachlegen()
         return
@@ -270,6 +280,7 @@ export class Meisterkampf {
         M.raum = this.wirt.r.int(0, this.raeume.length - 1)
         return
       case 'kampf':
+        if (t < M.lachT + MEISTER.lachen) return
         if (M.angriff?.art !== 'teleport') M.winkel = Math.atan2(h.y - M.p.y, h.x - M.p.x)
         this.angriffTakt()
         return

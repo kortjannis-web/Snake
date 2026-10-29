@@ -38,51 +38,66 @@ export function drawSteinboden(c: CanvasRenderingContext2D, x: number, y: number
   for (let i = 0; i < 2; i++) c.fillRect(x * cell + hash2(x, y, 44 + i) * cell, y * cell + hash2(x, y, 48 + i) * cell, cell * 0.06, cell * 0.06)
 }
 
-/** Augen am Boden (Reich des Kaefigmeisters): ein kleines Haeufchen aus n Augaepfeln, gedeckt und unauffaellig (wie
- *  verstaubt), die Pupillen schauen zum Kopf der Schlange (kx, ky in Pixeln), ab und zu blinzelt eins. Ein oder zwei
- *  ruecken an die Wand (wand = Richtung zur Wand oder null); ab drei ist es ein Klumpen mitten im Feld auf einem dunklen
- *  Fleck: daran erkennt man das gefaehrliche Augenfeld */
-export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, n: number, seed: number, wand: P | null, kx: number, ky: number, now: number, reduce: boolean) {
-  const klumpen = n >= 3
-  // Ein Klumpen (gefaehrlich) liegt mitten im Feld, einzelne Augen ruecken an die Wand
-  const mx = x + (wand && !klumpen ? wand.x * cell * 0.22 : 0)
-  const my = y + (wand && !klumpen ? wand.y * cell * 0.22 : 0)
-  // Unter dem Haeufchen etwas Schmutz, unter einem Klumpen ein dunkler Fleck mit leichtem violettem Schimmer
-  if (klumpen) {
-    const g = ctx.createRadialGradient(mx, my, 0, mx, my, cell * 0.5)
-    g.addColorStop(0, 'rgba(60, 30, 70, 0.32)')
-    g.addColorStop(0.7, 'rgba(70, 40, 90, 0.14)')
-    g.addColorStop(1, 'rgba(70, 40, 90, 0)')
-    ctx.fillStyle = g
+/** Augen (Reich des Kaefigmeisters), gedeckt und unauffaellig (wie verstaubt), die Pupillen schauen zum Kopf der Schlange
+ *  (kx, ky in Pixeln), ab und zu blinzelt eins. An der Wand (wand = Richtung zur Wand) schauen sie aus einem Spalt von der
+ *  Seite herein, nebeneinander und halb verdeckt: nur Deko. Frei auf dem Boden (boden) liegen 2 bis 4 als Klumpen auf einem
+ *  dunklen, leicht violetten Fleck und eine Spur heller: daran erkennt man das gefaehrliche Augenfeld */
+export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, n: number, seed: number, wand: P | null, kx: number, ky: number, now: number, reduce: boolean, boden = false) {
+  const amSpalt = !boden && !!wand
+  // Augen (Mitte, Radius, Stauchung zur Wand hin)
+  const augen: { ax: number; ay: number; r: number }[] = []
+  if (amSpalt) {
+    const w = wand!
+    const qx = -w.y
+    const qy = w.x
+    const sx = x + w.x * cell * 0.42
+    const sy = y + w.y * cell * 0.42
+    // Dunkler Spalt an der Wand, aus dem sie herausschauen
+    ctx.fillStyle = 'rgba(14, 9, 7, 0.55)'
     ctx.beginPath()
-    ctx.arc(mx, my, cell * 0.5, 0, TAU)
+    ctx.ellipse(sx, sy, Math.abs(qx) * cell * (0.16 + n * 0.08) + Math.abs(w.x) * cell * 0.07, Math.abs(qy) * cell * (0.16 + n * 0.08) + Math.abs(w.y) * cell * 0.07, 0, 0, TAU)
     ctx.fill()
+    const versatz = (hash(seed + 3) - 0.5) * cell * 0.3
+    for (let i = 0; i < n; i++) {
+      const entlang = versatz + (i - (n - 1) / 2) * cell * 0.19
+      const r = cell * (0.07 + hash(seed + i * 5) * 0.02)
+      augen.push({ ax: x + w.x * cell * 0.33 + qx * entlang, ay: y + w.y * cell * 0.33 + qy * entlang, r })
+    }
   } else {
-    ctx.fillStyle = 'rgba(40, 26, 20, 0.18)'
-    ctx.beginPath()
-    ctx.ellipse(mx, my + cell * 0.04, cell * (0.2 + n * 0.06), cell * (0.15 + n * 0.04), 0, 0, TAU)
-    ctx.fill()
+    if (boden) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, cell * 0.5)
+      g.addColorStop(0, 'rgba(60, 30, 70, 0.32)')
+      g.addColorStop(0.7, 'rgba(70, 40, 90, 0.14)')
+      g.addColorStop(1, 'rgba(70, 40, 90, 0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(x, y, cell * 0.5, 0, TAU)
+      ctx.fill()
+    }
+    for (let i = 0; i < n; i++) {
+      const a = (i / Math.max(1, n)) * TAU + hash(seed) * TAU
+      const d = n === 1 ? 0 : cell * 0.15
+      augen.push({ ax: x + Math.cos(a) * d, ay: y + Math.sin(a) * d * 0.8, r: cell * (0.085 + hash(seed + i * 5) * 0.035) * 1.2 })
+    }
   }
-  for (let i = 0; i < n; i++) {
-    const a = (i / Math.max(1, n)) * TAU + hash(seed) * TAU
-    const d = n === 1 ? 0 : cell * (klumpen ? 0.15 : 0.13)
-    const ax = mx + Math.cos(a) * d
-    const ay = my + Math.sin(a) * d * 0.8
-    const r = cell * (0.085 + hash(seed + i * 5) * 0.035) * (klumpen ? 1.2 : 1)
+  augen.forEach(({ ax, ay, r }, i) => {
+    // An der Wand gestaucht (halb im Spalt), am Boden rund
+    const rx = amSpalt && wand!.x ? r * 0.75 : r
+    const ry = (amSpalt && wand!.y ? r * 0.75 : r) * (amSpalt ? 1 : 0.88)
     ctx.fillStyle = 'rgba(30, 16, 12, 0.22)'
     ctx.beginPath()
-    ctx.ellipse(ax + r * 0.2, ay + r * 0.3, r * 1.05, r * 0.9, 0, 0, TAU)
+    ctx.ellipse(ax + r * 0.2, ay + r * 0.3, rx * 1.05, ry * 1.02, 0, 0, TAU)
     ctx.fill()
     const zu = !reduce && (now / 4100 + hash(seed + i)) % 1 < 0.035
-    // Gedeckt: graugelblich statt weiss, damit es sich nicht vom Boden abhebt
-    ctx.fillStyle = '#A99F8C'
+    // Gedeckt: graugelblich statt weiss, damit es sich nicht vom Boden abhebt; ein gefaehrlicher Klumpen eine Spur heller
+    ctx.fillStyle = boden ? '#B5AC9A' : '#A99F8C'
     ctx.beginPath()
-    ctx.ellipse(ax, ay, r, zu ? r * 0.15 : r * 0.88, 0, 0, TAU)
+    ctx.ellipse(ax, ay, rx, zu ? ry * 0.17 : ry, 0, 0, TAU)
     ctx.fill()
-    if (zu) continue
+    if (zu) return
     const w = Math.atan2(ky - ay, kx - ax)
-    const px = ax + Math.cos(w) * r * 0.38
-    const py = ay + Math.sin(w) * r * 0.32
+    const px = ax + Math.cos(w) * rx * 0.38
+    const py = ay + Math.sin(w) * ry * 0.36
     ctx.fillStyle = hash(seed + i * 7) < 0.5 ? '#5E4F72' : '#4A5E66'
     ctx.beginPath()
     ctx.arc(px, py, r * 0.45, 0, TAU)
@@ -95,25 +110,28 @@ export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.beginPath()
     ctx.arc(px - r * 0.14, py - r * 0.14, r * 0.08, 0, TAU)
     ctx.fill()
-  }
+  })
 }
 
 /** Ein Buch am Boden (Kaefigmeister): zugeklappt oder aufgeschlagen, schraeg hingeworfen */
 export function drawBuchAmBoden(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, seed: number) {
-  const auf = hash(seed) < 0.45
-  const farben = ['#5A2A2A', '#2A3A5A', '#3A4A2A', '#4A3A22']
+  // Gedeckt und klein, kaum heller oder dunkler als der Steinboden: soll nur beim Hinsehen auffallen
+  const auf = hash(seed) < 0.4
+  const farben = ['#4A403A', '#3E4248', '#43443A', '#4A4236']
   ctx.save()
+  ctx.globalAlpha = 0.55
   ctx.translate(x + (hash(seed + 1) - 0.5) * cell * 0.3, y + (hash(seed + 2) - 0.5) * cell * 0.3)
   ctx.rotate((hash(seed + 3) - 0.5) * 2.4)
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
-  ctx.fillRect(-cell * 0.26 + 2, -cell * 0.19 + 2, cell * 0.52, cell * 0.38)
+  ctx.scale(0.8, 0.8)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'
+  ctx.fillRect(-cell * 0.26 + 1, -cell * 0.19 + 1, cell * 0.52, cell * 0.38)
+  ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
   if (auf) {
-    ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
     ctx.fillRect(-cell * 0.3, -cell * 0.2, cell * 0.6, cell * 0.4)
-    ctx.fillStyle = '#E4D7B8'
+    ctx.fillStyle = '#8C857A'
     ctx.fillRect(-cell * 0.27, -cell * 0.17, cell * 0.25, cell * 0.34)
     ctx.fillRect(cell * 0.02, -cell * 0.17, cell * 0.25, cell * 0.34)
-    ctx.strokeStyle = 'rgba(120, 90, 160, 0.7)'
+    ctx.strokeStyle = 'rgba(70, 64, 60, 0.6)'
     ctx.lineWidth = Math.max(0.6, cell * 0.02)
     for (let i = 0; i < 3; i++) {
       ctx.beginPath()
@@ -124,12 +142,9 @@ export function drawBuchAmBoden(ctx: CanvasRenderingContext2D, x: number, y: num
       ctx.stroke()
     }
   } else {
-    ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
     ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.44, cell * 0.34)
-    ctx.fillStyle = '#C9A24A'
-    ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.06, cell * 0.34)
-    ctx.fillStyle = '#E4D7B8'
-    ctx.fillRect(cell * 0.18, -cell * 0.15, cell * 0.03, cell * 0.3)
+    ctx.fillStyle = '#6E6150'
+    ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.05, cell * 0.34)
   }
   ctx.restore()
 }
@@ -176,9 +191,10 @@ const energie = (a: number) => `rgba(${ENERGIE[0]}, ${ENERGIE[1]}, ${ENERGIE[2]}
 /**
  * Kaefigkopf von oben, Blick nach +x (winkel dreht): gebeugte Schultern in Lumpen, die Arme haengen nach vorn, der Kopf
  * steckt in einem runden Eisenkaefig, darin glimmen die Augen. lauf: Schrittphase (-1 = steht, er torkelt dabei),
- * jagt: hat den Kopf gesehen (Augen glühen violett), laden: holt aus (0..1, Energie sammelt sich zwischen den Haenden)
+ * jagt: hat den Kopf gesehen (Augen glühen violett), laden: holt aus (0..1, Energie sammelt sich zwischen den Haenden),
+ * neig: senkt den Kopf (0..1): er lehnt sich vor, der Kaefig kippt nach vorn und man sieht ihn schraeg von oben/hinten
  */
-export function drawKaefigkopf(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, winkel: number, lauf: number, jagt: boolean, laden: number, now: number, reduce: boolean) {
+export function drawKaefigkopf(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, winkel: number, lauf: number, jagt: boolean, laden: number, now: number, reduce: boolean, neig = 0) {
   const u = cell * 0.56
   const schritt = lauf >= 0 ? Math.sin(lauf * TAU) : 0
   // Torkeln: der Oberkoerper schwankt (auch im Stehen ein wenig)
@@ -252,15 +268,18 @@ export function drawKaefigkopf(ctx: CanvasRenderingContext2D, x: number, y: numb
     ctx.arc(ex, 0, r * 2.2, 0, TAU)
     ctx.fill()
   }
-  // Kopf im Kaefig: dunkler Kopf, darueber ein runder Kaefig aus Eisenstaeben mit Ring und Spitze
-  const kx = u * 0.12
+  // Kopf im Kaefig: dunkler Kopf, darueber ein runder Kaefig aus Eisenstaeben mit Ring und Spitze.
+  // Gesenkt: der Kopf rueckt vor, der Kaefig wird laenglich (gekippt), die Spitze wandert nach hinten, die Augen schauen zu Boden
+  const kx = u * (0.12 + 0.4 * neig)
   const kr = u * 0.46
+  const lang = 1 + 0.4 * neig
+  const spitze = -kr * 0.7 * neig
   ctx.fillStyle = '#3A3530'
   ctx.beginPath()
-  ctx.arc(kx, 0, kr * 0.78, 0, TAU)
+  ctx.ellipse(kx, 0, kr * 0.78 * lang, kr * 0.78, 0, 0, TAU)
   ctx.fill()
   // Augen im Kaefig
-  const glut = jagt ? 0.75 + 0.25 * Math.sin(now / 90) : 0.35
+  const glut = (jagt ? 0.75 + 0.25 * Math.sin(now / 90) : 0.35) * (1 - 0.85 * neig)
   for (const sy of [-1, 1]) {
     const g = ctx.createRadialGradient(kx + kr * 0.42, sy * kr * 0.28, 0, kx + kr * 0.42, sy * kr * 0.28, kr * 0.42)
     g.addColorStop(0, jagt ? `rgba(240, 220, 255, ${glut})` : `rgba(220, 210, 170, ${glut})`)
@@ -274,27 +293,30 @@ export function drawKaefigkopf(ctx: CanvasRenderingContext2D, x: number, y: numb
   ctx.strokeStyle = '#8C8A86'
   ctx.lineWidth = Math.max(1, u * 0.07)
   ctx.beginPath()
-  ctx.arc(kx, 0, kr, 0, TAU)
+  ctx.ellipse(kx, 0, kr * lang, kr, 0, 0, TAU)
   ctx.stroke()
   ctx.beginPath()
-  ctx.arc(kx, 0, kr * 0.55, 0, TAU)
+  ctx.ellipse(kx + spitze * 0.45, 0, kr * 0.55 * lang, kr * 0.55, 0, 0, TAU)
   ctx.stroke()
+  // Staebe laufen zur Spitze; gekippt sieht man sie gebogen an der Seite des Kaefigs entlang
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * TAU + 0.2
+    const ex = kx + Math.cos(a) * kr * lang
+    const ey = Math.sin(a) * kr
     ctx.beginPath()
-    ctx.moveTo(kx + Math.cos(a) * kr * 0.12, Math.sin(a) * kr * 0.12)
-    ctx.lineTo(kx + Math.cos(a) * kr, Math.sin(a) * kr)
+    ctx.moveTo(kx + spitze + Math.cos(a) * kr * 0.12, Math.sin(a) * kr * 0.12)
+    ctx.quadraticCurveTo(kx + spitze * 0.3 + Math.cos(a) * kr * 0.75 * lang, Math.sin(a) * kr * (0.75 + 0.2 * neig), ex, ey)
     ctx.stroke()
   }
   // Licht auf dem Eisen und die Spitze oben
   ctx.strokeStyle = 'rgba(230, 228, 220, 0.55)'
   ctx.lineWidth = Math.max(0.8, u * 0.04)
   ctx.beginPath()
-  ctx.arc(kx, 0, kr, Math.PI * 1.05, Math.PI * 1.55)
+  ctx.ellipse(kx, 0, kr * lang, kr, 0, Math.PI * 1.05, Math.PI * 1.55)
   ctx.stroke()
   ctx.fillStyle = '#6E6C68'
   ctx.beginPath()
-  ctx.arc(kx, 0, kr * 0.16, 0, TAU)
+  ctx.arc(kx + spitze, 0, kr * 0.16, 0, TAU)
   ctx.fill()
   ctx.restore()
 }

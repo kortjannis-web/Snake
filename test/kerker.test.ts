@@ -42,7 +42,11 @@ describe('Kerker und Kaefigmeister im freien Spiel (Wiese)', () => {
     for (const a of g.augen) expect(kerkerFelder.has(key(a.p.x, a.p.y))).toBe(true)
     for (const k of g.kerker) {
       // Gang und Raum gehoeren zur Karte, alles ist vom Mund aus erreichbar, der Raum ist gross
-      expect(k.cells.length).toBe(KERKER.gang * KERKER.lang + KERKER.raumB * KERKER.raumT)
+      // Gang (5 breit, etwas kuerzer oder laenger) und ein geraeumiger Raum (21 x 17)
+      expect((k.cells.length - KERKER.raumB * KERKER.raumT) % KERKER.gang).toBe(0)
+      expect(k.raum.x1 - k.raum.x0 + 1).toBe(k.raum.x1 - k.raum.x0 + 1 === KERKER.raumB ? KERKER.raumB : KERKER.raumT)
+      expect(Math.min(k.raum.x1 - k.raum.x0, k.raum.y1 - k.raum.y0) + 1).toBeGreaterThanOrEqual(17)
+      expect(Math.max(k.raum.x1 - k.raum.x0, k.raum.y1 - k.raum.y0) + 1).toBeGreaterThanOrEqual(21)
       for (const c of k.cells) expect(g.inside(c)).toBe(true)
       for (const c of k.mund) expect(g.inside(c)).toBe(true)
       expect(k.raum.x1 - k.raum.x0 + 1).toBeGreaterThanOrEqual(KERKER.raumT)

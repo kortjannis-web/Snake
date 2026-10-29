@@ -136,15 +136,14 @@ export const VORBOTEN = [10, 7, 4, 2] as const
 /** Vor dem Kaefigmeister: so viele Level vorher graebt sich je ein Kerker in die Erde (mit einem Kaefigkopf) */
 export const KERKER_VORBOTEN = [5, 3, 1] as const
 /** Kerker im freien Spiel: Gang (breit x lang), dann ein grosser Raum (breit x tief); gross, weil die Schlange dann lang ist */
-export const KERKER = { gang: 5, lang: 9, raumB: 17, raumT: 14 } as const
+export const KERKER = { gang: 5, lang: 9, raumB: 21, raumT: 17 } as const
 
-/** Augen am Boden (Reich des Kaefigmeisters): ein kleines Haeufchen aus n Augen. Ab AUGEN_GEFAHR Augen ist es ein
- *  Augenfeld (deutlich als Klumpen zu sehen): faehrt der Kopf darueber, sieht man AUGEN_BLICK ms lang schlecht
- *  (verschwommen, Farben umgekehrt oder wellig). Ein oder zwei Augen tun nichts */
-export type Augenfeld = { p: P; n: number; seed: number }
+/** Augen (Reich des Kaefigmeisters): ein Haeufchen aus n Augen. An Waenden und in Ecken schauen sie nur von der Seite
+ *  herein (Deko, tun nichts, egal wie viele). Liegen sie frei auf dem Boden (boden, 2 bis 4 Augen), ist es ein Augenfeld:
+ *  faehrt der Kopf darueber, sieht man AUGEN_BLICK ms lang schlecht (verschwommen, Farben umgekehrt oder wellig) */
+export type Augenfeld = { p: P; n: number; seed: number; boden: boolean }
 export type BlickArt = 'unscharf' | 'invertiert' | 'wellig'
 export const AUGEN_BLICK = 5000
-export const AUGEN_GEFAHR = 3
 
 /** Ein Kerker im freien Spiel: Gang aus der Karte in die Erde, am Ende ein Raum mit Augen; dort erscheint der Kaefigmeister */
 export type Kerker = { cells: P[]; raum: MeisterRaum; mund: P[]; t: number }
@@ -848,8 +847,8 @@ export class Game {
     this.freiBoss?.einsammeln(n)
     this.freiEnt?.einsammeln(n)
     this.freiMeister?.einsammeln(n)
-    // Augenfeld (drei oder mehr Augen): der Blick verschwimmt, die Farben kehren sich um oder das Bild wird wellig
-    const auge = this.augen.find((a) => a.n >= AUGEN_GEFAHR && same(a.p, n))
+    // Augenfeld (Augen frei auf dem Boden, nicht an der Wand): der Blick verschwimmt, die Farben kehren sich um oder das Bild wird wellig
+    const auge = this.augen.find((a) => a.boden && same(a.p, n))
     if (auge) {
       const art = this.r.pick<BlickArt>(['unscharf', 'invertiert', 'wellig'])
       this.augenBlick = { art, ab: this.time, bis: this.time + AUGEN_BLICK }
@@ -5803,26 +5802,36 @@ export class Game {
         for (const d of DIRS) if (!this.inside({ x: x + STEP[d].x, y: y + STEP[d].y })) raender.push({ p: { x, y }, d })
       }
     const wand = this.hindernisse()
-    const versuche = this.r.shuffle(raender.filter((r) => manhattan(r.p, head) >= 10 && manhattan(r.p, head) <= 50))
-    for (const { p, d } of versuche.slice(0, 600)) {
+    const versuche = this.r.shuffle(raender.filter((r) => manhattan(r.p, head) >= 10 && manhattan(r.p, head) <= 70))
+    for (const { p, d } of versuche.slice(0, 2500)) {
       const s = STEP[d]
       // Quer zur Richtung: der Gang beginnt bei p und geht W Felder zur Seite
       const q = d === 'u' || d === 'd' ? { x: 1, y: 0 } : { x: 0, y: 1 }
       const feld = (i: number, tiefe: number): P => ({ x: p.x + q.x * i + s.x * tiefe, y: p.y + q.y * i + s.y * tiefe })
       const mund = Array.from({ length: W }, (_, i) => feld(i, 0))
       if (!mund.every((c) => this.inside(c) && !wand.has(key(c.x, c.y)))) continue
-      const gang: P[] = []
-      for (let tt = 1; tt <= L; tt++) for (let i = 0; i < W; i++) gang.push(feld(i, tt))
-      const raum: P[] = []
-      const i0 = Math.floor((W - RB) / 2)
-      for (let tt = L + 1; tt <= L + RT; tt++) for (let i = i0; i < i0 + RB; i++) raum.push(feld(i, tt))
-      const neu = [...gang, ...raum]
-      // Mit einem Feld Erde rundherum (ausser am Mund)
-      const rund: P[] = []
-      for (const c of neu) for (const o of DIRS) rund.push({ x: c.x + STEP[o].x, y: c.y + STEP[o].y })
-      const eigen = new Set(neu.map((c) => key(c.x, c.y)))
       const mundSet = new Set(mund.map((c) => key(c.x, c.y)))
-      if (!neu.every(erde) || !rund.every((c) => eigen.has(key(c.x, c.y)) || mundSet.has(key(c.x, c.y)) || erde(c))) continue
+      // Der Raum ist gross: er darf seitlich versetzt am Gang haengen und der Gang etwas kuerzer oder laenger sein
+      let platz: { lang: number; gang: P[]; raum: P[]; neu: P[]; i0: number } | null = null
+      for (const lang of [L, L - 3, L + 4])
+        for (const i0 of [Math.floor((W - RB) / 2), 0, W - RB]) {
+          if (platz) break
+          const gang: P[] = []
+          for (let tt = 1; tt <= lang; tt++) for (let i = 0; i < W; i++) gang.push(feld(i, tt))
+          const raum: P[] = []
+          for (let tt = lang + 1; tt <= lang + RT; tt++) for (let i = i0; i < i0 + RB; i++) raum.push(feld(i, tt))
+          const neu = [...gang, ...raum]
+          if (!neu.every(erde)) continue
+          // Mit einem Feld Erde rundherum (ausser am Mund)
+          const eigen = new Set(neu.map((c) => key(c.x, c.y)))
+          const rundOk = neu.every((c) => DIRS.every((o) => {
+            const n = { x: c.x + STEP[o].x, y: c.y + STEP[o].y }
+            return eigen.has(key(n.x, n.y)) || mundSet.has(key(n.x, n.y)) || erde(n)
+          }))
+          if (rundOk) platz = { lang, gang, raum, neu, i0 }
+        }
+      if (!platz) continue
+      const { lang, raum, neu, i0 } = platz
       const u0 = { ...this.ursprung }
       this.zellenDazu(neu, true)
       const dx = this.ursprung.x - u0.x
@@ -5830,7 +5839,7 @@ export class Game {
       const mv = (c: P) => ({ x: c.x + dx, y: c.y + dy })
       const rx = raum.map((c) => c.x + dx)
       const ry = raum.map((c) => c.y + dy)
-      const mitte = mv(feld(Math.floor(W / 2), L + Math.ceil(RT / 2)))
+      const mitte = mv(feld(i0 + Math.floor(RB / 2), lang + Math.ceil(RT / 2)))
       const k: Kerker = { cells: neu.map(mv), mund: mund.map(mv), raum: { nr: this.kerker.length, mitte, x0: Math.min(...rx), x1: Math.max(...rx), y0: Math.min(...ry), y1: Math.max(...ry) }, t: this.time }
       this.kerker.push(k)
       // Augen: meist an den Waenden und in den Ecken, selten mitten im Raum (nie am Mund)
@@ -5851,11 +5860,13 @@ export class Game {
     const out: Augenfeld[] = []
     for (const c of cells) {
       if (tabu(c)) continue
+      // In Ecken und an Waenden oft (sie schauen von der Seite herein, Deko), frei auf dem Boden ab und zu (gefaehrlich)
       const wand = DIRS.filter((d) => !this.inside({ x: c.x + STEP[d].x, y: c.y + STEP[d].y })).length
-      const chance = wand >= 2 ? 0.3 : wand === 1 ? 0.045 : 0.014
+      const chance = wand >= 2 ? 0.35 : wand === 1 ? 0.08 : 0.013
       if (this.r.next() >= chance) continue
-      const klumpen = this.r.next() < 0.45
-      out.push({ p: { ...c }, n: klumpen ? (this.r.next() < 0.75 ? 3 : 4) : this.r.int(1, 2), seed: this.r.int(0, 1e6) })
+      const boden = wand === 0
+      const n = boden ? this.r.pick([2, 2, 3, 3, 3, 4]) : this.r.int(1, 3)
+      out.push({ p: { ...c }, n, seed: this.r.int(0, 1e6), boden })
     }
     return out
   }

@@ -352,6 +352,14 @@ class Audio {
       case 'erscheint':
         ;[196, 233, 311].forEach((f, i) => this.tone(f, 1.6, 'sine', 0.08, { delay: i * 0.18 }))
         break
+      case 'lacht':
+        // Hohles, abgehacktes Lachen aus dem Kaefig: fallende Stoesse, etwas metallisch
+        for (let i = 0; i < 6; i++) {
+          const f = 260 - i * 14
+          this.tone(f, 0.16, 'sawtooth', 0.06, { delay: i * 0.2, to: f * 0.8, filter: 900, vib: 7 })
+          this.noise(0.12, 'bandpass', 1400, 0.025, { delay: i * 0.2, q: 6 })
+        }
+        break
       case 'erwacht':
         this.tone(147, 1.2, 'sawtooth', 0.07, { to: 98, filter: 500, vib: 6, attack: 0.2 })
         this.noise(0.8, 'bandpass', 1800, 0.06, { to: 600, q: 3, attack: 0.3 })

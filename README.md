@@ -77,7 +77,7 @@ Schere (schneidet dauerhaft ab, was in 3 Leveln gewachsen ist, das Stück liegt 
 zurück auf der Karte wird der Gang samt Eingeschlossenem Spielfeld). **Minikarte** unten links, sobald die Karte größer als ein Bildschirm ist:
 grün der Block mit der Schlange, in Apfelfarbe der Block mit dem Apfel.
 
-**Kreativ-Modus** (nur im Admin-Zugang: Stift oben rechts im Startmenü oder Admin → Kreativ-Modus; seit 1.49 prüft das Spiel das gespeicherte Passwort bei jedem Start, und `?level=`/`?auto=1` wirken nur noch für den Admin): Welt wählen (jede, auch ohne Freischaltung),
+**Kreativ-Modus** (nur im Admin-Zugang: Admin → Kreativ-Modus, der Stift im Startmenü ist seit 1.52 weg; seit 1.49 prüft das Spiel das gespeicherte Passwort bei jedem Start, und `?level=`/`?auto=1` wirken nur noch für den Admin): Welt wählen (jede, auch ohne Freischaltung),
 Level einstellen (die Welt wird passend aufgebaut), an- und abschalten, was kommen kann (Mauern, Power-ups, alle Dinge und Tiere der Welt,
 lila Gegner, die Gefahren der Welt), dann „Spielen“. Zählt nicht für den Rekord und die Online-Bestenliste, Äpfel gibt es dort keine.
 
@@ -107,6 +107,7 @@ npm run icons      # Icons und Startbild aus scripts/icons.mjs neu erzeugen
 npm run server     # Snake-Server lokal (http://localhost:8787), dann VITE_SNAKE_SERVER=http://localhost:8787 npm run dev
 npm run vapid      # Schlüsselpaar für Push-Einladungen erzeugen (siehe docs/MEHRSPIELER-EINRICHTEN.md)
 npm run skin-videos # Shop-Vorschauen neu als Videos rendern (nur nach Änderungen am Aussehen; braucht ffmpeg und Playwright)
+npm run patch-videos # Trailer der Patchnotes neu rendern (public/patch; braucht ffmpeg und Playwright)
 ```
 
 Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung `?level=150`

@@ -165,8 +165,9 @@ describe('Kampagne', () => {
     expect(g.slice(25, 29).map((x) => x.kaefige.length)).toEqual([1, 1, 2, 3])
     expect(g.map((x) => x.siegel.length)).toEqual(g.map((_, i) => (i === 26 ? 3 : 0)))
     expect(g.map((x) => x.tuer.length > 0)).toEqual(g.map((_, i) => i === 26 || i === 29))
-    // Keine Gegner-Schlangen, ein einziger Leuchtturm in Mission 18
-    for (const x of g) expect(x.gegner, x.mission.id).toHaveLength(0)
+    // Rote Gegner-Schlangen nur in 21 (eine), 23 (zwei) und 27 (eine); ein einziger Leuchtturm in Mission 18
+    expect(g.map((x) => x.gegner.length)).toEqual(g.map((_, i) => (i === 20 || i === 26 ? 1 : i === 22 ? 2 : 0)))
+    for (const x of g) for (const e of x.gegner) expect(e.art, x.mission.id).toBe('rot')
     expect(g.map((x) => x.tuerme.length)).toEqual(g.map((_, i) => (i === 17 ? 1 : 0)))
     for (const x of g.slice(0, 4)) expect(x.ameisen.length + x.baeume.length + x.haeuser.length, x.mission.id).toBe(0)
     // Kleine Golems langsam ab Mission 6 (1, 1, 2, 3), im Boss-Level ein paar, danach keine mehr

@@ -23,12 +23,15 @@ const kopfAuf = (g: KaefigBossGame, p: P) => {
 const lauf = (g: KaefigBossGame, ms: number) => {
   for (let t = 0; t < ms; t += 50) g.update(50)
 }
-/** Kopf in seinen Raum (weg von ihm und seinen Flammen), bis er erwacht */
+/** Kopf in seinen Raum (weg von ihm und seinen Flammen), bis er erwacht (sein Lachen ist hier schon vorbei) */
 function zuIhm(g: KaefigBossGame) {
   const r = g.raeume[g.meister.raum]
   kopfAuf(g, { x: r.x0, y: r.y0 + 1 })
   lauf(g, 200)
+  g.meister.lachT = -1e9
 }
+/** Unten am Start: kein Raum in Sicht */
+const START = { x: 31, y: 79 }
 
 describe('Kaefigmeister (Mission 30)', () => {
   it('Labyrinth mit sechs Raeumen, die Tuer ist zu, drei Kaefigkoepfe; er erscheint in einem Raum, den man nicht sieht', () => {
@@ -92,7 +95,7 @@ describe('Kaefigmeister (Mission 30)', () => {
     lauf(g, 2000)
     expect(g.meister.zustand).toBe('weg')
     // Raus aus der Sicht (Start unten): jetzt erscheint er dort
-    kopfAuf(g, { x: 25, y: 67 })
+    kopfAuf(g, START)
     lauf(g, 100)
     expect(g.meister.zustand).toBe('erscheint')
     expect(g.meister.raum).toBe(nr)
@@ -124,8 +127,11 @@ describe('Kaefigmeister (Mission 30)', () => {
     const duenn = M.angriff!.cells.length
     // Liegt eine Saeule dazwischen, haelt sie den Strahl auf
     const r0 = g.raeume[M.raum]
-    const hinter = g.strahl(M.p, Math.atan2(-1, -2), 0)
-    expect(hinter.some((c) => c.x === r0.mitte.x - 4 && c.y === r0.mitte.y - 2)).toBe(false)
+    const sp = r0.mitte.x < g.w / 2 ? 1 : -1
+    const hinter = g.strahl(M.p, Math.atan2(-3, -4 * sp), 0)
+    expect(g.inside({ x: r0.mitte.x - 4 * sp, y: r0.mitte.y - 3 })).toBe(false)
+    expect(hinter.some((c) => c.x === r0.mitte.x - 4 * sp && c.y === r0.mitte.y - 3)).toBe(false)
+    expect(hinter.some((c) => c.x === r0.mitte.x - 8 * sp && c.y === r0.mitte.y - 6)).toBe(false)
     g.body = [{ x: r0.x0, y: M.p.y }, { x: r0.x0 + 1, y: M.p.y + 3 }, { x: r0.x0 + 1, y: M.p.y + 4 }]
     lauf(g, MEISTER.duennLaden + MEISTER.duennBrennt + 100)
     expect(g.status).toBe('over')
@@ -169,7 +175,7 @@ describe('Kaefigmeister (Mission 30)', () => {
   it('drei Leben: besiegt geht die Tuer auf (Pfeil dorthin), hindurch ist die Mission geschafft', () => {
     const g = spiel()
     for (let leben = MEISTER.leben; leben > 0; leben--) {
-      kopfAuf(g, { x: 25, y: 67 })
+      kopfAuf(g, START)
       lauf(g, 1500)
       expect(g.meister.zustand, `Leben ${leben}`).toBe('wartet')
       zuIhm(g)
@@ -194,32 +200,35 @@ describe('Kaefigmeister (Mission 30)', () => {
     expect(g.cause).toBe('ziel')
   })
 
-  it('Augen am Boden: wenige, meist an Waenden und in Ecken; ein Klumpen (ab drei Augen) truebt 5 s den Blick, ein oder zwei nicht', () => {
+  it('Augen: meist an Waenden und in Ecken (Deko), ab und zu frei am Boden (2 bis 4, die trueben 5 s den Blick)', () => {
     const g = spiel()
     expect(g.augen.length).toBeGreaterThan(10)
-    // Wenige: hoechstens 6 % der Felder
+    // Wenige: hoechstens 7 % der Felder
     let felder = 0
     for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) if (g.inside({ x, y })) felder++
-    expect(g.augen.length).toBeLessThan(felder * 0.06)
-    const amRand = g.augen.filter((a) => DIRS.some((d) => !g.inside({ x: a.p.x + STEP[d].x, y: a.p.y + STEP[d].y })))
-    expect(amRand.length / g.augen.length).toBeGreaterThan(0.6)
-    // Gut gemischt: Klumpen (3 oder 4, gefaehrlich) und einzelne (1 oder 2), auch mal mitten im Raum
-    const klumpen = g.augen.filter((a) => a.n >= 3)
-    expect(klumpen.length / g.augen.length).toBeGreaterThan(0.3)
-    expect(klumpen.length / g.augen.length).toBeLessThan(0.6)
-    expect(g.augen.length - amRand.length).toBeGreaterThan(0)
-    for (const a of g.augen) {
+    expect(g.augen.length).toBeLessThan(felder * 0.07)
+    const anWand = (a: { p: P }) => DIRS.some((d) => !g.inside({ x: a.p.x + STEP[d].x, y: a.p.y + STEP[d].y }))
+    const wand = g.augen.filter((a) => !a.boden)
+    const boden = g.augen.filter((a) => a.boden)
+    expect(wand.length / g.augen.length).toBeGreaterThan(0.6)
+    expect(boden.length).toBeGreaterThan(0)
+    for (const a of wand) {
+      expect(anWand(a)).toBe(true)
       expect(a.n).toBeGreaterThanOrEqual(1)
-      expect(a.n).toBeLessThanOrEqual(4)
-      expect(Math.max(Math.abs(a.p.x - 25), Math.abs(a.p.y - 67))).toBeGreaterThan(5)
+      expect(a.n).toBeLessThanOrEqual(3)
     }
-    // Ein oder zwei Augen tun nichts, ein Klumpen truebt den Blick (verschwommen, umgekehrt oder wellig)
-    for (const a of g.augen.filter((x) => x.n <= 2)) (g as unknown as Innen).einsammeln(a.p)
+    for (const a of boden) {
+      expect(anWand(a)).toBe(false)
+      expect(a.n).toBeGreaterThanOrEqual(2)
+      expect(a.n).toBeLessThanOrEqual(4)
+    }
+    for (const a of g.augen) expect(Math.max(Math.abs(a.p.x - 31), Math.abs(a.p.y - 75))).toBeGreaterThan(5)
+    // An der Wand tun sie nichts (egal wie viele), frei am Boden trueben sie den Blick (verschwommen, umgekehrt oder wellig)
+    for (const a of wand) (g as unknown as Innen).einsammeln(a.p)
     expect(g.augenBlick).toBeNull()
     const arten = new Set<string>()
     for (let i = 0; i < 30; i++) {
-      const feld = g.augen.find((a) => a.n >= 3)!
-      ;(g as unknown as Innen).einsammeln(feld.p)
+      ;(g as unknown as Innen).einsammeln(boden[i % boden.length].p)
       const b = g.augenBlick!
       expect(b.bis - b.ab).toBe(5000)
       arten.add(b.art)
@@ -228,16 +237,53 @@ describe('Kaefigmeister (Mission 30)', () => {
     expect(g.drain().some((e) => e.type === 'augen')).toBe(true)
   })
 
+  it('sieht man ihn zum ersten Mal, steht er kurz und lacht (greift dabei nicht an), bei jedem Erscheinen wieder', () => {
+    const g = spiel()
+    lauf(g, 1200)
+    expect(g.meister.zustand).toBe('wartet')
+    const r = g.raeume[g.meister.raum]
+    kopfAuf(g, { x: r.x0, y: r.y0 + 1 })
+    lauf(g, 100)
+    expect(g.drain().some((e) => e.type === 'meister' && e.was === 'lacht')).toBe(true)
+    const lachT = g.meister.lachT
+    expect(lachT).toBeGreaterThan(0)
+    expect(g.meister.zustand).toBe('kampf')
+    // Waehrend er lacht: kein Angriff, er dreht sich nicht
+    const winkel = g.meister.winkel
+    kopfAuf(g, { x: r.x1, y: r.y1 - 1 })
+    lauf(g, MEISTER.lachen - 300)
+    expect(g.meister.angriff).toBeNull()
+    expect(g.meister.winkel).toBe(winkel)
+    // Danach kaempft er
+    lauf(g, 2500)
+    expect(g.meister.winkel).not.toBe(winkel)
+    // Nur einmal je Erscheinen
+    lauf(g, 2000)
+    expect(g.meister.lachT).toBe(lachT)
+  })
+
+  it('die Raeume sind geraeumig (15 x 13)', () => {
+    const g = spiel()
+    for (const r of g.raeume) {
+      expect(r.x1 - r.x0 + 1).toBe(15)
+      expect(r.y1 - r.y0 + 1).toBe(13)
+      // Bis auf die zwei Saeulen ist alles Boden (die Buecherschraenke stehen darauf)
+      let zu = 0
+      for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (!g.inside({ x, y })) zu++
+      expect(zu).toBe(2)
+    }
+  })
+
   it('Querformat: die Raeume sind mitgedreht', () => {
     const h = spiel()
     const q = spiel(true)
     expect(q.raeume).toHaveLength(6)
     for (const r of q.raeume) {
-      expect(r.x1 - r.x0).toBe(8)
-      expect(r.y1 - r.y0).toBe(10)
+      expect(r.x1 - r.x0).toBe(12)
+      expect(r.y1 - r.y0).toBe(14)
       for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (!q.inside({ x, y })) expect(key(x, y) > 0).toBe(true)
     }
-    expect(h.raeume[0].x1 - h.raeume[0].x0).toBe(10)
+    expect(h.raeume[0].x1 - h.raeume[0].x0).toBe(14)
   })
 
   it('ein Bot, der den Angriffen ausweicht, findet ihn dreimal, holt die Flammen und faehrt durch die Tuer (in fast allen Varianten)', () => {
