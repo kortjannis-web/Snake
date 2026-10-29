@@ -27,7 +27,7 @@ import type { Dir, Funke, GameEvent, Gegner, P, Wesen } from '../game/types'
 import { blattFarbe, drawBaumLiegend, drawBaumStehend, drawBaumStehendSchnee, drawFallBlaetter, wackeln, type BaumArt } from './baeume'
 import { drawGrosseErde } from './erde'
 import { drawFlaeche, drawMeer, flaechenAufraeumen, meerKachel, type MeerKachel, type WasserArt } from './flaechen'
-import { drawAmeiseWelt, drawLichtungFeld, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawStimmung, drawWaldBoden, hausUeberzug, ohneErde, vulkanWelt, waldWelt, WELTEN, type Licht, type Welt } from './welten'
+import { drawAmeiseWelt, drawLichtungFeld, drawWaldRand, drawDunkel, drawErdFeldWelt, drawFackel, drawFalleWelt, drawFroschWelt, drawFutter, drawMauerWelt, drawSteppenlaeufer, drawStimmung, drawWaldBoden, hausUeberzug, neuerSteppenlaeufer, ohneErde, vulkanWelt, waldWelt, WELTEN, type Licht, type Steppenlaeufer, type Welt } from './welten'
 import { drawSchlange, farbeBei, GEGNER_SKIN, LILA_SKIN, Spuren, STANDARD, type Skin } from './skins'
 import {
   apfelFarbe,
@@ -268,6 +268,9 @@ export class Renderer {
   minikarte = true
   private shake = { until: 0, amp: 0 }
   private lastReal = 0
+  /** Steppenlaeufer der Wueste: kommt einmal, wenn der hoechste Level eine neue 15er-Stufe erreicht (-1 = noch keine Stufe) */
+  private steppe: Steppenlaeufer | null = null
+  private steppeStufe = -1
   /** Vorgerenderter Boden (Erde, Schachbrett, Grasrand) in Kacheln von GRUND x GRUND Feldern, in Geraetepixeln */
   /** Boden-Kacheln; abgrund = der feste Teil des Abgrunds (Vulkan) ist schon hineingezeichnet */
   private grund = new Map<string, { cv: HTMLCanvasElement; benutzt: number; abgrund?: boolean }>()
@@ -333,6 +336,8 @@ export class Renderer {
     this.texte = []
     this.shake = { until: 0, amp: 0 }
     this.spuren.leeren()
+    this.steppe = null
+    this.steppeStufe = -1
   }
 
   /** Feldgroesse so, dass ein Bildschirm (screenW x screenH) und je Richtung 2 Felder mehr hineinpassen.
@@ -1382,6 +1387,15 @@ export class Renderer {
       ctx.restore()
     }
     if (!this.reduce) drawStimmung(ctx, welt, vw, vh, this.dpr, now, ox, oy)
+    if (welt.id === 'wueste') {
+      const stufe = Math.floor(g.maxLevel / 15)
+      if (this.steppeStufe < 0 || stufe < this.steppeStufe) this.steppeStufe = stufe
+      else if (stufe > this.steppeStufe) {
+        this.steppeStufe = stufe
+        if (!this.reduce) this.steppe = neuerSteppenlaeufer(now)
+      }
+    }
+    if (this.steppe && (this.reduce || !drawSteppenlaeufer(ctx, this.steppe, vw, vh, this.dpr, now))) this.steppe = null
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
     // Sandsturm: blendet ein und aus, rund um den Kopf bleibt etwas Sicht
     const st = g.sandsturm
