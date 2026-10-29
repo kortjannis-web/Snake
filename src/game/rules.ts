@@ -189,7 +189,7 @@ const BASIS = {
   sturmAn: 1,
   sturmChance: 4,
   wurmAn: 1,
-  wurmChance: 4,
+  wurmChance: 3.8,
   // Winterwald: Ereignisse (Prozent je Apfel), Warnzeit und Dauer in Sekunden
   eiszapfenAn: 1,
   eiszapfenChance: 14,
@@ -451,7 +451,7 @@ export const NIE = 1_000_000_000
 /** Gefahren je Welt, von haeufig nach selten (Schluessel-Anfang: xAn, xChance). Fallen zwei zusammen, kommt die seltenere */
 export const WELT_GEFAHREN: Record<WeltId, string[]> = {
   wiese: [],
-  wueste: ['sturm', 'geier', 'flut', 'karawane', 'wurm'],
+  wueste: ['geier', 'flut', 'karawane', 'sturm', 'wurm'],
   winter: ['eiszapfen', 'schneesturm', 'yeti', 'polarnacht'],
   bergwerk: ['steinschlag', 'lore', 'fledermaus', 'tnt', 'erdbeben'],
   zauberwald: ['ranken', 'sporen', 'wanderbaum', 'irrlicht', 'spiegel'],

@@ -2,6 +2,9 @@
  * Berge rund um die Taeler einer Mission (Kampagne). Alles, was nicht zur Karte gehoert, ist Gebirge: am Fuss Wiese mit
  * Baeumen, darueber Fels, oben Schnee. Die Hoehe kommt aus dem Abstand zur naechsten Wiese (einmal je Mission berechnet).
  *
+ * Dungeon (ab Mission 21): Steinboden (`dungeonSet`) wird mit Steinplatten belegt, die Berge, die ihm am naechsten sind,
+ * werden zu Mauern aus Quadern (vorn die Mauerseite mit Fugen, dahinter die dunkle Mauerkrone), ab und zu eine Fackel.
+ *
  * Die Missionen aendern sich nie: das Gebirge wird einmal in Kacheln (KACHEL x KACHEL Felder) vorgezeichnet und danach
  * nur noch kopiert. Neu gezeichnet wird nur bei einer neuen Feldgroesse oder Aufloesung.
  */
@@ -38,7 +41,10 @@ function farbe(h: number): RGB {
   return STUFEN[STUFEN.length - 1].c
 }
 
-export type BergKarte = { w: number; h: number; inside: (p: { x: number; y: number }) => boolean }
+export type BergKarte = { w: number; h: number; inside: (p: { x: number; y: number }) => boolean; dungeonSet?: ReadonlySet<number> }
+
+/** Wie key() im Spiel */
+const schluessel = (x: number, y: number) => (y + 1) * 4096 + (x + 1)
 
 export class BergKacheln {
   private readonly W: number
@@ -46,6 +52,9 @@ export class BergKacheln {
   /** Abstand zur naechsten Wiese je Feld (Felder, -1 = Wiese), Ausschnitt um RAND erweitert */
   private readonly dist: Int16Array
   private readonly drin: Uint8Array
+  /** 1 = Dungeon: Steinboden oder eine Mauer, die naeher am Steinboden liegt als an der Wiese */
+  private readonly kerker: Uint8Array
+  private readonly hatKerker: boolean
   private kacheln = new Map<string, { cv: HTMLCanvasElement | null; benutzt: number }>()
   private stand = ''
   private bild = 0
@@ -55,7 +64,9 @@ export class BergKacheln {
     this.H = k.h + 2 * RAND
     this.dist = new Int16Array(this.W * this.H).fill(-1)
     this.drin = new Uint8Array(this.W * this.H)
-    // Breitensuche von allen Wiesenfeldern nach aussen
+    this.kerker = new Uint8Array(this.W * this.H)
+    this.hatKerker = !!k.dungeonSet?.size
+    // Breitensuche von allen Wiesenfeldern nach aussen (Dungeon-Boden gibt seine Art an die Berge weiter)
     const q: number[] = []
     for (let y = 0; y < k.h; y++)
       for (let x = 0; x < k.w; x++)
@@ -63,6 +74,7 @@ export class BergKacheln {
           const i = (y + RAND) * this.W + x + RAND
           this.drin[i] = 1
           this.dist[i] = 0
+          if (k.dungeonSet?.has(schluessel(x, y))) this.kerker[i] = 1
           q.push(i)
         }
     for (let qi = 0; qi < q.length; qi++) {
@@ -76,6 +88,7 @@ export class BergKacheln {
         const j = ny * this.W + nx
         if (this.dist[j] >= 0) continue
         this.dist[j] = this.dist[i] + 1
+        this.kerker[j] = this.kerker[i]
         q.push(j)
       }
     }
@@ -113,6 +126,23 @@ export class BergKacheln {
     return ix >= 0 && iy >= 0 && ix < this.W && iy < this.H && this.drin[iy * this.W + ix] === 1
   }
 
+  /** Dungeon: Steinboden (auf der Karte) oder Mauer (daneben) */
+  private dungeon(x: number, y: number) {
+    if (!this.hatKerker) return false
+    const ix = x + RAND
+    const iy = y + RAND
+    return ix >= 0 && iy >= 0 && ix < this.W && iy < this.H && this.kerker[iy * this.W + ix] === 1
+  }
+
+  /** Abstand zum naechsten Feld der Karte (0 = auf der Karte) */
+  private abstand(x: number, y: number) {
+    const ix = x + RAND
+    const iy = y + RAND
+    if (ix < 0 || iy < 0 || ix >= this.W || iy >= this.H) return 99
+    const d = this.dist[iy * this.W + ix]
+    return d < 0 ? 99 : d
+  }
+
   /** Sichtbare Kacheln zeichnen (ctx steht schon auf Kartenkoordinaten in CSS-Pixeln) */
   zeichnen(ctx: CanvasRenderingContext2D, cell: number, dpr: number, ex0: number, ey0: number, ex1: number, ey1: number) {
     const stand = `${cell}|${dpr}`
@@ -146,7 +176,7 @@ export class BergKacheln {
     const x0 = tx * KACHEL
     const y0 = ty * KACHEL
     let berg = false
-    for (let y = y0 - 1; y <= y0 + KACHEL && !berg; y++) for (let x = x0 - 1; x <= x0 + KACHEL; x++) if (!this.wiese(x, y)) berg = true
+    for (let y = y0 - 1; y <= y0 + KACHEL && !berg; y++) for (let x = x0 - 1; x <= x0 + KACHEL; x++) if (!this.wiese(x, y) || this.dungeon(x, y)) berg = true
     if (!berg) return null
     const cv = document.createElement('canvas')
     cv.width = Math.ceil(KACHEL * cell * dpr)
@@ -166,14 +196,14 @@ export class BergKacheln {
     // 1. Grund: jedes Bergfeld in der Farbe seiner Hoehe, zur Wiese hin ein Schatten auf dem Gras
     for (let y = ay; y <= by; y++)
       for (let x = ax; x <= bx; x++) {
-        if (this.wiese(x, y)) continue
+        if (this.wiese(x, y) || this.dungeon(x, y)) continue
         c.fillStyle = rgb(farbe(this.hoehe(x, y)))
         c.fillRect(x * cell - 0.4, y * cell - 0.4, cell + 0.8, cell + 0.8)
       }
     const sch = cell * 0.32
     for (let y = ay; y <= by; y++)
       for (let x = ax; x <= bx; x++) {
-        if (!this.wiese(x, y)) continue
+        if (!this.wiese(x, y) || this.dungeon(x, y)) continue
         const r: [boolean, number, number, number, number][] = [
           [!this.wiese(x, y - 1), x * cell, y * cell, cell, sch],
           [!this.wiese(x - 1, y), x * cell, y * cell, sch, cell],
@@ -192,7 +222,7 @@ export class BergKacheln {
     // 2. Felsbrocken und Kuppen (runde Formen mit Licht oben links), oben Schnee
     for (let y = ay; y <= by; y++)
       for (let x = ax; x <= bx; x++) {
-        if (this.wiese(x, y)) continue
+        if (this.wiese(x, y) || this.dungeon(x, y)) continue
         const h = this.hoehe(x, y)
         const z = hash(x, y, 3)
         if (h < 1.3 || z > (h < 2 ? 0.35 : 0.75)) continue
@@ -224,7 +254,7 @@ export class BergKacheln {
     // 3. Baeume am Fuss der Berge (von oben: runde Kronen, ab und zu eine Tanne)
     for (let y = ay; y <= by; y++)
       for (let x = ax; x <= bx; x++) {
-        if (this.wiese(x, y)) continue
+        if (this.wiese(x, y) || this.dungeon(x, y)) continue
         const h = this.hoehe(x, y)
         if (h > 2.6 || hash(x, y, 7) > (h < 1.6 ? 0.5 : 0.18)) continue
         const cx = px(x) + (hash(x, y, 8) - 0.5) * cell * 0.4
@@ -266,6 +296,128 @@ export class BergKacheln {
           c.fill()
         }
       }
+    if (this.hatKerker) this.kerkerZeichnen(c, cell, ax, ay, bx, by)
     return cv
   }
+
+  /** Dungeon: Steinplatten auf dem Boden, Mauern aus Quadern, Fackeln */
+  private kerkerZeichnen(c: CanvasRenderingContext2D, cell: number, ax: number, ay: number, bx: number, by: number) {
+    const boden = (x: number, y: number) => this.wiese(x, y) && this.dungeon(x, y)
+    const mauer = (x: number, y: number) => !this.wiese(x, y) && this.dungeon(x, y)
+    const fuge = Math.max(1, cell * 0.06)
+    // 1. Boden: Steinplatten im Schachbrett, mit Fugen, Kanten im Licht, Rissen und etwas Moos
+    for (let y = ay; y <= by; y++)
+      for (let x = ax; x <= bx; x++) {
+        if (!boden(x, y)) continue
+        const z = hash(x, y, 21)
+        const hell = (x + y) % 2 === 0
+        const f: RGB = hell ? [104, 100, 112] : [90, 86, 98]
+        const t = (z - 0.5) * 0.12
+        c.fillStyle = rgb(mix(f, t > 0 ? [140, 136, 146] : [50, 46, 58], Math.abs(t)))
+        c.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
+        // Fugen und Kanten
+        c.fillStyle = 'rgba(30, 26, 36, 0.55)'
+        c.fillRect(x * cell, (y + 1) * cell - fuge, cell, fuge)
+        c.fillRect((x + 1) * cell - fuge, y * cell, fuge, cell)
+        c.fillStyle = 'rgba(200, 196, 210, 0.16)'
+        c.fillRect(x * cell + fuge, y * cell + fuge * 0.5, cell - fuge * 2, fuge)
+        c.fillRect(x * cell + fuge * 0.5, y * cell + fuge, fuge, cell - fuge * 2)
+        if (z < 0.16) {
+          // Riss
+          c.strokeStyle = 'rgba(36, 32, 42, 0.6)'
+          c.lineWidth = Math.max(0.8, cell * 0.035)
+          c.beginPath()
+          c.moveTo(x * cell + cell * (0.2 + hash(x, y, 22) * 0.3), y * cell + cell * 0.2)
+          c.lineTo(x * cell + cell * 0.5, y * cell + cell * (0.45 + hash(x, y, 23) * 0.2))
+          c.lineTo(x * cell + cell * (0.55 + hash(x, y, 24) * 0.3), y * cell + cell * 0.82)
+          c.stroke()
+        } else if (z > 0.9) {
+          // Moos in der Fuge (der Wald waechst herein)
+          c.fillStyle = 'rgba(96, 140, 72, 0.55)'
+          for (let i = 0; i < 3; i++) {
+            c.beginPath()
+            c.arc(x * cell + cell * (0.2 + i * 0.3), (y + 1) * cell - fuge, cell * (0.08 + hash(x, y, 25 + i) * 0.06), 0, Math.PI * 2)
+            c.fill()
+          }
+        }
+      }
+    // Schatten der Mauern auf dem Boden
+    const sch = cell * 0.36
+    for (let y = ay; y <= by; y++)
+      for (let x = ax; x <= bx; x++) {
+        if (!this.wiese(x, y)) continue
+        const kanten: [boolean, number, number, number, number, number, number, number, number][] = [
+          [mauer(x, y - 1), x * cell, y * cell, cell, sch, 0, y * cell, 0, y * cell + sch],
+          [mauer(x - 1, y), x * cell, y * cell, sch, cell, x * cell, 0, x * cell + sch, 0],
+          [mauer(x + 1, y), (x + 1) * cell - sch * 0.5, y * cell, sch * 0.5, cell, (x + 1) * cell, 0, (x + 1) * cell - sch * 0.5, 0],
+        ]
+        for (const [an, rx, ry, rw, rh, gx0, gy0, gx1, gy1] of kanten) {
+          if (!an) continue
+          const g = c.createLinearGradient(gx0, gy0, gx1, gy1)
+          g.addColorStop(0, 'rgba(14, 10, 20, 0.5)')
+          g.addColorStop(1, 'rgba(14, 10, 20, 0)')
+          c.fillStyle = g
+          c.fillRect(rx, ry, rw, rh)
+        }
+      }
+    // 2. Mauern: direkt am Boden die Mauerseite aus Quadern, weiter hinten die dunkle Mauerkrone
+    for (let y = ay; y <= by; y++)
+      for (let x = ax; x <= bx; x++) {
+        if (!mauer(x, y)) continue
+        const d = this.abstand(x, y)
+        if (d >= 2) {
+          const z = hash(x, y, 31)
+          c.fillStyle = rgb(mix([40, 36, 46], [26, 22, 30], Math.min(1, (d - 2) / 4)))
+          c.fillRect(x * cell - 0.4, y * cell - 0.4, cell + 0.8, cell + 0.8)
+          if (z < 0.35) {
+            c.fillStyle = 'rgba(70, 64, 78, 0.5)'
+            c.fillRect(x * cell + cell * 0.15, y * cell + cell * 0.2, cell * (0.3 + z), cell * 0.18)
+          }
+          continue
+        }
+        // Mauerseite: Reihen von Quadern, versetzt, Licht von oben
+        c.fillStyle = '#4A4452'
+        c.fillRect(x * cell - 0.4, y * cell - 0.4, cell + 0.8, cell + 0.8)
+        const reihen = 3
+        const rh = cell / reihen
+        for (let r = 0; r < reihen; r++) {
+          const ry = y * cell + r * rh
+          const versatz = (r + y) % 2 ? 0.5 : 0
+          for (let b = -1; b < 2; b++) {
+            const l = Math.max(0, (b + versatz) * 0.5)
+            const r2 = Math.min(1, (b + versatz) * 0.5 + 0.5)
+            if (r2 <= l) continue
+            const z = hash(x * 3 + b, y * 3 + r, 32)
+            const qx = x * cell + l * cell + fuge * 0.5
+            const qw = (r2 - l) * cell - fuge
+            c.fillStyle = rgb(mix([96, 88, 102], [64, 58, 72], z))
+            c.fillRect(qx, ry + fuge * 0.5, qw, rh - fuge)
+            c.fillStyle = 'rgba(220, 214, 230, 0.12)'
+            c.fillRect(qx, ry + fuge * 0.5, qw, fuge)
+          }
+        }
+        // Fackel an der Mauer
+        if (hash(x, y, 33) < 0.07 && NACHBARN.some(([dx, dy]) => this.wiese(x + dx, y + dy) && this.dungeon(x + dx, y + dy))) {
+          const fx = (x + 0.5) * cell
+          const fy = (y + 0.55) * cell
+          const g = c.createRadialGradient(fx, fy - cell * 0.15, 0, fx, fy, cell * 1.6)
+          g.addColorStop(0, 'rgba(255, 190, 90, 0.45)')
+          g.addColorStop(1, 'rgba(255, 150, 60, 0)')
+          c.fillStyle = g
+          c.fillRect(fx - cell * 1.6, fy - cell * 1.6, cell * 3.2, cell * 3.2)
+          c.fillStyle = '#5A3A22'
+          c.fillRect(fx - cell * 0.05, fy - cell * 0.05, cell * 0.1, cell * 0.32)
+          c.fillStyle = '#FFB347'
+          c.beginPath()
+          c.ellipse(fx, fy - cell * 0.14, cell * 0.1, cell * 0.17, 0, 0, Math.PI * 2)
+          c.fill()
+          c.fillStyle = '#FFF0B0'
+          c.beginPath()
+          c.ellipse(fx, fy - cell * 0.1, cell * 0.045, cell * 0.08, 0, 0, Math.PI * 2)
+          c.fill()
+        }
+      }
+  }
 }
+
+const NACHBARN = [[0, -1], [0, 1], [-1, 0], [1, 0]] as const

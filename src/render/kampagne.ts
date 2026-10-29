@@ -307,6 +307,7 @@ export class KampagnenKarte {
     // Inhalt: Zahl, Schatztruhe oder Totenschaedel
     if (schatz) truhe(c, x, y - 1, r * 0.95, zu)
     else if (boss && m.boss === 'ent') entKopf(c, x, y - 1, r * 0.95, zu)
+    else if (boss && m.dungeonBoss) kaefigKopf(c, x, y - 1, r * 0.95, zu)
     else if (boss) schaedel(c, x, y - 1, r * 0.95, zu)
     else {
       c.fillStyle = zu ? '#6E736B' : z === 'geschafft' ? '#FFFFFF' : '#2C1E14'
@@ -634,6 +635,38 @@ function entKopf(c: CanvasRenderingContext2D, x: number, y: number, r: number, g
   c.fillStyle = grau ? '#7C7F78' : '#2A1A10'
   c.beginPath()
   c.ellipse(x, y + k * 0.58, k * 0.2, k * 0.08, 0, 0, Math.PI * 2)
+  c.fill()
+}
+
+/** Boss der Dungeons (Mission 30): ein Kopf im runden Eisenkaefig, die Augen glimmen violett */
+function kaefigKopf(c: CanvasRenderingContext2D, x: number, y: number, r: number, grau: boolean) {
+  const k = r * 0.5
+  c.fillStyle = grau ? '#8E918A' : '#3A3530'
+  c.beginPath()
+  c.ellipse(x, y + k * 0.1, k * 0.55, k * 0.68, 0, 0, Math.PI * 2)
+  c.fill()
+  c.fillStyle = grau ? '#D9DBD5' : '#C9A8FF'
+  c.beginPath()
+  c.arc(x - k * 0.22, y + k * 0.02, k * 0.11, 0, Math.PI * 2)
+  c.arc(x + k * 0.22, y + k * 0.02, k * 0.11, 0, Math.PI * 2)
+  c.fill()
+  c.strokeStyle = grau ? '#7C7F78' : '#9A968E'
+  c.lineWidth = k * 0.1
+  c.beginPath()
+  c.ellipse(x, y + k * 0.1, k * 0.82, k * 0.92, 0, 0, Math.PI * 2)
+  c.stroke()
+  for (const dx of [-0.45, 0, 0.45]) {
+    c.beginPath()
+    c.ellipse(x, y + k * 0.1, Math.abs(dx) * k * 1.8 + 0.01, k * 0.92, 0, -Math.PI / 2, Math.PI / 2, dx < 0)
+    c.stroke()
+  }
+  c.beginPath()
+  c.moveTo(x - k * 0.82, y + k * 0.1)
+  c.lineTo(x + k * 0.82, y + k * 0.1)
+  c.stroke()
+  c.fillStyle = grau ? '#7C7F78' : '#6E6C68'
+  c.beginPath()
+  c.arc(x, y - k * 0.86, k * 0.14, 0, Math.PI * 2)
   c.fill()
 }
 

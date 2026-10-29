@@ -322,4 +322,7 @@ export const MINI_FOR_CAUSE: Record<Cause, Mini> = {
   minient: 'baum',
   blaetterbombe: 'baum',
   entboss: 'baum',
+  kaefig: 'gegner',
+  kaefigstrahl: 'gegner',
+  dungeontuer: 'mauer',
 }

@@ -99,7 +99,7 @@ describe('Wüste: Flut', () => {
         }
       }
     }
-    // Standard: Sturm 4 %, Flut 6 %, Wurm 4 % (faellt Selteneres mit, wird der Sturm uebersprungen)
+    // Standard: Sturm 4 %, Flut 6 %, Wurm 3,8 % (faellt Selteneres mit, wird das Haeufigere uebersprungen)
     expect(zahl.sandsturm / aepfel).toBeGreaterThan(0.015)
     expect(zahl.sandsturm / aepfel).toBeLessThan(0.06)
     expect(zahl.flutWarnung / aepfel).toBeGreaterThan(0.025)

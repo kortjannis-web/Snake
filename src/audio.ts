@@ -331,6 +331,32 @@ class Audio {
         break
     }
   }
+  /** Kaefigkopf (Dungeon): Stoehnen beim Entdecken, aufsteigendes Summen beim Ausholen, zischender Strahl */
+  kaefig(was: string) {
+    switch (was) {
+      case 'sieht':
+        this.tone(98, 0.5, 'sawtooth', 0.07, { to: 82, filter: 500, vib: 5, attack: 0.08 })
+        break
+      case 'laden':
+        this.tone(330, 0.75, 'triangle', 0.06, { to: 880, attack: 0.2 })
+        break
+      case 'strahl':
+        this.noise(0.3, 'bandpass', 2400, 0.14, { to: 900, q: 2 })
+        this.tone(660, 0.3, 'square', 0.04, { to: 220, filter: 1800 })
+        break
+    }
+  }
+  /** Siegel aufgehoben (hoeher, je weniger fehlen), die grosse Tuer geht auf */
+  siegel(rest: number) {
+    const f = [784, 659, 523][Math.min(2, rest)] ?? 523
+    this.tone(f, 0.35, 'triangle', 0.12)
+    this.tone(f * 1.5, 0.45, 'sine', 0.07, { delay: 0.08 })
+  }
+  tuerAuf() {
+    this.noise(1.2, 'lowpass', 300, 0.22, { to: 120, attack: 0.2 })
+    this.tone(55, 1.2, 'sawtooth', 0.08, { to: 45, filter: 240, attack: 0.3 })
+    ;[392, 523, 659, 784].forEach((f, i) => this.tone(f, 0.5, 'triangle', 0.09, { delay: 0.6 + i * 0.12 }))
+  }
   /** Ent (Boss des Waldes): Knarren, brechende Wurzeln, Dornen, Eicheln, Feuer, Gebruell, Zerfall */
   ent(was: string) {
     switch (was) {

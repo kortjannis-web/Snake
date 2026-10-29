@@ -1379,6 +1379,19 @@ function handle(e: GameEvent) {
       if (e.was === 'zorn' && kampf && kampf.ent.phase === 2 && kampf.ent.hp === 1 && kampf.entLeben > 1) toast('gegner', 'Phase 3', 'Die Lichtung wächst von außen zu. Ein letzter Treffer!')
       break
     }
+    case 'kaefig':
+      if (nah(e.p, 0.6)) audio.kaefig(e.was)
+      if (e.was === 'strahl' && nah(e.p, 0.4)) haptic.light()
+      break
+    case 'siegel':
+      audio.siegel(e.rest)
+      haptic.medium()
+      toast('gebiet', e.rest ? `Siegel geholt, noch ${e.rest}` : 'Alle Siegel geholt!', e.rest ? 'Sammle alle Siegel, dann öffnet sich die große Tür.' : 'Die große Tür leuchtet orange: fahr hindurch.')
+      break
+    case 'tuerAuf':
+      audio.tuerAuf()
+      haptic.heavy()
+      break
     case 'minient':
       if (nah(e.p, 0.6)) audio.minient(e.was)
       if (e.was === 'griff') {
