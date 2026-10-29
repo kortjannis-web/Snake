@@ -14,7 +14,7 @@ on:
         default: false
 
 concurrency:
-  group: supabase
+  group: supabase-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

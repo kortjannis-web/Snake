@@ -11,8 +11,10 @@ permissions:
   pages: write
   id-token: write
 
+# Gruppe je Zweig: sonst bricht ein Push auf einen Nebenzweig (dessen Lauf ohnehin uebersprungen wird) die
+# laufende Veroeffentlichung vom Hauptzweig ab, und das Update kommt nie online
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
