@@ -37,3 +37,25 @@ describe('Web Push', () => {
     expect(ok).toBe(true)
   })
 })
+
+describe('Firebase (Android-App)', () => {
+  it('meldet sich mit einer gueltigen RS256-Signatur des Dienstkontos an', async () => {
+    const { fcmJwt, dienstkonto } = await import('../server/fcm')
+    const paar = (await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify'])) as CryptoKeyPair
+    const pkcs8 = new Uint8Array((await crypto.subtle.exportKey('pkcs8', paar.privateKey)) as ArrayBuffer)
+    let bin = ''
+    for (const x of pkcs8) bin += String.fromCharCode(x)
+    const pem = `-----BEGIN PRIVATE KEY-----\n${btoa(bin).replace(/.{64}/g, '$&\n')}\n-----END PRIVATE KEY-----\n`
+    // So wie Firebase die Datei herunterladen laesst (Zeilenumbrueche im Schluessel als \n)
+    const konto = dienstkonto(JSON.stringify({ type: 'service_account', project_id: 'snake-test', client_email: 'snake@snake-test.iam.gserviceaccount.com', private_key: pem }))
+    expect(konto?.project_id).toBe('snake-test')
+    expect(dienstkonto('kaputt')).toBeNull()
+    const jwt = await fcmJwt(konto!, 1_000_000)
+    const [k, n, sig] = jwt.split('.')
+    expect(JSON.parse(new TextDecoder().decode(vonB64u(k)))).toEqual({ alg: 'RS256', typ: 'JWT' })
+    const nutz = JSON.parse(new TextDecoder().decode(vonB64u(n)))
+    expect(nutz).toMatchObject({ iss: 'snake@snake-test.iam.gserviceaccount.com', aud: 'https://oauth2.googleapis.com/token', iat: 1_000_000, exp: 1_003_600 })
+    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', paar.publicKey, vonB64u(sig).slice().buffer as ArrayBuffer, new TextEncoder().encode(`${k}.${n}`))
+    expect(ok).toBe(true)
+  })
+})

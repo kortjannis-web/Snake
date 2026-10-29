@@ -27,12 +27,30 @@ jobs:
 
       - run: npm ci
       - run: npm test
+
+      # Benachrichtigungen in der APK (Firebase): die Datei google-services.json aus dem Secret GOOGLE_SERVICES_JSON
+      # (Inhalt der Datei, so wie Firebase sie herunterladen laesst). Ohne Secret: APK ohne Benachrichtigungen bei geschlossener App
+      - name: Firebase-Datei aus Secrets
+        id: fcm
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GS" ]; then
+            printf '%s' "$GS" > android/app/google-services.json
+            node -e 'JSON.parse(require("fs").readFileSync("android/app/google-services.json","utf8"))' || { echo "GOOGLE_SERVICES_JSON ist kein gueltiges JSON"; exit 1; }
+            echo "an=1" >> "$GITHUB_OUTPUT"
+            echo "Firebase eingerichtet: Benachrichtigungen an."
+          else
+            echo "Kein GOOGLE_SERVICES_JSON: APK ohne Benachrichtigungen bei geschlossener App."
+          fi
+
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_SNAKE_SERVER: ${{ vars.VITE_SNAKE_SERVER }}
           VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
+          VITE_FCM: ${{ steps.fcm.outputs.an }}
       - run: npx cap sync android
 
       - uses: actions/setup-java@v4

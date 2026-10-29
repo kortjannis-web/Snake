@@ -99,6 +99,10 @@ export function nameErlaubt(n: string) {
   const t = n.toLowerCase().replace(/[0134578@$]/g, (z) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', $: 's' })[z] ?? z)
   return !VERBOTEN.test(t.replace(/[^a-zäöüß]/g, ''))
 }
+/** Schimpfwoerter in Chat-Texten durch Sternchen ersetzen (Weltchat: dort liest jeder mit) */
+export function sauber(text: string) {
+  return text.replace(/[^\s]+/g, (w) => (nameErlaubt(w) ? w : '*'.repeat(Math.min(w.length, 8))))
+}
 export const nameGueltig = (n: string) => n.trim().length >= 2 && n.trim().length <= 16 && nameErlaubt(n.trim())
 
 /** Fehler beim Namen, den der Spieler loesen muss (vergeben oder nicht erlaubt) */
@@ -1141,3 +1145,110 @@ export function lobby(ich: () => Omit<OnlineSpieler, 'uid'>, bei: LobbyRueckruf)
     },
   }
 }
+
+/* ================= Weltchat (alle angemeldeten Spieler, 7 Tage) ================= */
+
+export type WeltNachricht = { id: number; von: string; name: string; skin: string | null; text: string; created_at: string }
+const WSPALTEN = 'id,von,name,skin,text,created_at'
+
+/** Die letzten 150 Nachrichten im Weltchat, aelteste zuerst. null: die Tabelle fehlt (SQL noch nicht ausgefuehrt) */
+export async function ladeWelt(): Promise<WeltNachricht[] | null> {
+  await nutzerId()
+  const sb = await client()
+  const { data, error } = await sb.from('weltchat').select(WSPALTEN).order('id', { ascending: false }).limit(150)
+  if (rpcFehlt(error) || error?.code === 'PGRST205') return null
+  if (error) throw error
+  return ((data ?? []) as WeltNachricht[]).reverse()
+}
+
+/** Wie viele Nachrichten im Weltchat neuer sind als `seit` (hoechstens 100, eigene zaehlen nicht) */
+export async function weltNeu(seit: number): Promise<number> {
+  if (!onlineAktiv || !angemeldet()) return 0
+  try {
+    const ich = await nutzerId()
+    const sb = await client()
+    const { data, error } = await sb.from('weltchat').select('id').gt('id', seit).neq('von', ich).limit(100)
+    return error ? 0 : (data ?? []).length
+  } catch {
+    return 0
+  }
+}
+
+export async function sendeWelt(text: string): Promise<WeltNachricht> {
+  const ich = await nutzerId()
+  const sb = await client()
+  const { data, error } = await sb.from('weltchat').insert({ von: ich, text: sauber(text.trim()).slice(0, 300) }).select(WSPALTEN).single()
+  if (rpcFehlt(error) || error?.code === 'PGRST205') throw new Error('Den Weltchat gibt es in der Datenbank noch nicht (supabase/NACHHOLEN.sql ausführen).')
+  if (error) throw new Error(fehlerText(error))
+  return data as WeltNachricht
+}
+
+/** Admin: eine Nachricht aus dem Weltchat loeschen (das Passwort prueft die Datenbank) */
+export async function adminWeltLoeschen(code: string, id: number) {
+  const sb = await client()
+  const { error } = await sb.rpc('admin_weltchat_loeschen', { code, ziel: id })
+  if (error) throw new Error(fehlerText(error))
+}
+
+/** Live: neue Nachricht im Weltchat. Gibt die Abmeldung zurueck */
+export function abonniereWelt(bei: (n: WeltNachricht) => void): () => void {
+  let weg = false
+  let kanal: ReturnType<SupabaseClient['channel']> | null = null
+  let sb: SupabaseClient | null = null
+  void (async () => {
+    try {
+      await nutzerId()
+      sb = await client()
+      if (weg) return
+      kanal = sb
+        .channel('weltchat')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'weltchat' }, (p) => bei(p.new as WeltNachricht))
+        .subscribe()
+    } catch {
+      /* kein Netz */
+    }
+  })()
+  return () => {
+    weg = true
+    if (kanal && sb) void sb.removeChannel(kanal)
+  }
+}
+
+/* ================= Einstellungen der Benachrichtigungen ================= */
+
+/** Was benachrichtigt (Push, roter Punkt, Hinweis in der App). stumm: Spieler, deren private Nachrichten nicht benachrichtigen */
+export type PushEinstellung = { nachrichten: boolean; welt: boolean; einladungen: boolean; stumm: string[] }
+const EKEY = 'snake.push.einstellung.v1'
+export const pushEinstellung: PushEinstellung = { nachrichten: true, welt: true, einladungen: true, stumm: [], ...lies<Partial<PushEinstellung>>(EKEY, {}) }
+
+/** Aendern: sofort auf dem Geraet, dann in der Datenbank (dort liest sie der Snake-Server beim Verschicken) */
+export async function setzePushEinstellung(e: Partial<PushEinstellung>) {
+  Object.assign(pushEinstellung, e)
+  schreib(EKEY, pushEinstellung)
+  if (!onlineAktiv || !angemeldet()) return
+  try {
+    await nutzerId()
+    const sb = await client()
+    await sb.rpc('push_einstellung_setzen', { e: pushEinstellung })
+  } catch {
+    /* kein Netz: beim naechsten Start */
+  }
+}
+
+/** Beim Start: Einstellung aus der Datenbank holen (gilt fuer den Account, also auch auf anderen Geraeten), sonst die vom Geraet hochladen */
+export async function ladePushEinstellung() {
+  if (!onlineAktiv || !angemeldet()) return
+  try {
+    await nutzerId()
+    const sb = await client()
+    const { data, error } = await sb.rpc('meine_push_einstellung')
+    if (error) return
+    const d = (data ?? {}) as Partial<PushEinstellung>
+    if (typeof d.nachrichten !== 'boolean') return void sb.rpc('push_einstellung_setzen', { e: pushEinstellung })
+    Object.assign(pushEinstellung, { nachrichten: d.nachrichten, welt: d.welt !== false, einladungen: d.einladungen !== false, stumm: Array.isArray(d.stumm) ? d.stumm : [] })
+    schreib(EKEY, pushEinstellung)
+  } catch {
+    /* kein Netz */
+  }
+}
+

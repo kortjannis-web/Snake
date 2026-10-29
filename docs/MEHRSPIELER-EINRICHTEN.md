@@ -100,6 +100,9 @@ Ohne Datei 6 zeigt die Hall of Snakes „Keine Verbindung“ und es gibt keine A
 
 ## Schritt 7 (optional): Einladungen aufs Handy (Push)
 
+> Seit 1.55 gibt es Benachrichtigungen auch für Nachrichten und den Weltchat, und für die Android-APK über Firebase.
+> Die vollständige Anleitung steht in [`BENACHRICHTIGUNGEN.md`](BENACHRICHTIGUNGEN.md); dieser Schritt hier ist dort Teil 2.
+
 Damit Freunde eine Benachrichtigung bekommen, wenn sie Snake gerade nicht offen haben. Geht in der Web-App auf Android
 (Chrome) und auf dem iPhone ab iOS 16.4, wenn Snake **vom Home-Bildschirm** geöffnet wurde. In der Android-APK nicht
 (dort bitte die Web-App nutzen oder den Raum-Code schicken).

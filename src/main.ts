@@ -29,14 +29,14 @@ import { installPflicht, zeigeInstallation } from './install'
 import { tagBerlin, tagesSeed } from './tages'
 import { eckenFelder, tagesLevel, wochentag } from './game/tageslevel'
 import { MEHR_BILD } from './multi/protokoll'
-import { perPushEinladen, pushAuffrischen, pushAusschalten, pushEinschalten, pushErlaubt, pushFehler, pushFrageMerken, pushFrageOffen, pushGrund, pushMoeglich } from './push'
+import { beiPushTipp, nachrichtMelden, perPushEinladen, pushAuffrischen, pushAusschalten, pushBlockiert, pushEinschalten, pushErlaubt, pushFehler, pushFrageMerken, pushFrageOffen, pushGrund, pushMoeglich, type PushTipp } from './push'
 import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
 import { BergKacheln } from './render/berge'
 import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abmelden, abonniere, abonniereHall, abonniereSozial, adminFeedback, adminFeedbackLoeschen, adminLoeschen, feedbackSenden, type Feedback, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abmelden, abonniere, abonniereHall, abonniereSozial, abonniereWelt, adminWeltLoeschen, ladePushEinstellung, ladeWelt, pushEinstellung, sendeWelt, setzePushEinstellung, weltNeu, type WeltNachricht, adminFeedback, adminFeedbackLoeschen, adminLoeschen, feedbackSenden, type Feedback, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { beiCloud } from './cloud'
 import { APK_URL, neueVersion } from './update'
 import { config, fuehrerGesehen, fuehrerNeu, heuteBest, heuteDatum, kreativ, master, masterFreischalten, masterPruefen, patchnotesGesehen, patchnotesNeu, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
@@ -208,6 +208,7 @@ function openPage(p: Page) {
   if (p === 'hall') {
     void ladeHallAnzeige()
     hallLiveAn()
+    void weltHolen().then(() => weltLeisteZeichnen())
   }
   if (p === 'kampagne') kampagneOeffnen()
   if (p === 'feedback') feedbackOeffnen()
@@ -221,7 +222,10 @@ function closePage() {
   show(p, false)
   if (p === 'liste') schliesseListe()
   if (p === 'hall') hallLiveAus()
-  if (p === 'chat') chatPartner = null
+  if (p === 'chat') {
+    chatPartner = null
+    chatWelt = false
+  }
   if (p === 'shopteil' && page() === 'shop') renderShop()
 }
 function closeAllPages() {
@@ -230,7 +234,10 @@ function closeAllPages() {
     show(p, false)
     if (p === 'liste') schliesseListe()
     if (p === 'hall') hallLiveAus()
-    if (p === 'chat') chatPartner = null
+    if (p === 'chat') {
+      chatPartner = null
+      chatWelt = false
+    }
   }
 }
 
@@ -623,6 +630,13 @@ function hallZeichnen() {
       punkt.title = da.imSpiel ? 'spielt gerade' : 'online'
       name.prepend(punkt)
     }
+    if (verpasst.has(z.user_id)) {
+      el.classList.add('hall-zeile--einladung')
+      const hin = document.createElement('small')
+      hin.className = 'hall-einladung'
+      hin.textContent = 'lädt dich zum Kampf ein'
+      name.append(hin)
+    }
     el.append(platz, cv, name, zahl, hallAktion(z))
     spielerAntippbar(el, z)
     box.append(el)
@@ -738,8 +752,10 @@ function karteOeffnen(z: HallZeile) {
   $('karte-info').textContent = `${da ? (da.imSpiel ? 'Spielt gerade' : 'Online') : 'Gerade nicht online'} · ${rekord}`
   $('karte-freund-text').textContent = freundText(z)
   setIcon($('karte-freund'), freundeUids.has(z.user_id) ? 'MessageCircle' : 'UserPlus')
-  // Offline: Einladung als Nachricht aufs Handy (wenn der andere sie eingeschaltet hat)
-  $('karte-einladen').lastChild!.textContent = da ? 'Zum Gefecht einladen' : 'Einladung aufs Handy schicken'
+  // Offline: Einladung als Nachricht aufs Handy (wenn der andere sie eingeschaltet hat). Hat er mich eingeladen: annehmen
+  const v = verpassteEinladungen().find((x) => x.vonUid === z.user_id)
+  if (v) $('karte-info').textContent = `Lädt dich zum Kampf ein${v.modus ? ` (${MODUS_NAME[v.modus] ?? 'Mehrspieler'})` : ''} · ${rekord}`
+  $('karte-einladen').lastChild!.textContent = v ? 'Einladung annehmen' : da ? 'Zum Gefecht einladen' : 'Einladung aufs Handy schicken'
   drawSchlangeGerade($<HTMLCanvasElement>('karte-skin'), skinVon(z.skin ?? 'klassik'), 0)
   // Admin (Passwort schon eingegeben): andere Spieler direkt hier loeschen
   $('karte-loeschen').hidden = !(master.frei && master.code && z.user_id !== hallIch)
@@ -759,6 +775,15 @@ $('karte-einladen').addEventListener('click', () => {
   const z = karteSpieler
   show('spieler-karte', false)
   if (!z) return
+  const v = verpasst.get(z.user_id)
+  if (v) {
+    verpasst.delete(z.user_id)
+    badgeZeichnen()
+    audio.click()
+    closeAllPages()
+    if (mehr.raum && mehr.raum.code !== v.code) mehr.client.verlassen()
+    return mehr.beitreten(v.code)
+  }
   const da = onlineVon(z.user_id)
   if (da) return void einladen(da)
   void einladenPerPush({ user_id: z.user_id, name: z.name, skin: z.skin ?? 'klassik', level: z.rekord })
@@ -844,8 +869,16 @@ function hallAktion(z: HallZeile): HTMLElement {
   const a = anfragen.find((x) => x.user_id === z.user_id)
   if (freundeUids.has(z.user_id)) {
     setIcon(k, 'MessageCircle')
-    k.setAttribute('aria-label', `Mit ${z.name} chatten`)
+    const neu = ungelesen.get(z.user_id) ?? 0
+    k.setAttribute('aria-label', neu ? `Mit ${z.name} chatten, ${neu} neu` : `Mit ${z.name} chatten`)
     k.title = 'Freund: chatten'
+    if (neu) {
+      const zahl = document.createElement('i')
+      zahl.className = nachrichtMeldet(z.user_id) ? 'chat-zahl' : 'chat-zahl chat-zahl--leise'
+      zahl.textContent = neu > 99 ? '99+' : String(neu)
+      k.classList.add('hall-aktion--neu')
+      k.append(zahl)
+    }
     k.addEventListener('click', () => oeffneChat(z))
   } else if (a?.richtung === 'aus') {
     k.classList.add('hall-aktion--warten')
@@ -932,6 +965,7 @@ $<HTMLFormElement>('willkommen-form').addEventListener('submit', async (e) => {
     audio.click()
     pwFeld.value = ''
     show('willkommen', false)
+    if (r === 'neu') einfuehrungStarten()
     toast('baum', r === 'neu' ? `Willkommen, ${profil.name}!` : r === 'gesichert' ? 'Passwort gespeichert' : `Willkommen zurück, ${profil.name}!`, r === 'neu' ? 'Dein Account ist angelegt. Du stehst jetzt in der Hall of Snakes.' : r === 'gesichert' ? 'Dein Account ist jetzt geschützt. Merk dir Name und Passwort.' : 'Du bist in deinem Account.')
     // In einen anderen Account gewechselt: Freunde, Chat und Lobby gehoeren dazu, also frisch starten
     if (vorher && vorher !== (await eigeneUid())) return void window.setTimeout(() => location.reload(), 1500)
@@ -2865,11 +2899,26 @@ function patchAuf() {
 
 /** Spielfuehrer: das Fragezeichen oben im Startmenue, mit rotem Punkt, bis man ihn einmal geoeffnet hat */
 const fuehrerRoot = $('fuehrer')
+/** Neuer Spieler: erst der Spielfuehrer (weiterklicken oder ueberspringen), danach die Frage nach Benachrichtigungen */
+let einfuehrung = false
 const fuehrer = trailer(
   fuehrerRoot,
   { zu: fuehrerRoot.querySelector<HTMLElement>('[data-trailer="zu"]')!, zurueck: fuehrerRoot.querySelector<HTMLButtonElement>('[data-trailer="zurueck"]')!, weiter: fuehrerRoot.querySelector<HTMLElement>('[data-trailer="weiter"]')! },
-  () => {},
+  () => {
+    if (!einfuehrung) return
+    einfuehrung = false
+    pushFragen()
+  },
 )
+/** Nach dem Anlegen eines neuen Accounts: Spielfuehrer zeigen (Patchnotes braucht ein neuer Spieler nicht) */
+function einfuehrungStarten() {
+  patchnotesGesehen()
+  if (patchnotes.offen) patchnotes.zu()
+  fuehrerGesehen()
+  $('fuehrer-punkt').hidden = true
+  einfuehrung = true
+  window.setTimeout(() => fuehrer.auf(), 600)
+}
 $('fuehrer-punkt').hidden = !fuehrerNeu()
 $('btn-fuehrer').addEventListener('click', () => {
   audio.click()
@@ -3222,6 +3271,8 @@ document.addEventListener('visibilitychange', () => {
     if (angemeldet()) {
       online?.wieder()
       kontoSichern()
+      void wartendeEinladungen()
+      void ungelesenLaden().then(badgeZeichnen)
     }
   }
 })
@@ -3423,7 +3474,10 @@ const lobbyRueckruf: Parameters<typeof lobby>[1] = {
         if (Date.now() - (einladungVon.get(e.vonUid) ?? 0) < 10_000) return
         einladungVon.set(e.vonUid, Date.now())
         // Waehrend eines Mehrspieler-Spiels nicht stoeren
-        if (mode === 'mehr') return online?.antworten(e.von, false)
+        if (mode === 'mehr') {
+          einladungVerpasst({ vonUid: e.vonUid, vonName: e.vonName, code: e.code, modus: e.modus, t: Date.now() })
+          return online?.antworten(e.von, false)
+        }
         offeneEinladung = e
         if (mode === 'play') pause()
         $('einladung-text').textContent = `${e.vonName} lädt dich ein: ${MODUS_NAME[e.modus] ?? 'Mehrspieler'}.`
@@ -3510,7 +3564,7 @@ function pushZeichnen() {
   if (zeile.hidden) return
   const an = pushErlaubt()
   $('push-knopf').hidden = an
-  $('push-info').textContent = an ? 'Ist an: Du bekommst eine Nachricht, wenn dich jemand einlädt, auch wenn Snake gerade zu ist.' : Notification.permission === 'denied' ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Eine Nachricht, wenn dich jemand zum Spielen einlädt, auch wenn Snake gerade zu ist.'
+  $('push-info').textContent = an ? 'Ist an: Du wirst benachrichtigt, wenn dich jemand einlädt oder dir schreibt, auch wenn Snake gerade zu ist. Filtern in den Optionen.' : pushBlockiert() ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Eine Nachricht aufs Handy, wenn dich jemand einlädt oder dir schreibt, auch wenn Snake gerade zu ist.'
   pushOptionenZeichnen()
 }
 
@@ -3521,10 +3575,16 @@ function pushFehlerText() {
   return pushFehler ? `Das hat nicht geklappt (${pushFehler}).` : 'Das hat nicht geklappt.'
 }
 
-/** Optionen: Schalter fuer Benachrichtigungen (nur bei Einladungen) */
+/** Optionen: Hauptschalter fuer Benachrichtigungen, darunter einzeln Nachrichten, Weltchat und Einladungen */
 function pushOptionenZeichnen() {
   const zeile = $('opt-push-zeile')
   zeile.hidden = !mehr.verfuegbar || !onlineAktiv
+  const arten = $('opt-push-arten')
+  arten.hidden = zeile.hidden || !angemeldet()
+  $<HTMLInputElement>('opt-push-nachrichten').checked = pushEinstellung.nachrichten
+  $<HTMLInputElement>('opt-push-welt').checked = pushEinstellung.welt
+  $<HTMLInputElement>('opt-push-einladungen').checked = pushEinstellung.einladungen
+  arten.classList.toggle('opt-gruppe--aus', !pushErlaubt())
   if (zeile.hidden) return
   const sw = $<HTMLInputElement>('opt-push')
   const info = $('opt-push-info')
@@ -3536,38 +3596,64 @@ function pushOptionenZeichnen() {
       g === 'schluessel'
         ? 'Noch nicht eingerichtet: Der Push-Schlüssel (VITE_VAPID_PUBLIC_KEY) fehlt in dieser Fassung. Siehe docs/MEHRSPIELER-EINRICHTEN.md, Schritt 7.'
         : g === 'app'
-          ? 'In der Android-App kommen Einladungen nur, solange Snake offen ist. Als Web-App vom Home-Bildschirm auch bei geschlossener App.'
+          ? 'Diese Fassung der Android-App ist ohne Firebase gebaut: Benachrichtigungen kommen nur, solange Snake offen ist. Als Web-App vom Home-Bildschirm auch bei geschlossener App.'
           : 'Dieser Browser kann keine Benachrichtigungen. Auf dem iPhone: Snake zum Home-Bildschirm hinzufügen und von dort öffnen.'
     return
   }
   sw.disabled = false
   sw.checked = pushErlaubt()
-  info.textContent = Notification.permission === 'denied' ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : 'Nur wenn dich jemand zum Spielen einlädt, sonst nie.'
+  info.textContent = pushBlockiert() ? 'Blockiert. In den Einstellungen des Handys für Snake erlauben.' : pushErlaubt() ? 'An. Darunter wählst du, wofür.' : 'Aus. Einschalten, um aufs Handy benachrichtigt zu werden, auch wenn Snake zu ist.'
 }
 $('opt-push').addEventListener('change', async (e) => {
   const sw = e.target as HTMLInputElement
   audio.click()
   if (sw.checked) {
     const r = await pushEinschalten()
-    toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Einstellungen des Handys ändern.' : pushFehlerText())
+    toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet. Darunter wählst du, wofür.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Einstellungen des Handys ändern.' : pushFehlerText())
   } else {
     await pushAusschalten()
     toast('gebiet', 'Benachrichtigungen', 'Ausgeschaltet.')
   }
   pushZeichnen()
 })
+// Einzeln: private Nachrichten, Weltchat, Einladungen (gilt fuer Benachrichtigungen aufs Handy und die roten Punkte)
+for (const [id, k] of [['opt-push-nachrichten', 'nachrichten'], ['opt-push-welt', 'welt'], ['opt-push-einladungen', 'einladungen']] as const)
+  $(id).addEventListener('change', (e) => {
+    audio.click()
+    void setzePushEinstellung({ [k]: (e.target as HTMLInputElement).checked })
+    badgeZeichnen()
+  })
 
-/** Beim ersten Besuch von Hall of Snakes oder Mehrspieler einmal fragen (die Erlaubnis kann nur nach einem Tipp angefragt werden) */
+/** Einmal fragen, ob Benachrichtigungen an sollen (die Erlaubnis selbst kann der Browser nur nach einem Tipp anfragen) */
 function pushFragen() {
-  if (!onlineAktiv || !mehr.verfuegbar || !profil.name || !pushFrageOffen()) return
+  if (!onlineAktiv || !mehr.verfuegbar || !angemeldet() || !pushFrageOffen() || gesperrt) return
   pushFrageMerken()
   window.setTimeout(() => show('push-frage', true), 350)
+}
+
+/** Liegt gerade etwas offen, das die Frage stoeren wuerde (Anmeldung, Patchnotes, Spielfuehrer, andere Dialoge, ein Spiel)? */
+const dialogOffen = () => mode !== 'home' || ['willkommen', 'patchnotes', 'fuehrer', 'push-frage', 'einladung', 'spieler-karte'].some((id) => $(id).hasAttribute('data-open'))
+
+/**
+ * Beim naechsten Start (angemeldet, online) einmal fragen, sobald nichts anderes offen ist. Neue Spieler sehen vorher den
+ * Spielfuehrer, die Frage kommt dann, wenn er zu ist (spielfuehrerZu)
+ */
+let pushFrageUhr = 0
+function pushFrageBald() {
+  if (pushFrageUhr || !pushFrageOffen()) return
+  let versuche = 0
+  pushFrageUhr = window.setInterval(() => {
+    if (++versuche > 120 || !pushFrageOffen()) return void clearInterval(pushFrageUhr)
+    if (dialogOffen() || einfuehrung) return
+    clearInterval(pushFrageUhr)
+    pushFragen()
+  }, 1500)
 }
 $('push-frage-ja').addEventListener('click', async () => {
   audio.click()
   show('push-frage', false)
   const r = await pushEinschalten()
-  toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet: Du wirst bei Einladungen benachrichtigt.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Optionen ändern.' : pushFehlerText())
+  toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet. In den Optionen wählst du, wofür.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es in den Optionen ändern.' : pushFehlerText())
   pushZeichnen()
 })
 $('push-frage-nein').addEventListener('click', () => {
@@ -3577,14 +3663,14 @@ $('push-frage-nein').addEventListener('click', () => {
 $('push-knopf').addEventListener('click', async () => {
   audio.click()
   const r = await pushEinschalten()
-  toast('gebiet', 'Einladungen aufs Handy', r === 'an' ? 'Eingeschaltet.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es später in den Einstellungen ändern.' : pushFehlerText())
+  toast('gebiet', 'Benachrichtigungen', r === 'an' ? 'Eingeschaltet.' : r === 'verweigert' ? 'Nicht erlaubt. Du kannst es später in den Einstellungen ändern.' : pushFehlerText())
   pushZeichnen()
 })
 // Tipp auf eine Push-Einladung, waehrend die App offen ist: dem Raum beitreten
 if ('serviceWorker' in navigator)
   navigator.serviceWorker.addEventListener('message', (e) => {
-    const d = e.data as { typ?: string; code?: string } | null
-    if (d?.typ === 'einladung' && d.code && mode !== 'mehr') mehr.beitreten(d.code)
+    const d = e.data as { typ?: string; code?: string; von?: string; vonName?: string } | null
+    if (d?.typ) void pushTipp({ art: d.typ, code: d.code ?? '', von: d.von ?? '', vonName: d.vonName ?? '' })
   })
 
 /** Freunde neu laden (nach dem Start, beim Oeffnen der Mehrspieler-Seite, nach Aenderungen) */
@@ -3605,19 +3691,86 @@ async function freundeLaden() {
   $('freund-code-fehlt').hidden = !!code || !profil.name
 }
 
-/** Zaehler am Knopf "Online": offene Anfragen an mich und ungelesene Nachrichten */
+/**
+ * Rote Zaehler: am Knopf "Online spielen" offene Anfragen an mich und ungelesene Nachrichten, am Knopf der Hall im Startmenue
+ * dazu verpasste Einladungen und (nur als Punkt) Neues im Weltchat. Stumm geschaltetes zaehlt dort nicht mit
+ */
 function badgeZeichnen() {
-  let n = anfragen.filter((a) => a.richtung === 'ein').length
-  for (const z of ungelesen.values()) n += z
-  // Am Online-Knopf (Hall of Snakes) und am Knopf der Hall im Startmenue
-  for (const id of ['online-badge', 'hall-badge']) {
-    const b = $(id)
-    b.hidden = n === 0
-    b.textContent = n > 99 ? '99+' : String(n)
+  const anf = anfragen.filter((a) => a.richtung === 'ein').length
+  let n = anf
+  let leise = anf
+  for (const [uid, z] of ungelesen) {
+    n += z
+    if (nachrichtMeldet(uid)) leise += z
   }
+  const ob = $('online-badge')
+  ob.hidden = n === 0
+  ob.textContent = n > 99 ? '99+' : String(n)
   $('btn-mehr').setAttribute('aria-label', n ? `Online spielen, ${n} neu` : 'Online spielen')
-  $('btn-hall').setAttribute('aria-label', n ? `Hall of Snakes, ${n} neu` : 'Hall of Snakes')
+  const hall = leise + (pushEinstellung.einladungen ? verpassteEinladungen().length : 0)
+  const punkt = !hall && weltUngelesen > 0 && pushEinstellung.welt
+  const hb = $('hall-badge')
+  hb.hidden = !hall && !punkt
+  hb.classList.toggle('tile-badge--punkt', punkt)
+  hb.textContent = hall ? (hall > 99 ? '99+' : String(hall)) : ''
+  $('btn-hall').setAttribute('aria-label', hall ? `Hall of Snakes, ${hall} neu` : punkt ? 'Hall of Snakes, Neues im Weltchat' : 'Hall of Snakes')
+  weltLeisteZeichnen()
 }
+
+/* ================= Verpasste Einladungen (roter Punkt beim Spieler in der Hall) ================= */
+
+type Verpasst = { vonUid: string; vonName: string; code: string; modus: string; t: number }
+/** Einladungen, die nicht angenommen werden konnten (im Mehrspieler-Spiel) oder als Benachrichtigung warten; 10 Minuten lang */
+const verpasst = new Map<string, Verpasst>()
+const verpassteEinladungen = () => {
+  const jetzt = Date.now()
+  for (const [k, v] of verpasst) if (jetzt - v.t > 600_000) verpasst.delete(k)
+  return [...verpasst.values()]
+}
+function einladungVerpasst(v: Verpasst) {
+  if (!v.vonUid || gesperrteUids.has(v.vonUid)) return
+  verpasst.set(v.vonUid, v)
+  badgeZeichnen()
+  if (page() === 'hall') hallZeichnen()
+}
+/** Benachrichtigungen, die noch im Benachrichtigungsfeld liegen (Web-App): Einladungen daraus merken */
+async function wartendeEinladungen() {
+  if (nativ || !('serviceWorker' in navigator)) return
+  try {
+    const reg = await navigator.serviceWorker.getRegistration()
+    for (const b of (await reg?.getNotifications()) ?? []) {
+      const d = (b.data ?? {}) as { art?: string; code?: string; von?: string; vonName?: string; t?: number }
+      if (d.art === 'einladung' && d.von && d.code) einladungVerpasst({ vonUid: d.von, vonName: d.vonName || 'Jemand', code: d.code, modus: '', t: d.t || Date.now() })
+    }
+  } catch {
+    /* egal */
+  }
+}
+
+/** Tipp auf eine Benachrichtigung: dorthin, wo sie herkommt (Raum, privater Chat, Weltchat) */
+async function pushTipp(d: PushTipp) {
+  if (!angemeldet() || gesperrt || mode === 'mehr') return
+  if (d.art === 'einladung' && d.code) {
+    verpasst.delete(d.von)
+    return mehr.beitreten(d.code)
+  }
+  if (mode === 'play') pause()
+  if (d.art === 'welt') {
+    if (page() === 'chat' && chatWelt) return
+    closeAllPages()
+    openPage('hall')
+    return oeffneWelt()
+  }
+  if (d.art === 'nachricht' && d.von) {
+    if (page() === 'chat' && chatPartner?.user_id === d.von) return
+    if (!freunde.length) await freundeLaden()
+    const f = freunde.find((x) => x.user_id === d.von)
+    closeAllPages()
+    openPage('hall')
+    oeffneChat(f ?? { user_id: d.von, name: d.vonName || 'Freund' })
+  }
+}
+beiPushTipp((d) => void pushTipp(d))
 
 /** Offene Freundschaftsanfragen auf der Mehrspieler-Seite */
 function anfragenZeichnen() {
@@ -3723,10 +3876,16 @@ function sperrenZeichnen(liste: Gesperrt[]) {
   }
 }
 
-/** Live: neue Anfragen und angenommene Anfragen (einmal pro App-Start) */
+/** Live: neue Anfragen und angenommene Anfragen, Weltchat (einmal pro App-Start) */
 let sozialAbmelden: (() => void) | null = null
 function sozialStarten() {
   if (sozialAbmelden || !onlineAktiv || !angemeldet()) return
+  abonniereWelt(weltNachricht)
+  void ladePushEinstellung().then(() => {
+    badgeZeichnen()
+    if (page() === 'settings') renderSettings()
+  })
+  pushFrageBald()
   sozialAbmelden = abonniereSozial({
     nachricht: (n) => {
       if (chatPartner && n.von === chatPartner.user_id && page() === 'chat') {
@@ -3741,7 +3900,7 @@ function sozialStarten() {
       badgeZeichnen()
       freundeZeichnen()
       const f = freunde.find((x) => x.user_id === n.von)
-      if (mode !== 'play' && mode !== 'mehr') toast('gebiet', f?.name ?? 'Neue Nachricht', n.text.length > 60 ? `${n.text.slice(0, 57)}…` : n.text)
+      if (mode !== 'play' && mode !== 'mehr' && nachrichtMeldet(n.von)) toast('gebiet', f?.name ?? 'Neue Nachricht', n.text.length > 60 ? `${n.text.slice(0, 57)}…` : n.text)
     },
     anfrage: () => {
       void freundeLaden().then(() => {
@@ -3757,20 +3916,49 @@ function sozialStarten() {
   })
 }
 
-/* ================= Chat (nur unter Freunden, 30 Tage) ================= */
+/* ================= Chat: privat (nur unter Freunden, 30 Tage) oder Weltchat (alle, 7 Tage) ================= */
 
 type ChatPartner = { user_id: string; name: string; skin?: string }
 let chatPartner: ChatPartner | null = null
+/** Ist gerade der Weltchat offen (dieselbe Seite wie der private Chat)? */
+let chatWelt = false
 let chatVerlauf: Nachricht[] = []
 let chatNr = 0
 /** Ungelesene Nachrichten je Freund */
 const ungelesen = new Map<string, number>()
 
+/** Weltchat: Verlauf, neue seit dem letzten Ansehen (hoechste gesehene Nummer im Geraet) */
+let weltVerlauf: WeltNachricht[] = []
+let weltUngelesen = 0
+/** null: Datenbank hat den Weltchat noch nicht (dann keine Leiste) */
+let weltDa: boolean | null = null
+const WKEY = 'snake.welt.gesehen.v1'
+const weltGesehen = () => {
+  try {
+    return Number(localStorage.getItem(WKEY)) || 0
+  } catch {
+    return 0
+  }
+}
+function weltGesehenSetzen(id: number) {
+  if (id <= weltGesehen()) return
+  try {
+    localStorage.setItem(WKEY, String(id))
+  } catch {
+    /* egal */
+  }
+}
+
 async function ungelesenLaden() {
-  const c = await meineChats()
+  const [c, w] = await Promise.all([meineChats(), weltNeu(weltGesehen())])
   ungelesen.clear()
   for (const x of c) if (x.ungelesen > 0) ungelesen.set(x.user_id, x.ungelesen)
+  weltUngelesen = w
+  weltLeisteZeichnen()
 }
+
+/** Benachrichtigt dieser Absender (privat)? Aus: Nachrichten in den Optionen aus oder im Chat stumm geschaltet */
+const nachrichtMeldet = (uid: string) => pushEinstellung.nachrichten && !pushEinstellung.stumm.includes(uid)
 
 function chatHinweis(text: string) {
   const p = document.createElement('p')
@@ -3779,9 +3967,31 @@ function chatHinweis(text: string) {
   return p
 }
 
+/** Glocke oben im Chat: Benachrichtigungen fuer diesen Chat an oder aus */
+function stummZeichnen() {
+  const k = $('chat-stumm')
+  const an = chatWelt ? pushEinstellung.welt : !!chatPartner && !pushEinstellung.stumm.includes(chatPartner.user_id)
+  setIcon(k, an ? 'Bell' : 'BellOff')
+  k.classList.toggle('chat__stumm--aus', !an)
+  const wer = chatWelt ? 'Weltchat' : (chatPartner?.name ?? '')
+  k.setAttribute('aria-label', an ? `Benachrichtigungen für ${wer} ausschalten` : `Benachrichtigungen für ${wer} einschalten`)
+  k.title = an ? 'Benachrichtigungen an' : 'Stumm'
+}
+
+function chatKopf(welt: boolean) {
+  chatWelt = welt
+  $('chat-sperren').hidden = welt
+  $('chat-skin').hidden = welt
+  $('chat-welt-ico').hidden = !welt
+  $('chat').classList.toggle('chat--welt', welt)
+  $<HTMLInputElement>('chat-text').maxLength = welt ? 300 : 500
+  stummZeichnen()
+}
+
 function oeffneChat(p: ChatPartner) {
   chatPartner = p
   chatVerlauf = []
+  chatKopf(false)
   $('chat-name').textContent = p.name
   $('chat-sperren').setAttribute('aria-label', `${p.name} sperren`)
   drawSchlangeGerade($<HTMLCanvasElement>('chat-skin'), skinVon(p.skin ?? 'klassik'), 0)
@@ -3789,6 +3999,149 @@ function oeffneChat(p: ChatPartner) {
   if (pages.includes('chat')) audio.click()
   else openPage('chat')
   void chatLaden()
+}
+
+function oeffneWelt() {
+  chatPartner = null
+  chatKopf(true)
+  $('chat-name').textContent = 'Weltchat'
+  if (!weltVerlauf.length) $('chat-verlauf').replaceChildren(chatHinweis('Lade …'))
+  else weltZeichnen()
+  if (pages.includes('chat')) audio.click()
+  else openPage('chat')
+  void weltLaden()
+}
+
+/** Verlauf holen (auch fuer die Vorschau in der Leiste). false: die Datenbank hat noch keinen Weltchat */
+async function weltHolen(): Promise<boolean> {
+  if (!onlineAktiv || !angemeldet()) return false
+  try {
+    const n = await ladeWelt()
+    weltDa = n !== null
+    if (n) for (const x of n) if (!weltVerlauf.some((y) => y.id === x.id)) weltVerlauf.push(x)
+    weltVerlauf.sort((a, b) => a.id - b.id)
+    return weltDa
+  } catch {
+    return true
+  }
+}
+
+async function weltLaden() {
+  const nr = ++chatNr
+  try {
+    const n = await ladeWelt()
+    if (nr !== chatNr || !chatWelt) return
+    if (n === null) {
+      weltDa = false
+      return void $('chat-verlauf').replaceChildren(chatHinweis('Den Weltchat gibt es in der Datenbank noch nicht. Der Spielmacher muss einmal supabase/NACHHOLEN.sql ausführen.'))
+    }
+    weltDa = true
+    weltVerlauf = n
+    weltZeichnen()
+    weltGelesen()
+  } catch {
+    if (nr !== chatNr) return
+    $('chat-verlauf').replaceChildren(chatHinweis('Keine Verbindung. Der Weltchat braucht Internet.'))
+  }
+}
+
+/** Alles im Weltchat ist gesehen: Punkt weg */
+function weltGelesen() {
+  const letzte = weltVerlauf[weltVerlauf.length - 1]
+  if (letzte) weltGesehenSetzen(letzte.id)
+  weltUngelesen = 0
+  badgeZeichnen()
+}
+
+function weltZeichnen() {
+  const box = $('chat-verlauf')
+  box.replaceChildren(chatHinweis('Alle angemeldeten Spieler lesen hier mit. Sei nett! Nachrichten bleiben 7 Tage. Tipp auf einen Namen für Freundschaft und Einladung.'))
+  const ich = hallIch
+  const liste = weltVerlauf.filter((n) => !gesperrteUids.has(n.von))
+  if (!liste.length) box.append(chatHinweis('Noch ist es still. Schreib die erste Nachricht!'))
+  const heute = new Date().toDateString()
+  const admin = master.frei && !!master.code
+  let tag = ''
+  let vorher = ''
+  for (const n of liste) {
+    const d = new Date(n.created_at)
+    if (d.toDateString() !== tag) {
+      tag = d.toDateString()
+      vorher = ''
+      const t = document.createElement('span')
+      t.className = 'chat__tag'
+      t.textContent = tag === heute ? 'Heute' : d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })
+      box.append(t)
+    }
+    const meins = n.von === ich
+    const b = document.createElement('div')
+    b.className = meins ? 'chat__blase chat__blase--ich' : 'chat__blase'
+    // Name ueber der Blase, wenn ein anderer als eben schreibt (antippen: Spielerkarte)
+    if (!meins && n.von !== vorher) {
+      const wer = document.createElement('button')
+      wer.className = 'chat__wer'
+      wer.textContent = n.name
+      wer.addEventListener('click', () => {
+        const z = hallZeilen.find((x) => x.user_id === n.von) ?? { user_id: n.von, name: n.name, skin: n.skin ?? 'klassik', rekord: 0, trophaeen: 0 }
+        karteOeffnen(z)
+      })
+      b.append(wer)
+    }
+    vorher = n.von
+    const text = document.createElement('span')
+    text.textContent = n.text
+    const zeit = document.createElement('small')
+    zeit.textContent = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    b.append(text, zeit)
+    if (admin) {
+      const weg = document.createElement('button')
+      weg.className = 'chat__weg'
+      weg.setAttribute('aria-label', 'Nachricht löschen (Admin)')
+      setIcon(weg, 'X')
+      weg.addEventListener('click', async () => {
+        if (!confirm(`Nachricht von ${n.name} löschen?`)) return
+        try {
+          await adminWeltLoeschen(master.code!, n.id)
+          weltVerlauf = weltVerlauf.filter((x) => x.id !== n.id)
+          weltZeichnen()
+        } catch (err) {
+          toast('gebiet', 'Löschen', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
+        }
+      })
+      b.append(weg)
+    }
+    box.append(b)
+  }
+  box.scrollTop = box.scrollHeight
+}
+
+/** Leiste unten in der Hall of Snakes: letzte Nachricht und wie viele neu sind */
+function weltLeisteZeichnen() {
+  const l = $('weltchat-leiste')
+  l.hidden = !onlineAktiv || !angemeldet() || weltDa === false
+  const letzte = [...weltVerlauf].reverse().find((n) => !gesperrteUids.has(n.von))
+  $('weltchat-vorschau').textContent = letzte ? `${letzte.name}: ${letzte.text}` : 'Quatsch mit allen'
+  const b = $('welt-badge')
+  b.hidden = weltUngelesen === 0
+  b.textContent = weltUngelesen > 99 ? '99+' : String(weltUngelesen)
+  b.classList.toggle('tile-badge--leise', !pushEinstellung.welt)
+  l.setAttribute('aria-label', weltUngelesen ? `Weltchat, ${weltUngelesen} neu` : 'Weltchat')
+}
+$('weltchat-leiste').addEventListener('click', () => oeffneWelt())
+
+/** Live: neue Nachricht im Weltchat */
+function weltNachricht(n: WeltNachricht) {
+  if (weltVerlauf.some((x) => x.id === n.id)) return
+  weltVerlauf.push(n)
+  if (weltVerlauf.length > 200) weltVerlauf.splice(0, weltVerlauf.length - 150)
+  weltDa = true
+  if (chatWelt && page() === 'chat' && !document.hidden) {
+    weltZeichnen()
+    weltGelesen()
+    return
+  }
+  if (n.von !== hallIch && !gesperrteUids.has(n.von)) weltUngelesen++
+  badgeZeichnen()
 }
 
 async function chatLaden() {
@@ -3841,23 +4194,52 @@ function chatZeichnen() {
   box.scrollTop = box.scrollHeight
 }
 
+/** Wer gerade online ist (Nutzer-Ids): die bekommen keine Benachrichtigung, sie sehen es in der App */
+const onlineUids = () => [...new Set(onlineListe.map((o) => o.uid).filter((u): u is string => !!u))]
+
 $<HTMLFormElement>('chat-form').addEventListener('submit', async (e) => {
   e.preventDefault()
   const p = chatPartner
+  const welt = chatWelt
   const input = $<HTMLInputElement>('chat-text')
   const text = input.value.trim()
-  if (!p || !text) return
+  if ((!p && !welt) || !text) return
   input.value = ''
   try {
-    const n = await sendeNachricht(p.user_id, text)
+    if (welt) {
+      const n = await sendeWelt(text)
+      weltNachricht(n)
+      void nachrichtMelden(SERVER, 'welt', n.id, onlineUids())
+      return
+    }
+    const n = await sendeNachricht(p!.user_id, text)
     if (chatPartner === p && !chatVerlauf.some((x) => x.id === n.id)) {
       chatVerlauf.push(n)
       chatZeichnen()
     }
+    // Ist der Freund gerade nicht in der App: Benachrichtigung aufs Handy
+    if (!onlineVon(p!.user_id)) void nachrichtMelden(SERVER, 'nachricht', n.id)
   } catch (err) {
     if (!input.value) input.value = text
     toast('gebiet', 'Nicht gesendet', err instanceof Error ? err.message : 'Das hat nicht geklappt.')
   }
+})
+
+$('chat-stumm').addEventListener('click', () => {
+  audio.click()
+  if (chatWelt) {
+    const an = !pushEinstellung.welt
+    void setzePushEinstellung({ welt: an })
+    toast('gebiet', 'Weltchat', an ? 'Benachrichtigungen an: höchstens alle 10 Minuten eine.' : 'Stumm: keine Benachrichtigungen und kein roter Punkt mehr für den Weltchat.')
+  } else if (chatPartner) {
+    const uid = chatPartner.user_id
+    const stumm = pushEinstellung.stumm.includes(uid)
+    void setzePushEinstellung({ stumm: stumm ? pushEinstellung.stumm.filter((x) => x !== uid) : [...pushEinstellung.stumm, uid] })
+    toast('gebiet', chatPartner.name, stumm ? 'Benachrichtigungen wieder an.' : 'Stumm: Nachrichten kommen weiter an, aber ohne Benachrichtigung.')
+  }
+  stummZeichnen()
+  badgeZeichnen()
+  if (page() === 'settings') renderSettings()
 })
 
 $('chat-sperren').addEventListener('click', async () => {
@@ -3974,6 +4356,7 @@ $('einladung-ja').addEventListener('click', () => {
   offeneEinladung = null
   show('einladung', false)
   if (!e) return
+  if (e.vonUid) verpasst.delete(e.vonUid)
   audio.click()
   if (mode === 'paused' || mode === 'ready' || mode === 'over') {
     game = null
@@ -4026,6 +4409,13 @@ if (!gesperrt) {
     void freundeLaden()
     sozialStarten()
     void pushAuffrischen()
+    void wartendeEinladungen()
+    // Geoeffnet durch Tipp auf eine Benachrichtigung (App war zu): ?chat=<Spieler> oder ?welt=1
+    const chatVon = params.get('chat') ?? ''
+    if (/^[0-9a-f-]{36}$/i.test(chatVon) || params.has('welt')) {
+      history.replaceState(null, '', location.pathname)
+      window.setTimeout(() => void pushTipp({ art: chatVon ? 'nachricht' : 'welt', code: '', von: chatVon, vonName: '' }), 800)
+    }
   }
   // Den Skin dieses Geraets immer melden (frueher nur, wenn online noch keiner stand: dann blieb ein alter Skin fuer immer)
   setzeSkin(wallet.skin)

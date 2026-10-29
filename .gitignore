@@ -16,3 +16,4 @@ android/app/release
 # Cloudflare (lokaler Server-Test)
 .wrangler
 .dev.vars
+android/app/google-services.json
