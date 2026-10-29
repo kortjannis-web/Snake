@@ -18,9 +18,9 @@ import { ENT, Entkampf, type Lichtung } from './entkampf'
 import { GOLEM, Golemkampf, type Raum } from './golemkampf'
 import { rng, type Rng } from './rng'
 import * as R from './rules'
-import type { Ameise, Baum, Bienenstock, Blaetterbombe, MiniEnt, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kreativ, Lava, Mauer, Minigolem, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
+import type { Ameise, Baum, Bienenstock, Blaetterbombe, MiniEnt, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kaefig, Kreativ, Lava, Mauer, Minigolem, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
 
-const { STEP, OPP, DIRS } = R
+const { STEP, OPP, DIRS, CW } = R
 
 export type GameOpts = {
   screenW: number
@@ -126,6 +126,10 @@ export const WESEN_WEG = 600
 const ausKey = (k: number): P => ({ x: (k % 4096) - 1, y: Math.floor(k / 4096) - 1 })
 
 /** Schluessel fuer Sets (funktioniert auch fuer -1 und Karten bis 4000 Felder Kante) */
+/** Kaefigkoepfe (ab Mission 26): ein Feld alle takt ms (dazu bis stolpern ms, sie torkeln), sehen sicht Felder nach vorn,
+ *  holen laden ms aus, der Strahl reicht weite Felder und brennt strahl ms, danach ruhe ms Pause */
+export const KAEFIG = { takt: 820, stolpern: 380, sicht: 7, laden: 800, strahl: 380, weite: 9, ruhe: 2000, wand: [2, 4] as const }
+
 /** Vorboten der Bosse im freien Spiel: so viele Level vor dem Boss kommt je ein kleiner Golem bzw. Mini-Ent */
 export const VORBOTEN = [10, 7, 4, 2] as const
 
@@ -371,6 +375,8 @@ export class Game {
 
   protected next: Record<Art, number>
   /** Naechster kleiner Steingolem (Level) */
+  /** Kaefigkoepfe (Kampagne ab Mission 26, freies Spiel aus den Kerkern vor dem Kaefigmeister) */
+  kaefige: Kaefig[] = []
   /** Wie viele Vorboten (kleine Golems, Mini-Ents) vor dem jeweiligen Boss schon gekommen sind */
   protected vorbotenDa = { golem: 0, ent: 0 }
   protected lastSpawn = -1e9
@@ -551,6 +557,7 @@ export class Game {
     this.gegnerTakt()
     this.ameisenTakt()
     this.minigolemTakt()
+    this.kaefigTakt()
     this.minientTakt()
     this.fallenTakt()
     this.sandwurmTakt()
@@ -985,6 +992,7 @@ export class Game {
     if (this.fallen.some((f) => same(f.p, n))) return 'falle'
     if (this.froesche.some((f) => f.gone === undefined && same(f.p, n))) return 'frosch'
     if (this.minigolems.some((g) => same(g.p, n))) return 'minigolem'
+    if (this.kaefige.some((z) => same(z.p, n))) return 'kaefig'
     if (this.minients.some((e) => same(e.p, n))) return 'minient'
     if (this.freiEnt?.istWand(n)) return 'ranke'
     if (this.baeume.some((b) => b.cells.some((p) => same(p, n)))) return 'baum'
@@ -3735,6 +3743,12 @@ export class Game {
       mv(g.from)
       g.angriff?.cells.forEach(mv)
     }
+    for (const z of this.kaefige) {
+      mv(z.p)
+      mv(z.from)
+      z.angriff?.cells.forEach(mv)
+      z.strahl.forEach(mv)
+    }
     this.freiBoss?.verschieben(dx, dy)
     this.freiEnt?.verschieben(dx, dy)
     for (const e of this.minients) mv(e.p)
@@ -3839,6 +3853,7 @@ export class Game {
     this.lava.forEach((l) => l.cells.forEach(add))
     this.ameisen.forEach((a) => add(a.p))
     this.minigolems.forEach((g) => add(g.p))
+    this.kaefige.forEach((z) => add(z.p))
     this.minients.forEach((e) => add(e.p))
     this.wesen.forEach((w) => !FLIEGT.has(w.art) && add(w.p))
     this.einschlaege.forEach((e) => this.einschlagLiegt(e) && e.cells.forEach(add))
@@ -5412,6 +5427,140 @@ export class Game {
     if (this.kreativ && this.kreativ.tod !== 'an') return
     if (this.schildBrechen()) return
     this.die('minigolem')
+  }
+
+  /* ================= Kaefigkoepfe (Kampagne ab Mission 26, freies Spiel ab Level meisterAb - 5) ================= */
+
+  /** Sieht der Kaefigkopf das Feld? Kegel nach vorn wie beim kleinen Steingolem (1 bis KAEFIG.sicht Felder, je weiter, desto breiter) */
+  imKaefigBlick(z: Kaefig, c: P) {
+    const d = STEP[z.dir]
+    const vor = (c.x - z.p.x) * d.x + (c.y - z.p.y) * d.y
+    const quer = Math.abs((c.x - z.p.x) * d.y - (c.y - z.p.y) * d.x)
+    return vor >= 1 && vor <= KAEFIG.sicht && quer <= Math.ceil(vor / 2)
+  }
+
+  /** Strahl von z aus in Richtung d (eine der acht Richtungen der Dame): bis zur Wand, hoechstens KAEFIG.weite Felder */
+  kaefigStrahl(z: Kaefig, d: P, sperre = this.sichtSperre()): P[] {
+    const out: P[] = []
+    for (let i = 1; i <= KAEFIG.weite; i++) {
+      const c = { x: z.p.x + d.x * i, y: z.p.y + d.y * i }
+      if (!this.inside(c) || sperre.has(key(c.x, c.y)) || this.strahlEnde(c)) break
+      out.push(c)
+    }
+    return out
+  }
+
+  /** Wohin er zielt: die Richtung der Dame, die am naechsten zum Kopf zeigt (liegt der Kopf nicht genau darauf, kann er vorbeischiessen) */
+  protected kaefigZiel(z: Kaefig, h: P): P {
+    const a = Math.round(Math.atan2(h.y - z.p.y, h.x - z.p.x) / (Math.PI / 4)) * (Math.PI / 4)
+    return { x: Math.round(Math.cos(a)), y: Math.round(Math.sin(a)) }
+  }
+
+  protected kaefigDrehen(z: Kaefig, d: Dir) {
+    if (d === z.dir) return
+    z.altDir = z.dir
+    z.dir = d
+    z.drehT = this.time
+  }
+
+  /** Kaefigkoepfe schlendern geradeaus, biegen an Waenden ab, bleiben stehen, wenn sie den Kopf sehen, und werfen Strahlen */
+  protected kaefigTakt() {
+    if (!this.kaefige.length) return
+    const t = this.time
+    const h = this.body[0]
+    let sperre: Set<number> | null = null
+    let wand: Set<number> | null = null
+    for (const z of this.kaefige) {
+      // Der Strahl brennt kurz: nur der Kopf zaehlt
+      if (z.strahl.length && t - z.strahlT < KAEFIG.strahl) {
+        if (z.strahl.some((c) => c.x === h.x && c.y === h.y) && this.kaefigTrifft()) return
+      } else if (z.strahl.length) z.strahl = []
+      // Holt aus: steht still, dann geht der Strahl los
+      if (z.angriff) {
+        if (t < z.angriff.los) continue
+        sperre ??= this.sichtSperre()
+        z.strahl = this.kaefigStrahl(z, z.angriff.d, sperre)
+        z.strahlT = t
+        z.angriff = null
+        z.ruheBis = t + KAEFIG.ruhe
+        this.emit({ type: 'kaefig', was: 'strahl', p: { ...z.p } })
+        if (z.strahl.some((c) => c.x === h.x && c.y === h.y) && this.kaefigTrifft()) return
+        continue
+      }
+      sperre ??= this.sichtSperre()
+      // Sehen: erst im Kegel nach vorn; hat er den Kopf, behaelt er ihn, solange er in Sichtweite ist und nichts dazwischen
+      const nah = Math.max(Math.abs(h.x - z.p.x), Math.abs(h.y - z.p.y)) <= KAEFIG.sicht
+      const sieht = (z.jagt >= 0 ? nah : this.imKaefigBlick(z, h)) && this.sichtFrei(z.p, h, sperre)
+      if (sieht && z.jagt < 0) {
+        z.jagt = t
+        this.emit({ type: 'kaefig', was: 'sieht', p: { ...z.p } })
+      } else if (!sieht && z.jagt >= 0) {
+        z.jagt = -1
+        z.next = Math.max(z.next, t + 400)
+      }
+      if (z.jagt >= 0) {
+        // Bleibt stehen und schaut zum Kopf, ab und zu ein Strahl
+        const dx = h.x - z.p.x
+        const dy = h.y - z.p.y
+        this.kaefigDrehen(z, Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'd' : 'u')
+        if (t >= z.ruheBis && t - z.jagt >= 450) {
+          const d = this.kaefigZiel(z, h)
+          z.angriff = { d, cells: this.kaefigStrahl(z, d, sperre), ab: t, los: t + KAEFIG.laden }
+          this.emit({ type: 'kaefig', was: 'laden', p: { ...z.p } })
+        }
+        continue
+      }
+      if (t < z.next) continue
+      wand ??= this.hindernisse()
+      this.kaefigSchritt(z, wand)
+    }
+  }
+
+  /** Ein Schritt geradeaus. Vor einer Wand (oder einem Hindernis) biegt er ab und geht nach 2 bis 4 Feldern von ihr weg */
+  protected kaefigSchritt(z: Kaefig, wand: Set<number>) {
+    const t = this.time
+    const frei = (d: Dir) => {
+      const c = { x: z.p.x + STEP[d].x, y: z.p.y + STEP[d].y }
+      return this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && cheb(c, this.body[0]) > 1
+    }
+    z.next = t + KAEFIG.takt + this.r.int(0, KAEFIG.stolpern)
+    // An der Wand entlang: nach ein paar Feldern wieder weg von ihr
+    if (z.wandWeg && --z.wandRest <= 0) {
+      if (frei(z.wandWeg)) this.kaefigDrehen(z, z.wandWeg)
+      z.wandWeg = null
+    }
+    if (!frei(z.dir)) {
+      const seiten = this.r.shuffle([CW[z.dir], OPP[CW[z.dir]]]).filter(frei)
+      if (seiten.length) {
+        const weg = OPP[z.dir]
+        this.kaefigDrehen(z, seiten[0])
+        z.wandWeg = weg
+        z.wandRest = this.r.int(KAEFIG.wand[0], KAEFIG.wand[1])
+      } else if (frei(OPP[z.dir])) {
+        this.kaefigDrehen(z, OPP[z.dir])
+        z.wandWeg = null
+      } else return
+    }
+    const n = { x: z.p.x + STEP[z.dir].x, y: z.p.y + STEP[z.dir].y }
+    wand.delete(key(z.p.x, z.p.y))
+    wand.add(key(n.x, n.y))
+    z.from = { ...z.p }
+    z.p = n
+    z.schrittT = t
+  }
+
+  /** Strahl trifft den Kopf: vorbei (Schild faengt ab, als Geist und im Kreativ ohne Tod nichts). true = vorbei */
+  protected kaefigTrifft() {
+    if (this.geist()) return false
+    if (this.kreativ && this.kreativ.tod !== 'an') return false
+    if (this.schildBrechen()) return false
+    this.die('kaefigstrahl')
+    return true
+  }
+
+  /** Wo ein Strahl der Kaefigkoepfe noch endet (Kampagne: an der geschlossenen Tuer) */
+  protected strahlEnde(_c: P) {
+    return false
   }
 
   /* ================= Mini-Ents ================= */

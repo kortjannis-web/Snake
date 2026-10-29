@@ -1,386 +1,118 @@
 /**
- * Boss der Dungeons (Mission 30): der Kaefigmeister. Ein gelehrter Irrer, der Kopf in einem grossen Eisenkaefig, in der Hand
- * ein Buch voller Runen. Er haust in einem weiten Labyrinth unter der Erde mit sechs Raeumen:
- * - er erscheint in einem zufaelligen der sechs Raeume (nur dort, wo man ihn gerade nicht sieht), man muss ihn suchen
- * - betritt man seinen Raum, erwacht er. Im Raum liegen Flammen (bis zu zwei gleichzeitig): jede, die man holt, fliegt auf
- *   ihn zu und trifft ihn. Fuenf Flammen kosten ihn ein Leben, dann verschwindet er
- * - danach erscheint er wieder in einem zufaelligen Raum, auch im selben: aber erst, wenn man diesen Raum nicht mehr sieht
- * - drei Leben; ist er besiegt, geht oben die Tuer auf, hindurch = geschafft
- * Angriffe (nur, solange der Kopf in seinem Raum ist, alle rot angekuendigt, nur der Kopf zaehlt):
- * - duenner Strahl: kurz geladen, ein Feld breit zum Kopf hin, bis zur Wand
- * - dicker Strahl: 1,5 s geladen, drei Felder breit
- * - Runenzauber: drei Kreise (3 x 3) am Kopf, dort, wo er hinfaehrt, und daneben, dann platzen sie
- * - Teleport: er verschwindet und taucht an einer anderen Stelle im Raum wieder auf
- * Hineinfahren ist vorbei. Saeulen in den Raeumen halten die Strahlen auf.
+ * Boss der Dungeons (Mission 30): der Kaefigmeister im Labyrinth mit sechs Raeumen. Man muss ihn suchen, in seinem Raum
+ * fuenf Flammen holen (jede fliegt auf ihn), dann verschwindet er und erscheint in einem zufaelligen Raum wieder, dreimal.
+ * Ist er besiegt, geht oben die Tuer auf, hindurch = geschafft. Der Kampf selbst steckt in meisterkampf.ts (er laeuft
+ * genauso im freien Spiel auf Level meisterAb), hier nur das Labyrinth der Mission.
  */
 import { key } from './game'
+import { MeisterRaum, Meisterkampf, MEISTER, type MeisterAngriffArt } from './meisterkampf'
 import { MissionGame } from './mission'
 import type { MissionDef } from './missionen'
-import { DIRS, STEP } from './rules'
 import type { P } from './types'
 
-/** Alle Zeiten in ms */
-export const MEISTER = {
-  leben: 3,
-  /** Flammen je Leben, so viele liegen hoechstens gleichzeitig, so lange fliegt eine zu ihm */
-  flammen: 5,
-  aufFeld: 2,
-  flug: 520,
-  erscheinen: 900,
-  erwachen: 900,
-  pause: 1100,
-  duennLaden: 600,
-  duennBrennt: 360,
-  dickLaden: 1500,
-  dickBrennt: 460,
-  aoeLaden: 1150,
-  aoeBrennt: 320,
-  teleportWeg: 450,
-  teleportDa: 450,
-  getroffen: 1200,
-  /** So weit um seinen Raum herum sieht man ihn: erst ausserhalb erscheint er dort */
-  sicht: 6,
-  /** Strahlen reichen hoechstens so weit */
-  weite: 24,
-} as const
-
-export type MeisterAngriffArt = 'duenn' | 'dick' | 'aoe' | 'teleport'
-export type MeisterRaum = { nr: number; mitte: P; x0: number; y0: number; x1: number; y1: number }
-export type MeisterAngriff = {
-  art: MeisterAngriffArt
-  /** Angekuendigt ab, geht los bei, vorbei bei */
-  ab: number
-  los: number
-  bis: number
-  /** Gefaehrliche Felder (Strahl oder Runenkreise), Mitten der Runenkreise, Richtung des Strahls (Bogenmass) */
-  cells: P[]
-  kreise: P[]
-  winkel: number
-  /** Teleport: wohin */
-  ziel: P | null
-}
-export type MeisterZustand = 'weg' | 'erscheint' | 'wartet' | 'kampf' | 'getroffen' | 'tot'
-export type Meister = {
-  zustand: MeisterZustand
-  /** Seit wann im Zustand */
-  t: number
-  raum: number
-  p: P
-  /** Vor dem letzten Teleport (Darstellung) */
-  von: P
-  leben: number
-  /** Flammen, die ihn in diesem Leben schon getroffen haben */
-  treffer: number
-  /** Schaut zum Kopf (Bogenmass) */
-  winkel: number
-  angriff: MeisterAngriff | null
-  next: number
-  letzte: MeisterAngriffArt | null
-  /** Letzter Flammentreffer (Aufblitzen) */
-  trefferT: number
-}
+export * from './meisterkampf'
 
 export class KaefigBossGame extends MissionGame {
-  readonly raeume: MeisterRaum[]
-  meister: Meister
-  /** Flammen im Raum, Flammen im Flug zu ihm (von wo, seit wann) */
-  flammen: { p: P; t: number }[] = []
-  fluege: { von: P; t: number }[] = []
-  /** Flammen dieses Lebens, die schon geholt sind (auch die im Flug) */
-  protected geholt = 0
+  readonly kampf: Meisterkampf
 
   constructor(m: MissionDef, quer = false) {
     super(m, quer)
     const halb = quer ? { x: 4, y: 5 } : { x: 5, y: 4 }
-    this.raeume = this.karte.raeume.map((c, nr) => ({ nr, mitte: { ...c }, x0: c.x - halb.x, y0: c.y - halb.y, x1: c.x + halb.x, y1: c.y + halb.y }))
-    const raum = this.r.int(0, Math.max(0, this.raeume.length - 1))
-    const p = this.raeume[raum]?.mitte ?? { x: 0, y: 0 }
-    this.meister = { zustand: 'weg', t: 0, raum, p: { ...p }, von: { ...p }, leben: MEISTER.leben, treffer: 0, winkel: Math.PI / 2, angriff: null, next: 0, letzte: null, trefferT: -1e9 }
+    const raeume: MeisterRaum[] = this.karte.raeume.map((c, nr) => ({ nr, mitte: { ...c }, x0: c.x - halb.x, y0: c.y - halb.y, x1: c.x + halb.x, y1: c.y + halb.y }))
+    const spiel = this
+    this.kampf = new Meisterkampf(
+      {
+        get time() {
+          return spiel.time
+        },
+        get body() {
+          return spiel.body
+        },
+        get dir() {
+          return spiel.dir
+        },
+        get r() {
+          return spiel.r
+        },
+        get status() {
+          return spiel.status
+        },
+        inside: (c) => spiel.inside(c),
+        sperre: () => spiel.sichtSperre(),
+        belegt: () => spiel.hindernisse(),
+        aufSchlange: (c) => spiel.aufSchlange(c),
+        geist: () => spiel.geist(),
+        emit: (e) => spiel.emit(e),
+        verloren: () => spiel.die('kaefigmeister'),
+        besiegt: () => spiel.meisterBesiegt(),
+      },
+      raeume,
+      { flammen: MEISTER.flammen, leben: MEISTER.leben },
+    )
   }
 
-  /** Ist p in Raum nr? */
-  imRaum(p: P, nr = this.meister.raum) {
-    const r = this.raeume[nr]
-    return !!r && p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1
+  /* Der Kampf (fuer Darstellung und Tests direkt am Spiel) */
+  get meister() {
+    return this.kampf.meister
   }
-
-  /** Sieht man Raum nr gerade (Kopf im Raum oder nah davor)? */
-  raumInSicht(nr: number) {
-    const r = this.raeume[nr]
-    const h = this.body[0]
-    const s = MEISTER.sicht
-    return !!r && h.x >= r.x0 - s && h.x <= r.x1 + s && h.y >= r.y0 - s && h.y <= r.y1 + s
+  get raeume() {
+    return this.kampf.raeume
   }
-
-  /** Ist er gerade da (sichtbar und im Weg)? Beim Teleport ist er kurz weg */
+  get flammen() {
+    return this.kampf.flammen
+  }
+  get fluege() {
+    return this.kampf.fluege
+  }
   get da() {
-    const M = this.meister
-    if (M.zustand !== 'erscheint' && M.zustand !== 'wartet' && M.zustand !== 'kampf') return false
-    const a = M.angriff
-    return !(a?.art === 'teleport' && this.time >= a.ab + MEISTER.teleportWeg && this.time < a.los)
+    return this.kampf.da
+  }
+  imRaum(p: P, nr?: number) {
+    return this.kampf.imRaum(p, nr)
+  }
+  raumInSicht(nr: number) {
+    return this.kampf.raumInSicht(nr)
+  }
+  starte(art: MeisterAngriffArt) {
+    this.kampf.starte(art)
+  }
+  strahl(p: P, winkel: number, breite: number) {
+    return this.kampf.strahl(p, winkel, breite)
   }
 
   /** Boss-Level: gezaehlt werden seine Leben */
   override get uebrig() {
-    return this.meister?.leben ?? MEISTER.leben
+    return this.kampf?.meister.leben ?? MEISTER.leben
   }
 
   override update(dt: number) {
     super.update(dt)
-    if (this.status === 'play') this.meisterTakt()
+    this.kampf.update()
   }
 
   /** Er ist im Weg (hineinfahren = vorbei) */
   override gefahr(n: P, rest: P[] = this.body) {
-    if (this.meister && this.da && n.x === this.meister.p.x && n.y === this.meister.p.y && !this.geist()) return 'kaefigmeister' as const
+    if (this.kampf?.istHier(n) && !this.geist()) return 'kaefigmeister' as const
     return super.gefahr(n, rest)
   }
 
   override hindernisse(mitGegnern = true) {
     const s = super.hindernisse(mitGegnern)
-    if (this.meister && this.da) s.add(key(this.meister.p.x, this.meister.p.y))
-    for (const f of this.flammen ?? []) s.add(key(f.p.x, f.p.y))
+    this.kampf?.belegtVon((p) => s.add(key(p.x, p.y)))
     return s
   }
 
   /** Kopf auf einer Flamme: sie fliegt auf ihn zu */
   protected override einsammeln(n: P) {
     super.einsammeln(n)
-    const i = this.flammen?.findIndex((f) => f.p.x === n.x && f.p.y === n.y) ?? -1
-    if (i < 0) return
-    this.flammen.splice(i, 1)
-    this.fluege.push({ von: { ...n }, t: this.time })
-    this.geholt++
-    this.emit({ type: 'meister', was: 'flamme', p: { ...n } })
-    this.flammenNachlegen()
+    this.kampf?.einsammeln(n)
   }
 
-  /** Bis zu zwei Flammen im Raum, insgesamt fuenf je Leben */
-  protected flammenNachlegen() {
-    const M = this.meister
-    const r = this.raeume[M.raum]
-    if (!r || M.zustand !== 'kampf') return
-    const h = this.body[0]
-    const zu = this.hindernisse()
-    while (this.flammen.length < MEISTER.aufFeld && this.geholt + this.flammen.length < MEISTER.flammen) {
-      const frei: P[] = []
-      for (let y = r.y0; y <= r.y1; y++)
-        for (let x = r.x0; x <= r.x1; x++) {
-          const c = { x, y }
-          if (!this.inside(c) || zu.has(key(x, y)) || this.aufSchlange(c)) continue
-          if (Math.max(Math.abs(x - h.x), Math.abs(y - h.y)) < 3 || Math.max(Math.abs(x - M.p.x), Math.abs(y - M.p.y)) < 2) continue
-          // Nicht in eine Ecke, aus der man nicht wieder herauskommt
-          if (DIRS.filter((d) => this.inside({ x: x + STEP[d].x, y: y + STEP[d].y }) && !zu.has(key(x + STEP[d].x, y + STEP[d].y))).length < 3) continue
-          frei.push(c)
-        }
-      if (!frei.length) return
-      const p = this.r.pick(frei)
-      this.flammen.push({ p, t: this.time })
-      zu.add(key(p.x, p.y))
-    }
-  }
-
-  protected meisterTakt() {
-    const M = this.meister
-    const t = this.time
-    const h = this.body[0]
-    // Flammen im Flug treffen ihn
-    for (const f of [...this.fluege]) {
-      if (t - f.t < MEISTER.flug) continue
-      this.fluege.splice(this.fluege.indexOf(f), 1)
-      if (M.zustand !== 'kampf') continue
-      M.treffer++
-      M.trefferT = t
-      this.emit({ type: 'meister', was: 'trifft', p: { ...M.p } })
-      if (M.treffer >= MEISTER.flammen) {
-        this.lebenWeg()
-        return
-      }
-    }
-    switch (M.zustand) {
-      case 'weg':
-        // Erscheint erst, wenn man seinen Raum nicht sieht
-        if (this.raumInSicht(M.raum)) return
-        M.zustand = 'erscheint'
-        M.t = t
-        M.p = { ...this.raeume[M.raum].mitte }
-        M.von = { ...M.p }
-        this.emit({ type: 'meister', was: 'erscheint', p: { ...M.p } })
-        return
-      case 'erscheint':
-        if (t - M.t >= MEISTER.erscheinen) {
-          M.zustand = 'wartet'
-          M.t = t
-        }
-        return
-      case 'wartet':
-        if (!this.imRaum(h)) return
-        M.zustand = 'kampf'
-        M.t = t
-        M.next = t + MEISTER.erwachen
-        this.emit({ type: 'meister', was: 'erwacht', p: { ...M.p } })
-        this.flammenNachlegen()
-        return
-      case 'getroffen':
-        if (t - M.t < MEISTER.getroffen) return
-        // Neuer Raum, zufaellig (auch derselbe): dort erscheint er, sobald man ihn nicht sieht
-        M.zustand = 'weg'
-        M.t = t
-        M.raum = this.r.int(0, this.raeume.length - 1)
-        return
-      case 'kampf':
-        if (M.angriff?.art !== 'teleport') M.winkel = Math.atan2(h.y - M.p.y, h.x - M.p.x)
-        this.angriffTakt()
-        return
-    }
-  }
-
-  /** Fuenf Flammen: ein Leben weniger, er verschwindet. Kein Leben mehr: besiegt, die Tuer geht auf */
-  protected lebenWeg() {
-    const M = this.meister
-    M.leben--
-    M.treffer = 0
-    M.angriff = null
-    M.t = this.time
-    this.flammen = []
-    this.fluege = []
-    this.geholt = 0
-    this.emit({ type: 'meister', was: M.leben > 0 ? 'getroffen' : 'tot', p: { ...M.p }, leben: M.leben })
-    if (M.leben > 0) {
-      M.zustand = 'getroffen'
-      return
-    }
-    M.zustand = 'tot'
+  /** Besiegt: die Tuer geht auf, der Pfeil zeigt dorthin */
+  protected meisterBesiegt() {
     this.tuerAuf = this.time
     const m = this.tuer[Math.floor(this.tuer.length / 2)]
     if (m) this.emit({ type: 'tuerAuf', p: { ...m } })
     this.zielWaehlen()
-  }
-
-  protected angriffTakt() {
-    const M = this.meister
-    const t = this.time
-    const h = this.body[0]
-    const a = M.angriff
-    if (a) {
-      if (a.art === 'teleport') {
-        if (a.ziel && t >= a.los) {
-          M.von = { ...M.p }
-          M.p = { ...a.ziel }
-          a.ziel = null
-          this.emit({ type: 'meister', was: 'teleport', p: { ...M.p } })
-        }
-      } else if (t >= a.los && t < a.bis) {
-        if (a.cells.some((c) => c.x === h.x && c.y === h.y) && !this.geist()) {
-          this.die('kaefigmeister')
-          return
-        }
-      }
-      if (t >= a.bis) {
-        M.angriff = null
-        M.next = t + MEISTER.pause
-      }
-      return
-    }
-    // Neue Attacke nur, solange der Kopf im Raum ist
-    if (t < M.next || !this.imRaum(h)) return
-    this.starte(this.waehle())
-  }
-
-  /** Welche Attacke: nie zweimal dieselbe, ganz nah lieber Teleport oder Runen */
-  protected waehle(): MeisterAngriffArt {
-    const M = this.meister
-    const h = this.body[0]
-    const nah = Math.max(Math.abs(h.x - M.p.x), Math.abs(h.y - M.p.y)) <= 2
-    const gewicht: [MeisterAngriffArt, number][] = [
-      ['duenn', nah ? 1 : 3],
-      ['dick', nah ? 0.5 : 2],
-      ['aoe', 2],
-      ['teleport', nah ? 3 : 1.2],
-    ]
-    const liste = gewicht.filter(([art]) => art !== M.letzte)
-    let w = this.r.next() * liste.reduce((s, [, g]) => s + g, 0)
-    for (const [art, g] of liste) {
-      w -= g
-      if (w <= 0) return art
-    }
-    return liste[0][0]
-  }
-
-  /** Attacke ankuendigen (auch von aussen, zum Testen) */
-  starte(art: MeisterAngriffArt) {
-    const M = this.meister
-    const t = this.time
-    const h = this.body[0]
-    M.letzte = art
-    const winkel = Math.atan2(h.y - M.p.y, h.x - M.p.x)
-    const leer = { cells: [] as P[], kreise: [] as P[], winkel, ziel: null }
-    if (art === 'duenn') M.angriff = { ...leer, art, ab: t, los: t + MEISTER.duennLaden, bis: t + MEISTER.duennLaden + MEISTER.duennBrennt, cells: this.strahl(M.p, winkel, 0) }
-    else if (art === 'dick') M.angriff = { ...leer, art, ab: t, los: t + MEISTER.dickLaden, bis: t + MEISTER.dickLaden + MEISTER.dickBrennt, cells: this.strahl(M.p, winkel, 1) }
-    else if (art === 'aoe') {
-      const d = STEP[this.dir]
-      const vorn = { x: h.x + d.x * 3, y: h.y + d.y * 3 }
-      const seite = { x: h.x + this.r.int(-3, 3), y: h.y + this.r.int(-3, 3) }
-      const kreise = [{ ...h }, vorn, seite]
-      const cells: P[] = []
-      const drin = new Set<number>()
-      for (const k of kreise)
-        for (let dy = -1; dy <= 1; dy++)
-          for (let dx = -1; dx <= 1; dx++) {
-            const c = { x: k.x + dx, y: k.y + dy }
-            if (!this.inside(c) || drin.has(key(c.x, c.y))) continue
-            drin.add(key(c.x, c.y))
-            cells.push(c)
-          }
-      M.angriff = { ...leer, art, ab: t, los: t + MEISTER.aoeLaden, bis: t + MEISTER.aoeLaden + MEISTER.aoeBrennt, cells, kreise }
-    } else {
-      const ziel = this.teleportZiel()
-      if (!ziel) {
-        M.next = t + 300
-        return
-      }
-      M.angriff = { ...leer, art, ab: t, los: t + MEISTER.teleportWeg, bis: t + MEISTER.teleportWeg + MEISTER.teleportDa, ziel }
-    }
-    this.emit({ type: 'meister', was: art === 'teleport' ? 'weg' : art === 'aoe' ? 'aoe' : 'laden', p: { ...M.p } })
-  }
-
-  /** Strahl von p in Richtung winkel bis zur Wand (breite 0 = ein Feld, 1 = drei Felder) */
-  strahl(p: P, winkel: number, breite: number): P[] {
-    const sperre = this.sichtSperre()
-    const dx = Math.cos(winkel)
-    const dy = Math.sin(winkel)
-    const out: P[] = []
-    const drin = new Set<number>()
-    const quer = Math.abs(dx) >= Math.abs(dy) ? { x: 0, y: 1 } : { x: 1, y: 0 }
-    for (let s = 0.5; s <= MEISTER.weite; s += 0.4) {
-      const c = { x: Math.round(p.x + dx * s), y: Math.round(p.y + dy * s) }
-      if (c.x === p.x && c.y === p.y) continue
-      if (!this.inside(c) || sperre.has(key(c.x, c.y))) break
-      for (let o = -breite; o <= breite; o++) {
-        const q = { x: c.x + quer.x * o, y: c.y + quer.y * o }
-        if (!this.inside(q) || sperre.has(key(q.x, q.y)) || drin.has(key(q.x, q.y))) continue
-        drin.add(key(q.x, q.y))
-        out.push(q)
-      }
-    }
-    return out
-  }
-
-  /** Freies Feld im Raum, weit genug vom Kopf, mit Platz drumherum */
-  protected teleportZiel(): P | null {
-    const M = this.meister
-    const r = this.raeume[M.raum]
-    const h = this.body[0]
-    const zu = this.hindernisse()
-    const frei: P[] = []
-    for (let y = r.y0; y <= r.y1; y++)
-      for (let x = r.x0; x <= r.x1; x++) {
-        const c = { x, y }
-        if (!this.inside(c) || zu.has(key(x, y)) || this.aufSchlange(c)) continue
-        if (Math.max(Math.abs(x - h.x), Math.abs(y - h.y)) < 5 || (x === M.p.x && y === M.p.y)) continue
-        if (!DIRS.every((d) => this.inside({ x: x + STEP[d].x, y: y + STEP[d].y }))) continue
-        frei.push(c)
-      }
-    return frei.length ? this.r.pick(frei) : null
   }
 }
