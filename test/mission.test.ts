@@ -160,7 +160,9 @@ describe('Kampagne', () => {
     expect(erst((x) => x.stoecke.length > 0)).toBe(17)
     // Ab 21 Dungeons, ab 22 Kaefigkoepfe, Siegel und die grosse Tuer nur in 27
     expect(erst((x) => x.dungeonSet.size > 0)).toBe(21)
-    expect(erst((x) => x.kaefige.length > 0)).toBe(22)
+    expect(erst((x) => x.kaefige.length > 0)).toBe(26)
+    // Kaefigkoepfe kuendigen den Kaefigmeister an wie die Golems und Mini-Ents: 26 bis 29 je 1, 1, 2, 3
+    expect(g.slice(25, 29).map((x) => x.kaefige.length)).toEqual([1, 1, 2, 3])
     expect(g.map((x) => x.siegel.length)).toEqual(g.map((_, i) => (i === 26 ? 3 : 0)))
     expect(g.map((x) => x.tuer.length > 0)).toEqual(g.map((_, i) => i === 26))
     // Keine Gegner-Schlangen, ein einziger Leuchtturm in Mission 18
@@ -358,6 +360,33 @@ describe('Kampagne', () => {
     }
   })
 
+  it('ab Mission 21: Gaenge mindestens 3 breit (nur der Schleichweg in Mission 24 ist 2 breit)', () => {
+    for (const m of GEBAUT.slice(20)) {
+      const z = m.karte!
+      const baum = new Set<number>()
+      z.forEach((r, y) => {
+        for (let x = 0; x < r.length; x++) {
+          if (r[x] === 'Y') for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) baum.add(key(x + dx, y + dy))
+          if (r[x] === 'Z') for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) baum.add(key(x + dx, y + dy))
+        }
+      })
+      const wand = (x: number, y: number) => !z[y]?.[x] || '#W~HLDJb'.includes(z[y][x]) || baum.has(key(x, y))
+      let eng = 0
+      for (let y = 0; y < z.length; y++)
+        for (let x = 0; x < z[0].length; x++) {
+          if (wand(x, y)) continue
+          const lauf = (dx: number, dy: number) => {
+            let n = 0
+            while (!wand(x + dx * (n + 1), y + dy * (n + 1))) n++
+            return n
+          }
+          if (Math.min(lauf(-1, 0) + lauf(1, 0), lauf(0, -1) + lauf(0, 1)) + 1 <= 2) eng++
+        }
+      // Der Schleichweg in Mission 24: 2 breit, 17 Felder lang
+      expect(eng, m.id).toBeLessThanOrEqual(m.nr === 24 ? 40 : 0)
+    }
+  })
+
   it('Mission 28 und 29 sind ganz Dungeon, die Wiese davor hat Wald und Dungeon gemischt', () => {
     for (const m of WIESE_MISSIONEN.slice(20, 29)) {
       const g = new MissionGame(m)
@@ -403,11 +432,11 @@ describe('Kampagne', () => {
   })
 
   it('Kaefigkopf: schlendert geradeaus, biegt an der Wand ab und geht nach 2 bis 4 Feldern wieder von ihr weg', () => {
-    const g = new MissionGame(WIESE_MISSIONEN[21])
+    const g = new MissionGame(WIESE_MISSIONEN[27])
     ruhig(g)
-    const z: Kaefig = { p: { x: 10, y: 24 }, from: { x: 10, y: 24 }, dir: 'l', altDir: 'l', drehT: 0, t: 0, schrittT: 0, next: 0, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 }
+    const z: Kaefig = { p: { x: 6, y: 50 }, from: { x: 6, y: 50 }, dir: 'l', altDir: 'l', drehT: 0, t: 0, schrittT: 0, next: 0, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 }
     g.kaefige = [z]
-    // Die Halle der Mission 22 reicht links bis x = 7: dort ist Wand
+    // Die Eingangshalle der Mission 28 reicht links bis x = 3: dort ist Wand
     const wege: Dir[] = []
     let vorher = { ...z.p }
     for (let i = 0; i < 400 && wege.length < 12; i++) {
@@ -429,9 +458,9 @@ describe('Kampagne', () => {
 
   it('Kaefigkopf: sieht den Kopf nach vorn, bleibt stehen, holt aus und schiesst in einer der acht Richtungen (Kopf getroffen = vorbei)', () => {
     const neu = (kopf: P) => {
-      const g = new MissionGame(WIESE_MISSIONEN[21])
+      const g = new MissionGame(WIESE_MISSIONEN[27])
       ruhig(g)
-      const z: Kaefig = { p: { x: 15, y: 24 }, from: { x: 15, y: 24 }, dir: 'r', altDir: 'r', drehT: 0, t: 0, schrittT: 0, next: 1e12, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 }
+      const z: Kaefig = { p: { x: 6, y: 50 }, from: { x: 6, y: 50 }, dir: 'r', altDir: 'r', drehT: 0, t: 0, schrittT: 0, next: 1e12, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 }
       g.kaefige = [z]
       g.body = [kopf, { x: kopf.x, y: kopf.y + 1 }, { x: kopf.x, y: kopf.y + 2 }]
       g.prev = g.body.map((p) => ({ ...p }))
@@ -442,32 +471,32 @@ describe('Kampagne', () => {
       return { g, z, takt }
     }
     // Hinter ihm sieht er nichts
-    const hinten = neu({ x: 12, y: 24 })
+    const hinten = neu({ x: 3, y: 50 })
     hinten.takt()
     expect(hinten.z.jagt).toBe(-1)
     // Geradeaus vor ihm: entdeckt, holt aus (rot angekuendigt), der Strahl trifft den Kopf
-    const { g, z, takt } = neu({ x: 19, y: 24 })
+    const { g, z, takt } = neu({ x: 10, y: 50 })
     takt()
     expect(z.jagt).toBeGreaterThanOrEqual(0)
     for (let i = 0; i < 12 && !z.angriff; i++) takt()
     expect(z.angriff).not.toBeNull()
     expect(z.angriff!.d).toEqual({ x: 1, y: 0 })
-    expect(z.angriff!.cells.some((c) => c.x === 19 && c.y === 24)).toBe(true)
+    expect(z.angriff!.cells.some((c) => c.x === 10 && c.y === 50)).toBe(true)
     expect(z.angriff!.los - z.angriff!.ab).toBe(KAEFIG.laden)
     // Er bleibt dabei stehen
-    expect(z.p).toEqual({ x: 15, y: 24 })
+    expect(z.p).toEqual({ x: 6, y: 50 })
     for (let i = 0; i < 20 && g.status === 'play'; i++) takt()
     expect(g.status).toBe('over')
     expect(g.cause).toBe('kaefigstrahl')
     // Liegt der Kopf nicht genau auf einer Linie der Dame, zielt er in die naechste (hier schraeg) und kann vorbeischiessen
-    const s = neu({ x: 18, y: 22 })
+    const s = neu({ x: 10, y: 48 })
     s.takt()
     for (let i = 0; i < 12 && !s.z.angriff; i++) s.takt()
     expect(s.z.angriff!.d).toEqual({ x: 1, y: -1 })
     for (let i = 0; i < 20; i++) s.takt()
     expect(s.g.status).toBe('play')
     // Hineinfahren ist auch vorbei
-    expect(g.gefahr({ x: 15, y: 24 })).toBe('kaefig')
+    expect(g.gefahr({ x: 6, y: 50 })).toBe('kaefig')
   })
 
   it('Schatz-Level: Edelsteine liegen da und zaehlen fuer die Belohnung', () => {

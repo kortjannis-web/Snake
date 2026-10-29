@@ -31,7 +31,7 @@ export const QUELLE_PAUSE = 4500
 export const BAUM_NAH = 5
 export const BAUM_TIMER: [number, number] = [1000, 8000]
 
-/** Kaefigkoepfe (ab Mission 22): ein Feld alle takt ms (dazu bis stolpern ms, sie torkeln), sehen sicht Felder nach vorn,
+/** Kaefigkoepfe (ab Mission 26): ein Feld alle takt ms (dazu bis stolpern ms, sie torkeln), sehen sicht Felder nach vorn,
  *  holen laden ms aus, der Strahl reicht weite Felder und brennt strahl ms, danach ruhe ms Pause */
 export const KAEFIG = { takt: 820, stolpern: 380, sicht: 7, laden: 800, strahl: 380, weite: 9, ruhe: 2000, wand: [2, 4] as const }
 
@@ -765,7 +765,7 @@ export class MissionGame extends Game {
     this.kaefigTakt()
   }
 
-  /* ================= Kaefigkoepfe (ab Mission 22) ================= */
+  /* ================= Kaefigkoepfe (ab Mission 26) ================= */
 
   /** Sieht der Kaefigkopf das Feld? Kegel nach vorn wie beim kleinen Steingolem (1 bis KAEFIG.sicht Felder, je weiter, desto breiter) */
   imKaefigBlick(z: Kaefig, c: P) {

@@ -245,7 +245,7 @@ export type Minigolem = {
   ruheBis: number
 }
 
-/** Kaefigkopf (Kampagne ab Mission 22, im Dungeon): ein zombiehafter Diener mit dem Kopf in einem Eisenkaefig. Er schlendert
+/** Kaefigkopf (Kampagne ab Mission 26, unter der Erde; kuendigen den Kaefigmeister an): ein zombiehafter Diener mit dem Kopf in einem Eisenkaefig. Er schlendert
  *  immer geradeaus, an einer Wand biegt er ab und geht nach 2 bis 4 Feldern wieder von ihr weg. Sieht er den Kopf (Kegel nach
  *  vorn wie der kleine Steingolem), bleibt er stehen und wirft ab und zu einen Energiestrahl in eine der acht Richtungen der
  *  Dame (gerade oder schraeg), bis der Kopf aus seiner Sicht ist */
