@@ -98,6 +98,8 @@ const aktiveWelt = (): Welt => {
 renderer.welt = aktiveWelt()
 
 let mode: Mode = 'home'
+/** Web-App: Eine neue Version ist schon aktiv, die Seite laedt neu, sobald man wieder im Startmenue ist (nie mitten im Spiel) */
+let updateBereit = false
 /** Online-Status ("spielt gerade") neu melden; wird gesetzt, sobald der Online-Teil steht */
 let onlineMelden = () => {}
 /** Offene Unterseiten (Optionen -> Master liegt ueber Optionen) */
@@ -170,6 +172,10 @@ function show(id: string, on: boolean) {
 }
 
 function setMode(m: Mode) {
+  if (m === 'home' && updateBereit) {
+    location.reload()
+    return
+  }
   mode = m
   app.dataset.mode = m
   show('home', m === 'home')
@@ -3963,7 +3969,7 @@ if (nativ) {
   void neueVersion().then((v) => {
     if (v === null) return
     const b = $('update-hinweis')
-    b.textContent = v ? `Neue Version ${v}: jetzt laden` : 'Neue Version: jetzt laden'
+    b.textContent = v.version ? `Neue Version ${v.version}: jetzt laden` : 'Neue Version: jetzt laden'
     b.hidden = false
     b.addEventListener('click', () => window.open(APK_URL, '_system'))
   })
@@ -3999,18 +4005,70 @@ if (import.meta.env.DEV) Object.assign(window, { spiel: () => game })
 
 // Service Worker nur im Browser (die Android-App hat alles dabei)
 if (!nativ && import.meta.env.PROD && 'serviceWorker' in navigator) {
+  /** Bis zu welchem Build schon einmal von selbst hart neu geladen wurde (sonst Endlosschleife, falls das Netz noch alt liefert) */
+  const HART_KEY = 'snake-update-hart'
+  /** Haengt der Service Worker (neue Version online, er installiert sie aber nicht), bliebe die alte Version fuer immer:
+   *  Offline-Speicher leeren und neu laden. Der alte Worker findet dann nichts mehr und holt alles frisch aus dem Netz */
+  const hartNeuLaden = async () => {
+    try {
+      await Promise.all((await caches.keys()).map((k) => caches.delete(k)))
+    } catch {
+      /* kein Cache-Zugriff: trotzdem neu laden */
+    }
+    location.reload()
+  }
+  let wartet = false
   void import('virtual:pwa-register').then(({ registerSW }) =>
     registerSW({
       immediate: true,
-      // Eine App, die lange im Hintergrund lag, holt sich sonst nie eine neue Version: beim Zurueckkehren und alle 30 Minuten
-      // nachsehen, aber nur im Startmenue und nicht mitten im Spiel (die neue Version laedt die Seite neu)
+      // Neue Version aktiv: im Startmenue sofort neu laden, sonst erst, wenn man wieder dort ist (nicht mitten im Spiel)
+      onNeedReload() {
+        if (mode === 'home') location.reload()
+        else updateBereit = true
+      },
+      // Eine App, die lange im Hintergrund lag, holt sich sonst nie eine neue Version: beim Start, beim Zurueckkehren und
+      // alle 10 Minuten nachsehen, aber nur im Startmenue oder im Ergebnis, nicht mitten im Spiel
       onRegisteredSW(_url, reg) {
         if (!reg) return
-        const pruefen = () => {
-          if (mode === 'home' || mode === 'over') void reg.update().catch(() => undefined)
+        const pruefen = async () => {
+          if (wartet || (mode !== 'home' && mode !== 'over')) return
+          await reg.update().catch(() => undefined)
+          const v = await neueVersion('./')
+          if (!v) return
+          // Online ist eine neuere Version: Der Worker bekommt Zeit, sie selbst zu holen (dann laedt er die Seite neu)
+          wartet = true
+          const nachsehen = () => {
+            if (reg.installing) {
+              window.setTimeout(nachsehen, 15_000)
+              return
+            }
+            wartet = false
+            let schon = 0
+            try {
+              schon = Number(localStorage.getItem(HART_KEY)) || 0
+            } catch {
+              /* Speicher blockiert */
+            }
+            if (mode === 'home' && schon < v.build) {
+              try {
+                localStorage.setItem(HART_KEY, String(v.build))
+              } catch {
+                /* Speicher blockiert */
+              }
+              void hartNeuLaden()
+              return
+            }
+            // Schon einmal versucht oder gerade im Spiel: Knopf im Startmenue, der es von Hand erzwingt
+            const b = $('update-hinweis')
+            b.textContent = v.version ? `Neue Version ${v.version}: jetzt laden` : 'Neue Version: jetzt laden'
+            b.hidden = false
+            b.onclick = () => void hartNeuLaden()
+          }
+          window.setTimeout(nachsehen, 20_000)
         }
-        window.setInterval(pruefen, 30 * 60_000)
-        document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && pruefen())
+        window.setTimeout(() => void pruefen(), 5_000)
+        window.setInterval(() => void pruefen(), 10 * 60_000)
+        document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void pruefen())
       },
     }),
   )
