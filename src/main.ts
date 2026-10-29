@@ -1407,6 +1407,10 @@ function handle(e: GameEvent) {
       if (e.was === 'tot' && game instanceof KaefigBossGame) toast('aepfel', 'Der Käfigmeister ist besiegt!', 'Oben ist die Tür offen: raus aus dem Labyrinth.')
     }
       break
+    case 'augen':
+      audio.augen()
+      haptic.light()
+      break
     case 'kerker':
       audio.tuerAuf()
       haptic.medium()
@@ -3040,6 +3044,27 @@ function demoBild(dt: number) {
   renderer.draw(d)
 }
 
+/** Augenfeld (Reich des Kaefigmeisters): 5 s lang verschwommen, Farben umgekehrt oder wellig (sanft ein- und ausgeblendet).
+ *  Mit "Bewegung reduzieren" wird aus wellig verschwommen */
+let augenStil = ''
+function augenBlick(g: Game | null) {
+  const b = g?.augenBlick
+  let stil = ''
+  let form = ''
+  if (g && b && g.time < b.bis) {
+    const k = Math.max(0, Math.min(1, (g.time - b.ab) / 400, (b.bis - g.time) / 700))
+    const art = b.art === 'wellig' && reduce ? 'unscharf' : b.art
+    if (art === 'unscharf') stil = `blur(${(2.4 * k).toFixed(2)}px) brightness(${(1 - 0.12 * k).toFixed(3)})`
+    else if (art === 'invertiert') stil = `invert(${k.toFixed(3)})`
+    else form = `skewX(${(Math.sin(g.time / 260) * 2.4 * k).toFixed(2)}deg) skewY(${(Math.cos(g.time / 340) * 1.5 * k).toFixed(2)}deg) scale(${(1 + 0.035 * k).toFixed(3)})`
+  }
+  const neu = `${stil}|${form}`
+  if (neu === augenStil) return
+  augenStil = neu
+  canvas.style.filter = stil
+  canvas.style.transform = form
+}
+
 function frame(now: number) {
   const dt = Math.min(100, now - last)
   last = now
@@ -3093,6 +3118,7 @@ function frame(now: number) {
     renderer.mehr = null
     if (!verdeckt) renderer.draw(game)
   }
+  augenBlick(mode === 'play' || mode === 'paused' ? game : null)
   updateEffekte()
   if (istShop()) {
     for (const s of skinCanvas) drawSkinVorschau(s.cv, s.skin, now, s.fokus)

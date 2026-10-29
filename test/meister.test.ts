@@ -85,7 +85,9 @@ describe('Kaefigmeister (Mission 30)', () => {
     lauf(g, MEISTER.flug + 100)
     expect(g.meister.zustand).toBe('getroffen')
     lauf(g, MEISTER.getroffen + 100)
-    expect(g.meister.zustand).toBe('weg')
+    expect(g.meister.zustand).not.toBe('getroffen')
+    // Neuer Raum ist derselbe, in dem der Kopf steht: dann wartet er
+    g.meister.zustand = 'weg'
     g.meister.raum = nr
     lauf(g, 2000)
     expect(g.meister.zustand).toBe('weg')
@@ -190,6 +192,36 @@ describe('Kaefigmeister (Mission 30)', () => {
     g.tick = 120
     for (let i = 0; i < 10 && g.status === 'play'; i++) g.update(130)
     expect(g.cause).toBe('ziel')
+  })
+
+  it('Augen am Boden: wenige, meist an Waenden und in Ecken; ein Augenfeld (ab zwei Augen) truebt 5 s den Blick', () => {
+    const g = spiel()
+    expect(g.augen.length).toBeGreaterThan(10)
+    // Wenige: hoechstens 6 % der Felder
+    let felder = 0
+    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) if (g.inside({ x, y })) felder++
+    expect(g.augen.length).toBeLessThan(felder * 0.06)
+    const amRand = g.augen.filter((a) => DIRS.some((d) => !g.inside({ x: a.p.x + STEP[d].x, y: a.p.y + STEP[d].y })))
+    expect(amRand.length / g.augen.length).toBeGreaterThan(0.7)
+    for (const a of g.augen) {
+      expect(a.n).toBeGreaterThanOrEqual(1)
+      expect(a.n).toBeLessThanOrEqual(3)
+      expect(Math.max(Math.abs(a.p.x - 25), Math.abs(a.p.y - 67))).toBeGreaterThan(5)
+    }
+    // Ein einzelnes Auge tut nichts, ein Augenfeld truebt den Blick (verschwommen, umgekehrt oder wellig)
+    const einzeln = g.augen.find((a) => a.n === 1)!
+    ;(g as unknown as Innen).einsammeln(einzeln.p)
+    expect(g.augenBlick).toBeNull()
+    const arten = new Set<string>()
+    for (let i = 0; i < 30; i++) {
+      const feld = g.augen.find((a) => a.n >= 2)!
+      ;(g as unknown as Innen).einsammeln(feld.p)
+      const b = g.augenBlick!
+      expect(b.bis - b.ab).toBe(5000)
+      arten.add(b.art)
+    }
+    expect([...arten].sort()).toEqual(['invertiert', 'unscharf', 'wellig'])
+    expect(g.drain().some((e) => e.type === 'augen')).toBe(true)
   })
 
   it('Querformat: die Raeume sind mitgedreht', () => {

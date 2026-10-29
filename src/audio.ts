@@ -381,6 +381,12 @@ class Audio {
         break
     }
   }
+  /** Augenfeld: ein schiefes, leises Fluestern, der Blick verschwimmt */
+  augen() {
+    this.tone(415, 0.9, 'sine', 0.05, { to: 311, vib: 9, attack: 0.15 })
+    this.tone(622, 0.7, 'triangle', 0.03, { to: 466, delay: 0.1, attack: 0.2 })
+    this.noise(0.6, 'bandpass', 2200, 0.04, { to: 900, q: 3, attack: 0.2 })
+  }
   /** Siegel aufgehoben (hoeher, je weniger fehlen), die grosse Tuer geht auf */
   siegel(rest: number) {
     const f = [784, 659, 523][Math.min(2, rest)] ?? 523
