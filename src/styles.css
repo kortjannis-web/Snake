@@ -2913,8 +2913,8 @@ html[data-install] #app {
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--orange);
-  color: #2a1a0c;
+  background: #e5484d;
+  color: #fff;
   font: 700 0.72rem/20px var(--sans);
   font-style: normal;
   text-align: center;
@@ -3098,8 +3098,8 @@ html[data-install] #app {
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--orange);
-  color: #2a1a0c;
+  background: #e5484d;
+  color: #fff;
   font: 700 0.66rem/18px var(--sans);
   font-style: normal;
 }
@@ -3753,3 +3753,231 @@ html[data-install] #app {
 .hall-online {
   margin-bottom: 4px;
 }
+
+/* ---------------- Benachrichtigungen: roter Punkt, Weltchat, Stumm ---------------- */
+.tile-badge[hidden] {
+  display: none;
+}
+
+/* Nur ein Punkt (Neues im Weltchat), ohne Zahl */
+.tile-badge--punkt {
+  min-width: 0;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 2px solid var(--mokka-tief);
+}
+
+.btn--badge .tile-badge--punkt {
+  top: -3px;
+  right: 14px;
+}
+
+/* Stumm geschaltet: Zahl bleibt sichtbar, aber grau statt rot */
+.tile-badge--leise,
+.chat-zahl--leise {
+  background: rgba(245, 239, 230, 0.28);
+  color: var(--creme);
+}
+
+.hall-aktion--neu {
+  position: relative;
+}
+
+.hall-zeile--einladung {
+  box-shadow: inset 0 0 0 1px rgba(229, 72, 77, 0.55);
+}
+
+.liste__name .hall-einladung {
+  display: block;
+  margin: 3px 0 0;
+  color: #ff8a8d;
+}
+
+/* Hall of Snakes: Seite mit fester Leiste unten */
+.page.page--leiste {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.page--leiste .page__body {
+  padding-bottom: 16px;
+}
+
+.weltchat-leiste {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px calc(var(--safe-r) + 16px) calc(var(--safe-b) + 10px) calc(var(--safe-l) + 16px);
+  border: 0;
+  border-top: 1px solid rgba(245, 239, 230, 0.08);
+  background: var(--tanne);
+  color: var(--creme);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.weltchat-leiste[hidden] {
+  display: none;
+}
+
+.weltchat-leiste:active {
+  background: var(--tanne-karte);
+}
+
+.weltchat-leiste:focus-visible {
+  outline: 2px solid var(--tuerkis);
+  outline-offset: -2px;
+}
+
+.weltchat-leiste__ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(143, 214, 189, 0.18);
+  color: var(--mint);
+}
+
+.weltchat-leiste__ico svg {
+  width: 22px;
+  height: 22px;
+}
+
+.weltchat-leiste__t {
+  min-width: 0;
+}
+
+.weltchat-leiste__t b {
+  display: block;
+  font: 600 1rem/1.2 var(--sans);
+}
+
+.weltchat-leiste__t small {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(245, 239, 230, 0.72);
+  font: 500 0.78rem/1.3 var(--sans);
+}
+
+.weltchat-leiste .weltchat-leiste__zahl {
+  position: static;
+}
+
+.weltchat-leiste__pfeil svg {
+  width: 20px;
+  height: 20px;
+  color: rgba(245, 239, 230, 0.6);
+}
+
+/* Chat: Glocke (an/stumm), Weltchat mit Namen ueber den Blasen */
+.chat__stumm {
+  flex: none;
+  background: rgba(143, 214, 189, 0.14);
+  color: var(--mint);
+}
+
+.chat__stumm--aus {
+  background: rgba(245, 239, 230, 0.06);
+  color: var(--creme-leise);
+}
+
+.chat__welt {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(143, 214, 189, 0.18);
+  color: var(--mint);
+}
+
+.chat__welt[hidden],
+.chat__skin[hidden],
+.chat__sperren[hidden] {
+  display: none;
+}
+
+.chat__wer {
+  display: block;
+  margin: 0 0 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tuerkis);
+  font: 700 0.75rem/1.2 var(--sans);
+  cursor: pointer;
+}
+
+.chat__blase {
+  position: relative;
+}
+
+.chat__weg {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--rot);
+  color: #fff;
+  cursor: pointer;
+}
+
+.chat__weg svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Optionen: welche Benachrichtigungen (eingerueckt unter dem Hauptschalter) */
+.opt-gruppe {
+  display: grid;
+  gap: 8px;
+  margin: -4px 0 0 18px;
+}
+
+.opt-gruppe[hidden] {
+  display: none;
+}
+
+.opt--unter {
+  min-height: 56px;
+  padding: 10px 14px;
+  border-radius: 16px;
+}
+
+.opt-gruppe--aus .opt--unter small::after {
+  content: ' (nur roter Punkt in der App)';
+}
+
+/* Spielfuehrer: Ueberspringen oben rechts */
+.patch__skip {
+  flex: none;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(245, 239, 230, 0.1);
+  color: var(--creme);
+  font: 600 0.85rem/1 var(--sans);
+  cursor: pointer;
+}
+
+.patch__skip:focus-visible {
+  outline: 2px solid var(--tuerkis);
+}
+

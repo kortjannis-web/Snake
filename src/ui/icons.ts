@@ -4,7 +4,7 @@ import {
   Music, Pause, Play, RotateCcw, Settings, Trash2, Trophy, Vibrate, Volume2, VolumeX, createElement, type IconNode,
   Wand, Flag, Zap, Skull, Undo2, Ghost, TrendingUp, Ruler, SlidersHorizontal, Palette, Check, Lock, Shield, Hourglass, Scissors, Box, ListOrdered, Eraser, Utensils, Magnet, Shovel, Sun, Pickaxe, Medal, Video,
   Users, Plus, Share2, Heart, LogIn, LogOut, Crown, Swords, Handshake, UserPlus, WifiOff, X, Timer, Pencil, Globe,
-  MessageCircle, Send, Ban, Clock, Bell, Shuffle, RefreshCw, CircleAlert, Map as MapIcon,
+  MessageCircle, Send, Ban, Clock, Bell, BellOff, Shuffle, RefreshCw, CircleAlert, Map as MapIcon,
 } from 'lucide'
 
 const ICONS: Record<string, IconNode> = {
@@ -12,7 +12,7 @@ const ICONS: Record<string, IconNode> = {
   Music, Pause, Play, RotateCcw, Settings, Trash2, Trophy, Vibrate, Volume2, VolumeX,
   Wand, Flag, Zap, Skull, Undo2, Ghost, TrendingUp, Ruler, SlidersHorizontal, Palette, Check, Lock, Shield, Hourglass, Scissors, Box, ListOrdered, Eraser, Utensils, Magnet, Shovel, Sun, Pickaxe, Medal, Video,
   Users, Plus, Share2, Heart, LogIn, LogOut, Crown, Swords, Handshake, UserPlus, WifiOff, X, Timer, Pencil, Globe,
-  MessageCircle, Send, Ban, Clock, Bell, Shuffle, RefreshCw, CircleAlert, Map: MapIcon,
+  MessageCircle, Send, Ban, Clock, Bell, BellOff, Shuffle, RefreshCw, CircleAlert, Map: MapIcon,
 }
 
 export function setIcon(el: HTMLElement, name: string) {

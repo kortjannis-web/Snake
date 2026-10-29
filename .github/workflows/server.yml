@@ -2,7 +2,8 @@
 # oder Protokoll auf dem Hauptzweig aendern. Braucht die Secrets CLOUDFLARE_API_TOKEN und
 # CLOUDFLARE_ACCOUNT_ID (siehe docs/MEHRSPIELER-EINRICHTEN.md); ohne sie wird der Lauf uebersprungen.
 # Fuer Push-Einladungen ausserdem das Secret VAPID_PRIVATE_KEY und die Variable VITE_VAPID_PUBLIC_KEY
-# (beides von `npm run vapid`); die Supabase-Variablen sind dieselben wie fuer die Web-App.
+# (beides von `npm run vapid`), fuer die Android-App das Secret FCM_DIENSTKONTO (Firebase, siehe docs/BENACHRICHTIGUNGEN.md);
+# die Supabase-Variablen sind dieselben wie fuer die Web-App.
 name: Snake-Server (Cloudflare)
 
 on:
@@ -25,6 +26,7 @@ jobs:
       SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
       VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+      FCM_DIENSTKONTO: ${{ secrets.FCM_DIENSTKONTO }}
     steps:
       - uses: actions/checkout@v4
       - name: Secrets vorhanden?
@@ -52,9 +54,9 @@ jobs:
             if [ -n "${!n}" ]; then extra+=(--var "$n:${!n}"); fi
           done
           npx wrangler deploy --config server/wrangler.toml "${extra[@]}"
-      - if: steps.pruefen.outputs.ok == 'true' && env.VAPID_PRIVATE_KEY != ''
+      - if: steps.pruefen.outputs.ok == 'true' && (env.VAPID_PRIVATE_KEY != '' || env.FCM_DIENSTKONTO != '')
         name: Push-Schluessel hinterlegen
         run: |
-          node -e 'process.stdout.write(JSON.stringify({ VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY }))' > /tmp/geheim.json
+          node -e 'const g = {}; for (const n of ["VAPID_PRIVATE_KEY", "FCM_DIENSTKONTO"]) if (process.env[n]) g[n] = process.env[n]; process.stdout.write(JSON.stringify(g))' > /tmp/geheim.json
           npx wrangler secret bulk /tmp/geheim.json --config server/wrangler.toml
           rm -f /tmp/geheim.json

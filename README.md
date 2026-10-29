@@ -34,8 +34,10 @@ Jeden Spieler kann man in der Hall of Snakes antippen und zum Gefecht einladen (
 Das **Fragezeichen** oben im Startmenü öffnet den **Spielführer** (seit 1.54): jede Spielfunktion mit einem kurzen Video (Endlos, Online, Kampagne, Aussehen, Bosse der Kampagne und des Endlos-Modus, zuletzt Feedback: Bugs und Kritik sind ausdrücklich erwünscht); ein roter Punkt zeigt, dass man ihn noch nicht angesehen hat.
 
 Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dasselbe Level, eigener Tab in der Hall of Snakes), drei **Spielmodi** (Abenteuer: 25 % langsamer und 25 % weniger Äpfel, Normal, Speedrun: 25 % schneller mit Zeitlimit je Apfel und 25 % mehr Äpfel, ab Orange 50 % mehr; nur volle Äpfel zählen, der Rest wird zwischengespeichert), **Effekte** (Auren, freigeschaltet mit Silber- und Gold-Trophäen) und die
-**Hall of Snakes** (alle Spieler mit Schlange, Rekord, Gold und Silber; zugleich die Bestenliste) mit Freundschaftsanfragen und einem **Chat unter
-Freunden** (Nachrichten 30 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md) 16c.
+**Hall of Snakes** (alle Spieler mit Schlange, Rekord, Gold und Silber; zugleich die Bestenliste) mit Freundschaftsanfragen, einem **Chat unter
+Freunden** (Nachrichten 30 Tage) und unten dem **Weltchat** für alle (seit 1.55, Nachrichten 7 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md) 16c und 16f.
+
+**Benachrichtigungen** (seit 1.55): aufs Handy bei privaten Nachrichten, im Weltchat (höchstens alle 10 Minuten) und bei Einladungen zum Kampf, auch wenn Snake zu ist; dazu rote Punkte am Knopf der Hall of Snakes. In den Optionen einzeln an- und ausschaltbar, im Chat per Glocke stumm (Weltchat oder einzelner Spieler). Neue Spieler sehen nach dem Anmelden den Spielführer (Weiter oder Überspringen) und dann die Frage nach Benachrichtigungen, alle anderen bekommen die Frage einmal beim nächsten Start. iPhone und Android-Web-App über Web Push, Android-APK über Firebase. **Einrichtung Schritt für Schritt: [`docs/BENACHRICHTIGUNGEN.md`](docs/BENACHRICHTIGUNGEN.md).**
 
 ## Spielregeln
 
@@ -128,7 +130,7 @@ Zum Ausprobieren später Level: Kreativ-Modus im Spiel, oder in der Web-Fassung 
 - `src/game/mehr.ts` Mehrspieler-Logik (mehrere Schlangen, Leben, Abstand, Gebiete), `src/game/zustand.ts` Spielstand verschicken und übernehmen
 - `src/multi/` Mehrspieler in der App (Verbindung, Lobby, Anzeige) und das gemeinsame Protokoll
 - `server/` Snake-Server auf Cloudflare Workers (`raum.ts` sind die Regeln, testbar ohne Cloudflare; `push.ts` Web Push ohne Bibliothek)
-- `src/tages.ts` Tages-Herausforderung, `src/push.ts` und `public/push-sw.js` Push-Einladungen
+- `src/tages.ts` Tages-Herausforderung, `src/push.ts` und `public/push-sw.js` Benachrichtigungen (Web Push und Firebase in der APK, `server/fcm.ts`)
 - `android/` Capacitor-Projekt (Hochformat, Vollbild)
 
 ### Signierte Release-APK

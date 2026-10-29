@@ -6,6 +6,7 @@
  */
 import { DurableObject } from 'cloudflare:workers'
 import { codeGueltig, PROTOKOLL } from '../src/multi/protokoll'
+import { dienstkonto, fcmSenden } from './fcm'
 import { pushSenden, type PushAbo } from './push'
 import { RaumLogik, type Kanal } from './raum'
 
@@ -17,6 +18,39 @@ type Env = {
   VAPID_PUBLIC_KEY?: string
   VAPID_PRIVATE_KEY?: string
   VAPID_KONTAKT?: string
+  /** Fuer Benachrichtigungen an die Android-App (optional): Dienstkonto aus Firebase als JSON */
+  FCM_DIENSTKONTO?: string
+}
+
+/** Gespeichertes Abo eines Spielers: Web Push (Web-App, iPhone) oder ein Geraete-Token der Android-App */
+type Abo = (PushAbo & { fcm?: undefined }) | { fcm: string; endpoint?: undefined }
+/** Inhalt einer Benachrichtigung. art: einladung (mit code), nachricht (von), welt */
+type Inhalt = { titel: string; text: string; art: 'einladung' | 'nachricht' | 'welt'; tag: string; code?: string; von?: string; vonName?: string }
+
+const aboGueltig = (a: Partial<Abo> | null | undefined): a is Abo => !!a && (typeof a.fcm === 'string' ? a.fcm.length > 10 : !!(a.endpoint && a.keys?.p256dh && a.keys?.auth))
+
+/** Eine Benachrichtigung zustellen, je nach Abo ueber Web Push oder Firebase. Gibt den HTTP-Status zurueck (404/410: Abo weg) */
+async function zustellen(abo: Abo, inhalt: Inhalt, env: Env): Promise<number> {
+  if (abo.fcm !== undefined) {
+    const konto = dienstkonto(env.FCM_DIENSTKONTO)
+    if (!konto) return 501
+    const daten: Record<string, string> = { art: inhalt.art, code: inhalt.code ?? '', von: inhalt.von ?? '', vonName: inhalt.vonName ?? '' }
+    return fcmSenden(konto, abo.fcm, { titel: inhalt.titel, text: inhalt.text, tag: inhalt.tag, daten }).catch(() => 502)
+  }
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return 501
+  return pushSenden(abo, inhalt, { oeffentlich: env.VAPID_PUBLIC_KEY, privat: env.VAPID_PRIVATE_KEY, kontakt: env.VAPID_KONTAKT ?? 'https://github.com/kortjannis-web/Snake' }).catch(() => 502)
+}
+
+/** Ist ueberhaupt ein Weg fuer Benachrichtigungen eingerichtet? */
+const pushEingerichtet = (env: Env) => !!(env.SUPABASE_URL && env.SUPABASE_ANON_KEY && ((env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) || env.FCM_DIENSTKONTO))
+
+/** Supabase-Funktion mit dem Token des Absenders aufrufen (Supabase prueft, ob er das darf) */
+async function rpc(env: Env, token: string, fn: string, args: object): Promise<Response> {
+  return fetch(`${env.SUPABASE_URL!.replace(/\/$/, '')}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { apikey: env.SUPABASE_ANON_KEY!, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify(args),
+  })
 }
 
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS' }
@@ -42,7 +76,7 @@ const jwtNutzer = (token: string) => {
 async function einladen(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (req.method !== 'POST') return json({ ok: false, grund: 'nur POST' }, 405)
-  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return json({ ok: false, grund: 'nicht eingerichtet' }, 501)
+  if (!pushEingerichtet(env)) return json({ ok: false, grund: 'nicht eingerichtet' }, 501)
   const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
   let d: { an?: string; code?: string; modus?: string; vonName?: string }
   try {
@@ -57,11 +91,7 @@ async function einladen(req: Request, env: Env): Promise<Response> {
   if (Date.now() - (zuletzt.get(schluessel) ?? 0) < 10_000) return json({ ok: false, grund: 'zu oft' }, 429)
   zuletzt.set(schluessel, Date.now())
   if (zuletzt.size > 5000) zuletzt.clear()
-  const r = await fetch(`${env.SUPABASE_URL.replace(/\/$/, '')}/rest/v1/rpc/push_fuer`, {
-    method: 'POST',
-    headers: { apikey: env.SUPABASE_ANON_KEY, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ ziel: an }),
-  })
+  const r = await rpc(env, token, 'push_fuer', { ziel: an })
   if (!r.ok) return json({ ok: false, grund: 'kein Zugriff' }, 403)
   // Token ist gueltig (Supabase hat geantwortet): jetzt je Absender bremsen
   const sender = jwtNutzer(token)
@@ -73,15 +103,62 @@ async function einladen(req: Request, env: Env): Promise<Response> {
     proStunde.set(sender, liste)
     if (proStunde.size > 5000) proStunde.clear()
   }
-  const abo = (await r.json()) as PushAbo | null
-  if (!abo?.endpoint || !abo.keys?.p256dh || !abo.keys?.auth) return json({ ok: false, grund: 'kein Abo' }, 404)
+  const abo = (await r.json()) as Abo | null
+  if (!aboGueltig(abo)) return json({ ok: false, grund: 'kein Abo' }, 404)
   const name = String(d.vonName ?? 'Jemand').slice(0, 16)
-  const status = await pushSenden(
-    abo,
-    { titel: `${name} lädt dich ein`, text: `${MODUS_NAME[String(d.modus)] ?? 'Mehrspieler'} · Raum ${code}`, code },
-    { oeffentlich: env.VAPID_PUBLIC_KEY, privat: env.VAPID_PRIVATE_KEY, kontakt: env.VAPID_KONTAKT ?? 'https://github.com/kortjannis-web/Snake' },
-  )
+  const status = await zustellen(abo, { titel: `${name} lädt dich zum Kampf ein`, text: `${MODUS_NAME[String(d.modus)] ?? 'Mehrspieler'} · Raum ${code}`, art: 'einladung', tag: 'einladung', code, von: sender, vonName: name }, env)
+  if (status === 501) return json({ ok: false, grund: 'nicht eingerichtet' }, 501)
   return json({ ok: status < 300, status, grund: status === 404 || status === 410 ? 'Abo abgelaufen' : undefined }, status < 300 ? 200 : 502)
+}
+
+/** Bremse fuer /melden: je Absender hoechstens 60 Aufrufe pro Minute (je Server-Instanz) */
+const meldungen = new Map<string, number[]>()
+
+/**
+ * Benachrichtigung zu einer eben geschickten Nachricht: privat (an den Freund) oder im Weltchat (an alle, die es an haben,
+ * hoechstens alle 10 Minuten je Spieler). Supabase gibt die Abos nur fuer eine frische eigene Nachricht und nur einmal heraus;
+ * Text und Name kommen aus der Datenbank, nicht vom Absender. Weltchat: je Aufruf bis zu 40 Empfaenger, `weiter` sagt,
+ * ob noch welche fehlen (dann ruft die App noch einmal auf).
+ */
+async function melden(req: Request, env: Env): Promise<Response> {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
+  if (req.method !== 'POST') return json({ ok: false, grund: 'nur POST' }, 405)
+  if (!pushEingerichtet(env)) return json({ ok: false, grund: 'nicht eingerichtet' }, 501)
+  const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
+  let d: { art?: string; id?: number; ohne?: unknown }
+  try {
+    d = await req.json()
+  } catch {
+    return json({ ok: false, grund: 'kaputt' }, 400)
+  }
+  const id = Number(d.id)
+  if (!token || !Number.isSafeInteger(id) || id <= 0 || (d.art !== 'nachricht' && d.art !== 'welt')) return json({ ok: false, grund: 'ungueltig' }, 400)
+  const sender = jwtNutzer(token)
+  const jetzt = Date.now()
+  const liste = (meldungen.get(sender) ?? []).filter((t) => jetzt - t < 60_000)
+  if (liste.length >= 60) return json({ ok: false, grund: 'zu oft' }, 429)
+  liste.push(jetzt)
+  meldungen.set(sender, liste)
+  if (meldungen.size > 5000) meldungen.clear()
+
+  if (d.art === 'nachricht') {
+    const r = await rpc(env, token, 'push_nachricht', { nid: id })
+    if (!r.ok) return json({ ok: false, grund: 'kein Zugriff' }, 403)
+    const z = (await r.json()) as { abo?: Abo; name?: string; text?: string } | null
+    if (!z || !aboGueltig(z.abo)) return json({ ok: true, gesendet: 0 })
+    const name = String(z.name ?? 'Jemand').slice(0, 16)
+    const status = await zustellen(z.abo, { titel: name, text: String(z.text ?? ''), art: 'nachricht', tag: `chat-${sender}`, von: sender, vonName: name }, env)
+    return json({ ok: true, gesendet: status < 300 ? 1 : 0 })
+  }
+  const ohne = Array.isArray(d.ohne) ? d.ohne.filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 500) : []
+  const r = await rpc(env, token, 'push_welt', { nid: id, ohne })
+  if (!r.ok) return json({ ok: false, grund: 'kein Zugriff' }, 403)
+  const z = (await r.json()) as { abos?: Abo[]; fertig?: boolean; name?: string; text?: string } | null
+  const abos = (z?.abos ?? []).filter(aboGueltig).slice(0, 40)
+  const name = String(z?.name ?? 'Jemand').slice(0, 16)
+  const inhalt: Inhalt = { titel: 'Weltchat', text: `${name}: ${String(z?.text ?? '')}`, art: 'welt', tag: 'weltchat', von: sender, vonName: name }
+  const st = await Promise.all(abos.map((a) => zustellen(a, inhalt, env)))
+  return json({ ok: true, gesendet: st.filter((s) => s < 300).length, weiter: z?.fertig === false })
 }
 
 export default {
@@ -89,6 +166,7 @@ export default {
     const url = new URL(req.url)
     if (url.pathname === '/') return new Response(`Snake-Server, Protokoll ${PROTOKOLL}`, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
     if (url.pathname === '/einladen') return einladen(req, env)
+    if (url.pathname === '/melden') return melden(req, env)
     const m = url.pathname.match(/^\/raum\/([A-Za-z0-9]{4,8})$/)
     if (!m || !codeGueltig(m[1].toUpperCase())) return new Response('Nicht gefunden', { status: 404 })
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('Nur WebSocket', { status: 426 })

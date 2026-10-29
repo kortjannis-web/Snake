@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="snake_bg">#171513</color>
+    <color name="snake_benachrichtigung">#8FD6BD</color>
 </resources>
