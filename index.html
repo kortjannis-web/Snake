@@ -87,7 +87,7 @@
               <button class="geld-pille" data-go="shop" aria-label="Äpfel und Skins"><i class="apfel-ico" aria-hidden="true"></i><b id="home-geld">0</b></button>
               <span class="geld-pille geld-pille--trophaee" title="Gold-Trophäen aus Mehrspieler-Siegen, Silber-Trophäen: alle bisher verdienten Äpfel"><span data-icon="Trophy" aria-hidden="true"></span><b id="home-trophaeen" aria-label="Gold-Trophäen">0</b><span class="silber" data-icon="Trophy" aria-hidden="true"></span><b id="home-silber" aria-label="Silber-Trophäen">0</b></span>
             </div>
-            <button class="icon-btn" id="btn-kreativ-home" data-go="kreativ" aria-label="Kreativ-Modus" title="Kreativ-Modus (Admin)" data-icon="Pencil" hidden></button>
+            <button class="icon-btn icon-btn--feedback" id="btn-feedback" data-go="feedback" aria-label="Feedback geben" title="Feedback" data-icon="CircleAlert"></button>
             <button class="icon-btn" data-go="help" aria-label="Anleitung" title="Anleitung" data-icon="CircleHelp"></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
@@ -124,6 +124,20 @@
       </section>
 
       <!-- Pause -->
+      <!-- Patchnotes: einmal nach einem Update -->
+      <section class="screen screen--dim screen--patch" id="patchnotes" role="dialog" aria-modal="true" aria-labelledby="patch-titel">
+        <div class="card patch">
+          <h2 class="card__title" id="patch-titel">Neu im Spiel</h2>
+          <p class="card__sub" id="patch-version"></p>
+          <ol class="patch__liste">
+            <li>Es gibt Kampagnen bis Level 30, inklusive 3 Bossen und neuen Gegnern.</li>
+            <li>Alle neuen Sachen kommen auch im Endlos-Modus vor: bei Level 60, 100 und 150.</li>
+            <li>Es gibt jetzt einen Feedback-Knopf (das orange Ausrufezeichen oben). Lasst dort gerne all eure Kritik, Ideen und Feedback da. Ich setze alles um, was ihr sagt 👌🏼</li>
+          </ol>
+          <button class="btn btn--play" id="patch-ok"><span data-icon="Check"></span>Los geht's</button>
+        </div>
+      </section>
+
       <section class="screen screen--dim" id="pause">
         <div class="card">
           <h2 class="card__title">Pause</h2>
@@ -493,6 +507,11 @@
               <div class="liste" id="admin-liste"></div>
               <p class="fine" id="admin-info"></p>
             </details>
+            <details class="master zeitleiste" id="admin-feedback">
+              <summary><span data-icon="CircleAlert"></span>Feedback der Spieler</summary>
+              <div class="liste feedback-liste" id="admin-feedback-liste"></div>
+              <p class="fine" id="admin-feedback-info"></p>
+            </details>
             <p class="hinweis">Wahrscheinlichkeiten: wie oft etwas kommt, je Welt. Änderungen gelten ab dem nächsten Spiel (auch im Kreativ-Modus).</p>
             <div id="master-list"></div>
             <div class="master">
@@ -501,6 +520,23 @@
               <div id="master-welt-list" class="uebersicht"></div>
             </div>
             <button class="btn btn--danger" id="btn-master-reset"><span data-icon="RotateCcw"></span>Alles auf Standard</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feedback: einzelne Punkte schreiben, gehen an den Admin -->
+      <section class="screen screen--page" id="feedback">
+        <div class="page">
+          <header class="page__head">
+            <button class="icon-btn" data-back aria-label="Zurück" data-icon="ArrowLeft"></button>
+            <h2>Feedback</h2>
+          </header>
+          <div class="page__body">
+            <p class="hinweis">Kritik, Ideen, Wünsche, Fehler: alles her damit. Jeder Punkt ein eigenes Feld.</p>
+            <div class="feedback-punkte" id="feedback-punkte"></div>
+            <button class="btn btn--ghost" id="feedback-plus"><span data-icon="Plus"></span>Noch ein Punkt</button>
+            <button class="btn btn--play" id="feedback-senden"><span data-icon="Send"></span>Abschicken</button>
+            <p class="fine" id="feedback-info" aria-live="polite"></p>
           </div>
         </div>
       </section>

@@ -822,6 +822,36 @@ export async function adminLoeschen(code: string, ziel: string) {
   throw new Error(error.code === 'P0001' ? fehlerText(error) : `${fehlerText(error)} (${error.code ?? '?'}: ${error.message})`)
 }
 
+/** Funktion fehlt in der Datenbank (SQL noch nicht ausgefuehrt) */
+const rpcFehlt = (e: { code?: string } | null) => !!e && (e.code === 'PGRST202' || e.code === '42883' || e.code === '42P01')
+
+/** Feedback der Spieler: einzelne Punkte, geht an den Admin. Auch ohne Anmeldung */
+export async function feedbackSenden(punkte: string[], version: string) {
+  if (!onlineAktiv) throw new Error('Online ist nicht eingerichtet.')
+  const sb = await client()
+  const { error } = await sb.rpc('feedback_senden', { p_punkte: punkte, p_name: profil.name || null, p_version: version })
+  if (!error) return
+  if (rpcFehlt(error)) throw new Error('Feedback geht gerade noch nicht. Versuch es bald noch mal.')
+  throw new Error(fehlerText(error))
+}
+
+export type Feedback = { id: number; name: string | null; punkte: string[]; version: string | null; erstellt: string }
+
+/** Admin: alles Feedback, neuestes zuerst */
+export async function adminFeedback(code: string): Promise<Feedback[]> {
+  const sb = await client()
+  const { data, error } = await sb.rpc('admin_feedback', { code })
+  if (!error) return (data ?? []) as Feedback[]
+  if (rpcFehlt(error)) throw new Error('Feedback fehlt in der Datenbank. Einmal die Datei supabase/NACHHOLEN.sql im Supabase SQL Editor ausführen.')
+  throw new Error(fehlerText(error))
+}
+
+export async function adminFeedbackLoeschen(code: string, id: number) {
+  const sb = await client()
+  const { error } = await sb.rpc('admin_feedback_loeschen', { code, ziel: id })
+  if (error) throw new Error(fehlerText(error))
+}
+
 export async function meineAnfragen(): Promise<Anfrage[]> {
   if (!onlineAktiv || !profil.name) return []
   try {

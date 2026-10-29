@@ -384,23 +384,34 @@ export class BergKacheln {
         c.fillStyle = 'rgba(130, 92, 58, 0.45)'
         for (let i = 0; i < 2; i++) c.fillRect(x * cell + hash(x, y, 66 + i) * cell, y * cell + hash(x, y, 68 + i) * cell, cell * 0.07, cell * 0.07)
         // Direkt am Gang: Wurzeln haengen heraus
-        if (d === 1 && hash(x, y, 70) < 0.35) {
+        // Wurzel: selten, eine einzelne, krumm und jedes Mal anders (nicht spiegelgleich), manchmal mit einem Seitentrieb
+        if (d === 1 && hash(x, y, 70) < 0.09) {
           const nb = NACHBARN.find(([dx, dy]) => boden(x + dx, y + dy))
           if (nb) {
             const [dx, dy] = nb
-            const ox = px(x) + dx * cell * 0.5
-            const oy = px(y) + dy * cell * 0.5
-            c.strokeStyle = 'rgba(176, 138, 92, 0.85)'
-            c.lineWidth = Math.max(1, cell * 0.05)
+            const q = (hash(x, y, 71) - 0.5) * cell * 0.8
+            const sx = px(x) + dx * cell * 0.5 + (dy ? q : 0)
+            const sy = px(y) + dy * cell * 0.5 + (dx ? q : 0)
+            const len = cell * (0.2 + hash(x, y, 73) * 0.45)
+            const bieg = (hash(x, y, 74) - 0.5) * cell * 0.5
+            const ex = sx + dx * len + dy * bieg * 0.6
+            const ey = sy + dy * len + dx * bieg * 0.6
+            c.strokeStyle = 'rgba(150, 118, 80, 0.7)'
+            c.lineWidth = Math.max(1, cell * (0.03 + hash(x, y, 75) * 0.035))
             c.lineCap = 'round'
-            for (let i = 0; i < 2; i++) {
-              const q = (hash(x, y, 71 + i) - 0.5) * cell * 0.7
-              const sx = ox + (dy ? q : 0)
-              const sy = oy + (dx ? q : 0)
-              const len = cell * (0.25 + hash(x, y, 73 + i) * 0.3)
+            c.beginPath()
+            c.moveTo(sx - dx * cell * 0.12, sy - dy * cell * 0.12)
+            c.quadraticCurveTo(sx + dx * len * 0.5 + dy * bieg, sy + dy * len * 0.5 + dx * bieg, ex, ey)
+            c.stroke()
+            if (hash(x, y, 76) < 0.4) {
+              const t = 0.4 + hash(x, y, 77) * 0.3
+              const mx = sx + dx * len * t + dy * bieg * 0.5
+              const my = sy + dy * len * t + dx * bieg * 0.5
+              const seite = hash(x, y, 78) < 0.5 ? -1 : 1
+              c.lineWidth = Math.max(1, cell * 0.022)
               c.beginPath()
-              c.moveTo(sx - dx * cell * 0.15, sy - dy * cell * 0.15)
-              c.quadraticCurveTo(sx + dx * len * 0.5 + dy * cell * 0.1, sy + dy * len * 0.5 + dx * cell * 0.1, sx + dx * len, sy + dy * len)
+              c.moveTo(mx, my)
+              c.lineTo(mx + dx * cell * 0.12 + dy * seite * cell * 0.16, my + dy * cell * 0.12 + dx * seite * cell * 0.16)
               c.stroke()
             }
           }

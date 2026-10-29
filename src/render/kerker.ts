@@ -74,8 +74,8 @@ export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, c
     ctx.ellipse(ax + r * 0.2, ay + r * 0.3, r * 1.05, r * 0.9, 0, 0, TAU)
     ctx.fill()
     const zu = !reduce && (now / 4100 + hash(seed + i)) % 1 < 0.035
-    // Gedeckt: graugelblich statt weiss, damit es sich nicht vom Boden abhebt
-    ctx.fillStyle = '#A99F8C'
+    // Gedeckt: graugelblich statt weiss, damit es sich nicht vom Boden abhebt; ein gefaehrlicher Klumpen eine Spur heller
+    ctx.fillStyle = klumpen ? '#B5AC9A' : '#A99F8C'
     ctx.beginPath()
     ctx.ellipse(ax, ay, r, zu ? r * 0.15 : r * 0.88, 0, 0, TAU)
     ctx.fill()
@@ -100,20 +100,23 @@ export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, c
 
 /** Ein Buch am Boden (Kaefigmeister): zugeklappt oder aufgeschlagen, schraeg hingeworfen */
 export function drawBuchAmBoden(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, seed: number) {
-  const auf = hash(seed) < 0.45
-  const farben = ['#5A2A2A', '#2A3A5A', '#3A4A2A', '#4A3A22']
+  // Gedeckt und klein, kaum heller oder dunkler als der Steinboden: soll nur beim Hinsehen auffallen
+  const auf = hash(seed) < 0.4
+  const farben = ['#4A403A', '#3E4248', '#43443A', '#4A4236']
   ctx.save()
+  ctx.globalAlpha = 0.55
   ctx.translate(x + (hash(seed + 1) - 0.5) * cell * 0.3, y + (hash(seed + 2) - 0.5) * cell * 0.3)
   ctx.rotate((hash(seed + 3) - 0.5) * 2.4)
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
-  ctx.fillRect(-cell * 0.26 + 2, -cell * 0.19 + 2, cell * 0.52, cell * 0.38)
+  ctx.scale(0.8, 0.8)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'
+  ctx.fillRect(-cell * 0.26 + 1, -cell * 0.19 + 1, cell * 0.52, cell * 0.38)
+  ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
   if (auf) {
-    ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
     ctx.fillRect(-cell * 0.3, -cell * 0.2, cell * 0.6, cell * 0.4)
-    ctx.fillStyle = '#E4D7B8'
+    ctx.fillStyle = '#8C857A'
     ctx.fillRect(-cell * 0.27, -cell * 0.17, cell * 0.25, cell * 0.34)
     ctx.fillRect(cell * 0.02, -cell * 0.17, cell * 0.25, cell * 0.34)
-    ctx.strokeStyle = 'rgba(120, 90, 160, 0.7)'
+    ctx.strokeStyle = 'rgba(70, 64, 60, 0.6)'
     ctx.lineWidth = Math.max(0.6, cell * 0.02)
     for (let i = 0; i < 3; i++) {
       ctx.beginPath()
@@ -124,12 +127,9 @@ export function drawBuchAmBoden(ctx: CanvasRenderingContext2D, x: number, y: num
       ctx.stroke()
     }
   } else {
-    ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
     ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.44, cell * 0.34)
-    ctx.fillStyle = '#C9A24A'
-    ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.06, cell * 0.34)
-    ctx.fillStyle = '#E4D7B8'
-    ctx.fillRect(cell * 0.18, -cell * 0.15, cell * 0.03, cell * 0.3)
+    ctx.fillStyle = '#6E6150'
+    ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.05, cell * 0.34)
   }
   ctx.restore()
 }

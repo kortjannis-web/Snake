@@ -2306,7 +2306,7 @@ export class Renderer {
     // Buecher: fest je Feld (Weltkoordinaten), dichter in seinen Raeumen
     const buch = (c: P, imRaum: boolean) => {
       const w = g.welt_(c)
-      if (feldZufall(w.x * 7 + 3, w.y * 5 + 11) > (imRaum ? 0.96 : 0.992)) drawBuchAmBoden(ctx, (c.x + 0.5) * cell, (c.y + 0.5) * cell, cell, w.x * 13 + w.y * 7)
+      if (feldZufall(w.x * 7 + 3, w.y * 5 + 11) > (imRaum ? 0.985 : 0.997)) drawBuchAmBoden(ctx, (c.x + 0.5) * cell, (c.y + 0.5) * cell, cell, w.x * 13 + w.y * 7)
     }
     if (g instanceof KaefigBossGame) {
       const frei = g.hindernisse()

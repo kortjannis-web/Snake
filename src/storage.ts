@@ -223,3 +223,13 @@ export function verdienenModus(wert: number, prozent: number): number {
     saveWallet()
   }
 }
+
+/** Patchnotes: welche zuletzt gezeigt wurden (je Geraet, einmal nach einem Update) */
+const PKEY = 'snake.patchnotes'
+export const PATCHNOTES = '1.52'
+export function patchnotesNeu() {
+  return read<{ v?: string }>(PKEY, {}).v !== PATCHNOTES
+}
+export function patchnotesGesehen() {
+  write(PKEY, { v: PATCHNOTES })
+}
