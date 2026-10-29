@@ -109,13 +109,13 @@
               <button class="btn btn--ghost" id="btn-tages"><span data-icon="Sun"></span>Täglich</button>
             </div>
             <div class="home__paar home__paar--eins" id="home-online" hidden>
-              <button class="btn btn--ghost" id="btn-hall" data-go="hall"><span data-icon="Crown"></span>Hall of Snakes</button>
+              <button class="btn btn--ghost btn--badge" id="btn-hall" data-go="hall"><span data-icon="Crown"></span>Hall of Snakes<i class="tile-badge" id="hall-badge" hidden></i></button>
             </div>
             <button class="update-hinweis" id="update-hinweis" hidden></button>
             <p class="home__best" id="home-best"></p>
             <div class="home__row home__row--4 home__row--flex">
               <button class="tile-btn" data-go="shop"><span data-icon="Palette"></span>Aussehen</button>
-              <button class="tile-btn" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online<i class="tile-badge" id="online-badge" hidden></i></button>
+              <button class="tile-btn" id="btn-map"><span data-icon="Map"></span>Map</button>
               <button class="tile-btn" data-go="stats"><span data-icon="ChartColumn"></span>Statistik</button>
               <button class="tile-btn" data-go="settings"><span data-icon="Settings"></span>Optionen</button>
             </div>
@@ -123,7 +123,6 @@
         </div>
       </section>
 
-      <!-- Pause -->
       <!-- Patchnotes: einmal nach einem Update, vier Folien mit kurzen Trailern (public/patch, npm run patch-videos) -->
       <section class="screen screen--dim screen--patch" id="patchnotes" role="dialog" aria-modal="true" aria-labelledby="patch-titel">
         <div class="card patch">
@@ -174,8 +173,9 @@
                 </video>
               </div>
               <p class="patch__unter">Neu · 4 von 4</p>
-              <h2 class="patch__titel">Alle Welten</h2>
+              <h2 class="patch__titel">Alle Welten, neues Menü</h2>
               <p class="patch__text" id="patch-welten">Wiese, Wüste, Winter, Bergwerk, Zauberwald, Gruselwald und Vulkan.</p>
+              <p class="patch__text patch__text--extra">Ihr findet sie jetzt unten im Menü unter <b>Map</b>. Und der <b>Online-Modus</b> steckt ab sofort in der <b>Hall of Snakes</b>.</p>
             </article>
             </div>
           </div>
@@ -187,6 +187,7 @@
         </div>
       </section>
 
+      <!-- Pause -->
       <section class="screen screen--dim" id="pause">
         <div class="card">
           <h2 class="card__title">Pause</h2>
@@ -598,6 +599,8 @@
             <h2>Hall of Snakes</h2>
           </header>
           <div class="page__body">
+            <!-- Online-Modus (seit 1.52 hier statt unten im Startmenue): Raeume, Freunde, Anfragen, Chat -->
+            <button class="btn btn--play btn--badge hall-online" id="btn-mehr" data-go="mehr" hidden><span data-icon="Users"></span>Online spielen<i class="tile-badge" id="online-badge" hidden></i></button>
             <form class="opt opt--col liste-name" id="liste-form" autocomplete="off">
               <label class="opt__t" for="liste-name">Dein Name<small id="liste-name-info">So sehen dich die anderen.</small></label>
               <div class="liste-name__row">

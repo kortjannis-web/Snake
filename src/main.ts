@@ -1753,7 +1753,7 @@ type Teil = 'farben' | 'skins' | 'acc' | 'spuren' | 'effekte' | 'welten'
 let shopTeil: Teil = 'farben'
 /** Welcher Teil der Schlange gerade eine Farbe bekommt (zwei- und dreifarbig) */
 let farbTeil = 0
-const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren', effekte: 'Effekte', welten: 'Welten' }
+const TEIL_TITEL: Record<Teil, string> = { farben: 'Farben', skins: 'Skins', acc: 'Accessoires', spuren: 'Spuren', effekte: 'Effekte', welten: 'Map' }
 /** Welt-Vorschauen (gezeichnet, im Shop bewegt) */
 const weltCanvas: { cv: HTMLCanvasElement; welt: Welt }[] = []
 function weltVorschauCanvas(welt: Welt) {
@@ -1821,22 +1821,13 @@ function renderShop() {
     })
     box.append(b)
   }
-  // Welten: breiter Knopf mit der aktuellen Welt
-  const b = document.createElement('button')
-  b.className = 'aussehen__kachel aussehen__kachel--breit'
-  const frei = WELTEN.filter(weltOffen).length
-  b.append(weltVorschauCanvas(renderer.welt))
-  const t = document.createElement('b')
-  t.textContent = 'Welten'
-  const s = document.createElement('span')
-  s.textContent = `${frei} von ${WELTEN.length} frei · ${renderer.welt.name}`
-  b.append(t, s)
-  b.addEventListener('click', () => {
-    shopTeil = 'welten'
-    openPage('shopteil')
-  })
-  box.append(b)
 }
+/** Map (Startmenue unten, seit 1.52; frueher im Aussehen): alle Welten */
+$('btn-map').addEventListener('click', () => {
+  audio.unlock()
+  shopTeil = 'welten'
+  openPage('shopteil')
+})
 
 /** Karte fuer eine kaufbare Sache. an = gerade getragen */
 function shopKarte(id: string, name: string, an: boolean, waehlen: () => void, zeile = false) {
@@ -3578,10 +3569,14 @@ async function freundeLaden() {
 function badgeZeichnen() {
   let n = anfragen.filter((a) => a.richtung === 'ein').length
   for (const z of ungelesen.values()) n += z
-  const b = $('online-badge')
-  b.hidden = n === 0
-  b.textContent = n > 99 ? '99+' : String(n)
-  $('btn-mehr').setAttribute('aria-label', n ? `Online, ${n} neu` : 'Online')
+  // Am Online-Knopf (Hall of Snakes) und am Knopf der Hall im Startmenue
+  for (const id of ['online-badge', 'hall-badge']) {
+    const b = $(id)
+    b.hidden = n === 0
+    b.textContent = n > 99 ? '99+' : String(n)
+  }
+  $('btn-mehr').setAttribute('aria-label', n ? `Online spielen, ${n} neu` : 'Online spielen')
+  $('btn-hall').setAttribute('aria-label', n ? `Hall of Snakes, ${n} neu` : 'Hall of Snakes')
 }
 
 /** Offene Freundschaftsanfragen auf der Mehrspieler-Seite */

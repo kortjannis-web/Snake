@@ -31,13 +31,13 @@ const CLIPS = {
     { dauer: sek(2.6), szene: { mission: 10, hin: 'boss', laenge: 10, feld: 15, vorlauf: 1500, unter: 'Mission 10 · Boss', titel: 'Der Steingolem' } },
     { dauer: sek(2.6), szene: { mission: 20, hin: 'boss', laenge: 10, feld: 15, vorlauf: 2500, unter: 'Mission 20 · Boss', titel: 'Der Ent' } },
     { dauer: sek(2.4), szene: { mission: 29, hin: 'kaefig', laenge: 9, feld: 22, vorlauf: 300, unter: 'Neue Gegner', titel: 'Käfigköpfe' } },
-    { dauer: sek(3), szene: { mission: 30, hin: 'boss', laenge: 10, feld: 19, vorher: 3000, nah: 2, weit: 4, vorlauf: 1200, unter: 'Mission 30 · Boss', titel: 'Der Käfigmeister' } },
+    { dauer: sek(3), szene: { mission: 30, hin: 'boss', laenge: 10, feld: 17, vorher: 3000, nah: 3, weit: 5, vorlauf: 200, unter: 'Mission 30 · Boss', titel: 'Der Käfigmeister' } },
   ],
   endlos: [
     { dauer: sek(2.6), szene: { level: 59, aufsteigen: true, hin: 'boss', laenge: 16, feld: 15, vorlauf: 2500, seed: 7, unter: 'Endlos · Level 60', titel: 'Steingolem' } },
     { dauer: sek(2.6), szene: { level: 99, aufsteigen: true, hin: 'boss', laenge: 16, feld: 15, vorlauf: 3000, seed: 7, unter: 'Endlos · Level 100', titel: 'Ent' } },
     { dauer: sek(2.4), szene: { level: 144, aufsteigen: true, hin: 'kerker', laenge: 14, feld: 18, vorlauf: 800, seed: 7, unter: 'Endlos · Level 145', titel: 'Kerker' } },
-    { dauer: sek(3), szene: { level: 149, aufsteigen: true, hin: 'boss', laenge: 16, feld: 17, vorher: 3000, nah: 2, weit: 4, vorlauf: 1200, seed: 7, unter: 'Endlos · Level 150', titel: 'Käfigmeister' } },
+    { dauer: sek(3), szene: { level: 149, aufsteigen: true, hin: 'boss', laenge: 16, feld: 16, vorher: 3000, nah: 3, weit: 5, vorlauf: 200, seed: 7, unter: 'Endlos · Level 150', titel: 'Käfigmeister' } },
   ],
 }
 

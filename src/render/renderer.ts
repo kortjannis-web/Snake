@@ -179,6 +179,23 @@ function apfelBlitze(ctx: CanvasRenderingContext2D, x: number, y: number, cell: 
   }
 }
 
+/** Kaefigkopf senkt den Kopf: in jedem 24-s-Abschnitt einmal, Beginn 0 bis 6 s nach Abschnittsanfang, 2 bis 6 s lang
+ *  (dazwischen also 12 bis 28 s aufrecht), je Kaefigkopf (nr) anders verschoben. Weich hinein und heraus, 0..1 */
+function kaefigNeigung(now: number, nr: number) {
+  const S = 24000
+  const t = now + nr * 9137
+  const n = Math.floor(t / S)
+  const r = (k: number) => {
+    const v = Math.sin(n * 12.9898 + nr * 78.233 + k * 37.719) * 43758.5453
+    return v - Math.floor(v)
+  }
+  const ab = n * S + r(1) * 6000
+  const dauer = 2000 + r(2) * 4000
+  const z = t - ab
+  if (z < 0 || z > dauer) return 0
+  return Math.min(1, z / 450, (dauer - z) / 450)
+}
+
 export class Renderer {
   /** Mehrspieler: andere Schlangen und was nur dieses Geraet sieht (null = Einzelspiel) */
   mehr: MehrAnzeige | null = null
@@ -1066,10 +1083,10 @@ export class Renderer {
       if (mg.jagt >= 0) drawMinigolemEntdeckt(ctx, x, y, cell, (now - mg.jagt) / 900)
     }
     // Kaefigkoepfe: torkeln geradeaus, sehen sie dich, bleiben sie stehen (Ausrufezeichen) und werfen Strahlen
-    for (const z of g.kaefige) {
-        if (!sicht(z.p, 10)) continue
+    g.kaefige.forEach((z, nr) => {
+        if (!sicht(z.p, 10)) return
         if (z.strahl.length) drawKaefigStrahl(ctx, z.p, z.strahl, (now - z.strahlT) / KAEFIG.strahl, cell, now)
-        if (!sicht(z.p, 2)) continue
+        if (!sicht(z.p, 2)) return
         const k = this.reduce ? 1 : easeOut(clamp01((now - z.schrittT) / 420))
         const x = px(lerp(z.from.x, z.p.x, k))
         const y = px(lerp(z.from.y, z.p.y, k))
@@ -1080,10 +1097,12 @@ export class Renderer {
         const ang = lerp(a0, a1, this.reduce ? 1 : easeOut(clamp01((now - z.drehT) / 320)))
         const an = z.angriff
         const laden = an ? clamp01((now - an.ab) / Math.max(1, an.los - an.ab)) : 0
-        drawKaefigkopf(ctx, x, y, cell, ang, k < 1 ? ((now - z.schrittT) / 820) % 1 : -1, z.jagt >= 0, laden, now, this.reduce)
+        // Ab und zu senkt er den Kopf (lehnt sich nach vorn), solange er niemanden sieht
+        const neig = z.jagt >= 0 || an ? 0 : kaefigNeigung(now, nr)
+        drawKaefigkopf(ctx, x, y, cell, ang, k < 1 ? ((now - z.schrittT) / 820) % 1 : -1, z.jagt >= 0, laden, now, this.reduce, neig)
         if (z.jagt >= 0) drawKaefigEntdeckt(ctx, x, y, cell, (now - z.jagt) / 900)
         licht(x, y, cell * 1.4)
-      }
+      })
     // Der Kaefigmeister (Mission 30 und freies Spiel): Flammen im Raum, Angriffe, er selbst, Flammen im Flug
     const meister = g instanceof KaefigBossGame ? g.kampf : g.freiMeister
     if (meister) {
@@ -1102,7 +1121,10 @@ export class Renderer {
       } else if (M.zustand === 'getroffen' || M.zustand === 'tot') sichtbar = 1 - clamp01((now - M.t) / 700)
       if (sicht(M.p, 3)) {
         const laden = a && a.art !== 'teleport' && now < a.los ? clamp01((now - a.ab) / Math.max(1, a.los - a.ab)) : 0
-        drawMeister(ctx, px(M.p.x), px(M.p.y), cell, M.winkel, sichtbar, laden, clamp01(1 - (now - M.trefferT) / 300), now, this.reduce)
+        // Lachen: Kopf geht in 250 ms in den Nacken, am Ende in 350 ms wieder nach vorn
+        const lz = now - M.lachT
+        const lachen = lz < 0 || lz > MEISTER.lachen ? 0 : Math.min(clamp01(lz / 250), clamp01((MEISTER.lachen - lz) / 350))
+        drawMeister(ctx, px(M.p.x), px(M.p.y), cell, M.winkel, sichtbar, laden, clamp01(1 - (now - M.trefferT) / 300), now, this.reduce, lachen)
         if (M.zustand === 'erscheint') drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - M.t) / MEISTER.erscheinen, now)
         if (a?.art === 'teleport') {
           drawMeisterKreis(ctx, px(M.von.x), px(M.von.y), cell, (now - a.ab) / 700, now)
@@ -2322,11 +2344,11 @@ export class Renderer {
       const r = k.raum
       for (const c of k.cells) if (sicht(c) && !g.aufSchlange(c)) buch(c, c.x >= r.x0 && c.x <= r.x1 && c.y >= r.y0 && c.y <= r.y1)
     }
-    // Augen: kleine Haeufchen, meist an Waenden und in Ecken; sie schauen zum Kopf
+    // Augen: meist schauen sie an Waenden und in Ecken von der Seite herein, ab und zu liegen sie frei am Boden (gefaehrlich)
     for (const a of g.augen) {
       if (!sicht(a.p) || g.aufSchlange(a.p)) continue
-      const d = DIRS4.find((o) => !g.inside({ x: a.p.x + o.x, y: a.p.y + o.y })) ?? null
-      drawAugen(ctx, (a.p.x + 0.5) * cell, (a.p.y + 0.5) * cell, cell, a.n, a.seed, d, kx, ky, now, this.reduce)
+      const d = a.boden ? null : (DIRS4.find((o) => !g.inside({ x: a.p.x + o.x, y: a.p.y + o.y })) ?? null)
+      drawAugen(ctx, (a.p.x + 0.5) * cell, (a.p.y + 0.5) * cell, cell, a.n, a.seed, d, kx, ky, now, this.reduce, a.boden)
     }
   }
 

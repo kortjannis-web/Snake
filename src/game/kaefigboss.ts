@@ -17,7 +17,8 @@ export class KaefigBossGame extends MissionGame {
 
   constructor(m: MissionDef, quer = false) {
     super(m, quer)
-    const halb = quer ? { x: 4, y: 5 } : { x: 5, y: 4 }
+    // Raeume 15 x 13 (geraeumig, die Schlange ist im Kampf lang)
+    const halb = quer ? { x: 6, y: 7 } : { x: 7, y: 6 }
     const raeume: MeisterRaum[] = this.karte.raeume.map((c, nr) => ({ nr, mitte: { ...c }, x0: c.x - halb.x, y0: c.y - halb.y, x1: c.x + halb.x, y1: c.y + halb.y }))
     const spiel = this
     this.kampf = new Meisterkampf(

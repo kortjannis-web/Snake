@@ -3559,9 +3559,20 @@ html[data-install] #app {
 .patch {
   gap: 10px;
   width: min(100%, 400px);
+  max-height: 100%;
   padding: 14px 14px 12px;
   text-align: left;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.patch__text--extra {
+  min-height: 0;
+  margin-top: 6px;
+}
+
+.patch__text b {
+  color: var(--creme);
 }
 
 .patch__kopf {
@@ -3696,4 +3707,18 @@ html[data-install] #app {
   .patch__band {
     transition: none;
   }
+}
+
+/* Zaehler (Anfragen, Nachrichten) an grossen Knoepfen: Hall of Snakes im Startmenue, Online spielen in der Hall */
+.btn--badge {
+  position: relative;
+}
+
+.btn--badge .tile-badge {
+  top: -4px;
+  right: 10px;
+}
+
+.hall-online {
+  margin-bottom: 4px;
 }

@@ -32,12 +32,14 @@ function rune(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, n:
 
 /**
  * Der Kaefigmeister, Blick nach +x (winkel dreht). sicht: 0..1 (erscheinen, Teleport), laden: 0..1 (holt aus, das Buch
- * gluehen), blitz: 0..1 nach einem Flammentreffer
+ * gluehen), blitz: 0..1 nach einem Flammentreffer, lachen: 0..1 (legt den Kopf in den Nacken, man sieht sein Gesicht im Kaefig)
  */
-export function drawMeister(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, winkel: number, sicht: number, laden: number, blitz: number, now: number, reduce: boolean) {
+export function drawMeister(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, winkel: number, sicht: number, laden: number, blitz: number, now: number, reduce: boolean, lachen = 0) {
   if (sicht <= 0) return
   const u = cell * 0.9
-  const schweb = reduce ? 0 : Math.sin(now / 600) * cell * 0.04
+  // Beim Lachen bebt er (Schultern zucken), statt zu schweben
+  const beben = lachen > 0 && !reduce ? Math.abs(Math.sin(now / 95)) * cell * 0.05 * lachen : 0
+  const schweb = (reduce ? 0 : Math.sin(now / 600) * cell * 0.04 * (1 - lachen)) - beben
   ctx.save()
   ctx.globalAlpha = sicht
   // Schatten und violetter Schein am Boden
@@ -115,8 +117,21 @@ export function drawMeister(ctx: CanvasRenderingContext2D, x: number, y: number,
       ctx.strokeStyle = RUNE(0.8 * (1 - k))
       rune(ctx, bx + u * (0.2 + k * 0.9), (hash(i + 5) - 0.5) * u * 1.2, u * 0.08, i * 3)
     }
-  // Kopf im grossen Kaefig: dunkler Kopf, Augen glimmen, ein Ring und viele Staebe, oben ein Knauf
+  // Kopf im grossen Kaefig: dunkler Kopf, Augen glimmen, ein Ring und viele Staebe, oben ein Knauf.
+  // Lacht er, liegt der Kopf im Nacken (nach hinten geschoben) und man sieht von vorn durch die Staebe sein Gesicht
   const kr = u * 0.52
+  if (lachen > 0) {
+    ctx.save()
+    ctx.translate(-kr * 0.45 * lachen, 0)
+    ctx.globalAlpha = sicht * lachen
+    lachKopf(ctx, kr, winkel, now, reduce)
+    ctx.restore()
+    if (lachen >= 1) {
+      ctx.restore()
+      return
+    }
+    ctx.globalAlpha = sicht * (1 - lachen)
+  }
   ctx.fillStyle = '#2A2420'
   ctx.beginPath()
   ctx.arc(0, 0, kr * 0.72, 0, TAU)
@@ -163,6 +178,71 @@ export function drawMeister(ctx: CanvasRenderingContext2D, x: number, y: number,
     ctx.fill()
   }
   ctx.restore()
+}
+
+/** Der Kopf von vorn im Kaefig (er lacht, den Kopf im Nacken): fahles Gesicht mit zugekniffenen, gluehenden Augen und
+ *  offenem Mund, davor senkrechte Staebe, die sich zum Rand hin woelben, ein Ring um die Mitte, oben der Knauf. Das Gesicht
+ *  steht aufrecht im Bild (gegen die Drehung des Koerpers), damit man es erkennt */
+function lachKopf(ctx: CanvasRenderingContext2D, kr: number, winkel: number, now: number, reduce: boolean) {
+  ctx.rotate(-winkel)
+  const r = kr * 1.12
+  const ha = reduce ? 0 : Math.sin(now / 95) * r * 0.06
+  // Kaefig hinten (dunkler Grund) und das Gesicht
+  ctx.fillStyle = '#1C1714'
+  ctx.beginPath()
+  ctx.arc(0, 0, r, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#8F8473'
+  ctx.beginPath()
+  ctx.ellipse(0, r * 0.05, r * 0.66, r * 0.8, 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(40, 30, 26, 0.35)'
+  ctx.beginPath()
+  ctx.ellipse(0, r * 0.35, r * 0.55, r * 0.42, 0, 0, Math.PI)
+  ctx.fill()
+  // Augen: zugekniffen vor Lachen, violett gluehend
+  ctx.strokeStyle = RUNE(0.95)
+  ctx.lineWidth = Math.max(1, r * 0.09)
+  ctx.lineCap = 'round'
+  for (const sx of [-1, 1]) {
+    ctx.beginPath()
+    ctx.arc(sx * r * 0.27, -r * 0.12, r * 0.13, Math.PI * 1.1, Math.PI * 1.9)
+    ctx.stroke()
+  }
+  // Offener Mund, bebt mit dem Lachen
+  ctx.fillStyle = '#2A0E14'
+  ctx.beginPath()
+  ctx.ellipse(0, r * 0.33 + ha * 0.5, r * 0.28, r * 0.17 + Math.abs(ha), 0, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#D9D0BC'
+  ctx.fillRect(-r * 0.18, r * 0.18 + ha * 0.5, r * 0.36, r * 0.06)
+  // Staebe von vorn: senkrecht, zum Rand hin enger (wie auf einer Kugel), dazu der Ring um die Mitte
+  ctx.strokeStyle = '#A9A49A'
+  ctx.lineWidth = Math.max(1.2, r * 0.07)
+  for (let i = -3; i <= 3; i++) {
+    const sx = Math.sin((i / 3.6) * (Math.PI / 2)) * r
+    const h = Math.sqrt(Math.max(0, r * r - sx * sx))
+    ctx.beginPath()
+    ctx.moveTo(sx, -h)
+    ctx.quadraticCurveTo(sx * 1.08, 0, sx, h)
+    ctx.stroke()
+  }
+  ctx.beginPath()
+  ctx.ellipse(0, r * 0.02, r, r * 0.22, 0, 0, Math.PI)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(0, 0, r, 0, TAU)
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(240, 236, 226, 0.55)'
+  ctx.lineWidth = Math.max(0.8, r * 0.035)
+  ctx.beginPath()
+  ctx.arc(0, 0, r, Math.PI * 1.1, Math.PI * 1.55)
+  ctx.stroke()
+  // Knauf oben
+  ctx.fillStyle = '#7C7870'
+  ctx.beginPath()
+  ctx.arc(0, -r * 1.02, r * 0.14, 0, TAU)
+  ctx.fill()
 }
 
 /** Erscheinen und Verschwinden: ein Runenkreis am Boden und violetter Rauch (k = 0..1) */
