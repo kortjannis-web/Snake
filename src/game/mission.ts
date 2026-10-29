@@ -15,7 +15,7 @@
 import { BLOCK_PLUS, Game, key, WESEN_TAKT } from './game'
 import { MISSION_BILD, type MissionDef } from './missionen'
 import { CW, DEFAULTS, DIRS, erzWert, FROSCH_ANLAUF, OPP, STEP, type ErzArt } from './rules'
-import type { Cause, Dir, Haus, P, Turm } from './types'
+import type { Cause, Dir, Haus, Kaefig, P, Turm } from './types'
 
 /** So lange (ms) leuchtet ein Fenster, dann wechselt das Licht */
 export const LICHT_TAKT = 4000
@@ -30,6 +30,10 @@ export const QUELLE_PAUSE = 4500
 /** Stehende Baeume kippen, wenn der Kopf so nah ist (Felder, auch schraeg), nach 1 bis 8 Sekunden */
 export const BAUM_NAH = 5
 export const BAUM_TIMER: [number, number] = [1000, 8000]
+
+/** Kaefigkoepfe (ab Mission 26): ein Feld alle takt ms (dazu bis stolpern ms, sie torkeln), sehen sicht Felder nach vorn,
+ *  holen laden ms aus, der Strahl reicht weite Felder und brennt strahl ms, danach ruhe ms Pause */
+export const KAEFIG = { takt: 820, stolpern: 380, sicht: 7, laden: 800, strahl: 380, weite: 9, ruhe: 2000, wand: [2, 4] as const }
 
 const manhattan = (a: P, b: P) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 const cheb = (a: P, b: P) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
@@ -80,6 +84,13 @@ export type MissionKarte = {
   stuempfe: P[]
   holz: { p: P; ab: number }[]
   schale: P | null
+  /** Dungeon (ab Mission 21): Steinboden (Felder der Karte, nur anders gezeichnet), Felder der grossen Tuer, Siegel, Kaefigkoepfe */
+  dungeon: P[]
+  tuer: P[]
+  siegel: P[]
+  kaefige: P[]
+  /** Kaefigmeister (Mission 30): Mitten der sechs Raeume, in denen er erscheinen kann */
+  raeume: P[]
 }
 
 /** Zusammenhaengende Gruppen (4er-Nachbarschaft) */
@@ -142,6 +153,11 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
     stuempfe: [],
     holz: [],
     schale: null,
+    dungeon: [],
+    tuer: [],
+    siegel: [],
+    kaefige: [],
+    raeume: [],
   }
   const mauer: P[] = []
   const teich: P[] = []
@@ -249,11 +265,53 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
         case 'K':
           k.schale = p
           break
+        case ',':
+          k.dungeon.push(p)
+          break
+        case 'D':
+          k.tuer.push(p)
+          k.dungeon.push(p)
+          break
+        case '@':
+          k.siegel.push(p)
+          k.dungeon.push(p)
+          break
+        case 'z':
+          k.kaefige.push(p)
+          break
+        case 'm':
+          k.raeume.push(p)
+          break
         default:
           if (z[x] >= '1' && z[x] <= '6') k.sockel.push({ p, i: Number(z[x]) - 1 })
       }
     }
   })
+  // Zeichen auf der Karte (Apfel, Gift, Lava ...) liegen auf dem Boden, der ihnen am naechsten ist: Wiese oder Dungeon
+  if (k.dungeon.length) {
+    const art = new Map<number, boolean>()
+    const q: P[] = []
+    const boden = new Set(k.dungeon.map((d) => key(d.x, d.y)))
+    zeilen.forEach((z, y) => {
+      for (let x = 0; x < z.length; x++)
+        if (z[x] === '.' || boden.has(key(x, y))) {
+          art.set(key(x, y), z[x] !== '.')
+          q.push({ x, y })
+        }
+    })
+    for (let i = 0; i < q.length; i++) {
+      const c = q[i]
+      const a = art.get(key(c.x, c.y))!
+      for (const d of DIRS) {
+        const n = { x: c.x + STEP[d].x, y: c.y + STEP[d].y }
+        const ch = zeilen[n.y]?.[n.x]
+        if (!ch || ch === '#' || art.has(key(n.x, n.y))) continue
+        art.set(key(n.x, n.y), a)
+        q.push(n)
+        if (a) k.dungeon.push(n)
+      }
+    }
+  }
   k.mauern = gruppen(mauer)
   k.teiche = gruppen(teich)
   k.eis = gruppen(eis)
@@ -315,6 +373,17 @@ export class MissionGame extends Game {
   protected lavaNext = LAVA_TAKT
   /** Quellen der Giftwolken: naechste Wolke ab (Infinity = eine steigt gerade) */
   quellen: { p: P; next: number }[] = []
+  /** Dungeon-Boden (Schluessel, nur fuer die Darstellung) */
+  readonly dungeonSet: Set<number>
+  /** Siegel, die noch liegen (Mission 27: statt Aepfeln), wie viele es sind */
+  siegel: MissionApfel[] = []
+  readonly siegelZiel: number
+  /** Die grosse Tuer: zu, bis alle Siegel geholt sind (dann ab tuerAuf offen, hindurch = geschafft) */
+  readonly tuer: P[]
+  protected readonly tuerSet: Set<number>
+  tuerAuf = -1
+  /** Kaefigkoepfe */
+  kaefige: Kaefig[] = []
 
   constructor(m: MissionDef, quer = false) {
     const k = karteVon(m, quer)
@@ -337,8 +406,12 @@ export class MissionGame extends Game {
     this.quer = quer
     this.sicht = quer ? { w: MISSION_BILD.h, h: MISSION_BILD.w } : { ...MISSION_BILD }
     this.karte = k
-    this.ziel = k.aepfel.length
+    this.ziel = k.aepfel.length + k.siegel.length
+    this.siegelZiel = k.siegel.length
     this.bergSet = new Set(k.berge.map((p) => key(p.x, p.y)))
+    this.dungeonSet = new Set(k.dungeon.map((p) => key(p.x, p.y)))
+    this.tuer = k.tuer.map((p) => ({ ...p }))
+    this.tuerSet = new Set(k.tuer.map((p) => key(p.x, p.y)))
 
     // Schlange: Kopf auf S, der Koerper liegt entgegen der Startrichtung dahinter
     const dir: Dir = quer ? QUER_DIR[m.richtung ?? 'u'] : (m.richtung ?? 'u')
@@ -369,6 +442,7 @@ export class MissionGame extends Game {
     this.dingeSetzen(k)
     // Alle Aepfel liegen von Anfang an da und ploppen beim Start auf
     this.aepfel = k.aepfel.map((p) => ({ p: { ...p }, t: 0 }))
+    this.siegel = k.siegel.map((p) => ({ p: { ...p }, t: 0 }))
     this.zielWaehlen()
     this.events = []
   }
@@ -400,17 +474,24 @@ export class MissionGame extends Game {
     return this.mission.turm?.takt ?? TURM_TAKT
   }
 
-  /** Noch zu holen */
+  /** Noch zu holen (Aepfel und Siegel) */
   get uebrig() {
-    return this.aepfel.length
+    return this.aepfel.length + (this.siegel?.length ?? 0)
   }
 
-  /** Der naechste Apfel zum Kopf wird `apple` (fuer den Pfeil am Rand und das Leuchten des letzten) */
+  /** Ist die grosse Tuer (noch) zu? */
+  tuerZu(p: P) {
+    return this.tuerAuf < 0 && !!this.tuerSet?.has(key(p.x, p.y))
+  }
+
+  /** Der naechste Apfel (oder das naechste Siegel) zum Kopf wird `apple` (fuer den Pfeil am Rand und das Leuchten des
+   *  letzten). Sind alle Siegel geholt, zeigt der Pfeil zur offenen Tuer */
   protected zielWaehlen() {
     const h = this.body[0]
     let best: MissionApfel | null = null
     let bd = Infinity
-    for (const a of this.aepfel) {
+    const tuer = this.tuerAuf >= 0 && !this.aepfel.length && !this.siegel?.length ? this.tuer.map((p) => ({ p, t: this.tuerAuf })) : []
+    for (const a of [...this.aepfel, ...(this.siegel ?? []), ...tuer]) {
       const d = Math.abs(a.p.x - h.x) + Math.abs(a.p.y - h.y)
       if (d < bd) {
         bd = d
@@ -433,10 +514,15 @@ export class MissionGame extends Game {
     if (this.status === 'play') this.zielWaehlen()
   }
 
-  /** Ein anderer liegender Apfel unter dem Kopf: den essen (der gewaehlte wird schon vom Schritt gegessen) */
+  /** Ein anderer liegender Apfel (oder ein Siegel) unter dem Kopf: den essen (der gewaehlte wird schon vom Schritt
+   *  gegessen). Durch die offene Tuer: geschafft */
   protected override einsammeln(n: P) {
     super.einsammeln(n)
-    const a = this.aepfel.find((o) => o !== this.apple && o.p.x === n.x && o.p.y === n.y)
+    if (this.tuerAuf >= 0 && this.tuerSet.has(key(n.x, n.y))) {
+      this.geschafft()
+      return
+    }
+    const a = [...this.aepfel, ...this.siegel].find((o) => o !== this.apple && o.p.x === n.x && o.p.y === n.y)
     if (a) {
       this.apple = a
       this.eat({ ...n })
@@ -444,23 +530,49 @@ export class MissionGame extends Game {
   }
 
   protected override eat(n: P) {
-    this.aepfel = this.aepfel.filter((a) => a.p.x !== n.x || a.p.y !== n.y)
+    if (this.status !== 'play') return
+    const hier = (a: MissionApfel) => a.p.x === n.x && a.p.y === n.y
+    const siegel = this.siegel.some(hier)
+    this.aepfel = this.aepfel.filter((a) => !hier(a))
+    this.siegel = this.siegel.filter((a) => !hier(a))
     super.eat(n)
-    if (!this.aepfel.length) this.geschafft()
+    if (siegel) this.emit({ type: 'siegel', p: { ...n }, rest: this.siegel.length })
+    if (this.aepfel.length || this.siegel.length) return
+    // Alle Siegel geholt: die Tuer leuchtet orange und geht auf, hindurch ist die Mission geschafft
+    if (this.tuer.length && this.tuerAuf < 0) {
+      this.tuerAuf = this.time
+      const m = this.tuer[Math.floor(this.tuer.length / 2)]
+      this.emit({ type: 'tuerAuf', p: { ...m } })
+      this.zielWaehlen()
+      return
+    }
+    this.geschafft()
   }
 
-  /** Aepfel zaehlen als belegt: Froesche springen nicht darauf */
+  /** Geschlossene Tuer und Kaefigkoepfe sind wie Wand */
+  override gefahr(n: P, rest: P[] = this.body) {
+    if (this.inside(n) && !this.geist()) {
+      if (this.tuerZu(n)) return 'dungeontuer' as const
+      if (this.kaefige?.some((z) => z.p.x === n.x && z.p.y === n.y)) return 'kaefig' as const
+    }
+    return super.gefahr(n, rest)
+  }
+
+  /** Aepfel und Siegel zaehlen als belegt (Froesche springen nicht darauf), die geschlossene Tuer und Kaefigkoepfe als Wand */
   override hindernisse(mitGegnern = true) {
     const s = super.hindernisse(mitGegnern)
-    for (const a of this.aepfel ?? []) s.add(key(a.p.x, a.p.y))
+    for (const a of [...(this.aepfel ?? []), ...(this.siegel ?? [])]) s.add(key(a.p.x, a.p.y))
+    if (this.tuerAuf < 0) for (const p of this.tuer ?? []) s.add(key(p.x, p.y))
+    for (const z of this.kaefige ?? []) s.add(key(z.p.x, z.p.y))
     return s
   }
 
-  /** Schliesst etwas ab? Hier zaehlen die Aepfel als Wiese: auch sie muessen erreichbar bleiben (Baeume, Lava) */
+  /** Schliesst etwas ab? Hier zaehlen die Aepfel und Siegel als Wiese: auch sie muessen erreichbar bleiben (Baeume, Lava) */
   protected override keinAbschluss(cells: P[], wand: Set<number>) {
-    if (!this.aepfel?.length) return super.keinAbschluss(cells, wand)
+    const ziele = [...(this.aepfel ?? []), ...(this.siegel ?? [])]
+    if (!ziele.length) return super.keinAbschluss(cells, wand)
     const w = new Set(wand)
-    for (const a of this.aepfel) w.delete(key(a.p.x, a.p.y))
+    for (const a of ziele) w.delete(key(a.p.x, a.p.y))
     return super.keinAbschluss(cells, w)
   }
 
@@ -539,6 +651,10 @@ export class MissionGame extends Game {
     this.stoecke = k.stoecke.map((p) => ({ p: { ...p }, t: 0, bis: Infinity, ruhe: 0 }))
     for (const p of k.minients) this.minientSetzen(p)
     this.wesen = k.igel.map((p) => ({ art: 'igel' as const, p: { ...p }, from: { ...p }, dir: weitesteRichtung(p), t: 0, schrittT: 0, next: WESEN_TAKT.igel, heim: { ...p }, sattBis: 0, wurfNext: 0 }))
+    this.kaefige = k.kaefige.map((p, i) => {
+      const d = weitesteRichtung(p)
+      return { p: { ...p }, from: { ...p }, dir: d, altDir: d, drehT: -1e9, t: 0, schrittT: -1e9, next: 1200 + i * 450, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 }
+    })
   }
 
   /** Kein Level, das zurueckfallen koennte: was im freien Spiel Level kostet (Licht, Kegel, Wolke, Ameise, Bienen), ist hier vorbei */
@@ -652,5 +768,132 @@ export class MissionGame extends Game {
       this.wolken.push({ c: { ...q.p }, t, stage: 0, maxStage: this.mission.wolkeStufe ?? 2, nextAt: t + this.cfg.wolkeTakt * 1000, until: Infinity, cells: [{ ...q.p }], pending: [], bornAt: [t] })
       this.emit({ type: 'cloud' })
     }
+    this.kaefigTakt()
+  }
+
+  /* ================= Kaefigkoepfe (ab Mission 26) ================= */
+
+  /** Sieht der Kaefigkopf das Feld? Kegel nach vorn wie beim kleinen Steingolem (1 bis KAEFIG.sicht Felder, je weiter, desto breiter) */
+  imKaefigBlick(z: Kaefig, c: P) {
+    const d = STEP[z.dir]
+    const vor = (c.x - z.p.x) * d.x + (c.y - z.p.y) * d.y
+    const quer = Math.abs((c.x - z.p.x) * d.y - (c.y - z.p.y) * d.x)
+    return vor >= 1 && vor <= KAEFIG.sicht && quer <= Math.ceil(vor / 2)
+  }
+
+  /** Strahl von z aus in Richtung d (eine der acht Richtungen der Dame): bis zur Wand, hoechstens KAEFIG.weite Felder */
+  kaefigStrahl(z: Kaefig, d: P, sperre = this.sichtSperre()): P[] {
+    const out: P[] = []
+    for (let i = 1; i <= KAEFIG.weite; i++) {
+      const c = { x: z.p.x + d.x * i, y: z.p.y + d.y * i }
+      if (!this.inside(c) || sperre.has(key(c.x, c.y)) || this.tuerZu(c)) break
+      out.push(c)
+    }
+    return out
+  }
+
+  /** Wohin er zielt: die Richtung der Dame, die am naechsten zum Kopf zeigt (liegt der Kopf nicht genau darauf, kann er vorbeischiessen) */
+  protected kaefigZiel(z: Kaefig, h: P): P {
+    const a = Math.round(Math.atan2(h.y - z.p.y, h.x - z.p.x) / (Math.PI / 4)) * (Math.PI / 4)
+    return { x: Math.round(Math.cos(a)), y: Math.round(Math.sin(a)) }
+  }
+
+  protected kaefigDrehen(z: Kaefig, d: Dir) {
+    if (d === z.dir) return
+    z.altDir = z.dir
+    z.dir = d
+    z.drehT = this.time
+  }
+
+  /** Kaefigkoepfe schlendern geradeaus, biegen an Waenden ab, bleiben stehen, wenn sie den Kopf sehen, und werfen Strahlen */
+  protected kaefigTakt() {
+    if (!this.kaefige.length) return
+    const t = this.time
+    const h = this.body[0]
+    let sperre: Set<number> | null = null
+    let wand: Set<number> | null = null
+    for (const z of this.kaefige) {
+      // Der Strahl brennt kurz: nur der Kopf zaehlt
+      if (z.strahl.length && t - z.strahlT < KAEFIG.strahl) {
+        if (z.strahl.some((c) => c.x === h.x && c.y === h.y) && !this.geist()) {
+          this.die('kaefigstrahl')
+          return
+        }
+      } else if (z.strahl.length) z.strahl = []
+      // Holt aus: steht still, dann geht der Strahl los
+      if (z.angriff) {
+        if (t < z.angriff.los) continue
+        sperre ??= this.sichtSperre()
+        z.strahl = this.kaefigStrahl(z, z.angriff.d, sperre)
+        z.strahlT = t
+        z.angriff = null
+        z.ruheBis = t + KAEFIG.ruhe
+        this.emit({ type: 'kaefig', was: 'strahl', p: { ...z.p } })
+        if (z.strahl.some((c) => c.x === h.x && c.y === h.y) && !this.geist()) {
+          this.die('kaefigstrahl')
+          return
+        }
+        continue
+      }
+      sperre ??= this.sichtSperre()
+      // Sehen: erst im Kegel nach vorn; hat er den Kopf, behaelt er ihn, solange er in Sichtweite ist und nichts dazwischen
+      const nah = Math.max(Math.abs(h.x - z.p.x), Math.abs(h.y - z.p.y)) <= KAEFIG.sicht
+      const sieht = (z.jagt >= 0 ? nah : this.imKaefigBlick(z, h)) && this.sichtFrei(z.p, h, sperre)
+      if (sieht && z.jagt < 0) {
+        z.jagt = t
+        this.emit({ type: 'kaefig', was: 'sieht', p: { ...z.p } })
+      } else if (!sieht && z.jagt >= 0) {
+        z.jagt = -1
+        z.next = Math.max(z.next, t + 400)
+      }
+      if (z.jagt >= 0) {
+        // Bleibt stehen und schaut zum Kopf, ab und zu ein Strahl
+        const dx = h.x - z.p.x
+        const dy = h.y - z.p.y
+        this.kaefigDrehen(z, Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'd' : 'u')
+        if (t >= z.ruheBis && t - z.jagt >= 450) {
+          const d = this.kaefigZiel(z, h)
+          z.angriff = { d, cells: this.kaefigStrahl(z, d, sperre), ab: t, los: t + KAEFIG.laden }
+          this.emit({ type: 'kaefig', was: 'laden', p: { ...z.p } })
+        }
+        continue
+      }
+      if (t < z.next) continue
+      wand ??= this.hindernisse()
+      this.kaefigSchritt(z, wand)
+    }
+  }
+
+  /** Ein Schritt geradeaus. Vor einer Wand (oder einem Hindernis) biegt er ab und geht nach 2 bis 4 Feldern von ihr weg */
+  protected kaefigSchritt(z: Kaefig, wand: Set<number>) {
+    const t = this.time
+    const frei = (d: Dir) => {
+      const c = { x: z.p.x + STEP[d].x, y: z.p.y + STEP[d].y }
+      return this.inside(c) && !wand.has(key(c.x, c.y)) && !this.aufSchlange(c) && cheb(c, this.body[0]) > 1
+    }
+    z.next = t + KAEFIG.takt + this.r.int(0, KAEFIG.stolpern)
+    // An der Wand entlang: nach ein paar Feldern wieder weg von ihr
+    if (z.wandWeg && --z.wandRest <= 0) {
+      if (frei(z.wandWeg)) this.kaefigDrehen(z, z.wandWeg)
+      z.wandWeg = null
+    }
+    if (!frei(z.dir)) {
+      const seiten = this.r.shuffle([CW[z.dir], OPP[CW[z.dir]]]).filter(frei)
+      if (seiten.length) {
+        const weg = OPP[z.dir]
+        this.kaefigDrehen(z, seiten[0])
+        z.wandWeg = weg
+        z.wandRest = this.r.int(KAEFIG.wand[0], KAEFIG.wand[1])
+      } else if (frei(OPP[z.dir])) {
+        this.kaefigDrehen(z, OPP[z.dir])
+        z.wandWeg = null
+      } else return
+    }
+    const n = { x: z.p.x + STEP[z.dir].x, y: z.p.y + STEP[z.dir].y }
+    wand.delete(key(z.p.x, z.p.y))
+    wand.add(key(n.x, n.y))
+    z.from = { ...z.p }
+    z.p = n
+    z.schrittT = t
   }
 }

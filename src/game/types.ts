@@ -3,7 +3,7 @@ export type Dir = 'u' | 'd' | 'l' | 'r'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 
 /** Woran die Schlange gestorben ist */
-export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor' | 'minigolem' | 'licht' | 'kegel' | 'wolke' | 'ameise' | 'bienen' | 'minient' | 'blaetterbombe' | 'entboss'
+export type Cause = 'rand' | 'selbst' | 'mauer' | 'teich' | 'gift' | 'falle' | 'frosch' | 'baum' | 'haus' | 'turm' | 'gegner' | 'lava' | 'erde' | 'spieler' | 'zone' | 'zeit' | 'ziel' | 'flut' | 'sandwurm' | 'abgrund' | 'eiszapfen' | 'eisbruch' | 'yeti' | 'eisbaer' | 'robbe' | 'schneemann' | 'stein' | 'lore' | 'tnt' | 'spalt' | 'zwerg' | 'golem' | 'lorenlager' | 'irrlicht' | 'einhorn' | 'ent' | 'ranke' | 'wanderbaum' | 'zombiehand' | 'skelett' | 'werwolf' | 'riesenspinne' | 'abbruch' | 'lavabombe' | 'meteor' | 'lavastrom' | 'magmawurm' | 'lavafisch' | 'glutgolem' | 'glut' | 'obsidian' | 'bienenstock' | 'igel' | 'huegel' | 'karawane' | 'geier' | 'klapperschlange' | 'riesenskorpion' | 'sandkrabbe' | 'erdmaennchen' | 'mumie' | 'sarkophag' | 'fata' | 'steingolem' | 'steintor' | 'minigolem' | 'licht' | 'kegel' | 'wolke' | 'ameise' | 'bienen' | 'minient' | 'blaetterbombe' | 'entboss' | 'kaefig' | 'kaefigstrahl' | 'dungeontuer' | 'kaefigmeister'
 
 export type Status = 'play' | 'over'
 
@@ -245,6 +245,32 @@ export type Minigolem = {
   ruheBis: number
 }
 
+/** Kaefigkopf (Kampagne ab Mission 26, unter der Erde; kuendigen den Kaefigmeister an): ein zombiehafter Diener mit dem Kopf in einem Eisenkaefig. Er schlendert
+ *  immer geradeaus, an einer Wand biegt er ab und geht nach 2 bis 4 Feldern wieder von ihr weg. Sieht er den Kopf (Kegel nach
+ *  vorn wie der kleine Steingolem), bleibt er stehen und wirft ab und zu einen Energiestrahl in eine der acht Richtungen der
+ *  Dame (gerade oder schraeg), bis der Kopf aus seiner Sicht ist */
+export type Kaefig = {
+  p: P
+  from: P
+  dir: Dir
+  altDir: Dir
+  drehT: number
+  t: number
+  schrittT: number
+  next: number
+  /** Seit wann er den Kopf sieht (-1 = sieht ihn nicht) */
+  jagt: number
+  /** An der Wand abgebogen: noch so viele Schritte, dann geht er in diese Richtung von der Wand weg */
+  wandRest: number
+  wandWeg: Dir | null
+  /** Holt aus: Richtung (dx, dy je -1..1), Felder des Strahls, ab, Strahl bei */
+  angriff: { d: P; cells: P[]; ab: number; los: number } | null
+  /** Letzter Strahl (Felder, seit wann) */
+  strahl: P[]
+  strahlT: number
+  ruheBis: number
+}
+
 /** Mini-Ent (Missionen 16 bis 20): kleines Baumwesen, steht verwurzelt und bewegt sich nicht. Ist der Kopf in Reichweite
  *  (minientWeite Felder in jede Richtung), bemerkt er ihn und wirft, bis etwas die Sicht versperrt, Blaetterbomben (Schatten, dann platzt sie im Plus). Faehrt der Kopf direkt an ihm vorbei (Nachbarfeld seitlich),
  *  packt er zu: dann bleibt eine halbe Sekunde, um in die Gegenrichtung wegzuziehen */
@@ -285,6 +311,10 @@ export type GameEvent =
   | { type: 'bossStart'; p: P; boss?: 'ent' }
   | { type: 'bossSieg'; p: P; wert: number; boss?: 'ent' }
   | { type: 'minigolem'; was: 'neu' | 'sieht' | 'laden' | 'schlag'; p: P }
+  | { type: 'kaefig'; was: 'sieht' | 'laden' | 'strahl'; p: P }
+  | { type: 'siegel'; p: P; rest: number }
+  | { type: 'tuerAuf'; p: P }
+  | { type: 'meister'; was: 'erscheint' | 'erwacht' | 'laden' | 'aoe' | 'weg' | 'teleport' | 'flamme' | 'trifft' | 'getroffen' | 'tot'; p: P; leben?: number }
   | { type: 'eat'; level: number; p: P; stufe: number; wer?: number }
   | { type: 'milestone'; level: number }
   | { type: 'expand'; side: Side; add: number; dx: number; dy: number; block?: P; d?: Dir }

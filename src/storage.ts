@@ -95,13 +95,33 @@ const MKEY = 'snake.master.v1'
 const MASTER_HASH = '6dd580d2375e5b91013e1e283bf7265ed7decfea23c7b1bd678550f1f4cb7f5d'
 
 const gespeichert = read(MKEY, { frei: false, code: '' } as { frei: boolean; code?: string })
-export const master = { frei: gespeichert.frei === true, code: gespeichert.code ?? '' }
+/** Frei nur mit gespeichertem Passwort (ein von Hand gesetztes `frei: true` ohne Passwort schaltet nichts frei) */
+export const master = { frei: gespeichert.frei === true && !!gespeichert.code, code: gespeichert.code ?? '' }
+
+async function codePasst(code: string) {
+  const norm = `snake-master:${code.toUpperCase().replace(/[^A-Z0-9]/g, '')}`
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm)))
+  return [...h].map((b) => b.toString(16).padStart(2, '0')).join('') === MASTER_HASH
+}
+
+/** Beim Start: passt das gespeicherte Passwort nicht (mehr), ist der Admin-Zugang (und damit der Kreativ-Modus) zu */
+export async function masterPruefen() {
+  if (!master.frei) return false
+  try {
+    if (await codePasst(master.code)) return true
+  } catch {
+    return true
+  }
+  master.frei = false
+  master.code = ''
+  write(MKEY, { frei: false, code: '' })
+  Object.assign(config, ladeConfig())
+  return false
+}
 
 /** Prueft den Code (Gross-/Kleinschreibung, Leer- und Bindestriche egal) und schaltet frei */
 export async function masterFreischalten(code: string) {
-  const norm = `snake-master:${code.toUpperCase().replace(/[^A-Z0-9]/g, '')}`
-  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm)))
-  if ([...h].map((b) => b.toString(16).padStart(2, '0')).join('') !== MASTER_HASH) return false
+  if (!(await codePasst(code))) return false
   master.frei = true
   master.code = code
   write(MKEY, { frei: true, code })

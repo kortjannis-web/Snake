@@ -15,6 +15,7 @@ import { audio } from './audio'
 import { autopilot } from './game/autopilot'
 import { Game } from './game/game'
 import { BossGame, GOLEM, missionSpiel } from './game/boss'
+import { KaefigBossGame, MEISTER } from './game/kaefigboss'
 import { ENT, EntBossGame } from './game/entboss'
 import { karteVon, MissionGame } from './game/mission'
 import { spielbar, WIESE_MISSIONEN, type MissionDef } from './game/missionen'
@@ -38,7 +39,7 @@ import { apfelFarben, drawApfel } from './render/sprites'
 import { abmelden, abonniere, abonniereHall, abonniereSozial, adminLoeschen, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { beiCloud } from './cloud'
 import { APK_URL, neueVersion } from './update'
-import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
+import { config, heuteBest, heuteDatum, kreativ, master, masterFreischalten, masterPruefen, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, missionLohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon, type Welt } from './render/welten'
@@ -130,16 +131,21 @@ let game: Game | null = null
 let demo: Game | null = null
 let startedAt = 0
 let overTimer = 0
-/** ?level=150 startet direkt bei Level 150 (zum Ausprobieren) */
+/** ?level=150 startet direkt bei Level 150 (zum Ausprobieren). Wie der Kreativ-Modus nur fuer den Admin (oder beim Entwickeln) */
 const params = new URLSearchParams(location.search)
-const startLevel = Math.max(1, Number(params.get('level')) || 1)
-/** ?auto=1 laesst den Autopilot auch im Spiel steuern (zum Testen der spaeten Level) */
-const auto = params.has('auto')
+const testFrei = import.meta.env.DEV || master.frei
+const startLevel = testFrei ? Math.max(1, Number(params.get('level')) || 1) : 1
+/** ?auto=1 laesst den Autopilot auch im Spiel steuern (zum Testen der spaeten Level), ebenfalls nur fuer den Admin */
+const auto = testFrei && params.has('auto')
 /** Nur beim Entwickeln: ?mission=10 startet diese Mission der Wiese gleich */
 const devMission = import.meta.env.DEV ? Number(params.get('mission')) || 0 : 0
 
 mountIcons(document)
 $('version').textContent = __APP_VERSION__
+// Kreativ-Modus nur fuer den Admin: passt das gespeicherte Passwort nicht, verschwindet der Zugang
+void masterPruefen().then((ok) => {
+  if (!ok) $('btn-kreativ-home').hidden = true
+})
 
 /* ================= Groesse ================= */
 
@@ -1163,7 +1169,7 @@ function handle(e: GameEvent) {
     case 'flut':
       audio.pond()
       haptic.heavy()
-      toast('teich', 'Flut!', 'Der Rand steht 2 Felder unter Wasser, bis zum nächsten Apfel.', { minus: true })
+      toast('teich', 'Flut!', 'Der Rand steht 8 Sekunden lang 2 Felder unter Wasser.', { minus: true })
       break
     case 'flutEnde':
       audio.powerEnde()
@@ -1374,6 +1380,29 @@ function handle(e: GameEvent) {
       if (e.was === 'zorn' && kampf && kampf.ent.phase === 2 && kampf.ent.hp === 1 && kampf.entLeben > 1) toast('gegner', 'Phase 3', 'Die Lichtung wächst von außen zu. Ein letzter Treffer!')
       break
     }
+    case 'kaefig':
+      if (nah(e.p, 0.6)) audio.kaefig(e.was)
+      if (e.was === 'strahl' && nah(e.p, 0.4)) haptic.light()
+      break
+    case 'siegel':
+      audio.siegel(e.rest)
+      haptic.medium()
+      toast('gebiet', e.rest ? `Siegel geholt, noch ${e.rest}` : 'Alle Siegel geholt!', e.rest ? 'Sammle alle Siegel, dann öffnet sich die große Tür.' : 'Die große Tür leuchtet orange: fahr hindurch.')
+      break
+    case 'meister':
+      audio.meister(e.was)
+      if (e.was === 'getroffen' || e.was === 'tot') haptic.heavy()
+      else if (e.was === 'trifft' || e.was === 'erscheint') haptic.medium()
+      else if (e.was === 'flamme') haptic.light()
+      if (e.was === 'erscheint') toast('gegner', 'Der Käfigmeister ist erschienen', 'Irgendwo in einem der sechs Räume. Such ihn!')
+      if (e.was === 'erwacht') toast('gebiet', 'Er hat dich bemerkt', 'Hol die Flammen in seinem Raum: Jede fliegt auf ihn. Fünf, dann verschwindet er.')
+      if (e.was === 'getroffen') toast('gegner', `Er ist verschwunden, noch ${e.leben === 1 ? 'ein Leben' : `${e.leben} Leben`}`, 'Gleich taucht er in einem Raum wieder auf, den du nicht siehst. Vielleicht sogar in diesem.')
+      if (e.was === 'tot') toast('aepfel', 'Der Käfigmeister ist besiegt!', 'Oben ist die Tür offen: raus aus dem Labyrinth.')
+      break
+    case 'tuerAuf':
+      audio.tuerAuf()
+      haptic.heavy()
+      break
     case 'minient':
       if (nah(e.p, 0.6)) audio.minient(e.was)
       if (e.was === 'griff') {
@@ -2735,10 +2764,13 @@ function missionStarten(m: MissionDef) {
     setzeErreicht(m.welt, m.nr)
     closeAllPages()
     newGame(false, false, 'normal', m)
-    if (m.art === 'boss' && m.boss === 'ent')
+    if (m.dungeonBoss)
+      toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Er haust in einem der sechs Räume des Labyrinths: such ihn. In seinem Raum liegen Flammen, jede fliegt auf ihn. Fünf Flammen, und er verschwindet, bis er woanders wieder auftaucht. Drei Leben hat er, dann geht oben die Tür hinaus auf. Nur dein Kopf zählt.')
+    else if (m.art === 'boss' && m.boss === 'ent')
       toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Phasen. Hol eine Flamme aus der Glutschale und zünde die Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann durch ihn hindurch. Später fangen seine Wurzeln an brennenden Feuern Feuer. Der Ent hat drei Leben, du keins extra: Trifft er deinen Kopf, ist es vorbei.')
     else if (m.art === 'boss')
       toast('gegner', `Mission ${m.nr}: ${m.name}`, 'Drei Räume. Bring die Kristalle zum Sockel ihrer Farbe, leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Je Raum ein Treffer, drei braucht er. Trifft er deinen Kopf, ist es vorbei.')
+    else if (!karteVon(m).aepfel.length) toast('gebiet', `Mission ${m.nr}: ${m.name}`, m.hinweis ?? '')
     else toast('apfel', `Mission ${m.nr}: ${m.name}`, `Hol alle ${karteVon(m).aepfel.length} Äpfel, der letzte leuchtet. ${m.hinweis ?? 'Berge, Mauern, Teiche, Giftäpfel und Frösche sind tödlich.'}`)
   })
 }
@@ -3028,6 +3060,12 @@ function frame(now: number) {
       renderer.sonderApfel = false
     } else if (game instanceof BossGame) {
       const t = `${game.sockel.filter((s) => s.an).length} / ${game.sockel.length}`
+      const zt = $('tages-ziel')
+      if (zt.textContent !== t) zt.textContent = t
+      renderer.sonderApfel = false
+    } else if (game instanceof KaefigBossGame) {
+      // Kaefigmeister: Flammen dieses Lebens
+      const t = game.meister.zustand === 'tot' ? '✓' : `${game.meister.treffer} / ${MEISTER.flammen}`
       const zt = $('tages-ziel')
       if (zt.textContent !== t) zt.textContent = t
       renderer.sonderApfel = false

@@ -16,6 +16,10 @@ import { drawBomben, drawBombenWarnung, drawEicheln, drawEntBoss, drawEntHud, dr
 import { MissionGame } from '../game/mission'
 import { drawBossBoden, drawBossHud, drawBrocken, drawGetragen, drawGolemBoss, drawKristalle, drawMinigolem, drawMinigolemEntdeckt, drawMinigolemSchlag, drawMinigolemWarnung, drawWarnungen, drawWellen } from './golem'
 import type { BergKacheln } from './berge'
+import { drawKaefigEntdeckt, drawKaefigkopf, drawKaefigStrahl, drawKaefigWarnung, drawSiegel, drawTuer } from './kerker'
+import { KAEFIG } from '../game/mission'
+import { KaefigBossGame, MEISTER } from '../game/kaefigboss'
+import { drawMeister, drawMeisterAngriff, drawMeisterFlamme, drawMeisterFlug, drawMeisterHud, drawMeisterKreis } from './meister'
 import { drawSandsturm, drawSandwurm, drawSandwurmWarnung } from './wueste'
 import { abgrundKachel, drawAbgrund, drawSprudeln, drawVulkanBoden, type AbgrundKachel } from './vulkan'
 import { BAUM_FALL, BAUM_WARNUNG, CW, erdeBei, feldZufall, FROSCH_ANLAUF, FROSCH_FLUG, OPP, STEP, WOLKE_AUFLOESEN, WOLKE_WARNUNG, wolkenForm } from '../game/rules'
@@ -388,6 +392,8 @@ export class Renderer {
       }
     } else if (e.type === 'die') {
       if (!this.reduce) this.shake = { until: g.time + 450, amp: cell * 0.2 }
+    } else if (e.type === 'tuerAuf') {
+      if (!this.reduce) this.shake = { until: g.time + 700, amp: cell * 0.12 }
     } else if (e.type === 'fund') {
       this.texte.push({ x: (e.p.x + 0.5) * cell, y: e.p.y * cell, t: g.time, text: `+${e.wert}`, farbe: { gold: '#FFD86B', dia: '#9DF6FF', rubin: '#FF7D8F', opal: '#E99CFF' }[e.art] })
     } else if (e.type === 'geld' && e.quelle === 'futter') {
@@ -925,6 +931,16 @@ export class Renderer {
       drawSetzlinge(ctx, ent, cell, now, this.reduce)
     }
     if (g.bomben.length) drawBombenWarnung(ctx, g.bomben, (b) => g.bombeFelder(b), cell, now, this.reduce)
+    // Dungeon: die grosse Tuer (Mission 27), die Siegel und die Ankuendigung der Kaefigkopf-Strahlen
+    const mg = g instanceof MissionGame ? g : null
+    if (mg?.tuer.length) drawTuer(ctx, mg.tuer, cell, mg.tuerAuf >= 0 ? (now - mg.tuerAuf) / 1000 + 0.001 : 0, mg.siegelZiel - mg.siegel.length, mg.siegelZiel, now, this.reduce)
+    if (mg)
+      for (const z of mg.kaefige) {
+        const an = z.angriff
+        if (an && sicht(z.p, 9)) drawKaefigWarnung(ctx, z.p, an.cells, clamp01((now - an.ab) / Math.max(1, an.los - an.ab)), cell, now, this.reduce)
+      }
+    // Kein Apfel, wo der Pfeil auf ein Siegel oder die offene Tuer zeigt
+    const keinApfel = !!mg && (mg.siegel.includes(g.apple) || mg.tuer.some((t) => t === g.apple.p))
 
     // Apfel (Farbe nach Wert) und Giftaepfel (tarnen sich in derselben Farbe)
     const stufe = g.apfelStufe()
@@ -947,8 +963,16 @@ export class Renderer {
         ctx.fill()
       }
     }
-    drawFutter(ctx, welt, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, this.sonderApfel ? 8 : stufe, now)
-    licht(px(g.apple.p.x), px(g.apple.p.y), cell * 1.6)
+    if (!keinApfel) {
+      drawFutter(ctx, welt, px(g.apple.p.x), px(g.apple.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - g.apple.t) / 340)), wipp, undefined, this.sonderApfel ? 8 : stufe, now)
+      licht(px(g.apple.p.x), px(g.apple.p.y), cell * 1.6)
+    }
+    if (mg)
+      for (const sg of mg.siegel) {
+        if (!sicht(sg.p)) continue
+        drawSiegel(ctx, px(sg.p.x), px(sg.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - sg.t) / 340)), now, this.reduce, mg.siegel.length === 1)
+        licht(px(sg.p.x), px(sg.p.y), cell * 1.8)
+      }
     // Kampagne: die anderen Aepfel, die noch liegen
     if (g instanceof MissionGame)
       for (const ap of g.aepfel) {
@@ -1027,6 +1051,54 @@ export class Renderer {
       drawMinigolem(ctx, x, y, cell, ang, k < 1 ? ((now - mg.schrittT) / 600) % 1 : -1, this.reduce ? 1 : backOut(clamp01((now - mg.t) / 420)), laden, an?.art ?? mg.schlagArt, clamp01((now - mg.schlagT) / 350), mg.jagt >= 0, now, this.reduce)
       if (!this.reduce) drawMinigolemSchlag(ctx, x, y, DIR_WINKEL[mg.dir], mg.schlagArt, (now - mg.schlagT) / 450, cell)
       if (mg.jagt >= 0) drawMinigolemEntdeckt(ctx, x, y, cell, (now - mg.jagt) / 900)
+    }
+    // Kaefigkoepfe: torkeln geradeaus, sehen sie dich, bleiben sie stehen (Ausrufezeichen) und werfen Strahlen
+    if (g instanceof MissionGame)
+      for (const z of g.kaefige) {
+        if (!sicht(z.p, 10)) continue
+        if (z.strahl.length) drawKaefigStrahl(ctx, z.p, z.strahl, (now - z.strahlT) / KAEFIG.strahl, cell, now)
+        if (!sicht(z.p, 2)) continue
+        const k = this.reduce ? 1 : easeOut(clamp01((now - z.schrittT) / 420))
+        const x = px(lerp(z.from.x, z.p.x, k))
+        const y = px(lerp(z.from.y, z.p.y, k))
+        const a0 = DIR_WINKEL[z.altDir]
+        let a1 = DIR_WINKEL[z.dir]
+        while (a1 - a0 > Math.PI) a1 -= Math.PI * 2
+        while (a1 - a0 < -Math.PI) a1 += Math.PI * 2
+        const ang = lerp(a0, a1, this.reduce ? 1 : easeOut(clamp01((now - z.drehT) / 320)))
+        const an = z.angriff
+        const laden = an ? clamp01((now - an.ab) / Math.max(1, an.los - an.ab)) : 0
+        drawKaefigkopf(ctx, x, y, cell, ang, k < 1 ? ((now - z.schrittT) / 820) % 1 : -1, z.jagt >= 0, laden, now, this.reduce)
+        if (z.jagt >= 0) drawKaefigEntdeckt(ctx, x, y, cell, (now - z.jagt) / 900)
+        licht(x, y, cell * 1.4)
+      }
+    // Der Kaefigmeister (Mission 30): Flammen im Raum, Angriffe, er selbst, Flammen im Flug
+    if (g instanceof KaefigBossGame) {
+      const M = g.meister
+      for (const f of g.flammen) if (sicht(f.p)) {
+        drawMeisterFlamme(ctx, px(f.p.x), px(f.p.y), cell, this.reduce ? 1 : backOut(clamp01((now - f.t) / 380)), now, this.reduce)
+        licht(px(f.p.x), px(f.p.y), cell * 2)
+      }
+      if (M.angriff && sicht(M.p, 24)) drawMeisterAngriff(ctx, M.angriff, M.p, cell, now, this.reduce)
+      const a = M.angriff
+      let sichtbar = 0
+      if (M.zustand === 'erscheint') sichtbar = clamp01((now - M.t) / MEISTER.erscheinen)
+      else if (M.zustand === 'wartet' || M.zustand === 'kampf') {
+        sichtbar = 1
+        if (a?.art === 'teleport') sichtbar = now < a.los ? 1 - clamp01((now - a.ab) / MEISTER.teleportWeg) : clamp01((now - a.los) / MEISTER.teleportDa)
+      } else if (M.zustand === 'getroffen' || M.zustand === 'tot') sichtbar = 1 - clamp01((now - M.t) / 700)
+      if (sicht(M.p, 3)) {
+        const laden = a && a.art !== 'teleport' && now < a.los ? clamp01((now - a.ab) / Math.max(1, a.los - a.ab)) : 0
+        drawMeister(ctx, px(M.p.x), px(M.p.y), cell, M.winkel, sichtbar, laden, clamp01(1 - (now - M.trefferT) / 300), now, this.reduce)
+        if (M.zustand === 'erscheint') drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - M.t) / MEISTER.erscheinen, now)
+        if (a?.art === 'teleport') {
+          drawMeisterKreis(ctx, px(M.von.x), px(M.von.y), cell, (now - a.ab) / 700, now)
+          if (now >= a.los) drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - a.los) / 700, now)
+        }
+        if (M.zustand === 'getroffen' || M.zustand === 'tot') drawMeisterKreis(ctx, px(M.p.x), px(M.p.y), cell, (now - M.t) / 900, now)
+        if (sichtbar > 0) licht(px(M.p.x), px(M.p.y), cell * 2.4)
+      }
+      for (const f of g.fluege) drawMeisterFlug(ctx, f.von, M.p, (now - f.t) / MEISTER.flug, cell, now)
     }
 
     // Einschlaege: Schatten als Warnung, danach der liegende Block (bis zum naechsten Apfel)
@@ -1329,6 +1401,7 @@ export class Renderer {
     if (g.status === 'play' && !boss && !ent) this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
     if (boss) drawBossHud(ctx, boss, vw, vh, now)
+    if (g instanceof KaefigBossGame) drawMeisterHud(ctx, g, vw, vh, now)
     if (ent) {
       drawLaubsturm(ctx, ent, vw, vh, now, this.reduce)
       drawEntHud(ctx, ent, vw, vh, now)
@@ -2215,6 +2288,8 @@ export class Renderer {
   /** Pfeil am Bildrand, wenn der Apfel ausserhalb liegt */
   private drawZeiger(g: Game, ox: number, oy: number, now: number) {
     const { ctx, cell, vw, vh } = this
+    // Kein Ziel auf der Karte (Kaefigmeister: man muss ihn suchen)
+    if (g.apple.p.x < -100) return
     const ax = (g.apple.p.x + 0.5) * cell + ox
     const ay = (g.apple.p.y + 0.5) * cell + oy
     const m = cell * 0.5
@@ -2245,6 +2320,13 @@ export class Renderer {
     ctx.closePath()
     ctx.fill()
     ctx.restore()
-    drawApfel(ctx, cx, cy - r * 0.04, r * 1.45, 1, 0, undefined, g.apfelStufe())
+    // Mission 27: zeigt zum Siegel oder zur offenen Tuer
+    if (g instanceof MissionGame && g.siegel.includes(g.apple)) drawSiegel(ctx, cx, cy, r * 1.3, 1, now, true, false)
+    else if (g instanceof MissionGame && g.tuer.some((t) => t === g.apple.p)) {
+      ctx.fillStyle = '#FFB347'
+      ctx.fillRect(cx - r * 0.38, cy - r * 0.5, r * 0.76, r)
+      ctx.fillStyle = '#5A3216'
+      ctx.fillRect(cx - r * 0.04, cy - r * 0.5, r * 0.08, r)
+    } else drawApfel(ctx, cx, cy - r * 0.04, r * 1.45, 1, 0, undefined, g.apfelStufe())
   }
 }
