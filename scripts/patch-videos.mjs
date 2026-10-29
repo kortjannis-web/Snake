@@ -9,6 +9,7 @@
 //   kampagne        die Karte (die echte App: die Schlange waechst zur naechsten Mission), dann Missionen
 //   aussehen        Skins, Accessoires und Effekte (die echte App, es wird getippt und gescrollt)
 //   bosse-kampagne  wie kampagne der Patchnotes, bosse-endlos wie endlos der Patchnotes
+//   feedback        wie in den Patchnotes, nur werden ein Bug und Kritik getippt
 // Spiel und Renderer sind die echten (scripts/patch-szene.ts), die Zeit laeuft Bild fuer Bild, im Trailer stirbt niemand.
 // Nur noetig, wenn sich die Patchnotes oder der Spielfuehrer aendern:  npm run patch-videos  bzw.  npm run hilfe-videos
 // (nur bestimmte: npm run patch-videos -- welten). Braucht ffmpeg (libx264, libvpx-vp9, libwebp) und Playwright mit
@@ -150,8 +151,11 @@ async function feedbackClip(browser) {
   // Patchnotes schon gesehen, sonst liegen sie ueber allem
   await page.goto('http://localhost:5199/')
   await page.evaluate(() => document.fonts.ready)
-  // Die Patchnotes selbst liegen sonst ueber allem
-  await page.evaluate(() => document.getElementById('patchnotes').removeAttribute('data-open'))
+  // Die Patchnotes selbst liegen sonst ueber allem, der rote Punkt am Fragezeichen lenkt nur ab
+  await page.evaluate(() => {
+    document.getElementById('patchnotes').removeAttribute('data-open')
+    document.getElementById('fuehrer-punkt').hidden = true
+  })
   await page.waitForTimeout(1500)
   const tmp = mkdtempSync(join(tmpdir(), 'patch-feedback-'))
   let n = 0
@@ -196,10 +200,12 @@ async function feedbackClip(browser) {
     await foto(12)
   }
   await page.locator('#feedback-punkte textarea').first().focus()
-  await tippen('#feedback-punkte .feedback-punkt:nth-child(1) textarea', 'Mehr Bosse, die sind mega!')
+  // Spielfuehrer: Bugs und Kritik sind ausdruecklich erwuenscht
+  const texte = HILFE ? ['Bug: In Mission 13 hing ich an der Lava fest', 'Der Ent ist mir zu schwer!'] : ['Mehr Bosse, die sind mega!', 'Eine Welt unter Wasser?']
+  await tippen('#feedback-punkte .feedback-punkt:nth-child(1) textarea', texte[0])
   await page.evaluate(() => document.getElementById('feedback-plus').click())
   await foto(6)
-  await tippen('#feedback-punkte .feedback-punkt:nth-child(2) textarea', 'Eine Welt unter Wasser?')
+  await tippen('#feedback-punkte .feedback-punkt:nth-child(2) textarea', texte[1])
   // Abschicken (im Video ohne Datenbank: die Antwort wird gesetzt)
   await page.evaluate(() => {
     document.activeElement?.blur()
@@ -342,7 +348,7 @@ async function aussehenClip(browser, port) {
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] })
 const nur = process.argv.slice(2).filter((a) => !a.startsWith('--'))
-const alle = HILFE ? Object.keys(HILFE_CLIPS).concat('aussehen') : ['kampagne', 'endlos', 'feedback', 'welten']
+const alle = HILFE ? Object.keys(HILFE_CLIPS).concat('aussehen', 'feedback') : ['kampagne', 'endlos', 'feedback', 'welten']
 const welche = alle.filter((n) => !nur.length || nur.includes(n))
 const app = ['feedback', ...(HILFE ? ['kampagne', 'aussehen'] : [])]
 await spielClips(browser, welche.filter((n) => !app.includes(n)))
