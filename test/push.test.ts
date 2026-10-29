@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { b64u, vapidKopf, verschluesseln, vonB64u } from '../server/push'
+import { b64u, vapidErzeugen, vapidKopf, verschluesseln, vonB64u } from '../server/push'
 
 // Beispiel aus RFC 8291, Abschnitt 5
 const RFC = {
@@ -57,5 +57,17 @@ describe('Firebase (Android-App)', () => {
     expect(nutz).toMatchObject({ iss: 'snake@snake-test.iam.gserviceaccount.com', aud: 'https://oauth2.googleapis.com/token', iat: 1_000_000, exp: 1_003_600 })
     const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', paar.publicKey, vonB64u(sig).slice().buffer as ArrayBuffer, new TextEncoder().encode(`${k}.${n}`))
     expect(ok).toBe(true)
+  })
+})
+
+describe('VAPID-Schluessel des Servers', () => {
+  it('erzeugt ein Paar, mit dem VAPID-Kopfzeilen gueltig signiert werden', async () => {
+    const v = await vapidErzeugen()
+    expect(vonB64u(v.oeffentlich)).toHaveLength(65)
+    expect(vonB64u(v.oeffentlich)[0]).toBe(4)
+    const kopf = await vapidKopf('https://web.push.apple.com/abc', { ...v, kontakt: 'https://github.com/kortjannis-web/Snake' }, 1_000_000)
+    const [, k, n, s] = kopf.match(/^vapid t=([^.]+)\.([^.]+)\.([^,]+), k=(.+)$/)!
+    const pub = await crypto.subtle.importKey('raw', vonB64u(v.oeffentlich).slice().buffer as ArrayBuffer, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+    expect(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, vonB64u(s).slice().buffer as ArrayBuffer, new TextEncoder().encode(`${k}.${n}`))).toBe(true)
   })
 })
