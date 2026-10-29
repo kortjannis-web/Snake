@@ -1606,7 +1606,7 @@ function nebelBild(dpr: number) {
   return nebelCv
 }
 
-/** Wetter und Teilchen im Bildschirm (Schnee, Glühwuermchen, Nebel, Staub, Steppenlaeufer) */
+/** Wetter und Teilchen im Bildschirm (Schnee, Glühwuermchen, Nebel, Staub) */
 export function drawStimmung(ctx: CanvasRenderingContext2D, w: Welt, vw: number, vh: number, dpr: number, now: number, ox: number, oy: number) {
   if (w.id === 'wiese') return
   ctx.save()
@@ -1629,21 +1629,6 @@ export function drawStimmung(ctx: CanvasRenderingContext2D, w: Welt, vw: number,
       const x = px(now / (8 + hash(i) * 6) + hash(i) * vw, ox, vw)
       const y = px(hash(i + 5) * vh + Math.sin(now / 700 + i) * 6, oy, vh)
       ctx.fillRect(x, y, 2, 1)
-    }
-    // Ab und zu rollt ein Steppenlaeufer durchs Bild
-    const z = (now % 16000) / 16000
-    if (z < 0.4) {
-      const x = -60 + (z / 0.4) * (vw + 120)
-      const y = vh * 0.68 + Math.abs(Math.sin(z * 40)) * -18
-      ctx.translate(x, y)
-      ctx.rotate(z * 30)
-      ctx.strokeStyle = 'rgba(140, 100, 50, 0.85)'
-      ctx.lineWidth = 1.5
-      for (let i = 0; i < 9; i++) {
-        ctx.beginPath()
-        ctx.ellipse(0, 0, 18, 8 + (i % 3) * 3, (i / 9) * Math.PI, 0, TAU)
-        ctx.stroke()
-      }
     }
   } else if (w.id === 'vulkan') {
     drawVulkanStimmung(ctx, vw, vh, now, ox, oy)
@@ -1681,6 +1666,74 @@ export function drawStimmung(ctx: CanvasRenderingContext2D, w: Welt, vw: number,
     }
   }
   ctx.restore()
+}
+
+/** Steppenlaeufer (Wueste, etwa alle 15 Level einmal): huepft vom Wind getragen von einer Bildschirmseite zur anderen.
+ *  von, nach = Bruchteile des Bildschirms (x ausserhalb, damit er herein- und hinauskommt) */
+export type Steppenlaeufer = { t0: number; dauer: number; von: P; nach: P; saat: number }
+
+export function neuerSteppenlaeufer(now: number): Steppenlaeufer {
+  const links = Math.random() < 0.5
+  const y0 = 0.15 + Math.random() * 0.7
+  // Schraeg von Ecke zu Ecke: das Ziel liegt deutlich hoeher oder tiefer als der Start
+  let y1 = 0.15 + Math.random() * 0.7
+  if (Math.abs(y1 - y0) < 0.25) y1 = y0 < 0.5 ? Math.min(0.9, y0 + 0.3 + Math.random() * 0.3) : Math.max(0.1, y0 - 0.3 - Math.random() * 0.3)
+  return { t0: now, dauer: 4200 + Math.random() * 1200, von: { x: links ? -0.12 : 1.12, y: y0 }, nach: { x: links ? 1.12 : -0.12, y: y1 }, saat: Math.random() * 100 }
+}
+
+/** Steppenlaeufer zeichnen (Bildschirmkoordinaten); false, wenn er durch ist */
+export function drawSteppenlaeufer(ctx: CanvasRenderingContext2D, s: Steppenlaeufer, vw: number, vh: number, dpr: number, now: number) {
+  const k = (now - s.t0) / s.dauer
+  if (k < 0 || k > 1) return false
+  // Der Wind traegt ihn: wird schneller, dazu kleine Boeen
+  const p = 0.75 * k + 0.25 * k * k + 0.015 * Math.sin(k * TAU * 2 + s.saat)
+  const x0 = s.von.x * vw, y0 = s.von.y * vh
+  const x1 = s.nach.x * vw, y1 = s.nach.y * vh
+  const x = x0 + (x1 - x0) * p
+  const boden = y0 + (y1 - y0) * p
+  const r = 17
+  // Flache Huepfer: kurz am Boden, dann ein leichter Bogen (jeder etwas anders hoch)
+  const h = p * 8
+  const i = Math.floor(h)
+  const f = h - i
+  const hoch = Math.sin(Math.PI * f) * (9 + hash(i + s.saat) * 8)
+  // Beim Aufkommen kurz gestaucht
+  const stauch = 1 - Math.max(0, 1 - Math.min(f, 1 - f) / 0.12) * 0.14
+  const dir = Math.sign(x1 - x0)
+  const weg = Math.hypot(x1 - x0, y1 - y0) * p
+  ctx.save()
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.fillStyle = `rgba(80, 55, 25, ${0.2 * (1 - hoch / 24)})`
+  ctx.beginPath()
+  ctx.ellipse(x, boden + r * 0.85, r * (1 - hoch / 50), r * 0.28, 0, 0, TAU)
+  ctx.fill()
+  ctx.translate(x, boden - hoch)
+  // Neigt sich in die Flugrichtung, die Stauchung bleibt am Boden
+  ctx.rotate(dir * 0.12)
+  ctx.scale(1 / stauch, stauch)
+  // Rollt in die Richtung, in die er huepft
+  ctx.rotate((dir * weg) / r)
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = 'rgba(140, 100, 50, 0.9)'
+  ctx.lineWidth = 1.5
+  for (let j = 0; j < 9; j++) {
+    ctx.beginPath()
+    ctx.ellipse(0, 0, r, r * 0.45 + (j % 3) * 3, (j / 9) * Math.PI, 0, TAU)
+    ctx.stroke()
+  }
+  // Ein paar duerre Zweige innen und abstehend
+  ctx.strokeStyle = 'rgba(110, 75, 35, 0.85)'
+  ctx.lineWidth = 1.1
+  for (let j = 0; j < 7; j++) {
+    const a = (j / 7) * TAU + s.saat
+    const a2 = a + 0.9 + hash(j + s.saat) * 0.8
+    ctx.beginPath()
+    ctx.moveTo(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25)
+    ctx.quadraticCurveTo(Math.cos(a + 0.5) * r * 0.8, Math.sin(a + 0.5) * r * 0.8, Math.cos(a2) * r * 1.12, Math.sin(a2) * r * 1.12)
+    ctx.stroke()
+  }
+  ctx.restore()
+  return true
 }
 
 /** Fackel an der Wand (Bergwerk): Holz mit flackernder Flamme. x, y = Mitte */
