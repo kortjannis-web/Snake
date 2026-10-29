@@ -2,8 +2,8 @@
  * Berge rund um die Taeler einer Mission (Kampagne). Alles, was nicht zur Karte gehoert, ist Gebirge: am Fuss Wiese mit
  * Baeumen, darueber Fels, oben Schnee. Die Hoehe kommt aus dem Abstand zur naechsten Wiese (einmal je Mission berechnet).
  *
- * Dungeon (ab Mission 21): Steinboden (`dungeonSet`) wird mit Steinplatten belegt, die Berge, die ihm am naechsten sind,
- * werden zu Mauern aus Quadern (vorn die Mauerseite mit Fugen, dahinter die dunkle Mauerkrone), ab und zu eine Fackel.
+ * Unter der Erde (ab Mission 21): der Steinboden (`dungeonSet`) bekommt Pflastersteine, die Berge, die ihm am naechsten sind,
+ * werden zu Waenden aus Erde (mit Steinen, Kohle und Wurzeln, manche Abschnitte gemauert), ab und zu eine Fackel.
  *
  * Die Missionen aendern sich nie: das Gebirge wird einmal in Kacheln (KACHEL x KACHEL Felder) vorgezeichnet und danach
  * nur noch kopiert. Neu gezeichnet wird nur bei einer neuen Feldgroesse oder Aufloesung.
@@ -300,105 +300,146 @@ export class BergKacheln {
     return cv
   }
 
-  /** Dungeon: Steinplatten auf dem Boden, Mauern aus Quadern, Fackeln */
+  /** Unter der Erde: Boden aus Stein (Pflaster mit Erde in den Fugen), Waende aus Erde mit Steinen und Wurzeln, manchmal
+   *  gemauert, ab und zu eine Fackel */
   private kerkerZeichnen(c: CanvasRenderingContext2D, cell: number, ax: number, ay: number, bx: number, by: number) {
     const boden = (x: number, y: number) => this.wiese(x, y) && this.dungeon(x, y)
-    const mauer = (x: number, y: number) => !this.wiese(x, y) && this.dungeon(x, y)
-    const fuge = Math.max(1, cell * 0.06)
-    // 1. Boden: Steinplatten im Schachbrett, mit Fugen, Kanten im Licht, Rissen und etwas Moos
+    const wand = (x: number, y: number) => !this.wiese(x, y) && this.dungeon(x, y)
+    // Gemauerte Stuecke: ganze Abschnitte (4 x 4 Felder) der Wand, etwa jeder vierte
+    const gemauert = (x: number, y: number) => hash(Math.floor(x / 4), Math.floor(y / 4), 41) < 0.27
+    const px = (v: number) => (v + 0.5) * cell
+    // 1. Boden: Stein, kaum sichtbares Schachbrett, je Feld ein paar runde Pflastersteine, Erde dazwischen
     for (let y = ay; y <= by; y++)
       for (let x = ax; x <= bx; x++) {
         if (!boden(x, y)) continue
-        const z = hash(x, y, 21)
         const hell = (x + y) % 2 === 0
-        const f: RGB = hell ? [104, 100, 112] : [90, 86, 98]
-        const t = (z - 0.5) * 0.12
-        c.fillStyle = rgb(mix(f, t > 0 ? [140, 136, 146] : [50, 46, 58], Math.abs(t)))
+        c.fillStyle = rgb(hell ? [112, 102, 90] : [102, 93, 82])
         c.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
-        // Fugen und Kanten
-        c.fillStyle = 'rgba(30, 26, 36, 0.55)'
-        c.fillRect(x * cell, (y + 1) * cell - fuge, cell, fuge)
-        c.fillRect((x + 1) * cell - fuge, y * cell, fuge, cell)
-        c.fillStyle = 'rgba(200, 196, 210, 0.16)'
-        c.fillRect(x * cell + fuge, y * cell + fuge * 0.5, cell - fuge * 2, fuge)
-        c.fillRect(x * cell + fuge * 0.5, y * cell + fuge, fuge, cell - fuge * 2)
-        if (z < 0.16) {
-          // Riss
-          c.strokeStyle = 'rgba(36, 32, 42, 0.6)'
-          c.lineWidth = Math.max(0.8, cell * 0.035)
+        const n = 1 + Math.floor(hash(x, y, 21) * 2.2)
+        for (let i = 0; i < n; i++) {
+          const sx = x * cell + cell * (0.22 + hash(x, y, 22 + i) * 0.56)
+          const sy = y * cell + cell * (0.22 + hash(x, y, 26 + i) * 0.56)
+          const r = cell * (0.16 + hash(x, y, 30 + i) * 0.12)
+          const f: RGB = mix([132, 122, 108], [100, 92, 81], hash(x, y, 34 + i))
+          c.fillStyle = 'rgba(40, 30, 22, 0.22)'
           c.beginPath()
-          c.moveTo(x * cell + cell * (0.2 + hash(x, y, 22) * 0.3), y * cell + cell * 0.2)
-          c.lineTo(x * cell + cell * 0.5, y * cell + cell * (0.45 + hash(x, y, 23) * 0.2))
-          c.lineTo(x * cell + cell * (0.55 + hash(x, y, 24) * 0.3), y * cell + cell * 0.82)
-          c.stroke()
-        } else if (z > 0.9) {
-          // Moos in der Fuge (der Wald waechst herein)
-          c.fillStyle = 'rgba(96, 140, 72, 0.55)'
-          for (let i = 0; i < 3; i++) {
-            c.beginPath()
-            c.arc(x * cell + cell * (0.2 + i * 0.3), (y + 1) * cell - fuge, cell * (0.08 + hash(x, y, 25 + i) * 0.06), 0, Math.PI * 2)
-            c.fill()
-          }
+          c.ellipse(sx + r * 0.15, sy + r * 0.2, r, r * 0.8, 0, 0, Math.PI * 2)
+          c.fill()
+          c.fillStyle = rgb(hell ? mix(f, [255, 255, 255], 0.06) : f)
+          c.beginPath()
+          c.ellipse(sx, sy, r, r * 0.8, hash(x, y, 38 + i) * 3, 0, Math.PI * 2)
+          c.fill()
+          c.fillStyle = 'rgba(255, 245, 225, 0.12)'
+          c.beginPath()
+          c.ellipse(sx - r * 0.25, sy - r * 0.25, r * 0.45, r * 0.3, 0, 0, Math.PI * 2)
+          c.fill()
+        }
+        // Kruemel und ab und zu ein Grasbueschel (der Wald ist nah)
+        c.fillStyle = 'rgba(60, 42, 28, 0.35)'
+        for (let i = 0; i < 3; i++) c.fillRect(x * cell + hash(x, y, 44 + i) * cell, y * cell + hash(x, y, 48 + i) * cell, cell * 0.06, cell * 0.06)
+        if (hash(x, y, 52) > 0.93) {
+          c.fillStyle = 'rgba(104, 146, 74, 0.6)'
+          c.beginPath()
+          c.arc(x * cell + cell * 0.8, y * cell + cell * 0.82, cell * 0.1, 0, Math.PI * 2)
+          c.arc(x * cell + cell * 0.7, y * cell + cell * 0.88, cell * 0.08, 0, Math.PI * 2)
+          c.fill()
         }
       }
-    // Schatten der Mauern auf dem Boden
-    const sch = cell * 0.36
+    // Schatten der Waende auf dem Boden
+    const sch = cell * 0.38
     for (let y = ay; y <= by; y++)
       for (let x = ax; x <= bx; x++) {
         if (!this.wiese(x, y)) continue
         const kanten: [boolean, number, number, number, number, number, number, number, number][] = [
-          [mauer(x, y - 1), x * cell, y * cell, cell, sch, 0, y * cell, 0, y * cell + sch],
-          [mauer(x - 1, y), x * cell, y * cell, sch, cell, x * cell, 0, x * cell + sch, 0],
-          [mauer(x + 1, y), (x + 1) * cell - sch * 0.5, y * cell, sch * 0.5, cell, (x + 1) * cell, 0, (x + 1) * cell - sch * 0.5, 0],
+          [wand(x, y - 1), x * cell, y * cell, cell, sch, 0, y * cell, 0, y * cell + sch],
+          [wand(x - 1, y), x * cell, y * cell, sch, cell, x * cell, 0, x * cell + sch, 0],
+          [wand(x + 1, y), (x + 1) * cell - sch * 0.5, y * cell, sch * 0.5, cell, (x + 1) * cell, 0, (x + 1) * cell - sch * 0.5, 0],
         ]
         for (const [an, rx, ry, rw, rh, gx0, gy0, gx1, gy1] of kanten) {
           if (!an) continue
           const g = c.createLinearGradient(gx0, gy0, gx1, gy1)
-          g.addColorStop(0, 'rgba(14, 10, 20, 0.5)')
-          g.addColorStop(1, 'rgba(14, 10, 20, 0)')
+          g.addColorStop(0, 'rgba(24, 14, 8, 0.5)')
+          g.addColorStop(1, 'rgba(24, 14, 8, 0)')
           c.fillStyle = g
           c.fillRect(rx, ry, rw, rh)
         }
       }
-    // 2. Mauern: direkt am Boden die Mauerseite aus Quadern, weiter hinten die dunkle Mauerkrone
+    // 2. Waende: Erde, je tiefer desto dunkler, mit Steinen, Kohle und Wurzeln. Manche Abschnitte sind gemauert
     for (let y = ay; y <= by; y++)
       for (let x = ax; x <= bx; x++) {
-        if (!mauer(x, y)) continue
+        if (!wand(x, y)) continue
         const d = this.abstand(x, y)
-        if (d >= 2) {
-          const z = hash(x, y, 31)
-          c.fillStyle = rgb(mix([40, 36, 46], [26, 22, 30], Math.min(1, (d - 2) / 4)))
-          c.fillRect(x * cell - 0.4, y * cell - 0.4, cell + 0.8, cell + 0.8)
-          if (z < 0.35) {
-            c.fillStyle = 'rgba(70, 64, 78, 0.5)'
-            c.fillRect(x * cell + cell * 0.15, y * cell + cell * 0.2, cell * (0.3 + z), cell * 0.18)
+        const t = Math.min(1, (d - 1) / 3 + (hash(x, y, 60) - 0.5) * 0.25)
+        const erde: RGB = t < 0.5 ? mix([92, 63, 38], [70, 48, 30], t * 2) : mix([70, 48, 30], [44, 30, 20], (t - 0.5) * 2)
+        c.fillStyle = rgb(erde)
+        c.fillRect(x * cell - 0.4, y * cell - 0.4, cell + 0.8, cell + 0.8)
+        if (d === 1 && gemauert(x, y)) {
+          // Alte Mauer aus Feldsteinen, unregelmaessig, mit Erde in den Fugen
+          const reihen = 3
+          const rh = cell / reihen
+          for (let r = 0; r < reihen; r++) {
+            const versatz = (r + y) % 2 ? 0.5 : 0
+            for (let b = -1; b < 2; b++) {
+              const l = Math.max(0, (b + versatz) * 0.5)
+              const r2 = Math.min(1, (b + versatz) * 0.5 + 0.5)
+              if (r2 <= l) continue
+              const z = hash(x * 3 + b, y * 3 + r, 32)
+              const qx = x * cell + l * cell + cell * 0.04
+              const qw = (r2 - l) * cell - cell * 0.08
+              c.fillStyle = rgb(mix([128, 118, 104], [92, 84, 74], z))
+              c.beginPath()
+              c.roundRect(qx, y * cell + r * rh + cell * 0.04, qw, rh - cell * 0.08, cell * 0.06)
+              c.fill()
+              c.fillStyle = 'rgba(255, 245, 225, 0.12)'
+              c.fillRect(qx + cell * 0.03, y * cell + r * rh + cell * 0.05, qw - cell * 0.06, cell * 0.04)
+            }
           }
           continue
         }
-        // Mauerseite: Reihen von Quadern, versetzt, Licht von oben
-        c.fillStyle = '#4A4452'
-        c.fillRect(x * cell - 0.4, y * cell - 0.4, cell + 0.8, cell + 0.8)
-        const reihen = 3
-        const rh = cell / reihen
-        for (let r = 0; r < reihen; r++) {
-          const ry = y * cell + r * rh
-          const versatz = (r + y) % 2 ? 0.5 : 0
-          for (let b = -1; b < 2; b++) {
-            const l = Math.max(0, (b + versatz) * 0.5)
-            const r2 = Math.min(1, (b + versatz) * 0.5 + 0.5)
-            if (r2 <= l) continue
-            const z = hash(x * 3 + b, y * 3 + r, 32)
-            const qx = x * cell + l * cell + fuge * 0.5
-            const qw = (r2 - l) * cell - fuge
-            c.fillStyle = rgb(mix([96, 88, 102], [64, 58, 72], z))
-            c.fillRect(qx, ry + fuge * 0.5, qw, rh - fuge)
-            c.fillStyle = 'rgba(220, 214, 230, 0.12)'
-            c.fillRect(qx, ry + fuge * 0.5, qw, fuge)
+        // Steine in der Erde (grau, rund, Licht oben links), selten Kohle
+        const z = hash(x, y, 61)
+        if (z < 0.45) {
+          const sx = px(x) + (hash(x, y, 62) - 0.5) * cell * 0.6
+          const sy = px(y) + (hash(x, y, 63) - 0.5) * cell * 0.6
+          const r = cell * (0.12 + hash(x, y, 64) * 0.16)
+          const kohle = z < 0.05
+          c.fillStyle = kohle ? '#24201E' : rgb(mix([134, 126, 116], erde, 0.3 + t * 0.4))
+          c.beginPath()
+          c.ellipse(sx, sy, r, r * 0.8, hash(x, y, 65) * 3, 0, Math.PI * 2)
+          c.fill()
+          c.fillStyle = kohle ? 'rgba(180, 180, 200, 0.25)' : 'rgba(255, 250, 235, 0.2)'
+          c.beginPath()
+          c.ellipse(sx - r * 0.3, sy - r * 0.3, r * 0.35, r * 0.25, 0, 0, Math.PI * 2)
+          c.fill()
+        }
+        // Kruemel
+        c.fillStyle = 'rgba(130, 92, 58, 0.45)'
+        for (let i = 0; i < 2; i++) c.fillRect(x * cell + hash(x, y, 66 + i) * cell, y * cell + hash(x, y, 68 + i) * cell, cell * 0.07, cell * 0.07)
+        // Direkt am Gang: Wurzeln haengen heraus
+        if (d === 1 && hash(x, y, 70) < 0.35) {
+          const nb = NACHBARN.find(([dx, dy]) => boden(x + dx, y + dy))
+          if (nb) {
+            const [dx, dy] = nb
+            const ox = px(x) + dx * cell * 0.5
+            const oy = px(y) + dy * cell * 0.5
+            c.strokeStyle = 'rgba(176, 138, 92, 0.85)'
+            c.lineWidth = Math.max(1, cell * 0.05)
+            c.lineCap = 'round'
+            for (let i = 0; i < 2; i++) {
+              const q = (hash(x, y, 71 + i) - 0.5) * cell * 0.7
+              const sx = ox + (dy ? q : 0)
+              const sy = oy + (dx ? q : 0)
+              const len = cell * (0.25 + hash(x, y, 73 + i) * 0.3)
+              c.beginPath()
+              c.moveTo(sx - dx * cell * 0.15, sy - dy * cell * 0.15)
+              c.quadraticCurveTo(sx + dx * len * 0.5 + dy * cell * 0.1, sy + dy * len * 0.5 + dx * cell * 0.1, sx + dx * len, sy + dy * len)
+              c.stroke()
+            }
           }
         }
-        // Fackel an der Mauer
-        if (hash(x, y, 33) < 0.07 && NACHBARN.some(([dx, dy]) => this.wiese(x + dx, y + dy) && this.dungeon(x + dx, y + dy))) {
-          const fx = (x + 0.5) * cell
+        // Fackel an einer Stelle der Wand
+        if (d === 1 && hash(x, y, 33) < 0.05 && NACHBARN.some(([dx, dy]) => boden(x + dx, y + dy))) {
+          const fx = px(x)
           const fy = (y + 0.55) * cell
           const g = c.createRadialGradient(fx, fy - cell * 0.15, 0, fx, fy, cell * 1.6)
           g.addColorStop(0, 'rgba(255, 190, 90, 0.45)')
