@@ -39,22 +39,36 @@ export function drawSteinboden(c: CanvasRenderingContext2D, x: number, y: number
 }
 
 /** Augen am Boden (Reich des Kaefigmeisters): ein kleines Haeufchen aus n Augaepfeln, gedeckt und unauffaellig (wie
- *  verstaubt), die Pupillen schauen zum Kopf der Schlange (kx, ky in Pixeln), ab und zu blinzelt eins. Liegt das Haeufchen
- *  an einer Wand, rueckt es zu ihr hin (wand = Richtung zur Wand oder null) */
+ *  verstaubt), die Pupillen schauen zum Kopf der Schlange (kx, ky in Pixeln), ab und zu blinzelt eins. Ein oder zwei
+ *  ruecken an die Wand (wand = Richtung zur Wand oder null); ab drei ist es ein Klumpen mitten im Feld auf einem dunklen
+ *  Fleck: daran erkennt man das gefaehrliche Augenfeld */
 export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, n: number, seed: number, wand: P | null, kx: number, ky: number, now: number, reduce: boolean) {
-  const mx = x + (wand ? wand.x * cell * 0.22 : 0)
-  const my = y + (wand ? wand.y * cell * 0.22 : 0)
-  // Etwas Schmutz unter dem Haeufchen
-  ctx.fillStyle = 'rgba(40, 26, 20, 0.18)'
-  ctx.beginPath()
-  ctx.ellipse(mx, my + cell * 0.04, cell * (0.2 + n * 0.06), cell * (0.15 + n * 0.04), 0, 0, TAU)
-  ctx.fill()
+  const klumpen = n >= 3
+  // Ein Klumpen (gefaehrlich) liegt mitten im Feld, einzelne Augen ruecken an die Wand
+  const mx = x + (wand && !klumpen ? wand.x * cell * 0.22 : 0)
+  const my = y + (wand && !klumpen ? wand.y * cell * 0.22 : 0)
+  // Unter dem Haeufchen etwas Schmutz, unter einem Klumpen ein dunkler Fleck mit leichtem violettem Schimmer
+  if (klumpen) {
+    const g = ctx.createRadialGradient(mx, my, 0, mx, my, cell * 0.5)
+    g.addColorStop(0, 'rgba(60, 30, 70, 0.32)')
+    g.addColorStop(0.7, 'rgba(70, 40, 90, 0.14)')
+    g.addColorStop(1, 'rgba(70, 40, 90, 0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(mx, my, cell * 0.5, 0, TAU)
+    ctx.fill()
+  } else {
+    ctx.fillStyle = 'rgba(40, 26, 20, 0.18)'
+    ctx.beginPath()
+    ctx.ellipse(mx, my + cell * 0.04, cell * (0.2 + n * 0.06), cell * (0.15 + n * 0.04), 0, 0, TAU)
+    ctx.fill()
+  }
   for (let i = 0; i < n; i++) {
     const a = (i / Math.max(1, n)) * TAU + hash(seed) * TAU
-    const d = n === 1 ? 0 : cell * 0.13
+    const d = n === 1 ? 0 : cell * (klumpen ? 0.15 : 0.13)
     const ax = mx + Math.cos(a) * d
     const ay = my + Math.sin(a) * d * 0.8
-    const r = cell * (0.085 + hash(seed + i * 5) * 0.035)
+    const r = cell * (0.085 + hash(seed + i * 5) * 0.035) * (klumpen ? 1.2 : 1)
     ctx.fillStyle = 'rgba(30, 16, 12, 0.22)'
     ctx.beginPath()
     ctx.ellipse(ax + r * 0.2, ay + r * 0.3, r * 1.05, r * 0.9, 0, 0, TAU)

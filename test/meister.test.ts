@@ -194,7 +194,7 @@ describe('Kaefigmeister (Mission 30)', () => {
     expect(g.cause).toBe('ziel')
   })
 
-  it('Augen am Boden: wenige, meist an Waenden und in Ecken; ein Augenfeld (ab zwei Augen) truebt 5 s den Blick', () => {
+  it('Augen am Boden: wenige, meist an Waenden und in Ecken; ein Klumpen (ab drei Augen) truebt 5 s den Blick, ein oder zwei nicht', () => {
     const g = spiel()
     expect(g.augen.length).toBeGreaterThan(10)
     // Wenige: hoechstens 6 % der Felder
@@ -202,19 +202,23 @@ describe('Kaefigmeister (Mission 30)', () => {
     for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) if (g.inside({ x, y })) felder++
     expect(g.augen.length).toBeLessThan(felder * 0.06)
     const amRand = g.augen.filter((a) => DIRS.some((d) => !g.inside({ x: a.p.x + STEP[d].x, y: a.p.y + STEP[d].y })))
-    expect(amRand.length / g.augen.length).toBeGreaterThan(0.7)
+    expect(amRand.length / g.augen.length).toBeGreaterThan(0.6)
+    // Gut gemischt: Klumpen (3 oder 4, gefaehrlich) und einzelne (1 oder 2), auch mal mitten im Raum
+    const klumpen = g.augen.filter((a) => a.n >= 3)
+    expect(klumpen.length / g.augen.length).toBeGreaterThan(0.3)
+    expect(klumpen.length / g.augen.length).toBeLessThan(0.6)
+    expect(g.augen.length - amRand.length).toBeGreaterThan(0)
     for (const a of g.augen) {
       expect(a.n).toBeGreaterThanOrEqual(1)
-      expect(a.n).toBeLessThanOrEqual(3)
+      expect(a.n).toBeLessThanOrEqual(4)
       expect(Math.max(Math.abs(a.p.x - 25), Math.abs(a.p.y - 67))).toBeGreaterThan(5)
     }
-    // Ein einzelnes Auge tut nichts, ein Augenfeld truebt den Blick (verschwommen, umgekehrt oder wellig)
-    const einzeln = g.augen.find((a) => a.n === 1)!
-    ;(g as unknown as Innen).einsammeln(einzeln.p)
+    // Ein oder zwei Augen tun nichts, ein Klumpen truebt den Blick (verschwommen, umgekehrt oder wellig)
+    for (const a of g.augen.filter((x) => x.n <= 2)) (g as unknown as Innen).einsammeln(a.p)
     expect(g.augenBlick).toBeNull()
     const arten = new Set<string>()
     for (let i = 0; i < 30; i++) {
-      const feld = g.augen.find((a) => a.n >= 2)!
+      const feld = g.augen.find((a) => a.n >= 3)!
       ;(g as unknown as Innen).einsammeln(feld.p)
       const b = g.augenBlick!
       expect(b.bis - b.ab).toBe(5000)

@@ -138,11 +138,13 @@ export const KERKER_VORBOTEN = [5, 3, 1] as const
 /** Kerker im freien Spiel: Gang (breit x lang), dann ein grosser Raum (breit x tief); gross, weil die Schlange dann lang ist */
 export const KERKER = { gang: 5, lang: 9, raumB: 17, raumT: 14 } as const
 
-/** Augen am Boden (Reich des Kaefigmeisters): ein kleines Haeufchen aus n Augen. Ab zwei Augen ist es ein Augenfeld:
- *  faehrt der Kopf darueber, sieht man AUGEN_BLICK ms lang schlecht (verschwommen, Farben umgekehrt oder wellig) */
+/** Augen am Boden (Reich des Kaefigmeisters): ein kleines Haeufchen aus n Augen. Ab AUGEN_GEFAHR Augen ist es ein
+ *  Augenfeld (deutlich als Klumpen zu sehen): faehrt der Kopf darueber, sieht man AUGEN_BLICK ms lang schlecht
+ *  (verschwommen, Farben umgekehrt oder wellig). Ein oder zwei Augen tun nichts */
 export type Augenfeld = { p: P; n: number; seed: number }
 export type BlickArt = 'unscharf' | 'invertiert' | 'wellig'
 export const AUGEN_BLICK = 5000
+export const AUGEN_GEFAHR = 3
 
 /** Ein Kerker im freien Spiel: Gang aus der Karte in die Erde, am Ende ein Raum mit Augen; dort erscheint der Kaefigmeister */
 export type Kerker = { cells: P[]; raum: MeisterRaum; mund: P[]; t: number }
@@ -846,8 +848,8 @@ export class Game {
     this.freiBoss?.einsammeln(n)
     this.freiEnt?.einsammeln(n)
     this.freiMeister?.einsammeln(n)
-    // Augenfeld (zwei oder mehr Augen): der Blick verschwimmt, die Farben kehren sich um oder das Bild wird wellig
-    const auge = this.augen.find((a) => a.n >= 2 && same(a.p, n))
+    // Augenfeld (drei oder mehr Augen): der Blick verschwimmt, die Farben kehren sich um oder das Bild wird wellig
+    const auge = this.augen.find((a) => a.n >= AUGEN_GEFAHR && same(a.p, n))
     if (auge) {
       const art = this.r.pick<BlickArt>(['unscharf', 'invertiert', 'wellig'])
       this.augenBlick = { art, ab: this.time, bis: this.time + AUGEN_BLICK }
@@ -5843,16 +5845,17 @@ export class Game {
     return false
   }
 
-  /** Augen verteilen: in Ecken oft, an Waenden manchmal (1 bis 3 Augen), mitten auf dem Boden selten (2 bis 3).
-   *  Nicht auf Feldern, fuer die `tabu` gilt */
+  /** Augen verteilen: in Ecken oft, an Waenden manchmal, mitten im Raum ab und zu. Knapp die Haelfte sind Klumpen aus
+   *  3 oder 4 Augen (gefaehrlich), der Rest ein oder zwei einzelne. Nicht auf Feldern, fuer die `tabu` gilt */
   protected augenVerteilen(cells: P[], tabu: (c: P) => boolean): Augenfeld[] {
     const out: Augenfeld[] = []
     for (const c of cells) {
       if (tabu(c)) continue
       const wand = DIRS.filter((d) => !this.inside({ x: c.x + STEP[d].x, y: c.y + STEP[d].y })).length
-      const chance = wand >= 2 ? 0.3 : wand === 1 ? 0.045 : 0.008
+      const chance = wand >= 2 ? 0.3 : wand === 1 ? 0.045 : 0.014
       if (this.r.next() >= chance) continue
-      out.push({ p: { ...c }, n: wand ? this.r.int(1, 3) : this.r.int(2, 3), seed: this.r.int(0, 1e6) })
+      const klumpen = this.r.next() < 0.45
+      out.push({ p: { ...c }, n: klumpen ? (this.r.next() < 0.75 ? 3 : 4) : this.r.int(1, 2), seed: this.r.int(0, 1e6) })
     }
     return out
   }
