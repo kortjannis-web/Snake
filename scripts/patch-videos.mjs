@@ -5,10 +5,10 @@
 //   welten    jede Welt 3 Sekunden
 // und mit --hilfe die Videos des Spielfuehrers hinter dem Fragezeichen (public/hilfe/):
 //   endlos          der Endlos-Modus: Aepfel, Gefahren, Welten
-//   online          Mehrspieler mit vier Schlangen: Gegeneinander, Zone, Apfeljagd
+//   online          Mehrspieler mit drei Schlangen auf eigenen Wegen: Gegeneinander, Zone, Apfeljagd
 //   kampagne        die Karte (die echte App: die Schlange waechst zur naechsten Mission), dann Missionen
 //   aussehen        Skins, Accessoires und Effekte (die echte App, es wird getippt und gescrollt)
-//   bosse-kampagne  wie kampagne der Patchnotes, bosse-endlos wie endlos der Patchnotes
+//   bosse-kampagne  wie kampagne der Patchnotes, bosse-endlos wie endlos der Patchnotes (Titel ohne Namen der Bosse)
 //   feedback        wie in den Patchnotes, nur werden ein Bug und Kritik getippt
 // Spiel und Renderer sind die echten (scripts/patch-szene.ts), die Zeit laeuft Bild fuer Bild, im Trailer stirbt niemand.
 // Nur noetig, wenn sich die Patchnotes oder der Spielfuehrer aendern:  npm run patch-videos  bzw.  npm run hilfe-videos
@@ -51,7 +51,28 @@ const CLIPS = {
 }
 
 /** Spielszenen des Spielfuehrers (Kampagne und Aussehen beginnen mit der echten App, siehe unten) */
-const VIER = ['klassik', 'tiger', 'koralle', 'nacht']
+const DREI = ['klassik', 'tiger', 'koralle']
+/** Online: jede Schlange faehrt ihre eigene Runde in ihrem eigenen Teil der Karte (Eckpunkte, geschlossen), unabhaengig von
+ *  den anderen und in eigenem Takt. Karte bei drei Spielern: 26 x 24 Felder (unten rechts keine), Zone 26 x 36 */
+const ONLINE_WEGE = {
+  vs: [
+    [[2, 2], [10, 2], [10, 6], [6, 6], [6, 9], [2, 9]],
+    [[15, 9], [15, 1], [24, 1], [24, 5], [19, 5], [19, 9]],
+    [[2, 14], [10, 14], [10, 21], [7, 21], [7, 17], [4, 17], [4, 21], [2, 21]],
+  ],
+  royale: [
+    [[5, 6], [12, 6], [12, 10], [9, 10], [9, 14], [5, 14]],
+    [[20, 5], [20, 17], [15, 17], [15, 12], [17, 12], [17, 5]],
+    [[5, 20], [19, 20], [19, 29], [13, 29], [13, 24], [9, 24], [9, 29], [5, 29]],
+  ],
+  jagd: [
+    [[3, 10], [3, 2], [8, 2], [8, 7], [11, 7], [11, 10]],
+    [[14, 3], [24, 3], [24, 9], [21, 9], [21, 6], [17, 6], [17, 9], [14, 9]],
+    [[2, 14], [6, 14], [6, 18], [10, 18], [10, 22], [2, 22]],
+  ],
+}
+/** Bosse im Spielfuehrer: ohne Namen, nur dass es verschiedene gibt (die Patchnotes behalten ihre Titel) */
+const ohneNamen = (clips, texte) => clips.map((c, i) => ({ ...c, szene: { ...c.szene, ...texte[i] } }))
 const HILFE_CLIPS = {
   endlos: [
     { dauer: sek(2.6), szene: { level: 3, seed: 3, laenge: 6, feld: 22, vorlauf: 600, unter: 'Endlos · Level 3', titel: 'Äpfel essen, wachsen' } },
@@ -59,18 +80,29 @@ const HILFE_CLIPS = {
     { dauer: sek(2.6), szene: { welt: 'wueste', level: 40, seed: 12, laenge: 12, feld: 18, vorlauf: 1200, unter: 'Endlos · Wüste', titel: 'Sieben Welten' } },
     { dauer: sek(2.6), szene: { welt: 'vulkan', level: 80, seed: 17, laenge: 16, feld: 17, vorlauf: 1200, unter: 'Endlos · Vulkan', titel: 'Wie weit kommst du?' } },
   ],
+  // Erst ist die eigene Schlange da, dann kommt die zweite dazu, dann die dritte; ganze Karte im Bild
   online: [
-    { dauer: sek(3.2), szene: { mehr: { modus: 'vs', skins: VIER }, seed: 21, feld: 13, vorher: 16000, unter: 'Online · Gegeneinander', titel: 'Bis zu 4 Spieler' } },
-    { dauer: sek(3.2), szene: { mehr: { modus: 'royale', skins: VIER }, seed: 22, feld: 10, vorher: 40000, unter: 'Online · Zone', titel: 'Die Karte schrumpft' } },
-    { dauer: sek(3.2), szene: { mehr: { modus: 'jagd', skins: VIER }, seed: 23, feld: 13, vorher: 14000, unter: 'Online · Apfeljagd', titel: 'Wer hat die meisten?' } },
+    { dauer: sek(3.8), szene: { mehr: { modus: 'vs', skins: DREI, wege: ONLINE_WEGE.vs, laengen: [7, 6, 8], dazu: [0, 900, 1800] }, seed: 21, feld: 13, blick: { x: 13, y: 9.1 }, unter: 'Online · Gegeneinander', titel: 'Bis zu 4 Spieler' } },
+    { dauer: sek(3.4), szene: { mehr: { modus: 'royale', skins: DREI, wege: ONLINE_WEGE.royale, laengen: [8, 9, 10] }, zone: { stufe: 2, in: 1600 }, seed: 22, feld: 10, blick: { x: 13, y: 16 }, unter: 'Online · Zone', titel: 'Die Karte schrumpft' } },
+    { dauer: sek(3.4), szene: { mehr: { modus: 'jagd', skins: DREI, wege: ONLINE_WEGE.jagd, laengen: [6, 7, 6] }, seed: 23, feld: 13, blick: { x: 13, y: 9.1 }, unter: 'Online · Apfeljagd', titel: 'Wer hat die meisten?' } },
   ],
   kampagne: [
     { dauer: sek(2.4), szene: { mission: 5, laenge: 6, feld: 22, vorlauf: 1500, unter: 'Mission 5 · Schatz', titel: 'Hinter dem Tor' } },
     { dauer: sek(2.4), szene: { mission: 21, laenge: 8, feld: 20, vorlauf: 1500, unter: 'Mission 21', titel: 'Unter der Erde' } },
     { dauer: sek(2.6), szene: { mission: 27, laenge: 8, feld: 20, vorlauf: 1500, unter: 'Mission 27', titel: 'Die drei Siegel' } },
   ],
-  'bosse-kampagne': CLIPS.kampagne,
-  'bosse-endlos': CLIPS.endlos,
+  'bosse-kampagne': ohneNamen(CLIPS.kampagne, [
+    { unter: 'Kampagne · Boss', titel: 'Verschiedenste Bosse' },
+    { unter: 'Kampagne · Boss', titel: 'Jeder kämpft anders' },
+    { unter: 'Kampagne', titel: 'Neue Gegner' },
+    { unter: 'Kampagne · Boss', titel: 'Drei Leben' },
+  ]),
+  'bosse-endlos': ohneNamen(CLIPS.endlos, [
+    { unter: 'Endlos · Boss', titel: 'Auch im Endlos-Modus' },
+    { unter: 'Endlos · Boss', titel: 'Immer stärker' },
+    { unter: 'Endlos', titel: 'Kerker in der Erde' },
+    { unter: 'Endlos · Boss', titel: 'Wer hält durch?' },
+  ]),
 }
 
 /** Je Welt ein Ausschnitt, in dem man viel von ihr sieht (Level und Startwert ausprobiert) */

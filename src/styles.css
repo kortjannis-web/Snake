@@ -3554,16 +3554,21 @@ html[data-install] #app {
 /* Patchnotes: ueber allem, einmal nach einem Update. Vier Folien wie ein kleiner Trailer, oben die Fortschrittsbalken */
 .screen--patch {
   z-index: 40;
+  grid-template-rows: minmax(0, 1fr);
 }
 
+/* Nie scrollen: die Karte ist hoechstens so hoch wie der Bildschirm, das Video nimmt den Platz, der neben Text und Knoepfen
+   bleibt. Hoechstens so hoch, dass das Video die ganze Breite fuellt (plus etwa 320px fuer Kopf, Text und Knoepfe) */
 .patch {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   width: min(100%, 400px);
-  max-height: 100%;
+  height: 100%;
+  max-height: calc((min(400px, 100vw - 32px) - 32px) * 404 / 360 + 320px);
   padding: 14px 14px 12px;
   text-align: left;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .patch__text--extra {
@@ -3577,6 +3582,7 @@ html[data-install] #app {
 
 .patch__kopf {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 10px;
 }
@@ -3616,37 +3622,51 @@ html[data-install] #app {
 }
 
 .patch__buehne {
+  flex: 1 1 0;
+  min-height: 0;
   overflow: hidden;
   touch-action: pan-y;
 }
 
 .patch__band {
   display: flex;
+  height: 100%;
   transition: transform 0.45s var(--ease);
 }
 
 .patch__folie {
+  display: flex;
   flex: 0 0 100%;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
   padding: 0 2px;
 }
 
-.patch__video {
-  position: relative;
-  width: min(100%, calc(46vh * 360 / 404));
-  margin: 0 auto 12px;
-  aspect-ratio: 360 / 404;
-  overflow: hidden;
-  border-radius: 20px;
-  background: var(--mokka-tief);
-  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(245, 239, 230, 0.06);
+.patch__folie > * {
+  flex: none;
+}
+
+/* Rahmen fuer das Video: so viel Platz, wie die Folie uebrig hat; das Video darin so gross, wie es passt (8:9) */
+.patch__folie > .patch__video {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  margin-bottom: 12px;
+  container-type: size;
 }
 
 .patch__video video {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: min(100%, 100cqh * 360 / 404);
+  height: auto;
+  aspect-ratio: 360 / 404;
   object-fit: cover;
+  border-radius: 20px;
+  background: var(--mokka-tief);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(245, 239, 230, 0.06);
 }
 
 .patch__unter {
@@ -3671,6 +3691,7 @@ html[data-install] #app {
 
 .patch__knoepfe {
   display: grid;
+  flex: none;
   grid-template-columns: auto 1fr;
   gap: 10px;
 }
@@ -3692,6 +3713,7 @@ html[data-install] #app {
 
 /* Spielfuehrer: letzte Folie, Weg zur ausfuehrlichen Anleitung */
 .fuehrer__mehr {
+  align-self: flex-start;
   width: auto;
   min-height: 40px;
   margin: 10px 4px 0;
@@ -3723,11 +3745,8 @@ html[data-install] #app {
   margin: 0;
 }
 
-/* Kleine Bildschirme: Video kleiner, damit alles ohne Scrollen passt */
+/* Kleine Bildschirme: weniger Text-Hoehe, damit das Video gross genug bleibt */
 @media (max-height: 640px) {
-  .patch__video {
-    width: min(100%, calc(38vh * 360 / 404));
-  }
   .patch__text {
     min-height: 0;
     font-size: 0.9rem;

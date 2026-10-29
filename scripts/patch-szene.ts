@@ -6,7 +6,7 @@ import { missionSpiel } from '../src/game/boss'
 import { Game, key } from '../src/game/game'
 import { DUELL, GEGNER_MODI, MehrGame, type Modus } from '../src/game/mehr'
 import { WIESE_MISSIONEN } from '../src/game/missionen'
-import type { P } from '../src/game/types'
+import type { Dir, P } from '../src/game/types'
 import { MEHR_BILD } from '../src/multi/protokoll'
 import { BergKacheln } from '../src/render/berge'
 import { Renderer } from '../src/render/renderer'
@@ -39,9 +39,21 @@ type Szene = {
   vorlauf?: number
   titel?: string
   unter?: string
-  /** Mehrspieler: Modus und Skins der Spieler (die erste Schlange ist die eigene, die Kamera folgt ihr) */
-  mehr?: { modus: Modus; skins: string[] }
+  /** Mehrspieler: Modus und Skins der Spieler (die erste Schlange ist die eigene, die Kamera folgt ihr). Mit wege faehrt jede
+   *  Schlange ihre eigene Runde (Eckpunkte, geschlossen) statt des Autopiloten, in eigenem Takt; laengen: Glieder je
+   *  Schlange; dazu: ab wann (ms) sie im Bild ist (blendet ein) */
+  mehr?: { modus: Modus; skins: string[]; wege?: [number, number][][]; laengen?: number[]; dazu?: number[] }
+  /** Zone: so viele Ringe sind schon Zone, der naechste kommt nach in ms */
+  zone?: { stufe: number; in: number }
+  /** Feste Kamera: dieses Feld (auch halbe) steht in der Bildmitte */
+  blick?: P
 }
+
+/** Mehrspieler mit festen Wegen: die Runde jeder Schlange Feld fuer Feld und wo ihr Kopf darauf gerade ist */
+type Weg = { felder: P[]; i: number }
+let wege: Weg[] = []
+/** Wer zuletzt einen Apfel vor die Nase gelegt bekommen hat */
+let apfelFuer = 0
 
 const NAMEN = ['Du', 'Mia', 'Ben', 'Lea']
 
@@ -116,6 +128,7 @@ function zielVon(live = false): P | null {
 
 function szene(neu: Szene, w: number, h: number) {
   s = neu
+  szeneZeit = 0
   uhr += 5000
   cv = document.getElementById('c') as HTMLCanvasElement
   r = new Renderer(cv)
@@ -124,12 +137,19 @@ function szene(neu: Szene, w: number, h: number) {
   const quer = false
   r.mehr = null
   r.skin = skinVon('klassik')
+  wege = []
   if (s.mehr) {
     const { modus, skins } = s.mehr
     const spieler = skins.map((skin, i) => ({ id: `s${i}`, name: NAMEN[i], skin }))
-    g = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: s.seed ?? 7, modus, spieler, tempo: 'normal', leben: 3, cfg: GEGNER_MODI.includes(modus) ? DUELL : {} })
+    const m = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: s.seed ?? 7, modus, spieler, tempo: 'normal', leben: 3, cfg: GEGNER_MODI.includes(modus) ? DUELL : {} })
+    g = m
     r.welt = WELTEN[0]
     r.skin = skinVon(skins[0])
+    if (s.mehr.wege) wegeSetzen(m, s.mehr.wege, s.mehr.laengen ?? [])
+    if (s.zone) {
+      m.zoneStufe = s.zone.stufe
+      m.zoneNaechste = m.time + s.zone.in
+    }
   } else if (s.mission) {
     const m = WIESE_MISSIONEN[s.mission - 1]
     const mg = missionSpiel(m, quer)
@@ -167,6 +187,7 @@ function szene(neu: Szene, w: number, h: number) {
   const fokus = s.hin ? () => zielVon(true) : () => null
   let cam: P | null = null
   ;(r as unknown as { kamera: (g: Game, cell: number, dt: number, kopf: P) => P }).kamera = (_g, cell, _dt, kopf) => {
+    if (s.blick) return { x: s.blick.x * cell, y: s.blick.y * cell }
     const f = fokus()
     const zx = ((f ? (kopf.x + f.x) / 2 : kopf.x) + 0.5) * cell
     const zy = ((f ? (kopf.y + f.y) / 2 : kopf.y) + 0.5) * cell
@@ -179,8 +200,82 @@ function szene(neu: Szene, w: number, h: number) {
   szeneZeit = 0
 }
 
+/** Feste Wege: Eckpunkte zu Feldern, jede Schlange liegt mit dem Kopf am Anfang ihrer Runde, der Koerper auf den Feldern davor.
+ *  Jede bekommt ihren eigenen Takt (versetzt), damit nicht alle im selben Moment ein Feld weiterspringen */
+function wegeSetzen(m: MehrGame, ecken: [number, number][][], laengen: number[]) {
+  const RICHTUNG = (a: P, b: P): Dir => (b.x > a.x ? 'r' : b.x < a.x ? 'l' : b.y > a.y ? 'd' : 'u')
+  ecken.forEach((e, i) => {
+    const felder: P[] = []
+    e.forEach(([x, y], k) => {
+      const [nx, ny] = e[(k + 1) % e.length]
+      const dx = Math.sign(nx - x)
+      const dy = Math.sign(ny - y)
+      for (let n = 0; n < Math.abs(nx - x) + Math.abs(ny - y); n++) felder.push({ x: x + dx * n, y: y + dy * n })
+    })
+    const len = laengen[i] ?? 6
+    // Kopf auf dem Feld len - 1, der Rest der Schlange auf den Feldern davor
+    const kopf = len - 1
+    const body = Array.from({ length: len }, (_, k) => ({ ...felder[kopf - k] }))
+    m.wechsel(i)
+    m.body = body
+    m.prev = body.map((p) => ({ ...p }))
+    m.dir = RICHTUNG(body[1], body[0])
+    m.prevDir = m.dir
+    m.queue = []
+    m.schutzBis = 0
+    m.last = m.time - (m.tick * ((i * 0.37) % 1))
+    wege.push({ felder, i: kopf })
+  })
+  m.wechsel(0)
+  apfelFuer = 0
+  apfelLegen(m)
+}
+
+/** Den Apfel ein paar Felder vor die naechste Schlange legen, die im Bild ist (reihum) */
+function apfelLegen(m: MehrGame) {
+  for (let k = 0; k < wege.length; k++) {
+    const i = (apfelFuer + k) % wege.length
+    if (m.schlangen[i].raus) continue
+    const w = wege[i]
+    const p = w.felder[(w.i + 5 + i) % w.felder.length]
+    if (m.schlangen.some((sl, j) => (j === m.aktiv ? m.body : sl.body).some((b) => b.x === p.x && b.y === p.y))) continue
+    m.apple = { p: { ...p }, t: m.time }
+    apfelFuer = i + 1
+    return
+  }
+}
+
+/** Feste Wege: jede Schlange biegt dort ab, wo ihre Runde abbiegt; nachkommende Schlangen blenden ein */
+function wegeLenken(m: MehrGame) {
+  const dazu = s.mehr?.dazu ?? []
+  m.schlangen.forEach((sl, i) => {
+    const w = wege[i]
+    if (!w) return
+    const ab = dazu[i] ?? 0
+    if (sl.raus !== szeneZeit < ab) {
+      sl.raus = szeneZeit < ab
+      // Kommt jetzt dazu: eigener Takt ab hier
+      if (!sl.raus) {
+        m.wechsel(i)
+        m.last = m.time - (m.tick * ((i * 0.37) % 1))
+      }
+    }
+    if (sl.raus) return
+    m.wechsel(i)
+    const n = w.felder.length
+    const h = m.body[0]
+    const vor = w.felder[(w.i + 1) % n]
+    if (h.x === vor.x && h.y === vor.y) w.i = (w.i + 1) % n
+    const ziel = w.felder[(w.i + 1) % n]
+    const d: Dir = ziel.x > h.x ? 'r' : ziel.x < h.x ? 'l' : ziel.y > h.y ? 'd' : 'u'
+    if (!m.queue.length && d !== m.dir) m.lenke(i, d)
+  })
+  m.wechsel(0)
+}
+
 /** Mehrspieler: jede Schlange faehrt mit dem Autopiloten, danach steht wieder die eigene in den Feldern von Game */
 function mehrLenken(m: MehrGame) {
+  if (wege.length) return wegeLenken(m)
   m.schlangen.forEach((sl, i) => {
     if (sl.tot || sl.raus) return
     m.wechsel(i)
@@ -194,17 +289,19 @@ function mehrLenken(m: MehrGame) {
 /** Mehrspieler: die anderen Schlangen fuer den Renderer */
 function mehrAnzeige(m: MehrGame) {
   m.sichern()
+  const dazu = s.mehr?.dazu ?? []
   r.mehr = {
-    andere: m.schlangen.slice(1).map((sl) => ({
+    andere: m.schlangen.slice(1).flatMap((sl, j) => (sl.raus ? [] : [{
       body: sl.body,
       prev: sl.prev,
       dir: sl.dir,
       alpha: Math.min(1, Math.max(0, (m.time - sl.last) / m.tick)),
       tot: false,
-      deck: m.modus === 'koop' ? 0.9 : 1,
+      // Kommt sie gerade dazu, blendet sie ein
+      deck: (m.modus === 'koop' ? 0.9 : 1) * Math.min(1, (szeneZeit - (dazu[j + 1] ?? -1e9)) / 350),
       name: sl.name,
       skin: skinVon(sl.skin),
-    })),
+    }])),
     ichTot: false,
     wahlSichtbar: false,
     zone: m.modus === 'royale' ? m.zone() : undefined,
@@ -222,8 +319,11 @@ function schritt(dt: number, zeichnen = true, ein = 1) {
     const d = autopilot(g)
     if (d) g.turn(d, false)
   }
+  const apfel = { ...g.apple.p }
   g.update(dt)
   g.drain()
+  // Feste Wege: gegessen, also den naechsten Apfel wieder vor eine Schlange
+  if (wege.length && g instanceof MehrGame && (g.apple.p.x !== apfel.x || g.apple.p.y !== apfel.y)) apfelLegen(g)
   if (!zeichnen) return
   if (g instanceof MehrGame) mehrAnzeige(g)
   r.draw(g)
