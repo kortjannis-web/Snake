@@ -3680,12 +3680,43 @@ html[data-install] #app {
   font-size: 1.05rem;
 }
 
-#patch-zurueck {
+#patch-zurueck,
+.patch__zurueck {
   padding: 0 16px;
 }
 
-#patch-zurueck[disabled] {
+#patch-zurueck[disabled],
+.patch__zurueck[disabled] {
   opacity: 0.35;
+}
+
+/* Spielfuehrer: letzte Folie, Weg zur ausfuehrlichen Anleitung */
+.fuehrer__mehr {
+  width: auto;
+  min-height: 40px;
+  margin: 10px 4px 0;
+  padding: 0 14px;
+  font-size: 0.9rem;
+}
+
+/* Roter Punkt am Fragezeichen: der Spielfuehrer ist noch nicht angesehen */
+.icon-btn--punkt {
+  position: relative;
+}
+
+.neu-punkt {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--mokka-tief);
+  border-radius: 50%;
+  background: #e5484d;
+}
+
+.neu-punkt[hidden] {
+  display: none;
 }
 
 .patch .fine {

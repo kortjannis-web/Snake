@@ -57,8 +57,9 @@ export default defineConfig({
         // Shop-Videos (MP4, das spielt jedes Geraet) und Standbilder sind klein (zusammen ca. 2,7 MB): mit in den Offline-
         // Speicher. WebM ist nur der Ersatz fuer Browser ohne H.264 und wird erst bei Bedarf geladen (spart 2 MB beim Installieren)
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webp,mp4}'],
-        // Trailer der Patchnotes (ca. 2 MB) laufen nur einmal nach einem Update: nicht in den Offline-Speicher
-        globIgnores: ['patch/**'],
+        // Trailer der Patchnotes (ca. 2 MB) laufen nur einmal nach einem Update, die Videos des Spielfuehrers (ca. 2 MB) nur auf
+        // Wunsch: nicht in den Offline-Speicher
+        globIgnores: ['patch/**', 'hilfe/**'],
         importScripts: ['push-sw.js'],
       },
     }),

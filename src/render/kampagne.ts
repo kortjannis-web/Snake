@@ -146,6 +146,11 @@ export class KampagnenKarte {
     return this.felder.findIndex((f) => Math.hypot(f.p.x - x, f.p.y - y) <= f.r + 12)
   }
 
+  /** Mitte des Felds von Mission nr in Kartenpixeln (fuer die Videos des Spielfuehrers) */
+  feldMitte(nr: number) {
+    return { ...this.felder[nr - 1].p }
+  }
+
   /** Scrollposition, bei der Mission nr gut im Bild ist */
   scrollFuer(nr: number, vh: number) {
     const f = this.felder[Math.max(0, Math.min(this.felder.length - 1, nr - 1))]

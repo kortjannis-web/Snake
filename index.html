@@ -88,7 +88,7 @@
               <span class="geld-pille geld-pille--trophaee" title="Gold-Trophäen aus Mehrspieler-Siegen, Silber-Trophäen: alle bisher verdienten Äpfel"><span data-icon="Trophy" aria-hidden="true"></span><b id="home-trophaeen" aria-label="Gold-Trophäen">0</b><span class="silber" data-icon="Trophy" aria-hidden="true"></span><b id="home-silber" aria-label="Silber-Trophäen">0</b></span>
             </div>
             <button class="icon-btn icon-btn--feedback" id="btn-feedback" data-go="feedback" aria-label="Feedback geben" title="Feedback" data-icon="CircleAlert"></button>
-            <button class="icon-btn" data-go="help" aria-label="Anleitung" title="Anleitung" data-icon="CircleHelp"></button>
+            <button class="icon-btn icon-btn--punkt" id="btn-fuehrer" aria-label="Spielführer: alle Spielfunktionen in Videos" title="Spielführer" data-icon="CircleHelp"><i class="neu-punkt" id="fuehrer-punkt" aria-hidden="true" hidden></i></button>
             <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus" data-icon="Volume2"></button>
           </div>
           <div class="home__brand">
@@ -184,6 +184,91 @@
             <button class="btn btn--play" id="patch-weiter">Weiter<span data-icon="ChevronRight"></span></button>
           </div>
           <p class="fine" id="patch-version"></p>
+        </div>
+      </section>
+
+      <!-- Spielfuehrer hinter dem Fragezeichen: jede Spielfunktion mit einem kurzen Video (wie die Patchnotes) -->
+      <section class="screen screen--dim screen--patch" id="fuehrer" role="dialog" aria-modal="true" aria-labelledby="fuehrer-titel">
+        <div class="card patch">
+          <div class="patch__kopf">
+            <div class="patch__balken" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <button class="icon-btn patch__zu" data-trailer="zu" aria-label="Spielführer schließen" data-icon="X"></button>
+          </div>
+          <div class="patch__buehne">
+            <div class="patch__band">
+            <article class="patch__folie" data-nr="0">
+              <div class="patch__video">
+                <video muted playsinline loop preload="auto" poster="hilfe/endlos.webp" aria-hidden="true">
+                  <source src="hilfe/endlos.mp4" type="video/mp4" />
+                  <source src="hilfe/endlos.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Spielführer · 1 von 6</p>
+              <h2 class="patch__titel" id="fuehrer-titel">Endlos-Modus</h2>
+              <p class="patch__text">Iss Äpfel, werde länger und komm so weit wie möglich. Jedes Level bringt etwas Neues, die Karte wächst mit, und jede Welt hat ihre eigenen Gefahren und Tiere. Die Welten findest du unten unter <b>Map</b>.</p>
+            </article>
+            <article class="patch__folie" data-nr="1" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="hilfe/online.webp" aria-hidden="true">
+                  <source src="hilfe/online.mp4" type="video/mp4" />
+                  <source src="hilfe/online.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Spielführer · 2 von 6</p>
+              <h2 class="patch__titel">Online-Modus</h2>
+              <p class="patch__text">In der <b>Hall of Snakes</b> spielst du mit bis zu 4 Leuten: Gegeneinander, Wettrennen, Koop, Apfeljagd und Zone. Siege bringen Gold-Trophäen. Dazu Bestenliste, Freunde und Chat.</p>
+            </article>
+            <article class="patch__folie" data-nr="2" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="hilfe/kampagne.webp" aria-hidden="true">
+                  <source src="hilfe/kampagne.mp4" type="video/mp4" />
+                  <source src="hilfe/kampagne.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Spielführer · 3 von 6</p>
+              <h2 class="patch__titel">Kampagne</h2>
+              <p class="patch__text">30 Missionen auf festen Karten. Deine Schlange wächst auf der Karte von Mission zu Mission. Mit Schatz-Leveln, drei Siegeln und ab Mission 21 tief unter der Erde.</p>
+            </article>
+            <article class="patch__folie" data-nr="3" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="hilfe/aussehen.webp" aria-hidden="true">
+                  <source src="hilfe/aussehen.mp4" type="video/mp4" />
+                  <source src="hilfe/aussehen.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Spielführer · 4 von 6</p>
+              <h2 class="patch__titel">Aussehen und Accessoires</h2>
+              <p class="patch__text">Mit deinen Äpfeln kaufst du Farben, Skins, Accessoires und Spuren. Effekte schaltest du mit Silber- und Gold-Trophäen frei. Alles unter <b>Aussehen</b>.</p>
+            </article>
+            <article class="patch__folie" data-nr="4" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="hilfe/bosse-kampagne.webp" aria-hidden="true">
+                  <source src="hilfe/bosse-kampagne.mp4" type="video/mp4" />
+                  <source src="hilfe/bosse-kampagne.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Spielführer · 5 von 6</p>
+              <h2 class="patch__titel">Bosse der Kampagne</h2>
+              <p class="patch__text">Mission 10 der Steingolem, Mission 20 der Ent und Mission 30 der Käfigmeister. Jeder hat drei Leben und sein eigenes Rätsel. Trifft er deinen Kopf, ist es vorbei.</p>
+            </article>
+            <article class="patch__folie" data-nr="5" aria-hidden="true">
+              <div class="patch__video">
+                <video muted playsinline loop preload="none" poster="hilfe/bosse-endlos.webp" aria-hidden="true">
+                  <source src="hilfe/bosse-endlos.mp4" type="video/mp4" />
+                  <source src="hilfe/bosse-endlos.webm" type="video/webm" />
+                </video>
+              </div>
+              <p class="patch__unter">Spielführer · 6 von 6</p>
+              <h2 class="patch__titel">Bosse im Endlos-Modus</h2>
+              <p class="patch__text">Auch im Endlos-Modus warten sie: Level 60 der Steingolem, Level 100 der Ent, ab Level 145 graben sich Kerker in die Erde und auf Level 150 kommt der Käfigmeister.</p>
+              <button class="btn btn--ghost fuehrer__mehr" id="fuehrer-mehr"><span data-icon="CircleHelp"></span>Alle Gefahren im Detail</button>
+            </article>
+            </div>
+          </div>
+          <div class="patch__knoepfe">
+            <button class="btn btn--ghost patch__zurueck" data-trailer="zurueck"><span data-icon="ChevronLeft"></span>Zurück</button>
+            <button class="btn btn--play" data-trailer="weiter">Weiter<span data-icon="ChevronRight"></span></button>
+          </div>
         </div>
       </section>
 
