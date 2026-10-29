@@ -12,6 +12,148 @@ const hash = (n: number) => {
   return s - Math.floor(s)
 }
 
+const hash2 = (x: number, y: number, s = 0) => {
+  const v = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453
+  return v - Math.floor(v)
+}
+
+/** Ein Feld Steinboden unter der Erde (Kampagne ab Mission 21, Kerker im freien Spiel): ruhig und kontrastarm, damit er
+ *  nicht ablenkt; ein kaum sichtbares Schachbrett, ein, zwei flache Pflastersteine, ein paar Kruemel. Immer gleich je Feld */
+export function drawSteinboden(c: CanvasRenderingContext2D, x: number, y: number, cell: number) {
+  const hell = (x + y) % 2 === 0
+  c.fillStyle = hell ? '#685F55' : '#635A51'
+  c.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
+  const n = 1 + Math.floor(hash2(x, y, 21) * 1.8)
+  for (let i = 0; i < n; i++) {
+    const sx = x * cell + cell * (0.25 + hash2(x, y, 22 + i) * 0.5)
+    const sy = y * cell + cell * (0.25 + hash2(x, y, 26 + i) * 0.5)
+    const r = cell * (0.15 + hash2(x, y, 30 + i) * 0.1)
+    const t = hash2(x, y, 34 + i)
+    c.fillStyle = `rgba(${hell ? 118 : 112}, ${hell ? 108 : 103}, ${hell ? 97 : 92}, ${0.55 + t * 0.25})`
+    c.beginPath()
+    c.ellipse(sx, sy, r, r * 0.8, hash2(x, y, 38 + i) * 3, 0, Math.PI * 2)
+    c.fill()
+  }
+  c.fillStyle = 'rgba(52, 40, 30, 0.18)'
+  for (let i = 0; i < 2; i++) c.fillRect(x * cell + hash2(x, y, 44 + i) * cell, y * cell + hash2(x, y, 48 + i) * cell, cell * 0.06, cell * 0.06)
+}
+
+/** Augen am Boden (Kaefigmeister: in seinen Raeumen und in den Kerkern): eins bis vier glasige Augaepfel, die Pupillen
+ *  schauen zum Kopf der Schlange (kx, ky in Pixeln), ab und zu blinzelt eins */
+export function drawAugen(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, seed: number, kx: number, ky: number, now: number, reduce: boolean) {
+  const n = 1 + Math.floor(hash(seed) * 4)
+  for (let i = 0; i < n; i++) {
+    const ax = x + (hash(seed + i * 3 + 1) - 0.5) * cell * 0.7
+    const ay = y + (hash(seed + i * 3 + 2) - 0.5) * cell * 0.7
+    const r = cell * (0.1 + hash(seed + i * 5) * 0.08) * (n === 1 ? 1.5 : 1)
+    ctx.fillStyle = 'rgba(30, 10, 10, 0.35)'
+    ctx.beginPath()
+    ctx.ellipse(ax + r * 0.2, ay + r * 0.3, r * 1.05, r * 0.9, 0, 0, TAU)
+    ctx.fill()
+    const zu = !reduce && (now / 3700 + hash(seed + i)) % 1 < 0.04
+    ctx.fillStyle = '#E9E2D0'
+    ctx.beginPath()
+    ctx.ellipse(ax, ay, r, zu ? r * 0.15 : r * 0.9, 0, 0, TAU)
+    ctx.fill()
+    if (zu) continue
+    // Feine rote Adern
+    ctx.strokeStyle = 'rgba(170, 40, 40, 0.45)'
+    ctx.lineWidth = Math.max(0.5, r * 0.08)
+    ctx.beginPath()
+    ctx.moveTo(ax - r * 0.9, ay)
+    ctx.lineTo(ax - r * 0.4, ay - r * 0.15)
+    ctx.moveTo(ax + r * 0.85, ay + r * 0.2)
+    ctx.lineTo(ax + r * 0.4, ay + r * 0.05)
+    ctx.stroke()
+    const w = Math.atan2(ky - ay, kx - ax)
+    const px = ax + Math.cos(w) * r * 0.4
+    const py = ay + Math.sin(w) * r * 0.35
+    ctx.fillStyle = hash(seed + i * 7) < 0.5 ? '#6B4FA0' : '#3E6E8E'
+    ctx.beginPath()
+    ctx.arc(px, py, r * 0.45, 0, TAU)
+    ctx.fill()
+    ctx.fillStyle = '#120C10'
+    ctx.beginPath()
+    ctx.arc(px, py, r * 0.22, 0, TAU)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+    ctx.beginPath()
+    ctx.arc(px - r * 0.15, py - r * 0.15, r * 0.1, 0, TAU)
+    ctx.fill()
+  }
+}
+
+/** Ein Buch am Boden (Kaefigmeister): zugeklappt oder aufgeschlagen, schraeg hingeworfen */
+export function drawBuchAmBoden(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, seed: number) {
+  const auf = hash(seed) < 0.45
+  const farben = ['#5A2A2A', '#2A3A5A', '#3A4A2A', '#4A3A22']
+  ctx.save()
+  ctx.translate(x + (hash(seed + 1) - 0.5) * cell * 0.3, y + (hash(seed + 2) - 0.5) * cell * 0.3)
+  ctx.rotate((hash(seed + 3) - 0.5) * 2.4)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+  ctx.fillRect(-cell * 0.26 + 2, -cell * 0.19 + 2, cell * 0.52, cell * 0.38)
+  if (auf) {
+    ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
+    ctx.fillRect(-cell * 0.3, -cell * 0.2, cell * 0.6, cell * 0.4)
+    ctx.fillStyle = '#E4D7B8'
+    ctx.fillRect(-cell * 0.27, -cell * 0.17, cell * 0.25, cell * 0.34)
+    ctx.fillRect(cell * 0.02, -cell * 0.17, cell * 0.25, cell * 0.34)
+    ctx.strokeStyle = 'rgba(120, 90, 160, 0.7)'
+    ctx.lineWidth = Math.max(0.6, cell * 0.02)
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath()
+      ctx.moveTo(-cell * 0.23, -cell * 0.1 + i * cell * 0.08)
+      ctx.lineTo(-cell * 0.06, -cell * 0.1 + i * cell * 0.08)
+      ctx.moveTo(cell * 0.06, -cell * 0.1 + i * cell * 0.08)
+      ctx.lineTo(cell * 0.23, -cell * 0.1 + i * cell * 0.08)
+      ctx.stroke()
+    }
+  } else {
+    ctx.fillStyle = farben[Math.floor(hash(seed + 4) * 4)]
+    ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.44, cell * 0.34)
+    ctx.fillStyle = '#C9A24A'
+    ctx.fillRect(-cell * 0.22, -cell * 0.17, cell * 0.06, cell * 0.34)
+    ctx.fillStyle = '#E4D7B8'
+    ctx.fillRect(cell * 0.18, -cell * 0.15, cell * 0.03, cell * 0.3)
+  }
+  ctx.restore()
+}
+
+/** Buecherschrank (Mission 30) von oben, ueber zusammenhaengende Felder: dunkles Holz, Reihen von Buchruecken */
+export function drawRegal(ctx: CanvasRenderingContext2D, cells: P[], cell: number) {
+  if (!cells.length) return
+  const x0 = Math.min(...cells.map((c) => c.x)) * cell
+  const y0 = Math.min(...cells.map((c) => c.y)) * cell
+  const x1 = (Math.max(...cells.map((c) => c.x)) + 1) * cell
+  const y1 = (Math.max(...cells.map((c) => c.y)) + 1) * cell
+  const quer = x1 - x0 >= y1 - y0
+  ctx.save()
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
+  ctx.fillRect(x0 + cell * 0.12, y0 + cell * 0.18, x1 - x0, y1 - y0)
+  ctx.fillStyle = '#3B2618'
+  ctx.fillRect(x0, y0, x1 - x0, y1 - y0)
+  ctx.fillStyle = '#5A3A22'
+  ctx.fillRect(x0 + cell * 0.06, y0 + cell * 0.06, x1 - x0 - cell * 0.12, y1 - y0 - cell * 0.12)
+  // Buchruecken in zwei Reihen
+  const farben = ['#7A2E2E', '#2E4A7A', '#4A6A32', '#8A6A2A', '#5A3A6A', '#A88A5A']
+  const lang = quer ? x1 - x0 : y1 - y0
+  const n = Math.floor(lang / (cell * 0.16))
+  for (let reihe = 0; reihe < 2; reihe++)
+    for (let i = 0; i < n; i++) {
+      const z = hash(i * 13 + reihe * 101 + x0 + y0)
+      ctx.fillStyle = farben[Math.floor(z * farben.length)]
+      const a = cell * 0.1 + i * cell * 0.16
+      const b = cell * (0.12 + reihe * 0.4)
+      const t = cell * (0.3 + z * 0.08)
+      if (quer) ctx.fillRect(x0 + a, y0 + b, cell * 0.12, t)
+      else ctx.fillRect(x0 + b, y0 + a, t, cell * 0.12)
+    }
+  ctx.strokeStyle = '#24160E'
+  ctx.lineWidth = Math.max(1, cell * 0.06)
+  ctx.strokeRect(x0 + cell * 0.03, y0 + cell * 0.03, x1 - x0 - cell * 0.06, y1 - y0 - cell * 0.06)
+  ctx.restore()
+}
+
 /** Farbe der Energie (blassviolett, wie Runenlicht) */
 const ENERGIE = [186, 150, 255] as const
 const energie = (a: number) => `rgba(${ENERGIE[0]}, ${ENERGIE[1]}, ${ENERGIE[2]}, ${a})`

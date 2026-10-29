@@ -87,8 +87,9 @@ export type MissionKarte = {
   tuer: P[]
   siegel: P[]
   kaefige: P[]
-  /** Kaefigmeister (Mission 30): Mitten der sechs Raeume, in denen er erscheinen kann */
+  /** Kaefigmeister (Mission 30): Mitten der sechs Raeume, in denen er erscheinen kann, Buecherschraenke (je Gruppe) */
   raeume: P[]
+  regale: P[][]
 }
 
 /** Zusammenhaengende Gruppen (4er-Nachbarschaft) */
@@ -156,6 +157,7 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
     siegel: [],
     kaefige: [],
     raeume: [],
+    regale: [],
   }
   const mauer: P[] = []
   const teich: P[] = []
@@ -163,6 +165,7 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
   const haus: P[] = []
   const turm: P[] = []
   const lava: P[] = []
+  const regal: P[] = []
   const ERZ: Record<string, ErzArt> = { $: 'gold', '*': 'dia', '%': 'rubin' }
   zeilen.forEach((z, y) => {
     for (let x = 0; x < z.length; x++) {
@@ -280,6 +283,9 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
         case 'm':
           k.raeume.push(p)
           break
+        case 'X':
+          regal.push(p)
+          break
         default:
           if (z[x] >= '1' && z[x] <= '6') k.sockel.push({ p, i: Number(z[x]) - 1 })
       }
@@ -316,6 +322,7 @@ export function leseKarte(zeilen: readonly string[]): MissionKarte {
   k.haeuser = gruppen(haus)
   k.tuerme = gruppen(turm)
   k.lava = gruppen(lava)
+  k.regale = gruppen(regal)
   return k
 }
 
@@ -480,6 +487,13 @@ export class MissionGame extends Game {
     return this.tuerAuf < 0 && !!this.tuerSet?.has(key(p.x, p.y))
   }
 
+  /** Buecherschraenke halten Blicke und Strahlen auf */
+  protected override sichtSperre() {
+    const s = super.sichtSperre()
+    for (const g of this.karte?.regale ?? []) for (const p of g) s.add(key(p.x, p.y))
+    return s
+  }
+
   /** Strahlen der Kaefigkoepfe enden an der geschlossenen Tuer */
   protected override strahlEnde(c: P) {
     return this.tuerZu(c)
@@ -554,6 +568,7 @@ export class MissionGame extends Game {
   override gefahr(n: P, rest: P[] = this.body) {
     if (this.inside(n) && !this.geist()) {
       if (this.tuerZu(n)) return 'dungeontuer' as const
+      if (this.karte.regale.some((g) => g.some((p) => p.x === n.x && p.y === n.y))) return 'regal' as const
     }
     return super.gefahr(n, rest)
   }
@@ -563,6 +578,7 @@ export class MissionGame extends Game {
     const s = super.hindernisse(mitGegnern)
     for (const a of [...(this.aepfel ?? []), ...(this.siegel ?? [])]) s.add(key(a.p.x, a.p.y))
     if (this.tuerAuf < 0) for (const p of this.tuer ?? []) s.add(key(p.x, p.y))
+    for (const g of this.karte?.regale ?? []) for (const p of g) s.add(key(p.x, p.y))
     return s
   }
 

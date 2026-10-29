@@ -1394,10 +1394,22 @@ function handle(e: GameEvent) {
       if (e.was === 'getroffen' || e.was === 'tot') haptic.heavy()
       else if (e.was === 'trifft' || e.was === 'erscheint') haptic.medium()
       else if (e.was === 'flamme') haptic.light()
-      if (e.was === 'erscheint') toast('gegner', 'Der Käfigmeister ist erschienen', 'Irgendwo in einem der sechs Räume. Such ihn!')
-      if (e.was === 'erwacht') toast('gebiet', 'Er hat dich bemerkt', 'Hol die Flammen in seinem Raum: Jede fliegt auf ihn. Fünf, dann verschwindet er.')
+    {
+      // Kampagne (sechs Raeume, fuenf Flammen) oder freies Spiel (drei Kerker, zwei Flammen)
+      const mk = game instanceof KaefigBossGame ? game.kampf : game?.freiMeister
+      const raeume = mk?.raeume.length === 6 ? 'sechs Räume' : 'drei Kerker'
+      const flammen = mk?.flammenJeLeben === 5 ? 'Fünf' : mk?.flammenJeLeben === 2 ? 'Zwei' : String(mk?.flammenJeLeben ?? '')
+      if (e.was === 'erscheint') toast('gegner', 'Der Käfigmeister ist erschienen', `Irgendwo in einem der ${raeume}. Such ihn!`)
+      if (e.was === 'erwacht') toast('gebiet', 'Er hat dich bemerkt', `Hol die Flammen in seinem Raum: Jede fliegt auf ihn. ${flammen}, dann verschwindet er.`)
       if (e.was === 'getroffen') toast('gegner', `Er ist verschwunden, noch ${e.leben === 1 ? 'ein Leben' : `${e.leben} Leben`}`, 'Gleich taucht er in einem Raum wieder auf, den du nicht siehst. Vielleicht sogar in diesem.')
-      if (e.was === 'tot') toast('aepfel', 'Der Käfigmeister ist besiegt!', 'Oben ist die Tür offen: raus aus dem Labyrinth.')
+      if (e.was === 'tot' && game instanceof KaefigBossGame) toast('aepfel', 'Der Käfigmeister ist besiegt!', 'Oben ist die Tür offen: raus aus dem Labyrinth.')
+    }
+      break
+    case 'kerker':
+      audio.tuerAuf()
+      haptic.medium()
+      if (e.was === 'auf') toast('gegner', 'Ein Kerker hat sich aufgetan', 'Irgendwo am Rand führt ein Gang in die Erde. Ein Käfigkopf kommt heraus: Sieht er dich, wirft er Energie.')
+      else toast('gebiet', 'Die Kerker sind zu', 'Die Gänge sind wieder Erde.')
       break
     case 'tuerAuf':
       audio.tuerAuf()
@@ -1412,12 +1424,13 @@ function handle(e: GameEvent) {
       break
     case 'bossStart':
       haptic.heavy()
-      if (e.boss === 'ent') toast('gegner', 'Boss: der Ent!', 'Hol eine Flamme aus der Glutschale in der Mitte und zünde die 3 Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann fahr durch ihn hindurch. Ein Treffer an deinem Kopf ist vorbei.')
+      if (e.boss === 'meister') toast('gegner', 'Boss: der Käfigmeister!', 'Er haust in den drei Kerkern. Such ihn: In seinem Raum liegen Flammen, jede fliegt auf ihn. Zwei, und er verschwindet, bis er in einem Kerker wieder auftaucht. Drei Leben hat er. Ein Treffer an deinem Kopf ist vorbei.')
+      else if (e.boss === 'ent') toast('gegner', 'Boss: der Ent!', 'Hol eine Flamme aus der Glutschale in der Mitte und zünde die 3 Holzstapel an. Brennen alle, liegt sein Herzknoten frei: dann fahr durch ihn hindurch. Ein Treffer an deinem Kopf ist vorbei.')
       else toast('gegner', 'Boss: der Steingolem!', 'Bring die 4 Kristalle zum Sockel ihrer Farbe. Leuchten alle, bannt der Kreis den Golem: dann fahr durch ihn hindurch. Ein Treffer an deinem Kopf ist vorbei.')
       break
     case 'bossSieg':
       haptic.success()
-      toast('aepfel', e.boss === 'ent' ? 'Ent besiegt!' : 'Steingolem besiegt!', `+${e.wert} Äpfel. Weiter geht es mit dem Apfel.`)
+      toast('aepfel', e.boss === 'meister' ? 'Käfigmeister besiegt!' : e.boss === 'ent' ? 'Ent besiegt!' : 'Steingolem besiegt!', e.boss === 'meister' ? `+${e.wert} Äpfel und das nächste Level. Fahr aus dem Kerker: dann schließen sich die drei.` : `+${e.wert} Äpfel. Weiter geht es mit dem Apfel.`)
       break
     case 'kristall':
       audio.kristall(e.was, e.farbe)

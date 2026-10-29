@@ -303,8 +303,10 @@ export class Meisterkampf {
     if (a) {
       if (a.art === 'teleport') {
         if (a.ziel && t >= a.los) {
+          // Ist der Kopf inzwischen dorthin gefahren, sucht er sich jetzt eine andere Stelle (nie direkt vor den Kopf)
+          if (!this.teleportOk(a.ziel)) a.ziel = this.teleportZiel()
           M.von = { ...M.p }
-          M.p = { ...a.ziel }
+          if (a.ziel) M.p = { ...a.ziel }
           a.ziel = null
           this.wirt.emit({ type: 'meister', was: 'teleport', p: { ...M.p } })
         }
@@ -404,18 +406,28 @@ export class Meisterkampf {
     return out
   }
 
+  /** Darf er hier auftauchen? Weit genug vom Kopf und nicht in seiner Bahn */
+  protected teleportOk(p: P) {
+    const h = this.wirt.body[0]
+    if (Math.max(Math.abs(p.x - h.x), Math.abs(p.y - h.y)) < 5) return false
+    const d = STEP[this.wirt.dir]
+    for (let i = 1; i <= 6; i++) if (p.x === h.x + d.x * i && p.y === h.y + d.y * i) return false
+    // Nie direkt neben eine Flamme (man soll sie holen koennen)
+    if (this.flammen.some((f) => Math.max(Math.abs(f.p.x - p.x), Math.abs(f.p.y - p.y)) <= 1)) return false
+    return !this.wirt.belegt().has(key(p.x, p.y))
+  }
+
   /** Freies Feld im Raum, weit genug vom Kopf, mit Platz drumherum */
   protected teleportZiel(): P | null {
     const M = this.meister
     const r = this.raeume[M.raum]
-    const h = this.wirt.body[0]
     const zu = this.wirt.belegt()
     const frei: P[] = []
     for (let y = r.y0; y <= r.y1; y++)
       for (let x = r.x0; x <= r.x1; x++) {
         const c = { x, y }
         if (!this.wirt.inside(c) || zu.has(key(x, y)) || this.wirt.aufSchlange(c)) continue
-        if (Math.max(Math.abs(x - h.x), Math.abs(y - h.y)) < 5 || (x === M.p.x && y === M.p.y)) continue
+        if (!this.teleportOk(c) || (x === M.p.x && y === M.p.y)) continue
         if (!DIRS.every((d) => this.wirt.inside({ x: x + STEP[d].x, y: y + STEP[d].y }))) continue
         frei.push(c)
       }

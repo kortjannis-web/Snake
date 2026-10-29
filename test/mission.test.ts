@@ -370,7 +370,7 @@ describe('Kampagne', () => {
           if (r[x] === 'Z') for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) baum.add(key(x + dx, y + dy))
         }
       })
-      const wand = (x: number, y: number) => !z[y]?.[x] || '#W~HLDJb'.includes(z[y][x]) || baum.has(key(x, y))
+      const wand = (x: number, y: number) => !z[y]?.[x] || '#W~HLDJbX'.includes(z[y][x]) || baum.has(key(x, y))
       let eng = 0
       for (let y = 0; y < z.length; y++)
         for (let x = 0; x < z[0].length; x++) {

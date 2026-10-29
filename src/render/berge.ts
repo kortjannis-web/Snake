@@ -43,6 +43,8 @@ function farbe(h: number): RGB {
 
 export type BergKarte = { w: number; h: number; inside: (p: { x: number; y: number }) => boolean; dungeonSet?: ReadonlySet<number> }
 
+import { drawSteinboden } from './kerker'
+
 /** Wie key() im Spiel */
 const schluessel = (x: number, y: number) => (y + 1) * 4096 + (x + 1)
 
@@ -308,43 +310,9 @@ export class BergKacheln {
     // Gemauerte Stuecke: ganze Abschnitte (4 x 4 Felder) der Wand, etwa jeder vierte
     const gemauert = (x: number, y: number) => hash(Math.floor(x / 4), Math.floor(y / 4), 41) < 0.27
     const px = (v: number) => (v + 0.5) * cell
-    // 1. Boden: Stein, kaum sichtbares Schachbrett, je Feld ein paar runde Pflastersteine, Erde dazwischen
+    // 1. Boden: ruhiger Stein (kontrastarm, damit er nicht ablenkt)
     for (let y = ay; y <= by; y++)
-      for (let x = ax; x <= bx; x++) {
-        if (!boden(x, y)) continue
-        const hell = (x + y) % 2 === 0
-        c.fillStyle = rgb(hell ? [112, 102, 90] : [102, 93, 82])
-        c.fillRect(x * cell - 0.3, y * cell - 0.3, cell + 0.6, cell + 0.6)
-        const n = 1 + Math.floor(hash(x, y, 21) * 2.2)
-        for (let i = 0; i < n; i++) {
-          const sx = x * cell + cell * (0.22 + hash(x, y, 22 + i) * 0.56)
-          const sy = y * cell + cell * (0.22 + hash(x, y, 26 + i) * 0.56)
-          const r = cell * (0.16 + hash(x, y, 30 + i) * 0.12)
-          const f: RGB = mix([132, 122, 108], [100, 92, 81], hash(x, y, 34 + i))
-          c.fillStyle = 'rgba(40, 30, 22, 0.22)'
-          c.beginPath()
-          c.ellipse(sx + r * 0.15, sy + r * 0.2, r, r * 0.8, 0, 0, Math.PI * 2)
-          c.fill()
-          c.fillStyle = rgb(hell ? mix(f, [255, 255, 255], 0.06) : f)
-          c.beginPath()
-          c.ellipse(sx, sy, r, r * 0.8, hash(x, y, 38 + i) * 3, 0, Math.PI * 2)
-          c.fill()
-          c.fillStyle = 'rgba(255, 245, 225, 0.12)'
-          c.beginPath()
-          c.ellipse(sx - r * 0.25, sy - r * 0.25, r * 0.45, r * 0.3, 0, 0, Math.PI * 2)
-          c.fill()
-        }
-        // Kruemel und ab und zu ein Grasbueschel (der Wald ist nah)
-        c.fillStyle = 'rgba(60, 42, 28, 0.35)'
-        for (let i = 0; i < 3; i++) c.fillRect(x * cell + hash(x, y, 44 + i) * cell, y * cell + hash(x, y, 48 + i) * cell, cell * 0.06, cell * 0.06)
-        if (hash(x, y, 52) > 0.93) {
-          c.fillStyle = 'rgba(104, 146, 74, 0.6)'
-          c.beginPath()
-          c.arc(x * cell + cell * 0.8, y * cell + cell * 0.82, cell * 0.1, 0, Math.PI * 2)
-          c.arc(x * cell + cell * 0.7, y * cell + cell * 0.88, cell * 0.08, 0, Math.PI * 2)
-          c.fill()
-        }
-      }
+      for (let x = ax; x <= bx; x++) if (boden(x, y)) drawSteinboden(c, x, y, cell)
     // Schatten der Waende auf dem Boden
     const sch = cell * 0.38
     for (let y = ay; y <= by; y++)

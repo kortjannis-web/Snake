@@ -16,6 +16,7 @@
  */
 import { ENT, Entkampf, type Lichtung } from './entkampf'
 import { GOLEM, Golemkampf, type Raum } from './golemkampf'
+import { Meisterkampf, type MeisterRaum } from './meisterkampf'
 import { rng, type Rng } from './rng'
 import * as R from './rules'
 import type { Ameise, Baum, Bienenstock, Blaetterbombe, MiniEnt, Bruecke, Cause, Dir, Durchzug, FataMorgana, Kolonie, Lavafisch, Lavastrom, Obsidian, Sarkophag, Pilzringe, Ranke, Sporen, Einschlag, EinschlagArt, Eis, Falle, Fenster, Frosch, Fund, GameEvent, Gegner, Geschoss, Gift, Haus, Kaefig, Kreativ, Lava, Mauer, Minigolem, P, Power, PowerArt, Sandbox, SandboxObjekt, Schiene, Side, Sichtsperre, Spalt, Status, Teich, Turm, Wesen, WesenArt, Wolke, Zuendschnur } from './types'
@@ -132,6 +133,13 @@ export const KAEFIG = { takt: 820, stolpern: 380, sicht: 7, laden: 800, strahl: 
 
 /** Vorboten der Bosse im freien Spiel: so viele Level vor dem Boss kommt je ein kleiner Golem bzw. Mini-Ent */
 export const VORBOTEN = [10, 7, 4, 2] as const
+/** Vor dem Kaefigmeister: so viele Level vorher graebt sich je ein Kerker in die Erde (mit einem Kaefigkopf) */
+export const KERKER_VORBOTEN = [5, 3, 1] as const
+/** Kerker im freien Spiel: Gang (breit x lang), dann ein grosser Raum (breit x tief); gross, weil die Schlange dann lang ist */
+export const KERKER = { gang: 5, lang: 9, raumB: 17, raumT: 14 } as const
+
+/** Ein Kerker im freien Spiel: Gang aus der Karte in die Erde, am Ende ein Raum mit Augen; dort erscheint der Kaefigmeister */
+export type Kerker = { cells: P[]; raum: MeisterRaum; mund: P[]; t: number }
 
 export const key = (x: number, y: number) => (y + 1) * 4096 + (x + 1)
 const same = (a: P, b: P) => a.x === b.x && a.y === b.y
@@ -377,8 +385,15 @@ export class Game {
   /** Naechster kleiner Steingolem (Level) */
   /** Kaefigkoepfe (Kampagne ab Mission 26, freies Spiel aus den Kerkern vor dem Kaefigmeister) */
   kaefige: Kaefig[] = []
+  /** Freies Spiel (Wiese): Kerker vor dem Kaefigmeister (Level meisterAb - 5, - 3, - 1), der Kaefigmeister selbst */
+  kerker: Kerker[] = []
+  freiMeister: Meisterkampf | null = null
+  protected meisterFaellig = false
+  protected meisterVersuch = 0
+  /** Besiegt: die Kerker schliessen sich, sobald die Schlange draussen ist */
+  protected kerkerZu = false
   /** Wie viele Vorboten (kleine Golems, Mini-Ents) vor dem jeweiligen Boss schon gekommen sind */
-  protected vorbotenDa = { golem: 0, ent: 0 }
+  protected vorbotenDa = { golem: 0, ent: 0, meister: 0 }
   protected lastSpawn = -1e9
   /** Faellige Baeume, Haeuser und Tuerme, die noch keinen Platz gefunden haben */
   protected offen = { baum: 0, haus: 0, turm: 0, eis: 0, tanne: 0 }
@@ -494,6 +509,7 @@ export class Game {
       // Start genau auf dem Boss-Level (Admin: Kreativ mit Startlevel 60): der Boss kommt gleich
       if (start === this.cfg.bossAb && this.wieseExtras()) this.bossFaellig = true
       if (start === this.cfg.entBossAb && this.wieseExtras()) this.entFaellig = true
+      if (start === this.cfg.meisterAb && this.wieseExtras()) this.meisterFaellig = true
     }
     this.aufbau = false
   }
@@ -506,6 +522,7 @@ export class Game {
     this.zeitTakt(dt)
     if (this.status !== 'play') {
       this.freiEnt?.update(0)
+      this.freiMeister?.update()
       return this.freiBoss?.update(0)
     }
     this.schritte()
@@ -819,6 +836,7 @@ export class Game {
     // Bosskampf im freien Spiel: Kristalle, Sockel, Treffer
     this.freiBoss?.einsammeln(n)
     this.freiEnt?.einsammeln(n)
+    this.freiMeister?.einsammeln(n)
   }
 
   /** Erz eingesammelt: Gold 3, Diamant 6, Rubin 10, Opal 20 mal aktueller Apfel */
@@ -995,6 +1013,7 @@ export class Game {
     if (this.kaefige.some((z) => same(z.p, n))) return 'kaefig'
     if (this.minients.some((e) => same(e.p, n))) return 'minient'
     if (this.freiEnt?.istWand(n)) return 'ranke'
+    if (this.freiMeister?.istHier(n)) return 'kaefigmeister'
     if (this.baeume.some((b) => b.cells.some((p) => same(p, n)))) return 'baum'
     if (this.haeuser.some((h) => h.cells.some((p) => same(p, n)))) return 'haus'
     if (this.tuerme.some((t) => t.cells.some((p) => same(p, n)))) return 'turm'
@@ -1137,6 +1156,7 @@ export class Game {
     // Boss: einmal, wenn dieser Level zum ersten Mal erreicht wird (nicht beim Aufbau, nicht im Kreativ-Modus)
     if (l === c.bossAb && this.wieseExtras() && !this.aufbau) this.bossFaellig = true
     if (l === c.entBossAb && this.wieseExtras() && !this.aufbau) this.entFaellig = true
+    if (l === c.meisterAb && this.wieseExtras() && !this.aufbau) this.meisterFaellig = true
     this.bauten()
     // Feste Zeit: mit lilaAb kommt der lila Gegner (immer nur einer)
     if (l === c.lilaAb && !this.aufbau && !this.gegner.some((e) => e.art === 'lila')) this.neuerGegner('lila', true)
@@ -1197,6 +1217,9 @@ export class Game {
     for (let i = 0; i < golems; i++) if (this.neuerMinigolem()) this.vorbotenDa.golem++
     const ents = soll(c.entBossAb) - this.vorbotenDa.ent
     for (let i = 0; i < ents; i++) if (this.neuerMinient()) this.vorbotenDa.ent++
+    // Vor dem Kaefigmeister: 5, 3 und 1 Level vorher graebt sich je ein Kerker in die Erde
+    const kerker = (this.level > c.meisterAb ? 0 : KERKER_VORBOTEN.filter((v) => this.level >= c.meisterAb - v).length) - this.vorbotenDa.meister
+    for (let i = 0; i < kerker; i++) if (this.neuerKerker()) this.vorbotenDa.meister++
   }
 
   /** Nach einem Apfel vielleicht ein Power-up (auf einem freien Feld in Reichweite) */
@@ -3192,7 +3215,10 @@ export class Game {
         seen.add(k)
         cand.push({ p, d })
       }
-    const { p, d } = ziel ? { p: { ...ziel.p }, d: ziel.d } : this.r.pick(cand)
+    // Nicht ueber einen Kerker (seine Erdwaende blieben sonst nicht stehen)
+    const kerkerDa = (b: P) => this.kerker.some((k) => k.cells.some((c) => c.x >= b.x * this.bw - 1 && c.x <= (b.x + 1) * this.bw && c.y >= b.y * this.bh - 1 && c.y <= (b.y + 1) * this.bh))
+    const ohneKerker = cand.filter((c) => !kerkerDa(c.p))
+    const { p, d } = ziel && !kerkerDa(ziel.p) ? { p: { ...ziel.p }, d: ziel.d } : this.r.pick(ohneKerker.length ? ohneKerker : cand)
     let dx = 0
     let dy = 0
     if (p.x < 0) {
@@ -3751,6 +3777,16 @@ export class Game {
     }
     this.freiBoss?.verschieben(dx, dy)
     this.freiEnt?.verschieben(dx, dy)
+    this.freiMeister?.verschieben(dx, dy)
+    for (const k of this.kerker) {
+      k.cells.forEach(mv)
+      k.mund.forEach(mv)
+      mv(k.raum.mitte)
+      k.raum.x0 += dx
+      k.raum.x1 += dx
+      k.raum.y0 += dy
+      k.raum.y1 += dy
+    }
     for (const e of this.minients) mv(e.p)
     for (const b of this.bomben) {
       mv(b.p)
@@ -3854,6 +3890,7 @@ export class Game {
     this.ameisen.forEach((a) => add(a.p))
     this.minigolems.forEach((g) => add(g.p))
     this.kaefige.forEach((z) => add(z.p))
+    this.freiMeister?.belegtVon(add)
     this.minients.forEach((e) => add(e.p))
     this.wesen.forEach((w) => !FLIEGT.has(w.art) && add(w.p))
     this.einschlaege.forEach((e) => this.einschlagLiegt(e) && e.cells.forEach(add))
@@ -4123,6 +4160,8 @@ export class Game {
       for (const o of R.wolkenForm(w.stage + 1)) wand.add(key(w.c.x + o.x, w.c.y + o.y))
     for (const h of this.haeuser) for (const p of h.strahl) wand.add(key(p.x, p.y))
     for (const t of this.tuerme) for (const p of t.kegel) wand.add(key(p.x, p.y))
+    // In die Kerker kommt nichts (sie schliessen sich wieder)
+    for (const k of this.kerker) for (const p of k.cells) wand.add(key(p.x, p.y))
     const { seen, zu } = this.erreichbar(wand)
     const { w, h } = this
     const belegt = new Set([...this.powers.map((p) => key(p.p.x, p.p.y)), ...this.funde.map((f) => key(f.p.x, f.p.y)), key(this.apple.p.x, this.apple.p.y)])
@@ -4436,7 +4475,7 @@ export class Game {
 
   /** Haelt die Mindestzahl an Ereignissen (Fallen, Wolken, Froesche) */
   protected regie() {
-    if (this.freiBoss || this.freiEnt) return
+    if (this.freiBoss || this.freiEnt || this.freiMeister) return
     const min = R.mindestEreignisse(this.cfg, this.level)
     if (this.aktiveEreignisse() >= min || this.time - this.lastSpawn < 2500) return
     const arten = (['falle', 'wolke', 'frosch'] as const).filter((k) => this.level >= R.ab(this.cfg, k))
@@ -5706,12 +5745,164 @@ export class Game {
       if (this.entStarten()) this.entFaellig = false
       else this.entVersuch = this.time + 1000
     }
+    if (this.meisterFaellig && !this.freiBoss && !this.freiEnt && !this.freiMeister && this.wahl === 0 && this.time >= this.meisterVersuch) {
+      if (this.meisterStarten()) this.meisterFaellig = false
+      else this.meisterVersuch = this.time + 1000
+    }
+    this.freiMeister?.update()
+    if (this.kerkerZu && !this.freiMeister) this.kerkerSchliessen()
     const k = this.freiBoss
     const e = this.freiEnt
     if (!k && !e) return
     this.bossWand = this.hindernisse()
     k?.update(d)
     e?.update(d)
+  }
+
+  /* ================= Kerker und Kaefigmeister im freien Spiel (Wiese, Level meisterAb) ================= */
+
+  /**
+   * Ein Kerker graebt sich in die Erde: an einer Stelle des Kartenrands ein Gang (KERKER.gang breit, KERKER.lang lang) nach
+   * aussen, am Ende ein grosser Raum. Rundherum bleibt Erde. Aus dem Raum kommt ein Kaefigkopf. false = kein Platz
+   */
+  protected neuerKerker() {
+    const head = this.body[0]
+    const { gang: W, lang: L, raumB: RB, raumT: RT } = KERKER
+    const andere = new Set<number>()
+    for (const k of this.kerker) for (const c of k.cells) for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) andere.add(key(c.x + dx, c.y + dy))
+    const tunnel = new Set(this.tunnel.map((c) => key(c.x, c.y)))
+    const blockDa = (c: P) => this.blocks.some((o) => o.x === Math.floor(c.x / this.bw) && o.y === Math.floor(c.y / this.bh))
+    const erde = (c: P) => {
+      const w = this.welt_(c)
+      return !this.inside(c) && !blockDa(c) && !andere.has(key(c.x, c.y)) && !tunnel.has(key(c.x, c.y)) && !this.lavaImStein(w.x, w.y)
+    }
+    // Randfelder der Karte mit Richtung nach draussen
+    const raender: { p: P; d: Dir }[] = []
+    for (let y = 0; y < this.h; y++)
+      for (let x = 0; x < this.w; x++) {
+        if (!this.mask[y * this.w + x]) continue
+        for (const d of DIRS) if (!this.inside({ x: x + STEP[d].x, y: y + STEP[d].y })) raender.push({ p: { x, y }, d })
+      }
+    const wand = this.hindernisse()
+    const versuche = this.r.shuffle(raender.filter((r) => manhattan(r.p, head) >= 10 && manhattan(r.p, head) <= 50))
+    for (const { p, d } of versuche.slice(0, 600)) {
+      const s = STEP[d]
+      // Quer zur Richtung: der Gang beginnt bei p und geht W Felder zur Seite
+      const q = d === 'u' || d === 'd' ? { x: 1, y: 0 } : { x: 0, y: 1 }
+      const feld = (i: number, tiefe: number): P => ({ x: p.x + q.x * i + s.x * tiefe, y: p.y + q.y * i + s.y * tiefe })
+      const mund = Array.from({ length: W }, (_, i) => feld(i, 0))
+      if (!mund.every((c) => this.inside(c) && !wand.has(key(c.x, c.y)))) continue
+      const gang: P[] = []
+      for (let tt = 1; tt <= L; tt++) for (let i = 0; i < W; i++) gang.push(feld(i, tt))
+      const raum: P[] = []
+      const i0 = Math.floor((W - RB) / 2)
+      for (let tt = L + 1; tt <= L + RT; tt++) for (let i = i0; i < i0 + RB; i++) raum.push(feld(i, tt))
+      const neu = [...gang, ...raum]
+      // Mit einem Feld Erde rundherum (ausser am Mund)
+      const rund: P[] = []
+      for (const c of neu) for (const o of DIRS) rund.push({ x: c.x + STEP[o].x, y: c.y + STEP[o].y })
+      const eigen = new Set(neu.map((c) => key(c.x, c.y)))
+      const mundSet = new Set(mund.map((c) => key(c.x, c.y)))
+      if (!neu.every(erde) || !rund.every((c) => eigen.has(key(c.x, c.y)) || mundSet.has(key(c.x, c.y)) || erde(c))) continue
+      const u0 = { ...this.ursprung }
+      this.zellenDazu(neu, true)
+      const dx = this.ursprung.x - u0.x
+      const dy = this.ursprung.y - u0.y
+      const mv = (c: P) => ({ x: c.x + dx, y: c.y + dy })
+      const rx = raum.map((c) => c.x + dx)
+      const ry = raum.map((c) => c.y + dy)
+      const mitte = mv(feld(Math.floor(W / 2), L + Math.ceil(RT / 2)))
+      const k: Kerker = { cells: neu.map(mv), mund: mund.map(mv), raum: { nr: this.kerker.length, mitte, x0: Math.min(...rx), x1: Math.max(...rx), y0: Math.min(...ry), y1: Math.max(...ry) }, t: this.time }
+      this.kerker.push(k)
+      // Aus dem Raum kommt ein Kaefigkopf, er geht zum Gang hinaus
+      const zd = OPP[d]
+      this.kaefige.push({ p: { ...mitte }, from: { ...mitte }, dir: zd, altDir: zd, drehT: -1e9, t: this.time, schrittT: -1e9, next: this.time + 1500, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 })
+      this.emit({ type: 'kerker', was: 'auf', p: { ...mitte } })
+      return true
+    }
+    return false
+  }
+
+  /** Level meisterAb: der Kaefigmeister erscheint in einem der Kerker-Raeume (fehlen Kerker, graben sie sich jetzt) */
+  protected meisterStarten() {
+    while (this.kerker.length < KERKER_VORBOTEN.length && this.neuerKerker()) this.vorbotenDa.meister++
+    if (!this.kerker.length) return false
+    const spiel = this
+    this.freiMeister = new Meisterkampf(
+      {
+        get time() {
+          return spiel.time
+        },
+        get body() {
+          return spiel.body
+        },
+        get dir() {
+          return spiel.dir
+        },
+        get r() {
+          return spiel.r
+        },
+        get status() {
+          return spiel.status
+        },
+        inside: (c) => spiel.inside(c),
+        sperre: () => spiel.sichtSperre(),
+        belegt: () => spiel.hindernisse(),
+        aufSchlange: (c) => spiel.aufSchlange(c),
+        geist: () => spiel.geist(),
+        emit: (e) => spiel.emit(e),
+        // Kreativ ohne Tod: nichts passiert
+        verloren: () => (spiel.kreativ && spiel.kreativ.tod !== 'an' ? undefined : spiel.die('kaefigmeister')),
+        besiegt: () => spiel.meisterBesiegt(),
+      },
+      this.kerker.map((k) => k.raum),
+      { flammen: this.cfg.meisterFlammen, leben: 3 },
+    )
+    // Waehrend des Kampfs gibt es keinen Apfel
+    this.apple = { p: { x: -1000, y: -1000 }, t: this.time }
+    this.emit({ type: 'bossStart', p: { ...this.kerker[0].raum.mitte }, boss: 'meister' })
+    return true
+  }
+
+  /** Besiegt: Belohnung, die Kaefigkoepfe zerfallen, es geht ins naechste Level; die Kerker schliessen sich, sobald die
+   *  Schlange draussen ist */
+  protected meisterBesiegt() {
+    const k = this.freiMeister
+    if (!k) return
+    this.freiMeister = null
+    this.kaefige = []
+    const c = this.cfg
+    const p = { ...k.meister.p }
+    const wert = c.meisterLohn * c.apfelWert * this.apfelStufe()
+    this.verdient += wert
+    this.emit({ type: 'bossSieg', p, wert, boss: 'meister' })
+    if (wert > 0) this.emit({ type: 'geld', wert, p, quelle: 'gegner' })
+    this.kerkerZu = true
+    // Naechstes Level (wie ein Apfel): danach liegt der Apfel wieder auf der Karte
+    this.eat({ ...this.body[0] })
+  }
+
+  /** Ist die Schlange ganz aus den Kerkern heraus, schliessen sie sich: die Felder werden wieder Erde */
+  protected kerkerSchliessen() {
+    const zu = new Set(this.kerker.flatMap((k) => k.cells.map((c) => key(c.x, c.y))))
+    if (this.body.some((b) => zu.has(key(b.x, b.y)))) return
+    const drin = (p: P) => zu.has(key(p.x, p.y))
+    this.extra = this.extra.filter((c) => !drin(c))
+    this.gift = this.gift.filter((x) => !drin(x.p))
+    this.funde = this.funde.filter((x) => !drin(x.p))
+    this.powers = this.powers.filter((x) => !drin(x.p))
+    this.fallen = this.fallen.filter((x) => !drin(x.p))
+    this.froesche = this.froesche.filter((x) => !drin(x.p))
+    this.ameisen = this.ameisen.filter((x) => !drin(x.p))
+    this.wesen = this.wesen.filter((x) => !drin(x.p))
+    this.mauern = this.mauern.filter((m) => !m.cells.some(drin))
+    this.wolken = this.wolken.filter((w) => !w.cells.some(drin))
+    const mitte = this.kerker[0]?.raum.mitte
+    this.kerker = []
+    this.kerkerZu = false
+    this.baueMaske()
+    if (drin(this.apple.p)) this.neuerApfel()
+    if (mitte) this.emit({ type: 'kerker', was: 'zu', p: { ...mitte } })
   }
 
   /** Platz fuer eine Arena: RADIUS Felder Umkreis ohne feste Bauten (Teiche, Baeume, Haeuser, Tuerme, Lava, Eis), nicht zu

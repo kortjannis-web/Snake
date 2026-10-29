@@ -3,7 +3,7 @@
  * Eisenkaefig, vor sich ein aufgeschlagenes Buch mit leuchtenden Runen. Dazu seine Angriffe (Ankuendigung rot, Strahlen
  * violett, Runenkreise), die Flammen im Raum, ihr Flug zu ihm und die Leiste unten. Spiellogik in game/kaefigboss.ts.
  */
-import { MEISTER, type KaefigBossGame, type MeisterAngriff } from '../game/kaefigboss'
+import { MEISTER, type MeisterAngriff, type Meisterkampf } from '../game/meisterkampf'
 import type { P } from '../game/types'
 
 const TAU = Math.PI * 2
@@ -315,7 +315,7 @@ function rundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
 }
 
 /** Leiste unten: Name, drei Leben, darunter die Flammen dieses Lebens (x / 5) */
-export function drawMeisterHud(ctx: CanvasRenderingContext2D, g: KaefigBossGame, vw: number, vh: number, now: number) {
+export function drawMeisterHud(ctx: CanvasRenderingContext2D, g: Meisterkampf, vw: number, vh: number, now: number) {
   const M = g.meister
   const w = Math.min(220, vw * 0.48)
   const x0 = (vw - w) / 2
@@ -342,7 +342,7 @@ export function drawMeisterHud(ctx: CanvasRenderingContext2D, g: KaefigBossGame,
     const voll = i < M.leben
     const x = x0 + i * (teil + 4)
     // Das aktuelle Leben schrumpft mit jeder Flamme
-    const anteil = voll && i === M.leben - 1 ? 1 - M.treffer / MEISTER.flammen : voll ? 1 : 0
+    const anteil = voll && i === M.leben - 1 ? 1 - M.treffer / g.flammenJeLeben : voll ? 1 : 0
     ctx.fillStyle = 'rgba(245, 239, 230, 0.12)'
     rundRect(ctx, x, by, teil, bh, 4)
     ctx.fill()
@@ -354,9 +354,9 @@ export function drawMeisterHud(ctx: CanvasRenderingContext2D, g: KaefigBossGame,
   }
   // Links: Flammen dieses Lebens
   ctx.fillStyle = 'rgba(23, 21, 19, 0.6)'
-  rundRect(ctx, 10, by - 6, 22 + MEISTER.flammen * 13, bh + 12, 10)
+  rundRect(ctx, 10, by - 6, 22 + g.flammenJeLeben * 13, bh + 12, 10)
   ctx.fill()
-  for (let i = 0; i < MEISTER.flammen; i++) {
+  for (let i = 0; i < g.flammenJeLeben; i++) {
     ctx.fillStyle = i < M.treffer ? '#FF9A3D' : 'rgba(245, 239, 230, 0.2)'
     ctx.beginPath()
     ctx.arc(22 + i * 13, by + bh / 2, 4.5, 0, TAU)
