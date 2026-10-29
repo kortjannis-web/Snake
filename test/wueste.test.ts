@@ -29,7 +29,7 @@ function essen(g: Game) {
 const drain = (g: Game) => g.drain().map((e) => e.type)
 
 describe('Wüste: Flut', () => {
-  it('Warnung, mit dem nächsten Apfel Wasser am Rand (2 Felder), mit dem Apfel danach wieder weg', () => {
+  it('Warnung, mit dem nächsten Apfel Wasser am Rand (2 Felder), nach 8 Sekunden wieder weg', () => {
     const g = new Game({ screenW: SW, screenH: SH, seed: 3, wueste: true })
     leer(g)
     g.flutWarnen()
@@ -51,7 +51,12 @@ describe('Wüste: Flut', () => {
     expect(g.unterWasser({ x: 0, y: 3 })).toBe(true)
     expect(g.gefahr({ x: 1, y: 3 })).toBe('flut')
     expect(g.gefahr({ x: 5, y: 8 })).toBeNull()
-    essen(g)
+    // Nicht mehr bis zum naechsten Apfel, sondern 8 Sekunden lang
+    g.time = g.flut!.t + R.WUESTE.flutDauer - 50
+    g.update(1)
+    expect(g.flut?.phase).toBe('aktiv')
+    g.time = g.flut!.t + R.WUESTE.flutDauer
+    g.update(1)
     expect(g.flut).toBeNull()
     expect(g.gefahr({ x: 1, y: 3 })).toBeNull()
   })
@@ -94,9 +99,9 @@ describe('Wüste: Flut', () => {
         }
       }
     }
-    // Standard: Sturm 8 %, Flut 5 %, Wurm 4 % (faellt Selteneres mit, wird der Sturm uebersprungen)
-    expect(zahl.sandsturm / aepfel).toBeGreaterThan(0.045)
-    expect(zahl.sandsturm / aepfel).toBeLessThan(0.11)
+    // Standard: Sturm 4 %, Flut 6 %, Wurm 4 % (faellt Selteneres mit, wird der Sturm uebersprungen)
+    expect(zahl.sandsturm / aepfel).toBeGreaterThan(0.015)
+    expect(zahl.sandsturm / aepfel).toBeLessThan(0.06)
     expect(zahl.flutWarnung / aepfel).toBeGreaterThan(0.025)
     expect(zahl.flutWarnung / aepfel).toBeLessThan(0.08)
     expect(zahl.sandwurmWarnung / aepfel).toBeGreaterThan(0.02)

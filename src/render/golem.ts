@@ -1212,7 +1212,7 @@ export function drawMinigolemSchlag(ctx: CanvasRenderingContext2D, x: number, y:
   if (t <= 0 || t >= 1) return
   ctx.save()
   if (art === 'rund') {
-    const r = cell * (0.6 + 2.0 * easeOut(t))
+    const r = cell * (0.5 + 1.1 * easeOut(t))
     ctx.strokeStyle = `rgba(255, 236, 214, ${0.8 * (1 - t)})`
     ctx.lineWidth = cell * 0.3 * (1 - t)
     ctx.beginPath()

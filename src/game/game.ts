@@ -83,6 +83,9 @@ const WURF_TAKT: Partial<Record<WesenArt, number>> = { yeti: 2600, schneemann: 4
 /** So lange bleibt ein Zwerg, dann geht er (ms) */
 const ZWERG_BLEIBT = 45_000
 /** Durch welchen Einschlag stirbt man woran */
+/** Kleiner Steingolem: so viele Felder rundum trifft sein Stampfer */
+export const MINIGOLEM_RUND = 1
+
 const EINSCHLAG_TOD: Record<EinschlagArt, Cause> = {
   eiszapfen: 'eiszapfen',
   stein: 'stein',
@@ -2935,17 +2938,13 @@ export class Game {
   protected wuesteNachApfel() {
     if (!this.wueste || this.aufbau || this.statisch) return
     const c = this.cfg
-    // Flut: Warnung -> mit dem naechsten Apfel steigt das Wasser -> mit dem Apfel danach geht es zurueck
-    let flutVorbei = false
-    if (this.flut?.phase === 'aktiv') {
-      this.flutStoppen()
-      flutVorbei = true
-    } else if (this.flut?.phase === 'warnung') {
+    // Flut: Warnung -> mit dem naechsten Apfel steigt das Wasser -> nach flutDauer geht es zurueck (flutTakt)
+    if (this.flut?.phase === 'warnung') {
       this.flut = { phase: 'aktiv', t: this.time, zellen: this.flutZone() }
       this.emit({ type: 'flut' })
     }
     this.ereignisWuerfeln([
-      { an: c.flutAn, chance: c.flutChance, laeuft: !!this.flut || flutVorbei, start: () => this.flutWarnen(), stop: () => this.flutStoppen() },
+      { an: c.flutAn, chance: c.flutChance, laeuft: !!this.flut, start: () => this.flutWarnen(), stop: () => this.flutStoppen() },
       {
         an: c.sturmAn,
         chance: c.sturmChance,
@@ -3091,6 +3090,8 @@ export class Game {
 
   /** Sandwurm unterwegs: trifft er den Kopf, ist es vorbei, den Koerper beisst er ab */
   protected sandwurmTakt() {
+    // Flut: nach flutDauer geht das Wasser zurueck
+    if (this.flut?.phase === 'aktiv' && this.time - this.flut.t >= R.WUESTE.flutDauer) this.flutStoppen()
     const s = this.sandwurm
     if (!s || this.time < s.los) return
     const W = R.WUESTE
@@ -5304,14 +5305,15 @@ export class Game {
     }
   }
 
-  /** Angriff, wenn der Kopf in Reichweite ist: rundum bis 2 Felder (auch schraeg), sonst geradeaus bis 4 Felder */
+  /** Angriff, wenn der Kopf in Reichweite ist: rundum 1 Feld (auch schraeg, seit 1.49 statt 2), sonst geradeaus bis 4 Felder */
   protected golemAngriff(g: Minigolem, head: P, sperre: Set<number>): Minigolem['angriff'] {
     const ab = this.time
     const schlag = ab + this.cfg.minigolemLaden * 1000
-    if (cheb(head, g.p) <= 2) {
+    const r = MINIGOLEM_RUND
+    if (cheb(head, g.p) <= r) {
       const cells: P[] = []
-      for (let dy = -2; dy <= 2; dy++)
-        for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
           const p = { x: g.p.x + dx, y: g.p.y + dy }
           if ((dx || dy) && this.inside(p)) cells.push(p)
         }

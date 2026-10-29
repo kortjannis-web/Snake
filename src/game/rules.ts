@@ -187,7 +187,7 @@ const BASIS = {
   flutAn: 1,
   flutChance: 6,
   sturmAn: 1,
-  sturmChance: 8,
+  sturmChance: 4,
   wurmAn: 1,
   wurmChance: 4,
   // Winterwald: Ereignisse (Prozent je Apfel), Warnzeit und Dauer in Sekunden
@@ -1303,11 +1303,11 @@ export const erzWert = (c: Config, art: ErzArt) => (art === 'gold' ? c.goldWert 
  * Nach jedem Apfel kann etwas passieren (Chancen in der Config: sturmChance, flutChance, wurmChance).
  * Sandsturm: die Sicht ist sturmDauer ms lang schlecht.
  * Flut: erst schlagen die Wellen hoeher (Warnung), mit dem naechsten Apfel steht der Rand
- * flutRand Felder unter Wasser (toedlich), mit dem Apfel danach geht das Wasser zurueck.
+ * flutRand Felder unter Wasser (toedlich), nach flutDauer ms geht das Wasser zurueck.
  * Sandwurm: zwei Reihen in der Naehe brodeln wurmWarnung ms lang, dann schiesst ein Sandwurm
  * (wurmBreite Felder breit, wurmLaenge lang, taucht immer wieder auf und ab) mit wurmTakt ms je Feld hindurch. Trifft er den Kopf, ist es vorbei, den Koerper beisst er ab.
  */
-export const WUESTE = { wuestenfroschChance: 50, sturmDauer: 7000, flutRand: 2, wurmWarnung: 8000, wurmTakt: 45, wurmLaenge: 18, wurmBreite: 2 }
+export const WUESTE = { wuestenfroschChance: 50, sturmDauer: 7000, flutRand: 2, flutDauer: 8000, wurmWarnung: 8000, wurmTakt: 45, wurmLaenge: 18, wurmBreite: 2 }
 
 /** Zeitlupe: Takt so viel laenger (30 % langsamer = Takt / 0,7) */
 export const zeitlupe = (c: Config) => 1 / Math.max(0.2, 1 - c.zeitlupeProzent / 100)
