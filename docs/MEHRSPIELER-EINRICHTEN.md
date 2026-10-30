@@ -98,28 +98,23 @@ Seit 1.20.0 außerdem Datei 6:
 
 Ohne Datei 6 zeigt die Hall of Snakes „Keine Verbindung“ und es gibt keine Anfragen und keinen Chat.
 
-## Schritt 7 (optional): Einladungen aufs Handy (Push)
+## Schritt 7: Einladungen aufs Handy (Push), nichts zu tun
 
 > Seit 1.55 gibt es Benachrichtigungen auch für Nachrichten und den Weltchat, und für die Android-APK über Firebase.
-> Die vollständige Anleitung steht in [`BENACHRICHTIGUNGEN.md`](BENACHRICHTIGUNGEN.md); dieser Schritt hier ist dort Teil 2.
+> Die vollständige Anleitung steht in [`BENACHRICHTIGUNGEN.md`](BENACHRICHTIGUNGEN.md).
 
-Damit Freunde eine Benachrichtigung bekommen, wenn sie Snake gerade nicht offen haben. Geht in der Web-App auf Android
-(Chrome) und auf dem iPhone ab iOS 16.4, wenn Snake **vom Home-Bildschirm** geöffnet wurde. In der Android-APK nicht
-(dort bitte die Web-App nutzen oder den Raum-Code schicken).
+Seit 1.55.2 erzeugt der Snake-Server die Push-Schlüssel (VAPID) beim ersten Bedarf **selbst** und behält sie in seinem
+eigenen Speicher. Die App holt den öffentlichen Schlüssel beim Start von `<Server-Adresse>/vapid`. Es braucht also nur den
+Server (Schritt 4 und 5) und Supabase, **keine** Einträge `VITE_VAPID_PUBLIC_KEY` oder `VAPID_PRIVATE_KEY` in GitHub.
 
-1. Am Computer im Repo einmal `npm install` und dann `npm run vapid` ausführen. Es erscheinen zwei Werte:
-   ein **öffentlicher** (lang, beginnt mit `B`) und ein **geheimer** Schlüssel.
-   (Ohne eigenen Computer: GitHub → **Code** → **Codespaces** → **Create codespace**, dort im Terminal dieselben Befehle.)
-2. GitHub → **Settings** → **Secrets and variables** → **Actions**:
-   - Reiter **Variables** → **New repository variable**: Name `VITE_VAPID_PUBLIC_KEY`, Wert der **öffentliche** Schlüssel.
-   - Reiter **Secrets** → **New repository secret**: Name `VAPID_PRIVATE_KEY`, Wert der **geheime** Schlüssel.
+Geht in der Web-App auf Android (Chrome) und auf dem iPhone ab iOS 16.4, wenn Snake **vom Home-Bildschirm** geöffnet wurde.
+Für die Android-APK braucht es zusätzlich Firebase (siehe `BENACHRICHTIGUNGEN.md`, Teil 3).
 
-   > Den geheimen Schlüssel niemandem schicken und nicht in den Chat kopieren. Er gehört nur in die GitHub-Secrets.
-3. **Actions** → **Snake-Server (Cloudflare)** → **Run workflow** (der Server bekommt die Schlüssel und die
-   Supabase-Adresse), danach **Web-App (GitHub Pages)** → **Run workflow**.
-4. In der App: **Online** (unten im Startmenü) → bei „Einladungen aufs Handy“ **Einschalten** → Benachrichtigungen erlauben.
+In der App: **Optionen** → **Benachrichtigungen** einschalten (oder bei der Frage „Benachrichtigungen aktivieren?“ **Ja**).
 
-Die Schlüssel nur einmal erzeugen. Wer sie später austauscht, muss bei allen Spielern Push neu einschalten.
+Wer lieber eigene Schlüssel nutzt: `npm run vapid`, den öffentlichen als Variable `VITE_VAPID_PUBLIC_KEY`, den geheimen als
+Secret `VAPID_PRIVATE_KEY` in GitHub eintragen. Das hat Vorrang. Die Schlüssel nie nachträglich wechseln: alle Spieler müssten
+Push dann neu einschalten.
 
 ## Spielen
 
@@ -195,6 +190,6 @@ mit eigener Bestenliste (Reiter **Täglich**).
 | Freund nicht online zu sehen | Ihr müsst Freunde sein (Code eintragen) und SQL-Datei 4 muss ausgeführt sein (Schritt 6). |
 | „Diesen Namen gibt es schon“ | Namen gibt es nur einmal. Einen anderen wählen. |
 | „Dieser Name ist nicht erlaubt“ | Der Name enthält ein gesperrtes Wort. |
-| Keine Zeile „Einladungen aufs Handy“ | `VITE_VAPID_PUBLIC_KEY` fehlt (Schritt 7), oder es ist die Android-APK, oder auf dem iPhone nicht vom Home-Bildschirm geöffnet. |
-| „Push ist auf dem Server noch nicht eingerichtet“ | Secret `VAPID_PRIVATE_KEY` fehlt, oder der Workflow „Snake-Server“ lief danach nicht (Schritt 7, Punkt 3). |
+| Keine Zeile „Einladungen aufs Handy“ | Die App hat den Push-Schlüssel noch nicht vom Server bekommen (App einmal online neu öffnen; `<Server-Adresse>/vapid` im Browser muss `"ok":true` zeigen), oder es ist die Android-APK ohne Firebase, oder auf dem iPhone nicht vom Home-Bildschirm geöffnet. |
+| „Push ist auf dem Server noch nicht eingerichtet“ | Dem Server fehlen die Supabase-Variablen `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` beim Veröffentlichen. Server neu veröffentlichen (Schritt 4). |
 | „Hat keine Benachrichtigungen an“ | Der Freund hat Push nicht eingeschaltet. Raum-Code schicken. |

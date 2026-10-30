@@ -7,12 +7,12 @@
 import { DurableObject } from 'cloudflare:workers'
 import { codeGueltig, PROTOKOLL } from '../src/multi/protokoll'
 import { dienstkonto, fcmSenden } from './fcm'
-import { pushSenden, type PushAbo } from './push'
+import { pushSenden, vapidErzeugen, type PushAbo } from './push'
 import { RaumLogik, type Kanal } from './raum'
 
 type Env = {
   RAUM: DurableObjectNamespace<Raum>
-  /** Fuer Push-Einladungen (optional): Supabase-Projekt und VAPID-Schluessel */
+  /** Fuer Push-Einladungen (optional): Supabase-Projekt; VAPID-Schluessel nur, wenn man eigene eintragen will (sonst erzeugt sie der Server selbst) */
   SUPABASE_URL?: string
   SUPABASE_ANON_KEY?: string
   VAPID_PUBLIC_KEY?: string
@@ -37,12 +37,27 @@ async function zustellen(abo: Abo, inhalt: Inhalt, env: Env): Promise<number> {
     const daten: Record<string, string> = { art: inhalt.art, code: inhalt.code ?? '', von: inhalt.von ?? '', vonName: inhalt.vonName ?? '' }
     return fcmSenden(konto, abo.fcm, { titel: inhalt.titel, text: inhalt.text, tag: inhalt.tag, daten }).catch(() => 502)
   }
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return 501
-  return pushSenden(abo, inhalt, { oeffentlich: env.VAPID_PUBLIC_KEY, privat: env.VAPID_PRIVATE_KEY, kontakt: env.VAPID_KONTAKT ?? 'https://github.com/kortjannis-web/Snake' }).catch(() => 502)
+  const v = await vapidSchluessel(env)
+  return pushSenden(abo, inhalt, { ...v, kontakt: env.VAPID_KONTAKT ?? 'https://github.com/kortjannis-web/Snake' }).catch(() => 502)
 }
 
-/** Ist ueberhaupt ein Weg fuer Benachrichtigungen eingerichtet? */
-const pushEingerichtet = (env: Env) => !!(env.SUPABASE_URL && env.SUPABASE_ANON_KEY && ((env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) || env.FCM_DIENSTKONTO))
+/**
+ * VAPID-Schluessel fuer Web Push: eingetragene aus der Umgebung, sonst die, die der Server beim ersten Bedarf selbst
+ * erzeugt und im Speicher des Servers (Durable Object) behaelt. Dann braucht es keine Eintraege in GitHub oder Cloudflare.
+ */
+let eigene: { oeffentlich: string; privat: string } | null = null
+async function vapidSchluessel(env: Env): Promise<{ oeffentlich: string; privat: string }> {
+  if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) return { oeffentlich: env.VAPID_PUBLIC_KEY, privat: env.VAPID_PRIVATE_KEY }
+  if (eigene) return eigene
+  const r = await env.RAUM.get(env.RAUM.idFromName(SCHLUESSEL_RAUM)).fetch('https://raum/schluessel')
+  eigene = (await r.json()) as { oeffentlich: string; privat: string }
+  return eigene
+}
+/** Name des Durable Objects, das die Schluessel haelt (kein gueltiger Raum-Code, also von aussen nicht erreichbar) */
+const SCHLUESSEL_RAUM = '~schluessel'
+
+/** Ist ueberhaupt ein Weg fuer Benachrichtigungen eingerichtet? Web Push geht mit Supabase allein, die Android-App braucht Firebase */
+const pushEingerichtet = (env: Env) => !!(env.SUPABASE_URL && env.SUPABASE_ANON_KEY)
 
 /** Supabase-Funktion mit dem Token des Absenders aufrufen (Supabase prueft, ob er das darf) */
 async function rpc(env: Env, token: string, fn: string, args: object): Promise<Response> {
@@ -53,7 +68,7 @@ async function rpc(env: Env, token: string, fn: string, args: object): Promise<R
   })
 }
 
-const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS' }
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS' }
 const json = (d: object, status = 200) => new Response(JSON.stringify(d), { status, headers: { ...CORS, 'content-type': 'application/json' } })
 const MODUS_NAME: Record<string, string> = { vs: 'Gegeneinander', rennen: 'Wettrennen', koop: 'Koop', jagd: 'Apfeljagd', royale: 'Schrumpfende Karte' }
 /** Hoechstens eine Einladung je Absender und Empfaenger alle 10 s (je Server-Instanz) */
@@ -167,10 +182,15 @@ export default {
     // Startseite: Protokoll und ob Benachrichtigungen eingerichtet sind (zum Pruefen nach dem Eintragen der Schluessel)
     if (url.pathname === '/') {
       const supabase = !!(env.SUPABASE_URL && env.SUPABASE_ANON_KEY)
-      const web = supabase && !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)
+      const web = supabase
       const android = supabase && !!dienstkonto(env.FCM_DIENSTKONTO)
       const text = `Snake-Server, Protokoll ${PROTOKOLL}\nBenachrichtigungen Web/iPhone: ${web ? 'an' : 'aus'}\nBenachrichtigungen Android-App: ${android ? 'an' : 'aus'}`
       return new Response(text, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
+    }
+    // Oeffentlicher Push-Schluessel: die App holt ihn hier, wenn er nicht schon beim Bauen eingetragen wurde
+    if (url.pathname === '/vapid') {
+      if (!pushEingerichtet(env)) return json({ ok: false }, 404)
+      return json({ ok: true, schluessel: (await vapidSchluessel(env)).oeffentlich })
     }
     if (url.pathname === '/einladen') return einladen(req, env)
     if (url.pathname === '/melden') return melden(req, env)
@@ -190,6 +210,7 @@ export class Raum extends DurableObject<Env> {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url)
+    if (url.pathname === '/schluessel') return this.schluessel()
     const code = url.pathname.split('/').pop()!.toUpperCase()
     this.logik ??= new RaumLogik(code)
     const logik = this.logik
@@ -221,6 +242,18 @@ export class Raum extends DurableObject<Env> {
       this.uhr ??= setInterval(() => logik.takt(), 1000)
     }
     return new Response(null, { status: 101, webSocket: client })
+  }
+
+  /** Nur fuer das Schluessel-Objekt: beim ersten Mal ein VAPID-Paar erzeugen und fuer immer behalten */
+  private schluessel(): Promise<Response> {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      let k = await this.ctx.storage.get<{ oeffentlich: string; privat: string }>('vapid')
+      if (!k) {
+        k = await vapidErzeugen()
+        await this.ctx.storage.put('vapid', k)
+      }
+      return new Response(JSON.stringify(k), { headers: { 'content-type': 'application/json' } })
+    })
   }
 
   private uhrAus() {

@@ -29,7 +29,7 @@ import { installPflicht, zeigeInstallation } from './install'
 import { tagBerlin, tagesSeed } from './tages'
 import { eckenFelder, tagesLevel, wochentag } from './game/tageslevel'
 import { MEHR_BILD } from './multi/protokoll'
-import { beiPushTipp, nachrichtMelden, perPushEinladen, pushAuffrischen, pushAusschalten, pushBlockiert, pushEinschalten, pushErlaubt, pushFehler, pushFrageMerken, pushFrageOffen, pushGrund, pushMoeglich, type PushTipp } from './push'
+import { beiPushTipp, nachrichtMelden, perPushEinladen, pushAuffrischen, pushAusschalten, pushBlockiert, pushEinschalten, pushErlaubt, pushFehler, pushFrageMerken, pushFrageOffen, pushGrund, pushMoeglich, pushVorbereiten, type PushTipp } from './push'
 import { geraetId, mehrspieler, SERVER } from './multi/ui'
 import { bindDpad, bindInput } from './input'
 import { Renderer } from './render/renderer'
@@ -3594,7 +3594,7 @@ function pushOptionenZeichnen() {
     const g = pushGrund()
     info.textContent =
       g === 'schluessel'
-        ? 'Noch nicht eingerichtet: Der Push-Schlüssel (VITE_VAPID_PUBLIC_KEY) fehlt in dieser Fassung. Siehe docs/MEHRSPIELER-EINRICHTEN.md, Schritt 7.'
+        ? 'Noch nicht verfügbar: Der Snake-Server hat noch keinen Push-Schlüssel geliefert. App neu öffnen, sobald du online bist.'
         : g === 'app'
           ? 'Diese Fassung der Android-App ist ohne Firebase gebaut: Benachrichtigungen kommen nur, solange Snake offen ist. Als Web-App vom Home-Bildschirm auch bei geschlossener App.'
           : 'Dieser Browser kann keine Benachrichtigungen. Auf dem iPhone: Snake zum Home-Bildschirm hinzufügen und von dort öffnen.'
@@ -4404,6 +4404,7 @@ setMode('home')
 if (!gesperrt) {
   zeigeWillkommen()
   linkRaum()
+  void pushVorbereiten().then((neu) => neu && (pushZeichnen(), pushFrageBald()))
   if (angemeldet()) {
     void online?.start()
     void freundeLaden()
