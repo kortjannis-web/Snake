@@ -140,6 +140,10 @@ export type KampfWirt = {
   readonly time: number
   readonly body: P[]
   readonly dir: Dir
+  /** Wo der Kopf in ms Millisekunden sein wird, wenn die Schlange weiterfaehrt wie bisher (fehlt es, der Kopf selbst) */
+  vorhersage?(ms: number): P
+  /** Wohin sie dann faehrt (fehlt es, dir) */
+  richtung?(): Dir
   readonly r: Rng
   readonly status: Status
   readonly w: number
@@ -333,6 +337,10 @@ export class Golemkampf {
   }
   protected get kopf(): Pf {
     return this.body[0]
+  }
+  /** Wo der Kopf in ms Millisekunden sein wird (seit 1.55.2 zielen Ansturm und Sprung dorthin) */
+  protected vorher(ms: number): Pf {
+    return this.wirt.vorhersage?.(ms) ?? { ...this.kopf }
   }
   protected get f() {
     return GOLEM.warnFaktor[this.golem.phase] ?? 1
@@ -532,7 +540,8 @@ export class Golemkampf {
       g.angriff = { art, r: GOLEM.stampfenR[g.phase], ab: t, schlag: t + dauer, fertig: false }
       this.setze('stampfen', dauer + GOLEM.stampfenNach)
     } else if (art === 'ansturm') {
-      const dir0 = winkelVon(g, this.kopf)
+      // Dorthin, wo der Kopf sein wird, wenn er losstuermt
+      const dir0 = winkelVon(g, this.vorher(GOLEM.ansturmWarn * f))
       const dir = { x: Math.cos(dir0), y: Math.sin(dir0) }
       const nach = { x: g.x, y: g.y }
       // Bis zur Wand
@@ -549,7 +558,7 @@ export class Golemkampf {
       const ab = t + duck
       const halt = ab + GOLEM.sprungAuf + GOLEM.sprungZielen * this.f
       const fall = halt + GOLEM.sprungHalt * this.f
-      g.angriff = { art, ziel: { ...this.kopf }, r: GOLEM.sprungR, von: { x: g.x, y: g.y }, duck: t, ab, halt, fall, landung: fall + GOLEM.sprungFall, fertig: false, combo: g.phase >= 2, wechsel: false }
+      g.angriff = { art, ziel: this.vorher(fall + GOLEM.sprungFall - t), r: GOLEM.sprungR, von: { x: g.x, y: g.y }, duck: t, ab, halt, fall, landung: fall + GOLEM.sprungFall, fertig: false, combo: g.phase >= 2, wechsel: false }
       this.setze('sprung', 1e9)
     }
     this.ereignis('warnung')
@@ -680,14 +689,15 @@ export class Golemkampf {
       g.seit = a.ab
       this.ereignis('sprung')
     }
-    // Hoch oben: der Kreis folgt der Schlange (etwas traege), dann bleibt er stehen
+    // Hoch oben: der Kreis folgt der Schlange (etwas traege) dorthin, wo sie bei der Landung waere, dann bleibt er stehen
     if (t < a.halt && !a.wechsel) {
       const v = (GOLEM.sprungZielTempo[g.phase] * dt) / 1000
-      const d = dist(a.ziel, this.kopf)
+      const z = this.vorher(a.landung - t)
+      const d = dist(a.ziel, z)
       if (d > 1e-3) {
         const k = Math.min(1, v / d)
-        a.ziel.x += (this.kopf.x - a.ziel.x) * k
-        a.ziel.y += (this.kopf.y - a.ziel.y) * k
+        a.ziel.x += (z.x - a.ziel.x) * k
+        a.ziel.y += (z.y - a.ziel.y) * k
       }
     }
     if (!a.fertig && t >= a.landung) {

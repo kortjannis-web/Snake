@@ -46,6 +46,8 @@ export class EntBossGame extends MissionGame {
         get dir() {
           return spiel.dir
         },
+        vorhersage: (ms: number) => spiel.kopfVorhersage(ms),
+        richtung: () => spiel.kopfRichtung(),
         get r() {
           return spiel.r
         },

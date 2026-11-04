@@ -178,7 +178,7 @@ describe('Ent (Mission 20)', () => {
     expect(h.cause).toBe('entboss')
   })
 
-  it('Dornenfaecher: 5 bis 7 Strahlen mit Luecken; Eichelmoerser: einer dort, wo die Schlange hinfaehrt', () => {
+  it('Dornenfaecher: 5 bis 7 Strahlen mit Luecken; Eichelmoerser: einer dort, wo der Kopf bei der Landung ist, alle in seiner Bahn', () => {
     const g = entSpiel()
     const k = ruhigerEnt(g)
     setzeSchlange(g, { x: 8, y: 22 }, 'u')
@@ -189,15 +189,24 @@ describe('Ent (Mission 20)', () => {
     k.starte('dornen')
     expect(k.linien.filter((l) => l.art === 'dorn')).toHaveLength(ENT.dornen[2])
     k.ent.phase = 0
+    // Die Schlange faehrt (ein Feld je 200 ms) nach oben: dort, wo sie bei der Landung ist, schlaegt eine ein
+    g.tick = 200
+    g.last = g.time
+    const ziel = g.kopfVorhersage(ENT.eichelWarn)
+    expect(ziel).toEqual({ x: 8, y: 17 })
     k.starte('eicheln')
     expect(k.eicheln.length).toBe(ENT.eicheln[0])
-    expect(k.eicheln.some((e) => e.p.x === 8 && e.p.y === 18)).toBe(true)
+    expect(k.eicheln.some((e) => e.p.x === ziel.x && e.p.y === ziel.y)).toBe(true)
+    // Die anderen liegen weiter vorn oder seitlich daneben, nie hinter dem Ziel
+    for (const e of k.eicheln) expect(e.p.y).toBeLessThanOrEqual(ziel.y + 1)
   })
 
   it('Rankenwand: wie eine Wand (mit Luecke), nie auf der Schlange, verschwindet wieder', () => {
     const g = entSpiel()
     const k = ruhigerEnt(g)
     k.ent.phase = 1
+    // Die Schlange steht still: weitere Attacken danach treffen sie hier nicht
+    g.schutzBis = 1e12
     setzeSchlange(g, { x: 8, y: 26 }, 'u')
     k.starte('ranken')
     const r = k.linien.find((l) => l.art === 'ranke')!
@@ -285,6 +294,7 @@ describe('Ent (Mission 20)', () => {
     const g = entSpiel()
     const k = ruhigerEnt(g)
     k.ent.phase = 1
+    g.schutzBis = 1e12
     const f = k.feuer[1]
     f.an = true
     f.bis = g.time + 1e6

@@ -108,10 +108,12 @@ describe('Kleine Steingolems', () => {
     setzeSchlange(g, { x: mitte.x + 2, y: mitte.y - 2 }, 'r')
     lauf(g, 300)
     expect(m.angriff).toBeNull()
-    // Direkt daneben (schraeg): holt rundum aus (eine halbe Sekunde, 3 x 3), dann trifft er den Kopf
+    // Direkt daneben (schraeg): holt rundum aus (eine halbe Sekunde, 3 x 3 und seit 1.55.2 in Schlagrichtung 4 Felder weiter),
+    // dann trifft er den Kopf (die Schlange steht hier still, also zielt er auf den Kopf selbst)
     setzeSchlange(g, { x: mitte.x + 1, y: mitte.y - 1 }, 'r')
     lauf(g, 300)
-    expect(m.angriff?.cells).toHaveLength(8)
+    expect(m.angriff?.cells).toHaveLength(12)
+    expect(m.angriff!.cells.some((c) => Math.abs(c.x - mitte.x) + Math.abs(c.y - mitte.y) === 5)).toBe(true)
     expect(m.angriff?.art).toBe('rund')
     expect(m.angriff!.schlag - m.angriff!.ab).toBe(DEFAULTS.minigolemLaden * 1000)
     lauf(g, 600)

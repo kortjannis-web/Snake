@@ -28,6 +28,8 @@ export const TURM_WARNUNG = 700
 export const LAVA_TAKT = 6000
 /** Pause (ms), bis aus einer Quelle die naechste Giftwolke steigt */
 export const QUELLE_PAUSE = 4500
+/** Die Schlange ist in der Kampagne so viel mal so schnell wie im freien Spiel (seit 1.55.2: 15 % langsamer; nicht in den Boss-Kaempfen) */
+export const KAMPAGNE_TEMPO = 0.85
 /** Stehende Baeume kippen, wenn der Kopf so nah ist (Felder, auch schraeg), nach 1 bis 8 Sekunden */
 export const BAUM_NAH = 5
 export const BAUM_TIMER: [number, number] = [1000, 8000]
@@ -406,6 +408,7 @@ export class MissionGame extends Game {
       sandbox: { breite: 0, hoehe: 0, laenge: m.laenge ?? 3, objekte: {}, weiter: false, bloecke, aus: k.berge },
     })
     this.mission = m
+    this.tick = this.taktFuer(this.level)
     this.quer = quer
     this.sicht = quer ? { w: MISSION_BILD.h, h: MISSION_BILD.w } : { ...MISSION_BILD }
     this.karte = k
@@ -729,6 +732,14 @@ export class MissionGame extends Game {
         out.push(c)
       }
     return out
+  }
+
+  /** In der Kampagne ist die Schlange 15 % langsamer, ausser in den Boss-Kaempfen (dort sind die Angriffe auf das alte
+   *  Tempo abgestimmt). Laeuft schon im Konstruktor von Game, bevor `mission` gesetzt ist: dann langsamer, und nach dem
+   *  Setzen wird der Takt neu bestimmt */
+  protected override taktFuer(level: number) {
+    const m = this.mission as MissionDef | undefined
+    return super.taktFuer(level) / (m?.boss || m?.dungeonBoss ? 1 : KAMPAGNE_TEMPO)
   }
 
   /** Stehende Baeume wachen auf, wenn der Kopf nah ist: dann kippen sie nach 1 bis 8 Sekunden */

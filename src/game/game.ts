@@ -86,6 +86,10 @@ const ZWERG_BLEIBT = 45_000
 /** Durch welchen Einschlag stirbt man woran */
 /** Kleiner Steingolem: so viele Felder rundum trifft sein Stampfer */
 export const MINIGOLEM_RUND = 1
+/** ... und in die Richtung, in die er schlaegt (dorthin, wo der Kopf hinfaehrt), so viele Felder weiter (seit 1.55.2) */
+export const MINIGOLEM_RUND_VOR = 4
+/** Geradeaus schlaegt er so weit */
+export const MINIGOLEM_LINIE = 4
 
 const EINSCHLAG_TOD: Record<EinschlagArt, Cause> = {
   eiszapfen: 'eiszapfen',
@@ -459,7 +463,7 @@ export class Game {
     if (this.formZufall) this.ursprung = { x: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bw, y: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bh }
     for (const b of this.blocks) this.startBloecke.add(weltKey(b.x - this.ursprung.x / this.bw, b.y - this.ursprung.y / this.bh))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
-    this.tick = R.takt(this.cfg, this.tempo, 1)
+    this.tick = this.taktFuer(1)
 
     // Start in der Mitte der Karte, im Tageslevel in der Mitte des ersten Blocks
     const sb0 = sb?.bloecke?.[0]
@@ -501,7 +505,7 @@ export class Game {
     this.level = start
     this.maxLevel = start
     this.apples = start - 1
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
     for (const k of ['falle', 'wolke', 'frosch', 'gegner', 'ameise'] as const) this.next[k] = Math.max(this.next[k], start + 1)
     if (sb) {
       this.statisch = !sb.weiter
@@ -680,6 +684,41 @@ export class Game {
     const last = this.queue.length ? this.queue[this.queue.length - 1] : this.dir
     if (d === last || d === OPP[last] || this.queue.length >= 3) return
     this.queue.push(d)
+  }
+
+  /** Vorhergesagte Bahn des Kopfes fuer die naechsten `ms` Millisekunden (ein Feld je Schritt), wenn die Schlange weiterfaehrt
+   *  wie bisher: erst die schon gedrueckten Richtungen, dann geradeaus. Vor dem Rand oder einem Hindernis endet sie (dort muss
+   *  die Schlange abbiegen, wohin, weiss niemand). Alles, was schiesst, zielt seit 1.55.2 dorthin: so trifft es die Laufbahn,
+   *  und wer die rote Warnung sieht, hat noch Zeit abzubiegen */
+  kopfBahn(ms: number): P[] {
+    const out: P[] = []
+    const takt = Math.max(40, this.takt)
+    const bisZumSchritt = Math.max(0, takt - (this.time - this.last))
+    if (this.gepackt || this.gnade || ms < bisZumSchritt) return out
+    const n = Math.min(40, 1 + Math.floor((ms - bisZumSchritt) / takt))
+    const q = [...this.queue]
+    let dir = this.dir
+    let p = this.body[0]
+    for (let i = 0; i < n; i++) {
+      const nd = q.shift()
+      if (nd) dir = nd
+      const c = { x: p.x + STEP[dir].x, y: p.y + STEP[dir].y }
+      if (!this.inside(c) || this.gefahr(c, this.body.slice(0, Math.max(1, this.body.length - 1 - i)))) break
+      out.push(c)
+      p = c
+    }
+    return out
+  }
+
+  /** Wo der Kopf in `ms` Millisekunden sein wird (siehe kopfBahn; steht nichts frei, der Kopf selbst) */
+  kopfVorhersage(ms: number): P {
+    const b = this.kopfBahn(ms)
+    return { ...(b.length ? b[b.length - 1] : this.body[0]) }
+  }
+
+  /** In diese Richtung faehrt die Schlange nach den schon gedrueckten Richtungen */
+  kopfRichtung(): Dir {
+    return this.queue.length ? this.queue[this.queue.length - 1] : this.dir
   }
 
   /** Blickrichtungen (aktuell und schon gedrueckt) */
@@ -996,7 +1035,7 @@ export class Game {
     this.level = auf
     this.apples = auf - 1
     this.zurueck += von - auf
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
     this.schutzBis = this.time + this.cfg.schutz * 1000
     this.emit({ type: 'setback', von, auf, grund })
   }
@@ -1148,7 +1187,7 @@ export class Game {
     // Wueste: Sandsturm, Flut, Sandwurm (vor dem neuen Apfel, damit er nicht im Wasser landet)
     this.weltNachApfel()
     this.layout()
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
   }
 
   /** Was beim ersten Erreichen eines Levels dazukommt und bleibt */
@@ -1721,14 +1760,13 @@ export class Game {
       if (!this.netze.some((o) => same(o.p, w.p)) && this.netze.length < 8) this.netze.push({ p: { ...w.p }, t: this.time })
       return
     }
-    const h = this.body[0]
-    const dx = h.x - w.p.x
-    const dy = h.y - w.p.y
     let d: Dir | null = null
-    if (w.art === 'schneemann') {
-      if (dx === 0 && Math.abs(dy) <= 9 && dy !== 0) d = dy > 0 ? 'd' : 'u'
-      else if (dy === 0 && Math.abs(dx) <= 9 && dx !== 0) d = dx > 0 ? 'r' : 'l'
-    } else {
+    if (w.art === 'schneemann') d = this.schneemannZiel(w)
+    else {
+      // Yeti: zur Seite, auf der der Kopf gleich sein wird (seit 1.55.2)
+      const h = this.kopfVorhersage(1000)
+      const dx = h.x - w.p.x
+      const dy = h.y - w.p.y
       const quer = w.dir === 'l' || w.dir === 'r' ? 'y' : 'x'
       d = quer === 'y' ? (dy >= 0 ? 'd' : 'u') : dx >= 0 ? 'r' : 'l'
       if (Math.abs(quer === 'y' ? dy : dx) > 12) d = null
@@ -1739,6 +1777,47 @@ export class Game {
     this.geschosse.push({ art: 'schneeball', p, from: { ...w.p }, dir: d, schrittT: this.time, next: this.time + GESCHOSS_TAKT })
     this.emit({ type: 'wurf', p: { ...p } })
     this.geschossTrifft(this.geschosse[this.geschosse.length - 1])
+  }
+
+  /** Schneemann: wirft nur in seiner Reihe oder Spalte (bis 9 Felder), und zwar dorthin, wo Ball und Kopf zur selben Zeit
+   *  ankommen (seit 1.55.2, vorher nur, wenn der Kopf schon in der Reihe war). Sonst wirft er nicht */
+  protected schneemannZiel(w: Wesen): Dir | null {
+    const takt = Math.max(40, this.takt)
+    const erst = Math.max(0, takt - (this.time - this.last))
+    const bahn = [this.body[0], ...this.kopfBahn(9 * GESCHOSS_TAKT + takt)]
+    const wand = this.hindernisse()
+    const frei = (d: Dir, weit: number) => {
+      for (let k = 1; k < weit; k++) if (wand.has(key(w.p.x + STEP[d].x * k, w.p.y + STEP[d].y * k))) return false
+      return true
+    }
+    // Faehrt der Kopf in seiner Reihe direkt auf ihn zu, kommen sich Ball und Kopf entgegen: werfen
+    {
+      const h = this.body[0]
+      const dx = h.x - w.p.x
+      const dy = h.y - w.p.y
+      if ((dx === 0) !== (dy === 0) && Math.abs(dx + dy) <= 9) {
+        const d: Dir = dx > 0 ? 'r' : dx < 0 ? 'l' : dy > 0 ? 'd' : 'u'
+        if (this.kopfRichtung() === OPP[d] && frei(d, Math.abs(dx + dy))) return d
+      }
+    }
+    let best: Dir | null = null
+    let bestDiff = takt * 0.75
+    bahn.forEach((c, i) => {
+      const dx = c.x - w.p.x
+      const dy = c.y - w.p.y
+      if ((dx !== 0 && dy !== 0) || (dx === 0 && dy === 0) || Math.abs(dx + dy) > 9) return
+      const d: Dir = dx > 0 ? 'r' : dx < 0 ? 'l' : dy > 0 ? 'd' : 'u'
+      const weit = Math.abs(dx + dy)
+      if (!frei(d, weit)) return
+      const ball = (weit - 1) * GESCHOSS_TAKT
+      const kopf = i === 0 ? 0 : erst + (i - 1) * takt
+      const diff = Math.abs(ball - kopf)
+      if (diff <= bestDiff) {
+        bestDiff = diff
+        best = d
+      }
+    })
+    return best
   }
 
   /** Schneebaelle fliegen geradeaus; an Hindernissen und am Rand zerplatzen sie */
@@ -3193,7 +3272,7 @@ export class Game {
     } else this.kuerzen(auf, this.level)
     this.level = auf
     this.apples = auf - 1
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
     this.layout()
   }
 
@@ -4259,6 +4338,11 @@ export class Game {
     if (!wahl) return null
     this.gift.push({ p: wahl, t: this.time, ecke: this.r.next() * Math.PI * 2 })
     return wahl
+  }
+
+  /** Zeit (ms) je Schritt der Schlange auf diesem Level (die Kampagne ist etwas langsamer, siehe MissionGame) */
+  protected taktFuer(level: number) {
+    return R.takt(this.cfg, this.tempo, level)
   }
 
   /* ================= Baeume, Haeuser, Tuerme ================= */
@@ -5377,36 +5461,58 @@ export class Game {
     }
   }
 
-  /** Angriff, wenn der Kopf in Reichweite ist: rundum 1 Feld (auch schraeg, seit 1.49 statt 2), sonst geradeaus bis 4 Felder */
+  /** Angriff, wenn der Kopf in Reichweite ist. Er zielt dorthin, wo der Kopf beim Schlag sein wird (seit 1.55.2, vorher auf den
+   *  Kopf): ist er dann oder jetzt direkt neben ihm, rundum 1 Feld (auch schraeg) und in diese Richtung 4 Felder weiter;
+   *  liegt das Ziel in einer Linie mit ihm (2 bis 4 Felder), geradeaus 4 Felder. Beides endet an Mauern, Haeusern usw. */
   protected golemAngriff(g: Minigolem, head: P, sperre: Set<number>): Minigolem['angriff'] {
     const ab = this.time
-    const schlag = ab + this.cfg.minigolemLaden * 1000
+    const laden = this.cfg.minigolemLaden * 1000
+    const schlag = ab + laden
     const r = MINIGOLEM_RUND
-    if (cheb(head, g.p) <= r) {
+    const ziel = this.kopfVorhersage(laden)
+    // Richtung zu einem Feld: die laengere Achse, bei Gleichstand die, in die er schon schaut, sonst waagrecht
+    const richtungZu = (p: P): Dir | null => {
+      const dx = p.x - g.p.x
+      const dy = p.y - g.p.y
+      if (!dx && !dy) return null
+      const waag: Dir = dx > 0 ? 'r' : 'l'
+      const senk: Dir = dy > 0 ? 'd' : 'u'
+      if (Math.abs(dx) !== Math.abs(dy)) return Math.abs(dx) > Math.abs(dy) ? waag : senk
+      return g.dir === senk ? senk : waag
+    }
+    const linie = (d: Dir, von: number, bis: number, cells: P[]) => {
+      for (let i = von; i <= bis; i++) {
+        const p = { x: g.p.x + STEP[d].x * i, y: g.p.y + STEP[d].y * i }
+        if (!this.inside(p) || sperre.has(key(p.x, p.y))) break
+        cells.push(p)
+      }
+    }
+    const drehen = (d: Dir) => {
+      if (d === g.dir) return
+      g.altDir = g.dir
+      g.dir = d
+      g.drehT = this.time
+    }
+    if (cheb(head, g.p) <= r || cheb(ziel, g.p) <= r) {
       const cells: P[] = []
       for (let dy = -r; dy <= r; dy++)
         for (let dx = -r; dx <= r; dx++) {
           const p = { x: g.p.x + dx, y: g.p.y + dy }
           if ((dx || dy) && this.inside(p)) cells.push(p)
         }
+      const d = richtungZu(ziel) ?? richtungZu(head) ?? g.dir
+      linie(d, r + 1, r + MINIGOLEM_RUND_VOR, cells)
+      drehen(d)
       return { art: 'rund', cells, ab, schlag }
     }
-    const dx = head.x - g.p.x
-    const dy = head.y - g.p.y
-    if ((dx !== 0 && dy !== 0) || Math.abs(dx + dy) > 4) return null
+    const dx = ziel.x - g.p.x
+    const dy = ziel.y - g.p.y
+    if ((dx !== 0 && dy !== 0) || Math.abs(dx + dy) > MINIGOLEM_LINIE) return null
     const d: Dir = dx > 0 ? 'r' : dx < 0 ? 'l' : dy > 0 ? 'd' : 'u'
     const cells: P[] = []
-    for (let i = 1; i <= 4; i++) {
-      const p = { x: g.p.x + STEP[d].x * i, y: g.p.y + STEP[d].y * i }
-      if (!this.inside(p) || sperre.has(key(p.x, p.y))) break
-      cells.push(p)
-    }
-    if (!cells.some((p) => same(p, head))) return null
-    if (d !== g.dir) {
-      g.altDir = g.dir
-      g.dir = d
-      g.drehT = this.time
-    }
+    linie(d, 1, MINIGOLEM_LINIE, cells)
+    if (!cells.some((p) => same(p, ziel))) return null
+    drehen(d)
     return { art: 'linie', cells, ab, schlag }
   }
 
@@ -5561,7 +5667,8 @@ export class Game {
         const dy = h.y - z.p.y
         this.kaefigDrehen(z, Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'd' : 'u')
         if (t >= z.ruheBis && t - z.jagt >= 450) {
-          const d = this.kaefigZiel(z, h)
+          // Dorthin, wo der Kopf sein wird, wenn der Strahl losgeht (seit 1.55.2)
+          const d = this.kaefigZiel(z, this.kopfVorhersage(KAEFIG.laden))
           z.angriff = { d, cells: this.kaefigStrahl(z, d, sperre), ab: t, los: t + KAEFIG.laden }
           this.emit({ type: 'kaefig', was: 'laden', p: { ...z.p } })
         }
@@ -5706,17 +5813,27 @@ export class Game {
       } else if (!sieht && e.jagt >= 0) e.jagt = -1
       // Werfen, solange er den Kopf sieht
       if (e.jagt < 0 || t < e.wurfNext || manhattan(head, e.p) < 2) continue
-      // Dorthin, wo der Kopf sein wird, wenn sie landet (sonst auf den Kopf)
-      const schritte = Math.round((c.minientFlug * 1000) / Math.max(60, this.takt))
-      const d = STEP[this.dir]
-      let p = { x: head.x + d.x * schritte, y: head.y + d.y * schritte }
-      for (let k = schritte; k > 0 && !this.inside(p); k--) p = { x: head.x + d.x * (k - 1), y: head.y + d.y * (k - 1) }
+      // In die Laufbahn: dorthin, wo der Kopf sein wird, wenn sie landet, oder (seit 1.55.2) rechts oder links daneben,
+      // dorthin, wohin er abbiegen koennte
+      const p = this.bahnZiel(c.minientFlug * 1000)
       if (this.bomben.some((b) => !b.fertig && manhattan(b.p, p) < 2)) continue
       this.bomben.push({ von: { ...e.p }, p, t, bis: t + c.minientFlug * 1000, fertig: false })
       e.wurfT = t
       e.wurfNext = t + c.minientWurf * 1000 * (0.85 + this.r.next() * 0.3)
       this.emit({ type: 'minient', was: 'wurf', p: { ...e.p } })
     }
+  }
+
+  /** Ziel in der Laufbahn des Kopfes nach `ms` Millisekunden: meist genau auf der Bahn, sonst 2 Felder rechts oder links
+   *  daneben (relativ zur Fahrtrichtung, dort, wohin er abbiegen wuerde). Liegt das neben der Karte, auf der Bahn */
+  protected bahnZiel(ms: number): P {
+    const p = this.kopfVorhersage(ms)
+    const z = this.r.next()
+    if (z < 0.5) return p
+    const d = STEP[this.kopfRichtung()]
+    const s = z < 0.75 ? 1 : -1
+    const q = { x: p.x - d.y * 2 * s, y: p.y + d.x * 2 * s }
+    return this.inside(q) ? q : p
   }
 
   /** Darf jetzt gepackt werden? (Kreativ ohne Tod: nein) */
@@ -5887,6 +6004,8 @@ export class Game {
         get dir() {
           return spiel.dir
         },
+        vorhersage: (ms: number) => spiel.kopfVorhersage(ms),
+        richtung: () => spiel.kopfRichtung(),
         get r() {
           return spiel.r
         },
@@ -6066,6 +6185,8 @@ export class Game {
         get dir() {
           return spiel.dir
         },
+        vorhersage: (ms: number) => spiel.kopfVorhersage(ms),
+        richtung: () => spiel.kopfRichtung(),
         get r() {
           return spiel.r
         },
@@ -6149,6 +6270,8 @@ export class Game {
         get dir() {
           return spiel.dir
         },
+        vorhersage: (ms: number) => spiel.kopfVorhersage(ms),
+        richtung: () => spiel.kopfRichtung(),
         get r() {
           return spiel.r
         },

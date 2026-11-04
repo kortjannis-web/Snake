@@ -219,6 +219,10 @@ export class Entkampf {
   protected get kopf(): P {
     return this.body[0]
   }
+  /** Wo der Kopf in ms Millisekunden sein wird (seit 1.55.2 zielen Wurzeln, Dornen und Eicheln dorthin) */
+  protected vorher(ms: number): P {
+    return this.wirt.vorhersage?.(ms) ?? { ...this.kopf }
+  }
   /** Mitte der Lichtung */
   get mitte(): Pf {
     return { x: (this.box.x0 + this.box.x1) / 2, y: (this.box.y0 + this.box.y1) / 2 }
@@ -527,7 +531,7 @@ export class Entkampf {
    *  Die Wurzeln kommen von der Seite des Ents */
   protected wurzelbruch(los: number) {
     const e = this.ent
-    const h = this.kopf
+    const h = this.vorher(los - this.time)
     const n = ENT.linien[e.phase] ?? 1
     const b = this.box
     const reihen: { quer: boolean; i: number }[] = []
@@ -572,7 +576,7 @@ export class Entkampf {
   /** Wurzelstoss: 3 breit von ihm zum Kopf */
   protected wurzelstoss(los: number) {
     const e = this.ent
-    const s = this.strahl(winkelVon(e, this.kopf), 1)
+    const s = this.strahl(winkelVon(e, this.vorher(los - this.time)), 1)
     this.linie('wurzel', s.felder, e, los, ENT.stossTempo, ENT.wurzelBleibt, s.dOf)
   }
 
@@ -582,7 +586,7 @@ export class Entkampf {
     const n = ENT.dornen[e.phase] ?? 5
     const auf = ENT.faecher[e.phase] ?? 1.7
     const schritt = auf / (n - 1)
-    const mitte = winkelVon(e, this.kopf) + (this.r.next() < 0.5 ? schritt / 2 : 0) * (this.r.next() < 0.5 ? 1 : -1)
+    const mitte = winkelVon(e, this.vorher(los - this.time)) + (this.r.next() < 0.5 ? schritt / 2 : 0) * (this.r.next() < 0.5 ? 1 : -1)
     for (let i = 0; i < n; i++) {
       const w = mitte + (i - (n - 1) / 2) * schritt
       const s = this.strahl(w, 0)
@@ -705,15 +709,24 @@ export class Entkampf {
 
   /* ---------------- Eicheln, Setzlinge, Sturm ---------------- */
 
-  /** Schatten nahe der Schlange, einer dort, wo sie hinfaehrt */
+  /** Schatten in der Laufbahn der Schlange (seit 1.55.2): einer dort, wo der Kopf bei der Landung sein wird, die anderen
+   *  weiter vorn oder rechts und links daneben, dort, wohin sie abbiegen koennte */
   protected moerser(bis: number) {
     const n = ENT.eicheln[this.ent.phase] ?? 3
-    const h = this.kopf
-    const d = STEP[this.wirt.dir]
+    const h = this.vorher(bis - this.time)
+    const d = STEP[this.wirt.richtung?.() ?? this.wirt.dir]
+    const q = { x: -d.y, y: d.x }
     for (let i = 0; i < n; i++) {
       let p: P | null = null
       for (let v = 0; v < 24 && !p; v++) {
-        const c = i === 0 && v === 0 ? { x: h.x + d.x * 4, y: h.y + d.y * 4 } : { x: h.x + this.r.int(-5, 5), y: h.y + this.r.int(-5, 5) }
+        let c: P = h
+        if (i > 0 || v > 0) {
+          // Weiter vorn (2 bis 4) oder seitlich (2 bis 3, etwas vor oder zurueck)
+          const vorn = this.r.next() < 0.4
+          const a = vorn ? this.r.int(2, 4) : this.r.int(-1, 2)
+          const b = vorn ? this.r.int(-1, 1) : this.r.int(2, 3) * (this.r.next() < 0.5 ? 1 : -1)
+          c = { x: h.x + d.x * a + q.x * b, y: h.y + d.y * a + q.y * b }
+        }
         if (this.imLichtung(c) && !this.aufEnt(c) && !this.eicheln.some((e) => !e.fertig && manhattan(e.p, c) < 3)) p = c
       }
       if (p) this.eicheln.push({ p, t: this.time, bis: bis + i * 160, fertig: false })
