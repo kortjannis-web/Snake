@@ -36,6 +36,21 @@ describe('Zielen in die Laufbahn (seit 1.55.2)', () => {
     expect(g.inside({ x: weit.x + 1, y: weit.y })).toBe(false)
   })
 
+  it('fair: in einem Gang ohne Abzweig zielt nichts vor die Schlange (dort koennte sie nicht ausweichen)', () => {
+    const g = spiel()
+    const m = { x: Math.floor(g.w / 2), y: Math.floor(g.h / 2) + 4 }
+    legeSchlange(g, m, 'u')
+    // Gang: Mauern links und rechts neben den Feldern m.y bis m.y - 3
+    const cells: P[] = []
+    for (let y = m.y - 3; y <= m.y; y++) cells.push({ x: m.x - 1, y }, { x: m.x + 1, y })
+    g.mauern = [{ cells, grown: cells.length, t: cells.map(() => -1e9), next: 0 }]
+    // 4 Schritte: bis dahin gibt es keinen Abzweig, also zielt es auf den Kopf (den verlaesst sie ja)
+    expect(g.kopfBahn(800)).toHaveLength(4)
+    expect(g.kopfVorhersage(800)).toEqual(m)
+    // 5 Schritte: am Ende des Gangs kann sie abbiegen, dahinter darf es zielen
+    expect(g.kopfVorhersage(1000)).toEqual({ x: m.x, y: m.y - 5 })
+  })
+
   it('Mini-Ent-Bomben landen in der Laufbahn: auf dem Ziel oder 2 Felder rechts oder links daneben', () => {
     const g = spiel()
     const m = { x: Math.floor(g.w / 2), y: Math.floor(g.h / 2) + 3 }

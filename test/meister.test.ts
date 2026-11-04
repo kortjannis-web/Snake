@@ -313,10 +313,13 @@ function botSchritt(g: KaefigBossGame, vorsicht = true): Dir | null {
   const zu = g.hindernisse()
   // Angekuendigte Felder meiden, ab 1 s bevor es losgeht (vorher noch hindurch; seit 1.55.2 zielt er in die Bahn)
   const a = M.angriff
-  if (vorsicht && a && a.art !== 'teleport' && a.los - g.time < 1000 && g.time < a.bis) for (const c of a.cells) zu.add(key(c.x, c.y))
+  const rotJetzt = new Set<number>()
+  if (vorsicht && a && a.art !== 'teleport' && a.los - g.time < 1000 && g.time < a.bis) for (const c of a.cells) rotJetzt.add(key(c.x, c.y))
+  for (const k of rotJetzt) zu.add(k)
   // Abstand zu ihm halten
   if (vorsicht && g.da) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) zu.add(key(M.p.x + dx, M.p.y + dy))
-  for (const f of g.flammen) zu.delete(key(f.p.x, f.p.y))
+  // Flammen holen, aber nicht mitten aus einer angekuendigten Flaeche
+  for (const f of g.flammen) if (!rotJetzt.has(key(f.p.x, f.p.y))) zu.delete(key(f.p.x, f.p.y))
   for (const b of g.body.slice(0, -1)) zu.add(key(b.x, b.y))
   if (g.tuerAuf >= 0) for (const t of g.tuer) zu.delete(key(t.x, t.y))
   const ziel = new Set<number>()

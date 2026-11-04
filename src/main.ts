@@ -36,14 +36,14 @@ import { Renderer } from './render/renderer'
 import { BergKacheln } from './render/berge'
 import { KampagnenKarte, type FeldZustand } from './render/kampagne'
 import { apfelFarben, drawApfel } from './render/sprites'
-import { abmelden, abonniere, abonniereHall, abonniereSozial, abonniereWelt, adminWeltLoeschen, ladePushEinstellung, ladeWelt, pushEinstellung, sendeWelt, setzePushEinstellung, weltNeu, type WeltNachricht, adminFeedback, adminFeedbackLoeschen, adminLoeschen, feedbackSenden, type Feedback, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
+import { abmelden, abonniere, abonniereHall, abonniereSozial, abonniereWelt, adminWeltLoeschen, ladePushEinstellung, ladeWelt, pushEinstellung, sendeWelt, setzePushEinstellung, weltNeu, type WeltNachricht, adminFeedback, adminFeedbackLoeschen, adminLoeschen, feedbackSenden, type Feedback, angemeldet, anmelden, beiZustand, eigeneUid, kontoLoeschen, kontoReparieren, kontoSichern, onlineZustand, type OnlineZustand, anfrageAnnehmen, anfrageLoeschen, anfrageSenden, chatGelesen, entsperren, freundEntfernen, freundHinzufuegen, ladeHall, ladeListe, ladeNachrichten, lobby, meineAnfragen, meineChats, meineFreunde, meineSperren, meinCode, melde, NamenFehler, NameVergeben, nameGueltig, PasswortFalsch, onlineAktiv, profil, sendeNachricht, setzeName, setzeSilber, setzeSkin, setzeSpielzeit, sperren, type Anfrage, type Art, type Einladung, type Freund, type Gesperrt, type HallZeile, type NameErgebnis, type Nachricht, type OnlineSpieler } from './online'
 import { beiCloud } from './cloud'
 import { APK_URL, neueVersion } from './update'
 import { config, fuehrerGesehen, fuehrerNeu, heuteBest, heuteDatum, kreativ, master, masterFreischalten, masterPruefen, patchnotesGesehen, patchnotesNeu, resetConfig, resetStats, saveConfig, saveKreativ, saveSettings, saveStats, saveWallet, settings, stats, verdienen, verdienenModus, wallet, type LookWahl } from './storage'
 import { ACCS, baueSkin, drawSchlangeGerade, drawSkinVorschau, FARBEN, hatSkin, lohnVon, missionLohnVon, MUSTER, nameVon, preisVon, skinVon, SPUREN, TEILUNGEN, vorschauFuer, WELT_LOHN, type Fokus, type Platz, type Skin } from './render/skins'
 import { EFFEKTE, effektFrei } from './render/effekte'
 import { drawWeltVorschau, naechsteWelt, vorherigeWelt, WELTEN, weltFrei, weltFreiAlt, weltStufe, weltVon, type Welt } from './render/welten'
-import { mountIcons, setIcon } from './ui/icons'
+import { mountIcons, setIcon, WELT_ICON } from './ui/icons'
 import { drawMini, MINI_FOR_CAUSE } from './ui/minis'
 import { CAUSE, help } from './ui/texts'
 
@@ -560,7 +560,7 @@ async function anfragenLaden() {
 
 /** Hall of Snakes (zugleich die Bestenliste): Alle, Freunde oder das heutige Tageslevel; sortiert nach Rekord, Gold oder Silber */
 let hallTab: 'alle' | 'freunde' | 'tages' = 'alle'
-let hallSort: 'rekord' | 'gold' | 'silber' = 'rekord'
+let hallSort: 'rekord' | 'gold' | 'silber' | 'zeit' = 'rekord'
 let tagesZeilen: Awaited<ReturnType<typeof ladeListe>>['zeilen'] = []
 
 async function ladeHallAnzeige() {
@@ -590,11 +590,11 @@ function hallZeichnen() {
   for (const b of $('hall-tabs').querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === hallTab))
   for (const b of $('hall-sort').querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === hallSort))
   $('hall-sort').hidden = hallTab === 'tages'
-  $('hall-wert').textContent = hallTab === 'tages' ? 'Zeit' : hallSort === 'rekord' ? 'Rekord' : hallSort === 'gold' ? 'Gold' : 'Silber'
+  $('hall-wert').textContent = hallTab === 'tages' ? 'Zeit' : hallSort === 'rekord' ? 'Rekord' : hallSort === 'gold' ? 'Gold' : hallSort === 'silber' ? 'Silber' : 'Spielzeit'
   if (hallTab === 'tages') return tagesZeichnen()
   const box = $('hall-zeilen')
   const such = $<HTMLInputElement>('hall-suche').value.trim().toLowerCase()
-  const wert = (z: HallZeile) => (hallSort === 'rekord' ? z.rekord : hallSort === 'gold' ? z.trophaeen : (z.silber ?? 0))
+  const wert = (z: HallZeile) => (hallSort === 'rekord' ? z.rekord : hallSort === 'gold' ? z.trophaeen : hallSort === 'silber' ? (z.silber ?? 0) : (z.spielzeit_ms ?? 0))
   const treffer = hallZeilen
     .filter((z) => (!such || z.name.toLowerCase().includes(such)) && (hallTab === 'alle' || freundeUids.has(z.user_id) || z.user_id === hallIch))
     .sort((a, b) => wert(b) - wert(a) || b.rekord - a.rekord || a.name.localeCompare(b.name))
@@ -621,8 +621,21 @@ function hallZeichnen() {
     const w = wert(z)
     const zahl = document.createElement('b')
     zahl.className = `liste__level hall-wert hall-wert--${hallSort}`
-    zahl.textContent = w > 0 ? kurzZahl(w) : '–'
-    zahl.setAttribute('aria-label', hallSort === 'rekord' ? (w > 0 ? `Rekord Level ${w}` : 'Noch kein Rekord') : `${w} ${hallSort === 'gold' ? 'Gold' : 'Silber'}-Trophäen`)
+    zahl.textContent = w > 0 ? (hallSort === 'zeit' ? spielzeitText(w) : kurzZahl(w)) : '–'
+    zahl.setAttribute(
+      'aria-label',
+      hallSort === 'rekord'
+        ? w > 0
+          ? `Rekord Level ${w}${z.rekord_welt ? ` in ${weltVon(z.rekord_welt).name}` : ''}`
+          : 'Noch kein Rekord'
+        : hallSort === 'zeit'
+          ? w > 0
+            ? `Spielzeit ${spielzeitText(w)}`
+            : 'Noch keine Spielzeit'
+          : `${w} ${hallSort === 'gold' ? 'Gold' : 'Silber'}-Trophäen`,
+    )
+    // Rekord: das Symbol der Welt, in der er gespielt wurde, vor der Zahl
+    if (hallSort === 'rekord' && w > 0 && z.rekord_welt) zahl.prepend(weltSymbol(z.rekord_welt))
     const da = onlineVon(z.user_id)
     if (da) {
       const punkt = document.createElement('i')
@@ -644,7 +657,7 @@ function hallZeichnen() {
   })
   $('hall-mehr').hidden = treffer.length <= hallZahl
   $('hall-info').textContent =
-    `${treffer.length} Snakes. Tippe einen Spieler an, um ihn zum Gefecht einzuladen. Gold: Trophäen aus Mehrspieler-Siegen. Silber: alle je verdienten Äpfel. „–“ heißt: noch nichts.` +
+    `${treffer.length} Snakes. Tippe einen Spieler an, um ihn zum Gefecht einzuladen. Rekord: bester Level mit normalem Tempo oder im Speedrun (Abenteuer zählt nicht), davor das Symbol der Welt. Gold: Trophäen aus Mehrspieler-Siegen. Silber: alle je verdienten Äpfel. Spielzeit: wie lange jemand schon spielt. „–“ heißt: noch nichts.` +
     (angemeldet() ? '' : ' Für Freundschaftsanfragen musst du angemeldet sein.')
 }
 
@@ -691,15 +704,17 @@ function eintragPruefen() {
 
 const RKEY = 'snake.rekord.nachgetragen.v1'
 function rekordNachtragen(ich: HallZeile) {
-  if (!zaehltOnline() || stats.best < 2 || ich.rekord >= stats.best) return
+  // Nur der Rekord aus normalem Tempo oder Speedrun (seit 1.55.3; Abenteuer zaehlt nicht fuer die Hall of Snakes)
+  const best = stats.bestWertung ?? 0
+  if (!zaehltOnline() || best < 2 || ich.rekord >= best) return
   try {
-    if (Number(localStorage.getItem(RKEY)) >= stats.best) return
-    localStorage.setItem(RKEY, String(stats.best))
+    if (Number(localStorage.getItem(RKEY)) >= best) return
+    localStorage.setItem(RKEY, String(best))
   } catch {
     return
   }
   // Dauer grosszuegig (die Datenbank prueft: hoechstens ein Level je 0,2 s)
-  melde({ level: stats.best, dauer: Math.max(10_000, stats.best * 400), tempo: 'normal' })
+  melde({ level: best, dauer: Math.max(10_000, best * 400), tempo: 'normal', welt: stats.bestWertungWelt })
 }
 
 $('konto-reparieren').addEventListener('click', async () => {
@@ -748,7 +763,9 @@ function karteOeffnen(z: HallZeile) {
   karteSpieler = z
   const da = onlineVon(z.user_id)
   $('karte-name').textContent = z.name
-  const rekord = z.rekord > 0 ? `Rekord Level ${z.rekord}` : 'Noch kein Rekord'
+  const rekord =
+    (z.rekord > 0 ? `Rekord Level ${z.rekord}${z.rekord_welt ? ` (${weltVon(z.rekord_welt).name})` : ''}` : 'Noch kein Rekord') +
+    (z.spielzeit_ms ? ` · spielt seit ${spielzeitText(z.spielzeit_ms)}` : '')
   $('karte-info').textContent = `${da ? (da.imSpiel ? 'Spielt gerade' : 'Online') : 'Gerade nicht online'} · ${rekord}`
   $('karte-freund-text').textContent = freundText(z)
   setIcon($('karte-freund'), freundeUids.has(z.user_id) ? 'MessageCircle' : 'UserPlus')
@@ -850,6 +867,23 @@ $('hall-sort').querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
     hallZeichnen()
   }),
 )
+
+/** Spielzeit kurz: "40 min", "3,5 h", "120 h" */
+function spielzeitText(ms: number) {
+  const min = Math.round(ms / 60_000)
+  if (min < 60) return `${Math.max(1, min)} min`
+  const h = ms / 3_600_000
+  return h < 10 ? `${h.toFixed(1).replace('.', ',').replace(',0', '')} h` : `${Math.round(h)} h`
+}
+
+/** Kleines Symbol der Welt (mit Namen als Tooltip) */
+function weltSymbol(id: string) {
+  const el = document.createElement('i')
+  el.className = `welt-symbol welt-symbol--${id}`
+  el.title = weltVon(id).name
+  setIcon(el, WELT_ICON[id] ?? 'Globe')
+  return el
+}
 
 /** Knopf am Ende der Zeile: Anfrage schicken, zurueckziehen, annehmen oder (Freund) chatten */
 function hallAktion(z: HallZeile): HTMLElement {
@@ -1033,12 +1067,19 @@ function gameOver() {
     stats.maxGebiete = Math.max(stats.maxGebiete, g.expansions)
     stats.gegner += g.besiegt
     if (neu) stats.best = g.maxLevel
+    // Fuer die Hall of Snakes zaehlen nur normales Tempo und Speedrun (Abenteuer nicht, seit 1.55.3)
+    const tempo = tempoVon(laufModus)
+    if (endlos && zaehltOnline() && tempo !== 'langsam' && g.gegessen > 0 && g.maxLevel > (stats.bestWertung ?? 0)) {
+      stats.bestWertung = g.maxLevel
+      stats.bestWertungWelt = g.weltId || 'wiese'
+    }
     erfolgeMelden()
     saveStats()
     setzeSilber(wallet.verdient ?? 0)
-    // Tageslevel: gemeldet werden die geholten Aepfel (alle = geschafft) und die Zeit
-    if (zaehltOnline() && g.gegessen > 0 && (istTages || g.maxLevel >= 2))
-      melde({ level: istTages ? Math.min(g.gegessen, tagesZiel) : g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo: tempoVon(laufModus), tages: istTages })
+    setzeSpielzeit(stats.time)
+    // Tageslevel: gemeldet werden die geholten Aepfel (alle = geschafft) und die Zeit. Abenteuer meldet nichts
+    if (zaehltOnline() && g.gegessen > 0 && (istTages || (g.maxLevel >= 2 && tempo !== 'langsam')))
+      melde({ level: istTages ? Math.min(g.gegessen, tagesZiel) : g.maxLevel, dauer: Math.max(1, Math.round(performance.now() - startedAt)), tempo, tages: istTages, welt: g.weltId || 'wiese' })
   }
   overTimer = window.setTimeout(() => {
     if (mode !== 'over') return
@@ -4397,6 +4438,7 @@ beiCloud(() => {
   if (mode === 'home') updateHome()
   setzeSkin(wallet.skin)
   setzeSilber(wallet.verdient ?? 0)
+  setzeSpielzeit(stats.time)
 })
 applySettings()
 newDemo()
@@ -4420,6 +4462,7 @@ if (!gesperrt) {
   // Den Skin dieses Geraets immer melden (frueher nur, wenn online noch keiner stand: dann blieb ein alter Skin fuer immer)
   setzeSkin(wallet.skin)
   setzeSilber(wallet.verdient ?? 0)
+  setzeSpielzeit(stats.time)
   requestAnimationFrame(frame)
   const dm = WIESE_MISSIONEN[devMission - 1]
   if (dm) newGame(false, false, 'normal', dm)

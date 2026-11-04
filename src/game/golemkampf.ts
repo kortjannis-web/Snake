@@ -94,19 +94,19 @@ export const GOLEM = {
   erwachen: 2400,
   laufenMin: 1300,
   laufenMax: 2400,
-  stampfenWarn: 1300,
+  stampfenWarn: 1400, // seit 1.55.3 (vorher 1300): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   stampfenR: [3.6, 3.8, 4.2],
   stampfenNach: 700,
-  ansturmWarn: 1250,
+  ansturmWarn: 1350, // seit 1.55.3 (vorher 1250): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   ansturmTempo: 14,
   benommen: 1200,
   brocken: [3, 4, 5],
-  brockenWarn: 1050,
+  brockenWarn: 1150, // seit 1.55.3 (vorher 1050): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   sprungDuck: 420,
   sprungAuf: 450,
   sprungZielen: 2000,
   sprungZielTempo: [6, 7, 8],
-  sprungHalt: 800,
+  sprungHalt: 900, // seit 1.55.3 (vorher 800): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   sprungFall: 260,
   sprungR: 2.6,
   sprungNach: 750,

@@ -196,6 +196,9 @@ function kaefigNeigung(now: number, nr: number) {
   return Math.min(1, z / 450, (dauer - z) / 450)
 }
 
+/** So lange (ms) steht die rote Zahl, wenn Level verloren gehen */
+const ABZUG_DAUER = 1600
+
 export class Renderer {
   /** Mehrspieler: andere Schlangen und was nur dieses Geraet sieht (null = Einzelspiel) */
   mehr: MehrAnzeige | null = null
@@ -264,6 +267,8 @@ export class Renderer {
   private funken: Funke[] = []
   /** Aufsteigende Zahlen (+12) und Namen beim Einsammeln */
   private texte: { x: number; y: number; t: number; text: string; farbe: string }[] = []
+  /** Level verloren (seit 1.55.2 deutlich): grosse rote Zahl ueber dem Kopf und roter Bildschirmrand */
+  private abzug: { x: number; y: number; t: number; n: number } | null = null
   /** Minikarte unten links anzeigen */
   minikarte = true
   private shake = { until: 0, amp: 0 }
@@ -334,6 +339,7 @@ export class Renderer {
     this.sichtGlatt = { x: [0, 0], y: [0, 0] }
     this.funken = []
     this.texte = []
+    this.abzug = null
     this.shake = { until: 0, amp: 0 }
     this.spuren.leeren()
     this.steppe = null
@@ -369,6 +375,10 @@ export class Renderer {
       for (const t of this.texte) {
         t.x *= r
         t.y *= r
+      }
+      if (this.abzug) {
+        this.abzug.x *= r
+        this.abzug.y *= r
       }
     }
     this.cell = neu
@@ -410,7 +420,7 @@ export class Renderer {
       this.kameraRutschen(e.dx, e.dy)
     } else if (e.type === 'freigelegt') {
       this.kameraRutschen(e.dx, e.dy)
-      for (const f of [...this.funken, ...this.texte]) {
+      for (const f of [...this.funken, ...this.texte, ...(this.abzug ? [this.abzug] : [])]) {
         f.x += e.dx * cell
         f.y += e.dy * cell
       }
@@ -494,7 +504,10 @@ export class Renderer {
       for (const c of e.cells)
         for (let i = 0; i < 6; i++) this.funken.push({ x: (c.x + Math.random()) * cell, y: (c.y + Math.random()) * cell, vx: (Math.random() - 0.5) * cell, vy: cell * (0.4 + Math.random()), born: g.time, c: i % 3 ? '#867670' : '#FF7A1A' })
     } else if (e.type === 'setback') {
-      if (!this.reduce) this.shake = { until: g.time + 320, amp: cell * 0.14 }
+      if (!this.reduce) this.shake = { until: g.time + 420, amp: cell * 0.2 }
+      // Im Mehrspieler nur fuer die eigene Schlange (wer: Index der Schlange, sonst die eine)
+      const h = g.body[0]
+      if (e.von > e.auf && h) this.abzug = { x: (h.x + 0.5) * cell, y: h.y * cell, t: g.time, n: e.von - e.auf }
     } else if (e.type === 'halt') {
       if (!this.reduce) this.shake = { until: g.time + 140, amp: cell * 0.07 }
     } else if (e.type === 'golem' && !this.reduce) {
@@ -1445,8 +1458,38 @@ export class Renderer {
     }
     ctx.globalAlpha = 1
 
+    // Level verloren: grosse rote Zahl, springt auf und steigt langsam (1,6 s)
+    const ab = this.abzug
+    if (ab && now - ab.t < ABZUG_DAUER) {
+      const k = (now - ab.t) / ABZUG_DAUER
+      const auf = this.reduce ? 1 : Math.min(1, (now - ab.t) / 160)
+      const groesse = cell * (0.8 + 0.5 * (1 - auf) + 0.25 * Math.sin(auf * Math.PI))
+      ctx.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3
+      ctx.font = `900 ${Math.round(groesse)}px "Libre Franklin", system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      const y = ab.y - cell * 0.6 - k * cell * 1.4
+      const text = `−${ab.n} Level`
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = Math.max(3, cell * 0.16)
+      ctx.strokeStyle = 'rgba(40, 6, 8, 0.85)'
+      ctx.strokeText(text, ab.x, y)
+      ctx.fillStyle = '#FF4D42'
+      ctx.fillText(text, ab.x, y)
+      ctx.globalAlpha = 1
+    } else if (ab) this.abzug = null
+
     // Apfel ausserhalb des Bildes: Pfeil am Rand
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    // Level verloren: der Bildschirmrand leuchtet kurz rot
+    if (ab && now - ab.t < 700) {
+      const k = (now - ab.t) / 700
+      const r = Math.max(vw, vh)
+      const gr = ctx.createRadialGradient(vw / 2, vh / 2, r * 0.35, vw / 2, vh / 2, r * 0.75)
+      gr.addColorStop(0, 'rgba(255, 40, 30, 0)')
+      gr.addColorStop(1, `rgba(255, 40, 30, ${0.55 * (1 - k)})`)
+      ctx.fillStyle = gr
+      ctx.fillRect(0, 0, vw, vh)
+    }
     if (g.status === 'play' && !boss && !ent) this.drawZeiger(g, ox, oy, now)
     if (this.minikarte) this.drawMinikarte(g, head)
     if (boss) drawBossHud(ctx, boss, vw, vh, now)
