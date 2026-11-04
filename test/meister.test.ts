@@ -311,9 +311,9 @@ describe('Kaefigmeister (Mission 30)', () => {
 function botSchritt(g: KaefigBossGame, vorsicht = true): Dir | null {
   const M = g.meister
   const zu = g.hindernisse()
-  // Angekuendigte Felder meiden, kurz bevor es losgeht (vorher noch hindurch)
+  // Angekuendigte Felder meiden, ab 1 s bevor es losgeht (vorher noch hindurch; seit 1.55.2 zielt er in die Bahn)
   const a = M.angriff
-  if (vorsicht && a && a.art !== 'teleport' && a.los - g.time < 450 && g.time < a.bis) for (const c of a.cells) zu.add(key(c.x, c.y))
+  if (vorsicht && a && a.art !== 'teleport' && a.los - g.time < 1000 && g.time < a.bis) for (const c of a.cells) zu.add(key(c.x, c.y))
   // Abstand zu ihm halten
   if (vorsicht && g.da) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) zu.add(key(M.p.x + dx, M.p.y + dy))
   for (const f of g.flammen) zu.delete(key(f.p.x, f.p.y))
@@ -329,6 +329,27 @@ function botSchritt(g: KaefigBossGame, vorsicht = true): Dir | null {
     for (let y = r.y0 + 1; y < r.y1; y++) for (let x = r.x0 + 1; x < r.x1; x++) if (Math.max(Math.abs(x - M.p.x), Math.abs(y - M.p.y)) >= 3) ziel.add(key(x, y))
   }
   const h = g.body[0]
+  // Steht der Kopf in einer angekuendigten Flaeche: zuerst auf kuerzestem Weg hinaus (durch die Flaeche hindurch)
+  if (vorsicht && a && a.art !== 'teleport' && g.time < a.bis) {
+    const rot = new Set(a.cells.map((c) => key(c.x, c.y)))
+    const koerper = new Set(g.body.slice(1, -1).map((b) => key(b.x, b.y)))
+    if (rot.has(key(h.x, h.y))) {
+      const raus = new Map<number, Dir | null>([[key(h.x, h.y), null]])
+      const rq: P[] = [h]
+      while (rq.length) {
+        const c = rq.shift()!
+        const erst = raus.get(key(c.x, c.y))!
+        for (const d of DIRS) {
+          const n = { x: c.x + STEP[d].x, y: c.y + STEP[d].y }
+          const k = key(n.x, n.y)
+          if (raus.has(k) || !g.inside(n) || koerper.has(k) || (zu.has(k) && !rot.has(k))) continue
+          if (!rot.has(k)) return erst ?? d
+          raus.set(k, erst ?? d)
+          rq.push(n)
+        }
+      }
+    }
+  }
   const von = new Map<number, Dir | null>([[key(h.x, h.y), null]])
   const q: P[] = [h]
   while (q.length) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { key } from '../src/game/game'
 import { BAUM_NAH, KAEFIG, KAMPAGNE_TEMPO, LAVA_TAKT, LICHT_TAKT, MissionGame, querKarte, TURM_TAKT } from '../src/game/mission'
 import { MISSION_BLOCK, MISSION_LOHN, missionSkinVorgemerkt, spielbar, WIESE_MISSIONEN } from '../src/game/missionen'
-import { DEFAULTS, DIRS, STEP, takt } from '../src/game/rules'
+import { DEFAULTS, DIRS, OPP, STEP, takt } from '../src/game/rules'
 import type { Dir, Kaefig, P } from '../src/game/types'
 
 const m1 = WIESE_MISSIONEN[0]
@@ -458,13 +458,16 @@ describe('Kampagne', () => {
   })
 
   it('Kaefigkopf: sieht den Kopf nach vorn, bleibt stehen, holt aus und schiesst in einer der acht Richtungen (Kopf getroffen = vorbei)', () => {
-    const neu = (kopf: P) => {
+    // Die Schlange faehrt hier nicht (nur seine Zeit laeuft), er zielt aber dorthin, wo sie mit ihrer Richtung waere
+    const neu = (kopf: P, dir: Dir = 'r') => {
       const g = new MissionGame(WIESE_MISSIONEN[27])
       ruhig(g)
       const z: Kaefig = { p: { x: 6, y: 50 }, from: { x: 6, y: 50 }, dir: 'r', altDir: 'r', drehT: 0, t: 0, schrittT: 0, next: 1e12, jagt: -1, wandRest: 0, wandWeg: null, angriff: null, strahl: [], strahlT: -1e9, ruheBis: 0 }
       g.kaefige = [z]
-      g.body = [kopf, { x: kopf.x, y: kopf.y + 1 }, { x: kopf.x, y: kopf.y + 2 }]
+      const hinten = STEP[OPP[dir]]
+      g.body = [0, 1, 2].map((i) => ({ x: kopf.x + hinten.x * i, y: kopf.y + hinten.y * i }))
       g.prev = g.body.map((p) => ({ ...p }))
+      g.dir = dir
       const takt = () => {
         g.time += 50
         ;(g as unknown as { kaefigTakt(): void }).kaefigTakt()
@@ -489,11 +492,14 @@ describe('Kampagne', () => {
     for (let i = 0; i < 20 && g.status === 'play'; i++) takt()
     expect(g.status).toBe('over')
     expect(g.cause).toBe('kaefigstrahl')
-    // Liegt der Kopf nicht genau auf einer Linie der Dame, zielt er in die naechste (hier schraeg) und kann vorbeischiessen
-    const s = neu({ x: 10, y: 48 })
+    // Er zielt dorthin, wo der Kopf sein wird, wenn der Strahl losgeht (in die naechste Linie der Dame): der Kopf oben rechts
+    // faehrt nach unten, also schiesst er schraeg nach unten statt nach oben (der stehende Kopf bleibt heil)
+    const s = neu({ x: 10, y: 48 }, 'd')
     s.takt()
     for (let i = 0; i < 12 && !s.z.angriff; i++) s.takt()
-    expect(s.z.angriff!.d).toEqual({ x: 1, y: -1 })
+    const ziel = s.g.kopfVorhersage(KAEFIG.laden)
+    expect(ziel.y).toBeGreaterThan(51)
+    expect(s.z.angriff!.d).toEqual({ x: 1, y: 1 })
     for (let i = 0; i < 20; i++) s.takt()
     expect(s.g.status).toBe('play')
     // Hineinfahren ist auch vorbei
@@ -742,35 +748,54 @@ describe('Kampagne', () => {
     expect(h.cause).toBe('kegel')
   })
 
-  it('kleine Steingolems: der Schlag rundum reicht in die Schlagrichtung (zum Kopf) 2 Felder weiter', () => {
+  it('kleine Steingolems zielen dorthin, wo der Kopf beim Schlag sein wird: rundum plus 4 Felder in diese Richtung, geradeaus 4', () => {
     const g = new MissionGame(WIESE_MISSIONEN[5])
     const m = g.minigolems[0]
     ruhig(g)
     const zu = g.hindernisse()
     const frei = (p: P) => g.inside(p) && !zu.has(key(p.x, p.y))
-    // Ein Feld, um das rundum und nach rechts 3 Felder Wiese sind
+    // Ein Feld mit Wiese ringsum: 2 nach links, 6 nach rechts, 4 nach oben, 1 nach unten
     let p: P | null = null
-    for (let y = 2; y < g.h - 2 && !p; y++)
-      for (let x = 2; x < g.w - 4 && !p; x++) {
-        const c = { x, y }
-        const um = [-1, 0, 1].flatMap((dy) => [-1, 0, 1, 2, 3].map((dx) => ({ x: x + dx, y: y + dy })))
-        if (um.every(frei)) p = c
+    for (let y = 5; y < g.h - 2 && !p; y++)
+      for (let x = 3; x < g.w - 7 && !p; x++) {
+        const um = [-4, -3, -2, -1, 0, 1].flatMap((dy) => [-2, -1, 0, 1, 2, 3, 4, 5, 6].map((dx) => ({ x: x + dx, y: y + dy })))
+        if (um.every(frei)) p = { x, y }
       }
-    m.p = { ...p! }
+    const q = p!
+    m.p = { ...q }
     m.dir = 'u'
-    const t = g as unknown as { golemAngriff(m: unknown, h: P, s: Set<number>): { art: string; cells: P[] } }
-    const a = t.golemAngriff(m, { x: p!.x + 1, y: p!.y }, new Set())
+    const t = g as unknown as { golemAngriff(m: unknown, h: P, s: Set<number>): { art: string; cells: P[] } | null }
+    const schlange = (kopf: P, dir: Dir) => {
+      g.body = [kopf, { x: kopf.x, y: kopf.y - 1 }, { x: kopf.x, y: kopf.y - 2 }]
+      g.prev = g.body.map((b) => ({ ...b }))
+      g.dir = dir
+      g.queue = []
+      g.last = g.time
+    }
+    // Direkt rechts neben ihm, faehrt nach rechts weg: rundum und nach rechts 4 Felder weiter (dorthin faehrt er)
+    schlange({ x: q.x + 1, y: q.y }, 'r')
+    const ziel = g.kopfVorhersage(DEFAULTS.minigolemLaden * 1000)
+    expect(ziel.x).toBeGreaterThan(q.x + 1)
+    const a = t.golemAngriff(m, g.body[0], new Set())!
     expect(a.art).toBe('rund')
-    expect(a.cells).toHaveLength(10)
-    expect(a.cells).toContainEqual({ x: p!.x + 2, y: p!.y })
-    expect(a.cells).toContainEqual({ x: p!.x + 3, y: p!.y })
-    expect(a.cells).not.toContainEqual({ x: p!.x + 4, y: p!.y })
+    expect(a.cells).toHaveLength(12)
+    expect(a.cells).toContainEqual({ x: q.x + 5, y: q.y })
+    expect(a.cells).not.toContainEqual({ x: q.x + 6, y: q.y })
+    expect(a.cells).toContainEqual(ziel)
     expect(m.dir).toBe('r')
-    // Schraeg daneben: in die Richtung, in die er schon schaut
-    m.dir = 'd'
-    const b = t.golemAngriff(m, { x: p!.x + 1, y: p!.y + 1 }, new Set())
-    expect(b.cells).toContainEqual({ x: p!.x, y: p!.y + 3 })
-    expect(m.dir).toBe('d')
+    // Faehrt quer vor ihm vorbei (jetzt nicht in seiner Linie): er schlaegt geradeaus dorthin, wo der Kopf gleich ist
+    m.dir = 'u'
+    schlange({ x: q.x - 2, y: q.y - 3 }, 'r')
+    const z2 = g.kopfVorhersage(DEFAULTS.minigolemLaden * 1000)
+    expect(z2.x).toBe(q.x)
+    const b = t.golemAngriff(m, g.body[0], new Set())!
+    expect(b.art).toBe('linie')
+    expect(b.cells).toHaveLength(4)
+    expect(b.cells).toContainEqual(z2)
+    expect(b.cells).not.toContainEqual(g.body[0])
+    // Faehrt er vorbei, ohne in die Linie zu kommen: kein Schlag
+    schlange({ x: q.x - 2, y: q.y - 3 }, 'u')
+    expect(t.golemAngriff(m, g.body[0], new Set())).toBeNull()
   })
 
   it('in der Kampagne ist die Schlange 15 % langsamer als im freien Spiel, in den Boss-Kaempfen wie bisher', () => {

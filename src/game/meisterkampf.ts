@@ -90,6 +90,10 @@ export type MeisterWirt = {
   readonly time: number
   readonly body: P[]
   readonly dir: Dir
+  /** Wo der Kopf in ms Millisekunden sein wird, wenn die Schlange weiterfaehrt wie bisher (fehlt es, der Kopf selbst) */
+  vorhersage?(ms: number): P
+  /** Wohin sie dann faehrt (fehlt es, dir) */
+  richtung?(): Dir
   readonly r: Rng
   readonly status: Status
   inside(c: P): boolean
@@ -364,15 +368,20 @@ export class Meisterkampf {
     const t = this.wirt.time
     const h = this.wirt.body[0]
     M.letzte = art
-    const winkel = Math.atan2(h.y - M.p.y, h.x - M.p.x)
+    // Er zielt dorthin, wo der Kopf sein wird, wenn der Angriff losgeht (seit 1.55.2)
+    const laden = art === 'duenn' ? MEISTER.duennLaden : art === 'dick' ? MEISTER.dickLaden : MEISTER.aoeLaden
+    const z = this.wirt.vorhersage?.(laden) ?? { ...h }
+    const winkel = Math.atan2(z.y - M.p.y, z.x - M.p.x)
     const leer = { cells: [] as P[], kreise: [] as P[], winkel, ziel: null }
     if (art === 'duenn') M.angriff = { ...leer, art, ab: t, los: t + MEISTER.duennLaden, bis: t + MEISTER.duennLaden + MEISTER.duennBrennt, cells: this.strahl(M.p, winkel, 0) }
     else if (art === 'dick') M.angriff = { ...leer, art, ab: t, los: t + MEISTER.dickLaden, bis: t + MEISTER.dickLaden + MEISTER.dickBrennt, cells: this.strahl(M.p, winkel, 1) }
     else if (art === 'aoe') {
-      const d = STEP[this.wirt.dir]
-      const vorn = { x: h.x + d.x * 3, y: h.y + d.y * 3 }
-      const seite = { x: h.x + this.wirt.r.int(-3, 3), y: h.y + this.wirt.r.int(-3, 3) }
-      const kreise = [{ ...h }, vorn, seite]
+      // Drei Kreise in der Laufbahn: dort, wo der Kopf sein wird, 3 weiter vorn und 3 rechts oder links daneben
+      const d = STEP[this.wirt.richtung?.() ?? this.wirt.dir]
+      const s = this.wirt.r.next() < 0.5 ? 3 : -3
+      const vorn = { x: z.x + d.x * 3, y: z.y + d.y * 3 }
+      const seite = { x: z.x - d.y * s, y: z.y + d.x * s }
+      const kreise = [{ ...z }, vorn, seite]
       const cells: P[] = []
       const drin = new Set<number>()
       for (const k of kreise)
