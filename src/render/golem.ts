@@ -1207,7 +1207,8 @@ export function drawMinigolemWarnung(ctx: CanvasRenderingContext2D, cells: Pf[],
   }, k, now, cell, reduce)
 }
 
-/** Druckwelle nach dem Schlag: rund ein Ring, geradeaus ein Streifen mit Steinchen (t = 0..1) */
+/** Druckwelle nach dem Schlag: rund ein Ring und ein kurzer Streifen in die Schlagrichtung (2 Felder weiter), geradeaus
+ *  ein langer Streifen mit Steinchen (t = 0..1) */
 export function drawMinigolemSchlag(ctx: CanvasRenderingContext2D, x: number, y: number, winkel: number, art: 'rund' | 'linie', t: number, cell: number) {
   if (t <= 0 || t >= 1) return
   ctx.save()
@@ -1219,10 +1220,11 @@ export function drawMinigolemSchlag(ctx: CanvasRenderingContext2D, x: number, y:
     ctx.arc(x, y, r, 0, TAU)
     ctx.stroke()
     staub(ctx, x, y, r, 0.4 * (1 - t))
-  } else {
+  }
+  {
     ctx.translate(x, y)
     ctx.rotate(winkel)
-    const l = cell * (0.8 + 3.6 * easeOut(t))
+    const l = cell * (0.8 + (art === 'rund' ? 2.6 : 3.6) * easeOut(t))
     const gr = ctx.createLinearGradient(0, 0, l, 0)
     gr.addColorStop(0, `rgba(255, 236, 214, ${0.15 * (1 - t)})`)
     gr.addColorStop(1, `rgba(255, 236, 214, ${0.75 * (1 - t)})`)

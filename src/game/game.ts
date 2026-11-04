@@ -86,6 +86,8 @@ const ZWERG_BLEIBT = 45_000
 /** Durch welchen Einschlag stirbt man woran */
 /** Kleiner Steingolem: so viele Felder rundum trifft sein Stampfer */
 export const MINIGOLEM_RUND = 1
+/** ... und in die Richtung, in die er schlaegt (zum Kopf), so viele Felder weiter (seit 1.55.2) */
+export const MINIGOLEM_RUND_VOR = 2
 
 const EINSCHLAG_TOD: Record<EinschlagArt, Cause> = {
   eiszapfen: 'eiszapfen',
@@ -459,7 +461,7 @@ export class Game {
     if (this.formZufall) this.ursprung = { x: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bw, y: this.formZufall.int(-WELT_WEITE, WELT_WEITE) * this.bh }
     for (const b of this.blocks) this.startBloecke.add(weltKey(b.x - this.ursprung.x / this.bw, b.y - this.ursprung.y / this.bh))
     this.next = { falle: this.cfg.falleAb, wolke: this.cfg.wolkeAb, frosch: this.cfg.froschAb, gegner: this.cfg.gegnerAb, ameise: this.cfg.ameiseAb }
-    this.tick = R.takt(this.cfg, this.tempo, 1)
+    this.tick = this.taktFuer(1)
 
     // Start in der Mitte der Karte, im Tageslevel in der Mitte des ersten Blocks
     const sb0 = sb?.bloecke?.[0]
@@ -501,7 +503,7 @@ export class Game {
     this.level = start
     this.maxLevel = start
     this.apples = start - 1
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
     for (const k of ['falle', 'wolke', 'frosch', 'gegner', 'ameise'] as const) this.next[k] = Math.max(this.next[k], start + 1)
     if (sb) {
       this.statisch = !sb.weiter
@@ -996,7 +998,7 @@ export class Game {
     this.level = auf
     this.apples = auf - 1
     this.zurueck += von - auf
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
     this.schutzBis = this.time + this.cfg.schutz * 1000
     this.emit({ type: 'setback', von, auf, grund })
   }
@@ -1148,7 +1150,7 @@ export class Game {
     // Wueste: Sandsturm, Flut, Sandwurm (vor dem neuen Apfel, damit er nicht im Wasser landet)
     this.weltNachApfel()
     this.layout()
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
   }
 
   /** Was beim ersten Erreichen eines Levels dazukommt und bleibt */
@@ -3193,7 +3195,7 @@ export class Game {
     } else this.kuerzen(auf, this.level)
     this.level = auf
     this.apples = auf - 1
-    this.tick = R.takt(this.cfg, this.tempo, this.level)
+    this.tick = this.taktFuer(this.level)
     this.layout()
   }
 
@@ -4259,6 +4261,11 @@ export class Game {
     if (!wahl) return null
     this.gift.push({ p: wahl, t: this.time, ecke: this.r.next() * Math.PI * 2 })
     return wahl
+  }
+
+  /** Zeit (ms) je Schritt der Schlange auf diesem Level (die Kampagne ist etwas langsamer, siehe MissionGame) */
+  protected taktFuer(level: number) {
+    return R.takt(this.cfg, this.tempo, level)
   }
 
   /* ================= Baeume, Haeuser, Tuerme ================= */
@@ -5377,7 +5384,8 @@ export class Game {
     }
   }
 
-  /** Angriff, wenn der Kopf in Reichweite ist: rundum 1 Feld (auch schraeg, seit 1.49 statt 2), sonst geradeaus bis 4 Felder */
+  /** Angriff, wenn der Kopf in Reichweite ist: rundum 1 Feld (auch schraeg, seit 1.49 statt 2) und in die Schlagrichtung
+   *  (zum Kopf) 2 Felder weiter (seit 1.55.2), sonst geradeaus bis 4 Felder */
   protected golemAngriff(g: Minigolem, head: P, sperre: Set<number>): Minigolem['angriff'] {
     const ab = this.time
     const schlag = ab + this.cfg.minigolemLaden * 1000
@@ -5389,6 +5397,22 @@ export class Game {
           const p = { x: g.p.x + dx, y: g.p.y + dy }
           if ((dx || dy) && this.inside(p)) cells.push(p)
         }
+      // Schlagrichtung: zum Kopf (schraeg daneben: die Richtung, in die er schon schaut, sonst waagerecht)
+      const ddx = head.x - g.p.x
+      const ddy = head.y - g.p.y
+      const waag: Dir | null = ddx > 0 ? 'r' : ddx < 0 ? 'l' : null
+      const senk: Dir | null = ddy > 0 ? 'd' : ddy < 0 ? 'u' : null
+      const d = g.dir === waag || g.dir === senk ? g.dir : (waag ?? senk ?? g.dir)
+      for (let i = r + 1; i <= r + MINIGOLEM_RUND_VOR; i++) {
+        const p = { x: g.p.x + STEP[d].x * i, y: g.p.y + STEP[d].y * i }
+        if (!this.inside(p) || sperre.has(key(p.x, p.y))) break
+        cells.push(p)
+      }
+      if (d !== g.dir) {
+        g.altDir = g.dir
+        g.dir = d
+        g.drehT = this.time
+      }
       return { art: 'rund', cells, ab, schlag }
     }
     const dx = head.x - g.p.x
