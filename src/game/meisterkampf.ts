@@ -31,11 +31,11 @@ export const MEISTER = {
   erscheinen: 900,
   erwachen: 900,
   pause: 1100,
-  duennLaden: 600,
+  duennLaden: 700, // seit 1.55.3 (vorher 600): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   duennBrennt: 360,
-  dickLaden: 1500,
+  dickLaden: 1600, // seit 1.55.3 (vorher 1500): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   dickBrennt: 460,
-  aoeLaden: 1150,
+  aoeLaden: 1250, // seit 1.55.3 (vorher 1150): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   aoeBrennt: 320,
   teleportWeg: 450,
   teleportDa: 450,

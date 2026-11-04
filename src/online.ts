@@ -14,7 +14,7 @@ export const onlineAktiv = !!(URL && KEY)
 
 export type Art = 'heute' | 'immer' | 'alle' | 'siege' | 'koop' | 'tages'
 export type Zeile = { user_id: string; name: string; level: number; tempo: Tempo; skin?: string; dauer_ms?: number }
-export type Ergebnis = { level: number; dauer: number; tempo: Tempo; tages?: boolean }
+export type Ergebnis = { level: number; dauer: number; tempo: Tempo; tages?: boolean; /** Welt, in der gespielt wurde (seit 1.55.3) */ welt?: string }
 
 const PKEY = 'snake.profil.v1'
 const QKEY = 'snake.online.queue.v1'
@@ -41,9 +41,9 @@ function schreib(k: string, v: unknown) {
  * `umbenennen`: der Name wurde geaendert und der Account muss noch auf den neuen Namen umgestellt werden.
  * `pw`: dieses Geraet ist mit Name und Passwort angemeldet (seit 1.42). Fehlt es, kommt beim Start die Anmeldung.
  */
-type Profil = { name: string; offen?: boolean; umbenennen?: boolean; skin?: string; silber?: number; /** Freundes-Code, sobald das Profil sicher in der Datenbank steht */ code?: string; pw?: boolean }
+type Profil = { name: string; offen?: boolean; umbenennen?: boolean; skin?: string; silber?: number; /** Spielzeit gesamt (ms, seit 1.55.3) */ spielzeit?: number; /** Freundes-Code, sobald das Profil sicher in der Datenbank steht */ code?: string; pw?: boolean }
 export const profil: Profil = { name: '', ...lies<Partial<Profil>>(PKEY, {}) }
-const speichereProfil = () => schreib(PKEY, { name: profil.name, offen: profil.offen, umbenennen: profil.umbenennen, skin: profil.skin, silber: profil.silber, code: profil.code, pw: profil.pw })
+const speichereProfil = () => schreib(PKEY, { name: profil.name, offen: profil.offen, umbenennen: profil.umbenennen, skin: profil.skin, silber: profil.silber, spielzeit: profil.spielzeit, code: profil.code, pw: profil.pw })
 /** Ohne Anmeldung (Name und Passwort) gibt es online nichts: keine Gaeste mehr */
 export const angemeldet = () => !!profil.name && !!profil.pw
 /** Zaehlt jede Aenderung an Name, Skin oder Silber: ein Speichern, das waehrenddessen lief, laesst `offen` dann stehen */
@@ -309,12 +309,26 @@ async function profilEintragen(modus: 'sichern' | 'umbenennen', bekannt?: Konto)
     if (spalteFehlt(error)) ({ error } = await sb.from('profile').upsert({ id, name: profil.name, updated_at: daten.updated_at }))
     if (error) throw namensFehler(error) ?? error
   }
+  // Spielzeit (seit 1.55.3): nur hoeher setzen, nie kleiner (andere Geraete desselben Accounts spielen mit). Fehlt die
+  // Spalte noch, macht das nichts
+  if (profil.spielzeit && profil.spielzeit > 0)
+    await sb.from('profile').update({ spielzeit_ms: Math.floor(profil.spielzeit) }).eq('id', id).lt('spielzeit_ms', Math.floor(profil.spielzeit))
   // Waehrend des Speicherns geaendert (z. B. neuer Skin): offen lassen, das naechste Senden nimmt es mit
   if (profilStand === stand) profil.offen = false
   profil.umbenennen = false
   speichereProfil()
   setzeZustand({ ok: true, text: `Online eingetragen als ${profil.name}.` })
   return status
+}
+
+/** Spielzeit (ms) ins Profil, damit alle in der Hall of Snakes sehen, wie lange jemand schon spielt. Erst ab einer Minute
+ *  mehr als zuletzt gesendet (spart Anfragen), wird nie weniger */
+export function setzeSpielzeit(ms: number) {
+  if (ms < (profil.spielzeit ?? 0) + 60_000) return
+  profil.spielzeit = ms
+  if (!onlineAktiv || !angemeldet()) return speichereProfil()
+  profilGeaendert()
+  void sende()
 }
 
 /** Silber-Trophaeen (alle je verdienten Aepfel) ins Profil, damit die Hall danach sortieren kann. Wird nie weniger */
@@ -552,8 +566,13 @@ async function sendeEinmal() {
     warteschlange.sort((a, b) => b.level - a.level)
     while (warteschlange.length) {
       const e = warteschlange[0]
-      const zeile: Record<string, unknown> = { user_id: id, level: e.level, dauer_ms: e.dauer, tempo: e.tempo, version: __APP_VERSION__ }
+      const zeile: Record<string, unknown> = { user_id: id, level: e.level, dauer_ms: e.dauer, tempo: e.tempo, version: __APP_VERSION__, ...(e.welt ? { welt: e.welt } : {}) }
       let { error } = await sb.from('score').insert(e.tages ? { ...zeile, tages: true } : zeile)
+      // Welt-Spalte fehlt noch (Datenbank nicht aktualisiert): ohne Welt eintragen
+      if (spalteFehlt(error) && 'welt' in zeile) {
+        delete zeile.welt
+        ;({ error } = await sb.from('score').insert(e.tages ? { ...zeile, tages: true } : zeile))
+      }
       // Tages-Spalte fehlt noch (SQL-Datei 5 nicht ausgefuehrt): als normales Ergebnis eintragen
       if (e.tages && spalteFehlt(error)) ({ error } = await sb.from('score').insert(zeile))
       // Zu schnell hintereinander: nicht wegwerfen, sondern gleich noch einmal
@@ -768,7 +787,7 @@ export async function meineFreunde(): Promise<Freund[]> {
 
 /* ================= Hall of Snakes, Freundschaftsanfragen, Sperren, Chat ================= */
 
-export type HallZeile = { user_id: string; name: string; skin: string; rekord: number; trophaeen: number; silber?: number }
+export type HallZeile = { user_id: string; name: string; skin: string; rekord: number; trophaeen: number; silber?: number; /** Welt des Rekords (seit 1.55.3) */ rekord_welt?: string | null; /** Spielzeit gesamt in ms (seit 1.55.3) */ spielzeit_ms?: number | null }
 export type Anfrage = { richtung: 'ein' | 'aus'; user_id: string; name: string; skin: string }
 export type Gesperrt = { user_id: string; name: string }
 export type Nachricht = { id: number; von: string; an: string; text: string; gelesen: boolean; created_at: string }
@@ -784,7 +803,8 @@ function fehlerText(e: { code?: string; message?: string } | null) {
 export async function ladeHall(): Promise<{ zeilen: HallZeile[]; ich: string | null }> {
   const sb = await client()
   const abfrage = (spalten: string) => sb.from('hall_of_snakes').select(spalten).order('rekord', { ascending: false }).order('trophaeen', { ascending: false }).order('name', { ascending: true }).limit(1000)
-  let { data, error } = await abfrage('user_id,name,skin,rekord,trophaeen,silber')
+  let { data, error } = await abfrage('user_id,name,skin,rekord,trophaeen,silber,rekord_welt,spielzeit_ms')
+  if (spalteFehlt(error)) ({ data, error } = await abfrage('user_id,name,skin,rekord,trophaeen,silber'))
   if (spalteFehlt(error)) ({ data, error } = await abfrage('user_id,name,skin,rekord,trophaeen'))
   if (error) throw error
   const { data: s } = await sb.auth.getSession()
@@ -806,7 +826,7 @@ export async function kontoLoeschen() {
 function profilVergessen() {
   profil.name = ''
   profil.offen = profil.umbenennen = undefined
-  profil.skin = profil.silber = undefined
+  profil.skin = profil.silber = profil.spielzeit = undefined
   profil.code = profil.pw = undefined
   speichereProfil()
   warteschlange.length = 0

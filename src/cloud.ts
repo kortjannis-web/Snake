@@ -16,7 +16,7 @@ type Wert = unknown
 type Daten = { wallet?: Record<string, Wert>; stats?: Record<string, Wert> }
 
 /** Bestwerte: nie kleiner werden, nie aufaddieren */
-const BESTWERTE = new Set(['best', 'longest', 'maxGebiete', 'verdient', 'weltBest'])
+const BESTWERTE = new Set(['best', 'bestWertung', 'longest', 'maxGebiete', 'verdient', 'weltBest'])
 /** Auswahl als Ganzes (nicht Feld fuer Feld mischen, sonst entstehen Farben, die niemand gewaehlt hat) */
 const AUSWAHL = new Set(['look'])
 

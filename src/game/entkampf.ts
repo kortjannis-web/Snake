@@ -40,28 +40,28 @@ export const ENT = {
   pause: [1500, 1200, 950],
   /** Wurzelbruch: so viele Linien je Phase */
   linien: [1, 2, 3],
-  linienWarn: 1350,
+  linienWarn: 1450, // seit 1.55.3 (vorher 1350): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   wurzelTempo: 34,
   /** So lange bleibt jedes Feld einer Wurzel gefaehrlich, nachdem sie es erreicht hat */
   wurzelBleibt: 650,
-  stossWarn: 1150,
+  stossWarn: 1250, // seit 1.55.3 (vorher 1150): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   stossTempo: 24,
   dornen: [5, 6, 7],
-  dornenWarn: 1250,
+  dornenWarn: 1350, // seit 1.55.3 (vorher 1250): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   dornenTempo: 18,
   dornenBleibt: 260,
   /** Oeffnung des Faechers (Bogenmass) */
   faecher: [1.7, 1.95, 2.2],
   eicheln: [3, 3, 4],
-  eichelWarn: 1150,
-  rankenWarn: 1000,
+  eichelWarn: 1250, // seit 1.55.3 (vorher 1150): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
+  rankenWarn: 1100, // seit 1.55.3 (vorher 1000): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   rankenWachsen: 800,
   rankenDauer: 4200,
   rankenReihen: [0, 1, 2],
   setzlinge: [0, 2, 3],
   setzlingTakt: 720,
   setzlingLebt: 12000,
-  sturmWarn: 900,
+  sturmWarn: 1000, // seit 1.55.3 (vorher 900): etwas mehr Zeit, seit die Angriffe in die Laufbahn zielen
   sturmDauer: 4200,
   /** So lange brennt ein Holzstapel */
   feuerBrennt: 15000,

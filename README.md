@@ -34,7 +34,7 @@ Jeden Spieler kann man in der Hall of Snakes antippen und zum Gefecht einladen (
 Das **Fragezeichen** oben im Startmenü öffnet den **Spielführer** (seit 1.54): jede Spielfunktion mit einem kurzen Video (Endlos, Online, Kampagne, Aussehen, Bosse der Kampagne und des Endlos-Modus, zuletzt Feedback: Bugs und Kritik sind ausdrücklich erwünscht); ein roter Punkt zeigt, dass man ihn noch nicht angesehen hat.
 
 Außerdem: die **Tages-Herausforderung** (alle spielen am selben Tag dasselbe Level, eigener Tab in der Hall of Snakes), drei **Spielmodi** (Abenteuer: 25 % langsamer und 25 % weniger Äpfel, Normal, Speedrun: 25 % schneller mit Zeitlimit je Apfel und 25 % mehr Äpfel, ab Orange 50 % mehr; nur volle Äpfel zählen, der Rest wird zwischengespeichert), **Effekte** (Auren, freigeschaltet mit Silber- und Gold-Trophäen) und die
-**Hall of Snakes** (alle Spieler mit Schlange, Rekord, Gold und Silber; zugleich die Bestenliste) mit Freundschaftsanfragen, einem **Chat unter
+**Hall of Snakes** (alle Spieler mit Schlange, Rekord, Gold, Silber und seit 1.55.3 Spielzeit; zugleich die Bestenliste; der Rekord zählt seit 1.55.3 nur mit normalem Tempo oder im Speedrun, nicht im Abenteuer, davor steht das Symbol der Welt, in der er gespielt wurde) mit Freundschaftsanfragen, einem **Chat unter
 Freunden** (Nachrichten 30 Tage) und unten dem **Weltchat** für alle (seit 1.55, Nachrichten 7 Tage). Details: [`docs/SPIELFUNKTIONEN.md`](docs/SPIELFUNKTIONEN.md) 16c und 16f.
 
 **Benachrichtigungen** (seit 1.55): aufs Handy bei privaten Nachrichten, im Weltchat (höchstens alle 10 Minuten) und bei Einladungen zum Kampf, auch wenn Snake zu ist; dazu rote Punkte am Knopf der Hall of Snakes. In den Optionen einzeln an- und ausschaltbar, im Chat per Glocke stumm (Weltchat oder einzelner Spieler). Neue Spieler sehen nach dem Anmelden den Spielführer (Weiter oder Überspringen) und dann die Frage nach Benachrichtigungen, alle anderen bekommen die Frage einmal beim nächsten Start. iPhone und Android-Web-App über Web Push, Android-APK über Firebase. **Einrichtung Schritt für Schritt: [`docs/BENACHRICHTIGUNGEN.md`](docs/BENACHRICHTIGUNGEN.md).**
@@ -66,7 +66,7 @@ Standardwerte (in `src/game/rules.ts`; die Wahrscheinlichkeiten im Admin änderb
 | 170 / 230 / 290 | Mindestens 1 / 2 / 3 Ereignisse (Falle, Wolke, Frosch) gleichzeitig. |
 | 190 | Alle zufälligen Abstände 1 Level kürzer. |
 
-**Level zurück:** Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen war,
+**Level zurück:** Seit 1.55.3 deutlich zu sehen: über dem Kopf steht groß und rot „−3 Level“, der Bildschirmrand leuchtet kurz rot und die Levelzahl oben springt groß und rot auf und wackelt. Die Schlange wird um so viele Glieder kürzer, wie sie in diesen Leveln gewachsen war,
 danach ist sie gut 2 s geschützt (blinkt). Was schon da ist, bleibt, beim zweiten Erreichen eines
 Levels kommt nichts doppelt. Rekord ist der höchste erreichte Level.
 

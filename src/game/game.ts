@@ -710,10 +710,25 @@ export class Game {
     return out
   }
 
-  /** Wo der Kopf in `ms` Millisekunden sein wird (siehe kopfBahn; steht nichts frei, der Kopf selbst) */
+  /** Wo der Kopf in `ms` Millisekunden sein wird (siehe kopfBahn; steht nichts frei, der Kopf selbst). Fair (seit 1.55.3):
+   *  nur so weit voraus, wie die Schlange vorher noch abbiegen koennte. In einem Gang ohne Abzweig bis dorthin zielt es also
+   *  nicht vor sie (dort koennte niemand ausweichen), sondern hoechstens bis kurz hinter den letzten Abzweig */
   kopfVorhersage(ms: number): P {
     const b = this.kopfBahn(ms)
-    return { ...(b.length ? b[b.length - 1] : this.body[0]) }
+    let ziel = this.body[0]
+    let ausweg = false
+    let q = this.body[0]
+    for (let i = 0; i < b.length; i++) {
+      const d = { x: b[i].x - q.x, y: b[i].y - q.y }
+      // Statt nach b[i] haette sie bei q zur Seite abbiegen koennen?
+      for (const s of [{ x: -d.y, y: d.x }, { x: d.y, y: -d.x }]) {
+        const c = { x: q.x + s.x, y: q.y + s.y }
+        if (!ausweg && this.inside(c) && !this.gefahr(c, this.body.slice(0, Math.max(1, this.body.length - 1 - i)))) ausweg = true
+      }
+      if (ausweg) ziel = b[i]
+      q = b[i]
+    }
+    return { ...ziel }
   }
 
   /** In diese Richtung faehrt die Schlange nach den schon gedrueckten Richtungen */

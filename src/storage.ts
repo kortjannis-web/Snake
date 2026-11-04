@@ -6,6 +6,10 @@ import type { KameraArt } from './render/renderer'
 export type Settings = { sound: boolean; music: boolean; vibration: boolean; tempo: Tempo; dpad: boolean; kamera: KameraArt; kameraStand?: number; modus: SpielModus; /** Gefahren in zufaelliger Reihenfolge (je Runde neu) */ zufall: boolean }
 export type Stats = {
   best: number
+  /** Bester Level im Endlos-Modus mit normalem Tempo oder Speedrun (zaehlt fuer die Hall of Snakes, Abenteuer nicht; seit 1.55.3) */
+  bestWertung?: number
+  /** ... und in welcher Welt */
+  bestWertungWelt?: string
   games: number
   apples: number
   /** Spielzeit gesamt in ms */

@@ -187,8 +187,9 @@ export function mehrspieler(api: MehrApi) {
   function spielEreignis(e: GameEvent & { wer?: number }) {
     const g = client.game
     if (!g) return
-    api.renderer.event(e, g)
     const mein = e.wer === undefined || e.wer === meinIndex()
+    // Levelverlust der anderen nicht als grosse rote Zahl bei der eigenen Schlange zeigen
+    if (e.type !== 'setback' || mein) api.renderer.event(e, g)
     switch (e.type) {
       case 'eat':
         if (mein) {
