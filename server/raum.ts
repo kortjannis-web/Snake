@@ -1,10 +1,18 @@
 /**
  * Ein Spielraum (ohne Cloudflare-Teile, damit er sich testen laesst). Der Durable Object in index.ts
- * reicht nur Verbindungen und Nachrichten hierher durch.
+ * reicht nur Verbindungen und Nachrichten hierher durch und ruft regelmaessig `takt()` auf.
+ *
+ * Auf einem Feld (Gegeneinander, Koop, Apfeljagd, Zone) rechnet der Raum das Spiel selbst, in festen
+ * Schritten von SIM_MS und VERZUG_MS hinter der Echtzeit. Ein Wischer gilt in dem Schritt, in dem er auf dem
+ * Handy kam (kommt er zu spaet, im naechsten noch offenen). Jeder Wischer geht sofort an alle, der Stand
+ * alle paar Schritte: damit rechnet jedes Handy die Gegenwart selbst voraus.
  */
-import { abstandGrenze, type Ergebnis, type Modus, type SpielerInfo } from '../src/game/mehr'
+import { abstandGrenze, type Ergebnis, type MehrGame, type Modus, type SpielerInfo } from '../src/game/mehr'
 import type { Tempo } from '../src/game/rules'
-import { COUNTDOWN, MAX_SPIELER, PROTOKOLL, REAKTIONEN, RECHNER_STILL, type AnServer, type Phase, type StartInfo, type VomServer } from '../src/multi/protokoll'
+import type { GameEvent } from '../src/game/types'
+import { Abgleich, zustand } from '../src/game/zustand'
+import { COUNTDOWN, MAX_SPIELER, PROTOKOLL, REAKTIONEN, SIM_MS, STAND_SCHRITTE, VERZUG_MS, type AnServer, type Phase, type StartInfo, type VomServer } from '../src/multi/protokoll'
+import { reihenfolge, spielBauen, type Eingabe } from '../src/multi/sim'
 
 export interface Kanal {
   send(s: string): void
@@ -17,6 +25,11 @@ type Stand = { a: number; l: number; tot: boolean; raus: boolean; rausBei: numbe
 const MAX_NACHRICHT = 256 * 1024
 const MODI: Modus[] = ['vs', 'koop', 'rennen', 'jagd', 'royale']
 const TEMPI: Tempo[] = ['langsam', 'normal', 'schnell']
+/** So viele Schritte holt ein Takt hoechstens nach (hing der Server, springt er lieber) */
+const MAX_NACHHOLEN = 250
+/** So weit (Schritte) darf ein Wischer in der Zukunft liegen (falsch gehende Uhr), und so viele offene je Spieler */
+const MAX_VORAUS = Math.ceil((VERZUG_MS + 1500) / SIM_MS)
+const MAX_OFFEN = 24
 
 export class RaumLogik {
   plaetze: Platz[] = []
@@ -32,10 +45,16 @@ export class RaumLogik {
   /** Wer im Ergebnis "Revanche" getippt hat (Kennungen). Wollen alle, geht es zurueck in die Lobby, alle bereit */
   revanche = new Set<string>()
   start: StartInfo | null = null
-  /** Letzter Stand des Rechners (Felder zusammengefuehrt) */
-  zustand: Record<string, unknown> = {}
-  rechner = -1
-  letzterStand = 0
+  /** Das Spiel auf einem Feld (im Rennen null) und wie viele Schritte es schon gerechnet ist */
+  spiel: MehrGame | null = null
+  schritt = 0
+  /** Wischer, die noch nicht gerechnet sind */
+  eingaben: Eingabe[] = []
+  private folge = 0
+  private abgleich = new Abgleich()
+  private gesendet = 0
+  /** Ereignisse seit dem letzten Stand, die nur der Server entscheidet */
+  private ereignisse: GameEvent[] = []
   ergebnis: Ergebnis | null = null
   /** Wann jeder zuletzt eine Reaktion geschickt hat (hoechstens eine je Sekunde) */
   private reaktion = new Map<string, number>()
@@ -122,9 +141,9 @@ export class RaumLogik {
       this.an(k, { t: 'start', info: this.start, jetzt: this.uhr() })
       if (this.start.modus === 'rennen') {
         if (this.waehler >= 0) this.an(k, { t: 'waehler', k: this.gebiet + 1, wer: this.waehler })
-      } else {
-        this.an(k, { t: 'rechner', wer: this.rechner })
-        if (Object.keys(this.zustand).length) this.an(k, { t: 'voll', z: this.zustand })
+      } else if (this.spiel) {
+        this.an(k, { t: 'voll', z: zustand(this.spiel, true), n: this.schritt })
+        for (const e of this.eingaben) this.an(k, { t: 'dir', ...e })
       }
       if (this.phase === 'ende' && this.ergebnis) this.an(k, { t: 'ende', ergebnis: this.ergebnis })
     }
@@ -143,7 +162,6 @@ export class RaumLogik {
       return
     }
     if (!this.plaetze.some((q) => q.info.id === this.gastgeber && q.kanal)) this.gastgeber = this.plaetze.find((q) => q.kanal)?.info.id ?? ''
-    if (this.phase === 'spiel' && i === this.rechner) this.rechnerWechseln()
     this.raumAnAlle()
     this.revanchePruefen()
   }
@@ -151,8 +169,9 @@ export class RaumLogik {
   private zuruecksetzen() {
     this.phase = 'lobby'
     this.start = null
-    this.zustand = {}
-    this.rechner = -1
+    this.spiel = null
+    this.eingaben = []
+    this.ereignisse = []
     this.ergebnis = null
     this.stand = []
     this.gebiet = 0
@@ -184,7 +203,7 @@ export class RaumLogik {
     const gast = this.plaetze[i].info.id === this.gastgeber
     switch (m.t) {
       case 'ping':
-        return this.an(k, { t: 'pong', jetzt: this.uhr() })
+        return this.an(k, { t: 'pong', jetzt: this.uhr(), z: Number.isFinite(m.z) ? m.z : undefined })
       case 'modus':
         if (gast && this.phase === 'lobby' && MODI.includes(m.modus) && m.modus !== this.modus) {
           this.modus = m.modus
@@ -226,20 +245,8 @@ export class RaumLogik {
           this.raumAnAlle()
         }
         return
-      case 'z':
-        if (this.phase !== 'spiel' || i !== this.rechner || !m.d || typeof m.d !== 'object') return
-        if (m.voll) this.zustand = { ...m.d }
-        else Object.assign(this.zustand, m.d)
-        // Nicht vor dem Ende des Countdowns zuruecksetzen (bis dahin gilt die Startfrist)
-        this.letzterStand = Math.max(this.letzterStand, this.uhr())
-        for (const p of this.plaetze) if (p.kanal && p.kanal !== k) this.roh(p.kanal, text)
-        return
-      case 'dir': {
-        if (this.phase !== 'spiel' || i === this.rechner || !['u', 'd', 'l', 'r'].includes(m.d)) return
-        const bei = m.bei && Number.isFinite(m.bei.x) && Number.isFinite(m.bei.y) ? { x: Math.round(m.bei.x), y: Math.round(m.bei.y) } : undefined
-        const k = Number.isFinite(m.k) ? Math.round(m.k as number) : undefined
-        return this.an(this.plaetze[this.rechner]?.kanal ?? null, { t: 'dir', wer: i, d: m.d, bei, k })
-      }
+      case 'dir':
+        return this.wischer(i, m)
       case 'emoji': {
         const e = Math.floor(Number(m.e))
         const id = this.plaetze[i].info.id
@@ -247,12 +254,6 @@ export class RaumLogik {
         this.reaktion.set(id, this.uhr())
         return this.anAlle({ t: 'emoji', wer: i, e })
       }
-      case 'ende':
-        if (this.phase !== 'spiel' || i !== this.rechner) return
-        return this.beenden(m.ergebnis)
-      case 'abgabe':
-        if (this.phase === 'spiel' && i === this.rechner) this.rechnerWechseln()
-        return
       case 'pos':
         return this.rennenPos(i, m)
       case 'gebiet':
@@ -276,49 +277,90 @@ export class RaumLogik {
       this.raumAnAlle()
       return
     }
-    const rechner = Math.max(0, this.plaetze.findIndex((p) => p.info.id === gastId))
     const jetzt = this.uhr()
     this.start = {
       modus: this.modus,
       seed: Math.floor(this.zufall() * 2 ** 31),
       spieler: this.plaetze.map((p) => ({ ...p.info })),
-      rechner,
       los: jetzt + COUNTDOWN,
       tempo: this.tempo,
       klassisch: this.klassisch,
       leben: this.leben,
     }
     this.phase = 'spiel'
-    this.zustand = {}
     this.ergebnis = null
-    this.rechner = this.modus === 'rennen' ? -1 : rechner
-    this.letzterStand = jetzt + COUNTDOWN
+    this.eingaben = []
+    this.ereignisse = []
+    this.folge = 0
+    this.schritt = 0
+    this.gesendet = 0
+    this.spiel = this.modus === 'rennen' ? null : spielBauen(this.start)
+    this.abgleich.vergessen()
     this.stand = this.plaetze.map(() => ({ a: 0, l: 3, tot: false, raus: false, rausBei: 0 }))
     this.gebiet = 0
     this.waehler = this.modus === 'rennen' ? 0 : -1
     this.raumAnAlle()
     this.anAlle({ t: 'start', info: this.start, jetzt })
+    if (this.spiel) {
+      // Ganzer Stand zum Start: alle rechnen ab genau demselben Spiel
+      const z = zustand(this.spiel, true)
+      this.abgleich.aenderungen(zustand(this.spiel, false))
+      this.anAlle({ t: 'voll', z, n: 0 })
+    }
     if (this.modus === 'rennen') this.anAlle({ t: 'waehler', k: 1, wer: 0 })
   }
 
-  /** Rechner faellt aus: das naechste verbundene Geraet rechnet mit dem letzten Stand weiter */
-  private rechnerWechseln() {
-    const n = this.plaetze.length
-    for (let s = 1; s <= n; s++) {
-      const j = (this.rechner + s) % n
-      if (j === this.rechner || !this.plaetze[j].kanal) continue
-      this.rechner = j
-      this.letzterStand = this.uhr()
-      this.anAlle({ t: 'rechner', wer: j })
-      this.an(this.plaetze[j].kanal, { t: 'voll', z: this.zustand })
-      return
-    }
+  /** Bis zu diesem Schritt ist das Spiel jetzt faellig (VERZUG_MS hinter der Echtzeit) */
+  private faellig() {
+    return this.start ? Math.floor((this.uhr() - this.start.los - VERZUG_MS) / SIM_MS) : 0
   }
 
-  /** Jede Sekunde: rechnet der Rechner noch? */
+  /** Ein Wischer: gilt im gewuenschten Schritt, ist der schon gerechnet, im naechsten offenen. Geht sofort an alle */
+  private wischer(wer: number, m: Extract<AnServer, { t: 'dir' }>) {
+    const g = this.spiel
+    if (this.phase !== 'spiel' || !g || !['u', 'd', 'l', 'r'].includes(m.d)) return
+    if (this.eingaben.filter((e) => e.wer === wer).length >= MAX_OFFEN) return
+    const gewollt = Number.isFinite(m.n) ? Math.round(m.n) : this.schritt
+    const n = Math.min(Math.max(gewollt, this.schritt), Math.max(this.schritt, this.faellig()) + MAX_VORAUS)
+    const e: Eingabe = { wer, d: m.d, n, i: Number.isFinite(m.i) ? Math.round(m.i) : 0, q: ++this.folge }
+    this.eingaben.push(e)
+    this.anAlle({ t: 'dir', ...e })
+  }
+
+  /** Regelmaessig (index.ts: alle paar ms): das Spiel bis zur faelligen Zeit weiterrechnen und den Stand verteilen */
   takt() {
-    if (this.phase !== 'spiel' || !this.start || this.start.modus === 'rennen') return
-    if (this.uhr() - this.letzterStand > RECHNER_STILL) this.rechnerWechseln()
+    const g = this.spiel
+    if (this.phase !== 'spiel' || !g || !this.start) return
+    let ziel = this.faellig()
+    // Hing der Server (oder das Handy des Rechenzentrums), nicht alles auf einmal nachholen
+    if (ziel - this.schritt > MAX_NACHHOLEN) ziel = this.schritt + MAX_NACHHOLEN
+    if (ziel <= this.schritt) return
+    while (this.schritt < ziel && g.status === 'play') this.schritten(g)
+    if (g.status !== 'play') {
+      this.standSenden(g)
+      return this.beenden(g.ergebnis ?? { sieger: null, reihenfolge: g.rangliste() })
+    }
+    if (this.schritt - this.gesendet >= STAND_SCHRITTE || this.ereignisse.length) this.standSenden(g)
+  }
+
+  /** Einen Schritt rechnen: erst die Wischer dieses Schritts (in der Reihenfolge, in der sie kamen), dann die Zeit */
+  private schritten(g: MehrGame) {
+    const jetzt = this.eingaben.filter((e) => e.n <= this.schritt).sort(reihenfolge)
+    if (jetzt.length) {
+      this.eingaben = this.eingaben.filter((e) => e.n > this.schritt)
+      for (const e of jetzt) g.lenke(e.wer, e.d)
+    }
+    g.update(SIM_MS)
+    for (const e of g.drain()) if (e.type === 'raus') this.ereignisse.push(e)
+    this.schritt++
+  }
+
+  private standSenden(g: MehrGame) {
+    this.gesendet = this.schritt
+    const d = this.abgleich.aenderungen(zustand(g, false)) ?? {}
+    const e = this.ereignisse.length ? this.ereignisse : undefined
+    this.ereignisse = []
+    this.anAlle({ t: 'z', d, n: this.schritt, e })
   }
 
   private beenden(ergebnis: Ergebnis) {

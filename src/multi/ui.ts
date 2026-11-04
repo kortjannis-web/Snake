@@ -235,7 +235,7 @@ export function mehrspieler(api: MehrApi) {
         break
       }
       case 'raus':
-        // Gegeneinander/Koop: kommt vom Rechner mit den Spiel-Ereignissen
+        // Gegeneinander/Koop: kommt vom Server mit seinem Stand
         if (client.start?.modus !== 'rennen') ereignis({ art: 'raus', wer: e.wer, grund: e.grund })
         break
     }
@@ -619,8 +619,8 @@ export function mehrspieler(api: MehrApi) {
       }
       if (start.modus === 'koop') {
         stats.zaehler.koopLevel = Math.max(stats.zaehler.koopLevel ?? 0, level)
-        // Eintragen macht nur das Geraet, das am Ende rechnet (sonst stuende das Team mehrfach drin)
-        if (client.istRechner) void meldeKoop(start.spieler.map((s) => s.name), level, client.game?.time ?? 1)
+        // Eintragen macht nur der Gastgeber (sonst stuende das Team mehrfach drin)
+        if (client.gastgeber) void meldeKoop(start.spieler.map((s) => s.name), level, client.game?.time ?? 1)
       }
       for (const e of erfolgePruefen()) api.toast(`Erfolg: ${e.titel}`, e.text)
       saveStats()
@@ -718,10 +718,8 @@ export function mehrspieler(api: MehrApi) {
       }
       client.lenke(d)
     },
-    /** App im Hintergrund: wer rechnet, gibt an ein anderes Geraet ab */
-    hintergrund() {
-      client.abgeben()
-    },
+    /** App im Hintergrund: nichts zu tun (das Spiel rechnet der Server, die App holt beim Zurueckkommen auf) */
+    hintergrund() {},
     beitreten(code: string) {
       if (codeGueltig(code)) {
         api.seiteOeffnen('mehr')

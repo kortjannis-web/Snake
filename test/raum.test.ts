@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { RaumLogik, type Kanal } from '../server/raum'
-import { COUNTDOWN, PROTOKOLL, RECHNER_STILL, type VomServer } from '../src/multi/protokoll'
+import { MehrGame } from '../src/game/mehr'
+import { anwenden, zustand } from '../src/game/zustand'
+import { COUNTDOWN, PROTOKOLL, SIM_MS, STAND_SCHRITTE, VERZUG_MS, type VomServer } from '../src/multi/protokoll'
+import { spielBauen } from '../src/multi/sim'
 
 /** Nachgebaute Verbindung: merkt sich alles, was der Server schickt */
 class Fake implements Kanal {
@@ -34,6 +37,13 @@ function raum() {
   return { r, uhr, rein }
 }
 const sag = (r: RaumLogik, k: Kanal, m: object) => r.nachricht(k, JSON.stringify(m))
+/** Zeit laufen lassen (der Durable Object ruft takt() alle paar ms), bis das Spiel vorbei ist */
+const bisEnde = (r: RaumLogik, uhr: (ms: number) => number) => {
+  for (let i = 0; i < 5000 && r.phase === 'spiel'; i++) {
+    uhr(100)
+    r.takt()
+  }
+}
 
 describe('Raum: Beitreten', () => {
   it('wer zuerst kommt, ist Gastgeber; alle sehen die Spielerliste', () => {
@@ -64,17 +74,22 @@ describe('Raum: Beitreten', () => {
   })
 
   it('nach einem Funkloch kommt man ins laufende Spiel zurueck und bekommt den Stand', () => {
-    const { r, rein } = raum()
+    const { r, uhr, rein } = raum()
     const a = rein('a')
     const b = rein('b')
     sag(r, a.k, { t: 'start' })
-    sag(r, a.k, { t: 'z', d: { level: 3, time: 10 }, voll: true })
+    uhr(COUNTDOWN + VERZUG_MS + 1000)
+    r.takt()
+    sag(r, a.k, { t: 'dir', d: 'u', n: r.schritt + 30, i: 1 })
     r.verlassen(b.k)
     expect(rein('neu').ok).toBe(false)
     const b2 = rein('b')
     expect(b2.ok).toBe(true)
     expect(b2.k.letzte('start')?.info.modus).toBe('vs')
-    expect(b2.k.letzte('voll')?.z).toEqual({ level: 3, time: 10 })
+    // Ganzer Stand des Servers und die Wischer, die noch nicht gerechnet sind
+    expect(b2.k.letzte('voll')?.n).toBe(r.schritt)
+    expect(b2.k.letzte('voll')?.z.time).toBe(r.schritt * SIM_MS)
+    expect(b2.k.letzte('dir')).toMatchObject({ wer: 0, d: 'u', n: r.schritt + 30 })
   })
 })
 
@@ -104,7 +119,7 @@ describe('Raum: Lobby', () => {
 })
 
 describe('Raum: Spiel auf einem Feld', () => {
-  it('nur der Gastgeber startet, mit mindestens 2 Spielern; er rechnet', () => {
+  it('nur der Gastgeber startet, mit mindestens 2 Spielern; alle bekommen den ganzen Stand', () => {
     const { r, rein } = raum()
     const a = rein('a')
     sag(r, a.k, { t: 'start' })
@@ -119,67 +134,112 @@ describe('Raum: Spiel auf einem Feld', () => {
     sag(r, a.k, { t: 'start' })
     const s = b.k.letzte('start')!
     expect(s.info.modus).toBe('koop')
-    expect(s.info.rechner).toBe(0)
     expect(s.info.spieler.map((p) => p.id)).toEqual(['a', 'b'])
     expect(s.info.los - s.jetzt).toBe(COUNTDOWN)
+    expect(b.k.letzte('voll')?.n).toBe(0)
+    expect(a.k.letzte('voll')?.z).toEqual(JSON.parse(JSON.stringify(zustand(spielBauen(s.info), true))))
   })
 
-  it('der Rechner verteilt den Stand, Wischer gehen an den Rechner', () => {
-    const { r, rein } = raum()
-    const a = rein('a')
-    const b = rein('b')
-    sag(r, a.k, { t: 'start' })
-    sag(r, a.k, { t: 'z', d: { level: 1, schlangen: [1] }, voll: true })
-    sag(r, a.k, { t: 'z', d: { level: 2 } })
-    expect(b.k.alle('z').length).toBe(2)
-    expect(r.zustand).toEqual({ level: 2, schlangen: [1] })
-    // Nicht-Rechner duerfen keinen Stand schicken
-    sag(r, b.k, { t: 'z', d: { level: 99 } })
-    expect(r.zustand.level).toBe(2)
-    sag(r, b.k, { t: 'dir', d: 'u' })
-    expect(a.k.letzte('dir')).toEqual({ t: 'dir', wer: 1, d: 'u' })
-  })
-
-  it('faellt der Rechner aus, rechnet das naechste Geraet mit dem letzten Stand weiter', () => {
-    const { r, rein } = raum()
-    const a = rein('a')
-    const b = rein('b')
-    const c = rein('c')
-    sag(r, a.k, { t: 'start' })
-    sag(r, a.k, { t: 'z', d: { level: 5, time: 999 }, voll: true })
-    r.verlassen(a.k)
-    expect(r.rechner).toBe(1)
-    expect(c.k.letzte('rechner')?.wer).toBe(1)
-    expect(b.k.letzte('voll')?.z).toEqual({ level: 5, time: 999 })
-  })
-
-  it('schickt der Rechner zu lange nichts (App im Hintergrund), uebernimmt ein anderer', () => {
+  it('der Server rechnet das Spiel hinter der Echtzeit, in festen Schritten', () => {
     const { r, uhr, rein } = raum()
     const a = rein('a')
     const b = rein('b')
     sag(r, a.k, { t: 'start' })
-    uhr(COUNTDOWN)
-    sag(r, a.k, { t: 'z', d: { level: 1 }, voll: true })
-    uhr(RECHNER_STILL - 100)
+    // Countdown und Verzug: noch nichts gerechnet
+    uhr(COUNTDOWN + VERZUG_MS - 1)
     r.takt()
-    expect(r.rechner).toBe(0)
-    uhr(200)
+    expect(r.schritt).toBe(0)
+    uhr(1 + 10 * SIM_MS)
     r.takt()
-    expect(r.rechner).toBe(1)
-    expect(b.k.letzte('voll')?.z).toEqual({ level: 1 })
-    // Mit "abgabe" sofort zurueck
-    sag(r, b.k, { t: 'abgabe' })
-    expect(r.rechner).toBe(0)
+    expect(r.schritt).toBe(10)
+    expect(r.spiel?.time).toBe(10 * SIM_MS)
+    const z = b.k.letzte('z')!
+    expect(z.n).toBe(10)
+    expect(z.d.time).toBe(10 * SIM_MS)
+    // Weniger als STAND_SCHRITTE spaeter: kein neuer Stand
+    const vorher = b.k.alle('z').length
+    uhr(SIM_MS * (STAND_SCHRITTE - 1))
+    r.takt()
+    expect(b.k.alle('z').length).toBe(vorher)
+    uhr(SIM_MS)
+    r.takt()
+    expect(b.k.alle('z').length).toBe(vorher + 1)
   })
 
-  it('Ende und Nochmal', () => {
-    const { r, rein } = raum()
+  it('Wischer gelten im Schritt, in dem gewischt wurde (zu spaete im naechsten offenen) und gehen sofort an alle', () => {
+    const { r, uhr, rein } = raum()
     const a = rein('a')
     const b = rein('b')
     sag(r, a.k, { t: 'start' })
+    uhr(COUNTDOWN + VERZUG_MS + 20 * SIM_MS)
+    r.takt()
+    expect(r.schritt).toBe(20)
+    sag(r, b.k, { t: 'dir', d: 'u', n: 25, i: 7 })
+    expect(a.k.letzte('dir')).toEqual({ t: 'dir', wer: 1, d: 'u', n: 25, i: 7, q: 1 })
+    expect(b.k.letzte('dir')).toEqual({ t: 'dir', wer: 1, d: 'u', n: 25, i: 7, q: 1 })
+    // Zu spaet (Schritt 12 ist schon gerechnet): gilt im naechsten offenen
+    sag(r, a.k, { t: 'dir', d: 'd', n: 12, i: 1 })
+    expect(a.k.letzte('dir')).toMatchObject({ wer: 0, n: 20, q: 2 })
+    // Unsinn wird ignoriert
+    sag(r, a.k, { t: 'dir', d: 'x', n: 21, i: 2 })
+    expect(r.eingaben).toHaveLength(2)
+    // Gerechnet wie auf einem Handy: Wischer vor dem Schritt
+    const nach = spielBauen(r.start!)
+    for (let k = 0; k < 30; k++) {
+      if (k === 20) nach.lenke(0, 'd')
+      if (k === 25) nach.lenke(1, 'u')
+      nach.update(SIM_MS)
+    }
+    uhr(10 * SIM_MS)
+    r.takt()
+    expect(r.schritt).toBe(30)
+    expect(r.eingaben).toHaveLength(0)
+    expect(JSON.stringify(zustand(r.spiel!, true))).toBe(JSON.stringify(zustand(nach, true)))
+  })
+
+  it('aus dem ersten Stand und allen Aenderungen ergibt sich genau das Spiel des Servers', () => {
+    const { r, uhr, rein } = raum()
+    const a = rein('a')
+    const b = rein('b')
+    const c = rein('c')
+    sag(r, a.k, { t: 'modus', modus: 'jagd' })
+    for (const p of [b, c]) sag(r, p.k, { t: 'bereit', bereit: true })
+    sag(r, a.k, { t: 'start' })
+    const spiegel = spielBauen(a.k.letzte('start')!.info) as MehrGame
+    anwenden(spiegel, a.k.letzte('voll')!.z)
+    let gelesen = a.k.bekommen.length
+    const dirs = ['u', 'l', 'd', 'r'] as const
+    for (let i = 0; i < 1500 && r.phase === 'spiel'; i++) {
+      uhr(37)
+      if (i % 9 === 0) sag(r, [a, b, c][i % 3].k, { t: 'dir', d: dirs[(i / 9) % 4], n: r.schritt + 3, i })
+      r.takt()
+      for (const m of a.k.bekommen.slice(gelesen)) if (m.t === 'z') anwenden(spiegel, JSON.parse(JSON.stringify(m.d)))
+      gelesen = a.k.bekommen.length
+    }
+    expect(r.schritt).toBeGreaterThan(2000)
+    // Noch einen Stand abwarten: dann ist der Spiegel auf dem Stand des Servers
+    uhr(STAND_SCHRITTE * SIM_MS)
+    r.takt()
+    for (const m of a.k.bekommen.slice(gelesen)) if (m.t === 'z') anwenden(spiegel, JSON.parse(JSON.stringify(m.d)))
+    expect(a.k.letzte('z')?.n).toBe(r.schritt)
+    const x = zustand(spiegel, true)
+    const y = zustand(r.spiel!, true)
+    const anders = Object.keys(y).filter((k) => JSON.stringify(x[k]) !== JSON.stringify(y[k]))
+    expect(anders).toEqual([])
+  })
+
+  it('Ende kommt vom Server, Nochmal fuehrt zurueck in die Lobby', () => {
+    const { r, uhr, rein } = raum()
+    const a = rein('a')
+    const b = rein('b')
+    sag(r, a.k, { t: 'start' })
+    // Ein Handy kann das Ende nicht mehr bestimmen
     sag(r, a.k, { t: 'ende', ergebnis: { sieger: 1, reihenfolge: [1, 0] } })
-    expect(b.k.letzte('ende')?.ergebnis.sieger).toBe(1)
+    expect(r.phase).toBe('spiel')
+    // Beide fahren geradeaus gegen die Wand (1 Leben)
+    bisEnde(r, uhr)
     expect(r.phase).toBe('ende')
+    expect(b.k.letzte('ende')?.ergebnis.reihenfolge).toHaveLength(2)
     sag(r, a.k, { t: 'nochmal' })
     expect(r.phase).toBe('lobby')
     expect(b.k.letzte('raum')?.phase).toBe('lobby')
@@ -200,13 +260,13 @@ describe('Raum: Spiel auf einem Feld', () => {
   })
 
   it('Revanche: erst wenn alle wollen, dann Lobby mit allen bereit', () => {
-    const { r, rein } = raum()
+    const { r, uhr, rein } = raum()
     const a = rein('a')
     const b = rein('b')
     const c = rein('c')
     for (const p of [b, c]) sag(r, p.k, { t: 'bereit', bereit: true })
     sag(r, a.k, { t: 'start' })
-    sag(r, a.k, { t: 'ende', ergebnis: { sieger: 1, reihenfolge: [1, 0, 2] } })
+    bisEnde(r, uhr)
     // In der Lobby (oder im Spiel) gibt es keine Revanche-Stimmen
     sag(r, b.k, { t: 'revanche' })
     sag(r, c.k, { t: 'revanche' })
@@ -227,13 +287,13 @@ describe('Raum: Spiel auf einem Feld', () => {
   })
 
   it('Revanche: geht ein Spieler, reicht die Zusage der Uebrigen', () => {
-    const { r, rein } = raum()
+    const { r, uhr, rein } = raum()
     const a = rein('a')
     const b = rein('b')
     const c = rein('c')
     for (const p of [b, c]) sag(r, p.k, { t: 'bereit', bereit: true })
     sag(r, a.k, { t: 'start' })
-    sag(r, a.k, { t: 'ende', ergebnis: { sieger: 0, reihenfolge: [0, 1, 2] } })
+    bisEnde(r, uhr)
     sag(r, a.k, { t: 'revanche' })
     sag(r, b.k, { t: 'revanche' })
     expect(r.phase).toBe('ende')

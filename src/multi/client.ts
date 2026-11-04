@@ -2,17 +2,21 @@
  * Mehrspieler in der App: Verbindung zum Snake-Server, das laufende Spiel und was davon zu sehen ist.
  * Ohne DOM (die Oberflaeche steht in ui.ts).
  *
- * Gegeneinander und Koop: Ist dieses Geraet der Rechner, laeuft hier das ganze Spiel und der Stand
- * geht (nur die Aenderungen) an den Server; sonst wird der Stand vom Server uebernommen und nur
- * gezeichnet, Wischer gehen an den Rechner. Wettrennen: hier laeuft die eigene Welt, die anderen
- * kommen als Geister.
+ * Auf einem Feld (Gegeneinander, Koop, Apfeljagd, Zone) rechnet der Server das Spiel, etwas hinter der
+ * Echtzeit (VERZUG_MS). Dieses Handy haelt zwei Spiele:
+ * - `basis`: der letzte Stand vom Server (nach `basisSchritt` Schritten),
+ * - `game`: die Gegenwart, die hier vorausgerechnet und gezeichnet wird. Dazu wird der Server-Stand
+ *   genommen und mit allen bekannten Wischern (eigene sofort, fremde, sobald der Server sie weiterreicht)
+ *   bis zur Echtzeit weitergerechnet, in denselben festen Schritten wie beim Server.
+ * Die eigene Schlange biegt so ohne jede Verzoegerung ab (wie offline), und kein Handy kann das Spiel
+ * fuer die anderen aufhalten. Wettrennen: hier laeuft die eigene Welt, die anderen kommen als Geister.
  */
-import { DUELL, GEGNER_MODI, KLASSISCH, MehrGame, type Ergebnis, type Modus, type SpielerInfo } from '../game/mehr'
+import type { Ergebnis, MehrGame, Modus, SpielerInfo } from '../game/mehr'
 import * as R from '../game/rules'
 import type { Dir, GameEvent, P } from '../game/types'
-import { Abgleich, anwenden, zustand, type Zustand } from '../game/zustand'
-import { Jitterpuffer } from './puffer'
-import { MEHR_BILD, PROTOKOLL, type AnServer, type Einstellungen, type Geist, type Phase, type StartInfo, type Teilnehmer, type VomServer } from './protokoll'
+import { anwenden, zustand, type Zustand } from '../game/zustand'
+import { PROTOKOLL, SIM_MS, type AnServer, type Einstellungen, type Geist, type Phase, type StartInfo, type Teilnehmer, type VomServer } from './protokoll'
+import { reihenfolge, spielBauen, type Eingabe } from './sim'
 
 export type RaumInfo = { code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number } & Einstellungen
 
@@ -32,17 +36,15 @@ export type Fremd = { wer: number; body: P[]; prev: P[]; dir: Dir; alpha: number
 
 type GeistStand = Geist & { prev: P[]; seit: number }
 
-/** So oft (ms) schickt der Rechner hoechstens seinen Stand */
-const VERSAND_MS = 50
-/** Herzschlag zum Server (ms); kommt so lange (ms) gar nichts zurueck, ist die Verbindung tot */
-const PING_MS = 1000
+/** Herzschlag zum Server (ms, haelt auch die Uhr genau und gibt dem Server jedes Mal neue Rechenzeit); kommt so lange (ms) gar nichts zurueck, ist die Verbindung tot */
+const PING_MS = 500
 const TOT_MS = 3500
 /** Nach einem Netzwechsel oder der Rueckkehr in die App: so lange (ms) darf die Antwort auf einen Ping ausbleiben */
 const PRUEFEN_MS = 1500
-/** Staut sich beim Senden mehr als so viel (Bytes) im Browser, werden Staende uebersprungen (der naechste bringt alles nach) */
-const STAU_BYTES = 8 * 1024
-/** Spaetestens so oft (ms) meldet sich der Rechner, auch wenn sich nichts geaendert hat (z. B. im Countdown) */
-const HERZ_MS = 500
+/** So viele Schritte rechnet ein Frame hoechstens voraus (nach dem Hintergrund holt es in mehreren Frames auf) */
+const MAX_SCHRITTE_FRAME = 60
+/** So viele eigene Wischer duerfen unbestaetigt sein (der Server nimmt auch nicht mehr an) */
+const MAX_OFFEN = 12
 /** Rennen: so oft (ms) hoechstens die eigene Position */
 const POS_MS = 80
 
@@ -51,8 +53,8 @@ export class MehrClient {
   code = ''
   raum: RaumInfo | null = null
   start: StartInfo | null = null
+  /** Das gezeichnete Spiel (auf einem Feld: die vorausgerechnete Gegenwart) */
   game: MehrGame | null = null
-  rechner = -1
   ergebnis: Ergebnis | null = null
   /** Rennen: Geister der anderen (Index wie in start.spieler) */
   geister = new Map<number, GeistStand>()
@@ -60,31 +62,30 @@ export class MehrClient {
   verbunden = false
   private gewollt = false
   private versuche = 0
-  private abgleich = new Abgleich()
-  private letzterVersand = 0
-  private letzterHerz = 0
+  /** Letzter Stand vom Server und nach wie vielen Schritten */
+  private basis: MehrGame | null = null
+  private basisSchritt = -1
+  /** So viele Schritte ist `game` gerechnet; Ereignisse aus Schritten vor `gezeigt` wurden schon gemeldet */
+  private schritt = 0
+  private gezeigt = 0
+  /** Spielzeit von `game` nach dem letzten Schritt (gezeichnet wird mit der Zeit dazwischen) */
+  private simZeit = 0
+  /** Neu vom Server-Stand aus rechnen (neuer Stand, fremder Wischer in der Vergangenheit) */
+  private neuRechnen = false
+  /** Bekannte Wischer, die im Server-Stand noch nicht stecken */
+  private eingaben: Eingabe[] = []
+  private eingabeNr = 0
   private letztePos = 0
   private posKopf = ''
-  private endeGeschickt = false
   /** Serverzeit - lokale Zeit (ms) */
   private versatz = 0
-  /** Gespiegelter Stand: Spielzeit beim letzten Empfang und wann das war (zum Weiterzeichnen) */
-  private basis: { spiel: number; lokal: number } | null = null
   private ping: ReturnType<typeof setInterval> | null = null
-  private pingAb = 0
   /** Wann zuletzt etwas vom Server kam */
   private zuletzt = 0
-  /** Eigener Wischer, den der Rechner noch nicht umgesetzt hat (fuer die sofortige Anzeige) */
-  private vorhersage: { d: Dir; bei: P; seit: number } | null = null
-  /** Gespiegelte Staende, die erst zu ihrer Abspielzeit (lokal, ms) angewendet werden (siehe puffer.ts) */
-  private warten: { an: number; d: Zustand; e?: GameEvent[] }[] = []
-  private puffer = new Jitterpuffer()
-  /** Hoechste gezeigte Spielzeit: die gespiegelte Zeit springt nie zurueck (nur Stillstand bei Verspaetung) */
-  private zeitMax = 0
   private rttMin = Infinity
   private nachNetz: ReturnType<typeof setTimeout> | null = null
-  /** Zaehler fuer die Lag-Anzeige */
-  stat = { rtt: 0, rttMax: 0, wechsel: 0, neuVerbunden: 0, uebersprungen: 0 }
+  /** Zaehler fuer die Lag-Anzeige: Ping, Neuverbindungen, eigene Wischer, die zu spaet beim Server waren, Korrekturen der Vorhersage */
+  stat = { rtt: 0, rttMax: 0, neuVerbunden: 0, zuSpaet: 0, korrektur: 0 }
 
   constructor(
     private readonly server: string,
@@ -92,11 +93,12 @@ export class MehrClient {
     private readonly melden: (e: ClientEreignis) => void,
   ) {}
 
-  /** Kurzer Text fuer die Lag-Anzeige: Ping, Streuung, Puffer, Rechner-Wechsel, Neuverbindungen, uebersprungene Staende */
+  /** Kurzer Text fuer die Lag-Anzeige: Ping, Vorlauf vor dem Server-Stand, zu spaete Wischer, Korrekturen, Neuverbindungen */
   get diagnose() {
     const st = this.stat
-    const rolle = this.start?.modus === 'rennen' ? 'Rennen' : this.istRechner ? 'Rechner' : 'Zuschauer'
-    return `${rolle} · Ping ${Math.round(st.rtt)} ms (max ${Math.round(st.rttMax)}) · Jitter ${Math.round(this.puffer.jitter)} ms · Puffer ${Math.round(this.puffer.warte)} ms · Wechsel ${st.wechsel} · Neu ${st.neuVerbunden} · Stau ${st.uebersprungen}`
+    if (this.start?.modus === 'rennen') return `Rennen · Ping ${Math.round(st.rtt)} ms (max ${Math.round(st.rttMax)}) · Neu ${st.neuVerbunden}`
+    const vor = this.basisSchritt >= 0 ? Math.round((this.schritt - this.basisSchritt) * SIM_MS) : 0
+    return `Server · Ping ${Math.round(st.rtt)} ms (max ${Math.round(st.rttMax)}) · Vorlauf ${vor} ms · Zu spät ${st.zuSpaet} · Korrektur ${st.korrektur} · Neu ${st.neuVerbunden}`
   }
 
   /** Index dieses Geraets in der Spielerliste */
@@ -105,9 +107,6 @@ export class MehrClient {
   }
   get gastgeber() {
     return !!this.raum && this.raum.spieler[this.raum.ich]?.id === this.raum.gastgeber
-  }
-  get istRechner() {
-    return this.start?.modus !== 'rennen' && this.rechner === this.ich && this.ich >= 0
   }
   /** Serverzeit jetzt */
   jetzt() {
@@ -155,8 +154,7 @@ export class MehrClient {
     }
     if (this.ws.readyState !== WebSocket.OPEN) return
     const seit = performance.now()
-    this.pingAb = seit
-    this.senden({ t: 'ping' })
+    this.senden({ t: 'ping', z: seit })
     if (this.nachNetz) clearTimeout(this.nachNetz)
     this.nachNetz = setTimeout(() => {
       this.nachNetz = null
@@ -201,6 +199,8 @@ export class MehrClient {
       this.zuletzt = performance.now()
       this.melden({ art: 'verbindung', ok: true })
       this.ping ??= setInterval(() => this.herzschlag(), PING_MS)
+      // Gleich die Uhr stellen (nicht erst nach dem ersten Herzschlag)
+      this.senden({ t: 'ping', z: performance.now() })
     }
     ws.onmessage = (e) => {
       if (this.ws !== ws) return
@@ -229,13 +229,12 @@ export class MehrClient {
     }
   }
 
-  /** Alle 2 s: Ping (fuer die Uhr) und pruefen, ob die Verbindung noch lebt. Ein Funkloch meldet der
-   *  Browser oft erst nach Minuten: kommt 6 s lang nichts, wird die Verbindung verworfen und neu aufgebaut */
+  /** Alle PING_MS: Ping (fuer die Uhr) und pruefen, ob die Verbindung noch lebt. Ein Funkloch meldet der
+   *  Browser oft erst nach Minuten: kommt TOT_MS lang nichts, wird die Verbindung verworfen und neu aufgebaut */
   private herzschlag() {
     if (!this.ws) return
     if (this.ws.readyState === WebSocket.OPEN && performance.now() - this.zuletzt > TOT_MS) return this.neuAufbauen()
-    this.pingAb = performance.now()
-    this.senden({ t: 'ping' })
+    this.senden({ t: 'ping', z: performance.now() })
   }
 
   /** Funkloch: gleich, dann nach 0,5, 1, 2, 4 ... Sekunden noch einmal (hoechstens 10 Versuche) */
@@ -266,12 +265,12 @@ export class MehrClient {
     if (this.nachNetz) clearTimeout(this.nachNetz)
     this.nachNetz = null
     this.netzHoeren(false)
-    this.warten = []
-    this.puffer.zuruecksetzen()
     this.verbunden = false
     this.raum = null
     this.start = null
     this.game = null
+    this.basis = null
+    this.eingaben = []
     this.geister.clear()
     this.melden({ art: 'verlassen' })
   }
@@ -298,10 +297,6 @@ export class MehrClient {
   revanche(will: boolean) {
     this.senden({ t: 'revanche', revanche: will })
   }
-  /** App geht in den Hintergrund: wer rechnet, gibt ab */
-  abgeben() {
-    if (this.istRechner && this.raum?.phase === 'spiel') this.senden({ t: 'abgabe' })
-  }
 
   /* ================= Nachrichten ================= */
 
@@ -313,54 +308,58 @@ export class MehrClient {
         if (m.phase === 'lobby' && vorher && vorher !== 'lobby') {
           this.start = null
           this.game = null
+          this.basis = null
           this.ergebnis = null
+          this.eingaben = []
           this.geister.clear()
-          this.warten = []
         }
         this.melden({ art: 'raum', raum: this.raum })
         return
       }
       case 'start':
-        this.versatz = m.jetzt - performance.now()
+        if (!this.uhrGestellt) this.versatz = m.jetzt - performance.now()
+        // Nach dem Neuverbinden kommt derselbe Start noch einmal: weiterrechnen, der ganze Stand folgt
+        if (this.start && this.game && this.start.seed === m.info.seed && this.start.los === m.info.los) return
         return this.spielBauen(m.info)
       case 'pong':
-        return this.uhrAbgleichen(m.jetzt)
-      case 'rechner':
-        if (this.rechner !== m.wer && this.start?.modus !== 'rennen') this.stat.wechsel++
-        this.rechner = m.wer
-        // Anderer Absender: alte Staende sofort zeigen, die Messung beginnt neu
-        this.alleAnwenden()
-        this.puffer.zuruecksetzen()
-        return
+        return this.uhrAbgleichen(m.jetzt, m.z)
       case 'voll':
-        if (!this.game && this.start) this.spielBauen(this.start)
-        if (!this.game) return
-        this.warten = []
-        this.puffer.zuruecksetzen()
-        this.zeitMax = 0
-        anwenden(this.game, m.z)
-        this.game.wechsel(Math.max(0, this.ich))
-        this.basis = { spiel: this.game.time, lokal: performance.now() }
-        if (this.istRechner) {
-          this.abgleich.vergessen()
-          this.versenden(true)
-        }
+        if (!this.basis && this.start && this.start.modus !== 'rennen') this.spielBauen(this.start)
+        if (!this.basis) return
+        anwenden(this.basis, m.z)
+        this.basisSchritt = m.n
+        this.eingaben = this.eingaben.filter((e) => e.n >= m.n)
+        // Zurueck im Spiel: Ereignisse aus der verpassten Zeit nicht nachholen
+        this.gezeigt = Math.max(this.gezeigt, m.n)
+        this.neuRechnen = true
         return
-      case 'z': {
-        if (!this.game || this.istRechner) return
-        const jetzt = performance.now()
-        // Ohne Sendezeit (alter Rechner) oder ganzer Stand: gleich zeigen
-        if (typeof m.s !== 'number' || m.voll) {
-          this.alleAnwenden()
-          return this.stand(m.d, m.e)
+      case 'z':
+        if (!this.basis) return
+        anwenden(this.basis, m.d)
+        this.basisSchritt = m.n
+        this.eingaben = this.eingaben.filter((e) => e.n >= m.n)
+        this.neuRechnen = true
+        // Wer raus ist, entscheidet der Server
+        for (const e of m.e ?? []) this.melden({ art: 'spiel', e })
+        return
+      case 'dir': {
+        if (!this.basis) return
+        // Eigener Wischer kommt bestaetigt zurueck: kam er zu spaet, gilt er einen spaeteren Schritt
+        const alt = m.wer === this.ich ? this.eingaben.find((x) => x.wer === m.wer && x.i === m.i && x.q === Infinity) : undefined
+        if (alt) {
+          if (alt.n !== m.n) {
+            this.stat.zuSpaet++
+            this.neuRechnen = true
+          }
+          alt.n = m.n
+          alt.q = m.q
+        } else if (m.n >= this.basisSchritt) {
+          this.eingaben.push({ wer: m.wer, d: m.d, n: m.n, i: m.i, q: m.q })
+          // Liegt er in der schon vorausgerechneten Zeit, ab dem Server-Stand neu rechnen
+          if (m.n < this.schritt) this.neuRechnen = true
         }
-        this.warten.push({ an: this.puffer.plane(m.s, jetzt), d: m.d, e: m.e })
-        this.faelligeAnwenden(jetzt)
         return
       }
-      case 'dir':
-        if (this.istRechner && this.game) this.game.lenkeBei(m.wer, m.d, m.bei, m.k)
-        return
       case 'emoji':
         this.melden({ art: 'emoji', wer: m.wer, e: m.e })
         return
@@ -391,7 +390,8 @@ export class MehrClient {
         this.melden({ art: 'raus', wer: m.wer, grund: m.grund })
         return
       case 'ende':
-        this.alleAnwenden()
+        // Der letzte Stand des Servers gilt
+        if (this.basis) this.neuRechnen = true
         this.ergebnis = m.ergebnis
         this.melden({ art: 'ende', ergebnis: m.ergebnis })
         return
@@ -402,11 +402,11 @@ export class MehrClient {
   }
 
   /** Uhr mit dem Server abgleichen: nur schnelle Antworten zaehlen (eine lange kann auf dem Hinweg oder Rueckweg stecken) und sanft nachziehen */
-  private uhrAbgleichen(serverJetzt: number) {
-    if (!this.pingAb) return
+  private uhrAbgleichen(serverJetzt: number, gesendet?: number) {
+    if (typeof gesendet !== 'number') return
     const jetzt = performance.now()
-    const rtt = jetzt - this.pingAb
-    this.pingAb = 0
+    const rtt = jetzt - gesendet
+    if (!(rtt >= 0 && rtt < 30_000)) return
     this.stat.rtt = this.stat.rtt ? this.stat.rtt * 0.8 + rtt * 0.2 : rtt
     this.stat.rttMax = Math.max(this.stat.rttMax * 0.98, rtt)
     // Der Mindestwert steigt langsam wieder (anderes Netz nach einem Wechsel)
@@ -419,140 +419,109 @@ export class MehrClient {
   }
   private uhrGestellt = false
 
-  /** Einen Stand des Rechners in das gespiegelte Spiel uebernehmen */
-  private stand(d: Zustand, e?: GameEvent[]) {
-    const g = this.game
-    if (!g) return
-    anwenden(g, d)
-    g.wechsel(Math.max(0, this.ich))
-    this.basis = { spiel: g.time, lokal: performance.now() }
-    this.vorhersagen()
-    for (const ev of e ?? []) this.melden({ art: 'spiel', e: ev })
-  }
-
-  /** Alle Staende anwenden, deren Abspielzeit da ist */
-  private faelligeAnwenden(jetzt: number) {
-    let n = 0
-    while (n < this.warten.length && this.warten[n].an <= jetzt) n++
-    if (!n) return
-    for (const w of this.warten.splice(0, n)) this.stand(w.d, w.e)
-  }
-  /** Alles Wartende sofort anwenden (neuer Rechner, Ende, ganzer Stand) */
-  private alleAnwenden() {
-    for (const w of this.warten.splice(0)) this.stand(w.d, w.e)
-  }
-
   private spielBauen(info: StartInfo) {
     this.start = info
     this.ergebnis = null
-    this.endeGeschickt = false
-    this.warten = []
-    this.puffer.zuruecksetzen()
-    this.zeitMax = 0
     this.geister.clear()
-    this.abgleich.vergessen()
-    this.rechner = info.modus === 'rennen' ? -1 : info.rechner
+    this.eingaben = []
+    this.schritt = this.gezeigt = 0
+    this.simZeit = 0
+    this.neuRechnen = false
+    const rennen = info.modus === 'rennen'
     const ich = Math.max(0, this.ich)
-    const spieler: SpielerInfo[] = info.modus === 'rennen' ? [info.spieler[ich]] : info.spieler
-    this.game = new MehrGame({ screenW: MEHR_BILD.w, screenH: MEHR_BILD.h, seed: info.seed, modus: info.modus, spieler, tempo: info.tempo ?? 'normal', leben: info.leben ?? 1, cfg: { ...(GEGNER_MODI.includes(info.modus) ? DUELL : {}), ...(info.klassisch ? KLASSISCH : {}) } })
-    this.game.wechsel(info.modus === 'rennen' ? 0 : ich)
-    this.basis = { spiel: 0, lokal: performance.now() }
+    this.game = spielBauen(info, rennen ? ich : undefined)
+    this.basis = rennen ? null : spielBauen(info)
+    this.basisSchritt = rennen ? -1 : 0
+    this.game.wechsel(rennen ? 0 : ich)
     this.waehler = -1
-    if (this.istRechner) this.versenden(true)
     this.melden({ art: 'start', info })
   }
 
   /* ================= Spielen ================= */
 
-  /** Eigener Wischer */
+  /** Eigener Wischer: gilt hier sofort (vor dem naechsten Schritt) und geht mit diesem Schritt an den Server */
   lenke(d: Dir) {
     const g = this.game
     if (!g || !this.laeuft) return
     if (this.start?.modus === 'rennen') return g.lenke(0, d)
-    if (this.istRechner) return g.lenke(this.ich, d)
-    // Mitschicken, an welchem Feld der Kopf hier gerade ist: der Rechner biegt genau dort ab
-    g.wechsel(this.ich)
-    const bei = { ...g.body[0] }
-    this.senden({ t: 'dir', d, bei, k: g.expansions })
-    this.vorhersage = { d, bei, seit: performance.now() }
-    this.vorhersagen()
-  }
-
-  /** Sofort anzeigen, wohin die eigene Schlange gleich faehrt (bis der Rechner es bestaetigt) */
-  private vorhersagen() {
-    const v = this.vorhersage
-    const g = this.game
-    if (!v || !g) return
-    g.wechsel(this.ich)
-    const h = g.body[0]
-    // Umgesetzt, abgelaufen oder schon woanders: vergessen
-    if (g.dir === v.d || performance.now() - v.seit > 600 || !h || (h.x !== v.bei.x || h.y !== v.bei.y)) {
-      this.vorhersage = null
-      return
-    }
-    // Noch am Feld: Kopf zeigt schon in die neue Richtung (keine Kehrtwende)
-    if (v.d !== R.OPP[g.dir]) g.dir = v.d
+    const ich = this.ich
+    if (ich < 0 || !this.basis) return
+    if (this.eingaben.filter((e) => e.wer === ich && e.q === Infinity).length >= MAX_OFFEN) return
+    const e: Eingabe = { wer: ich, d, n: this.schritt, i: ++this.eingabeNr, q: Infinity }
+    this.eingaben.push(e)
+    this.senden({ t: 'dir', d, n: e.n, i: e.i })
+    // Gleich anwenden wie offline (der Schritt `schritt` ist noch nicht gerechnet, der Wischer gilt davor)
+    g.time = this.simZeit
+    g.lenke(ich, d)
+    e.schon = true
+    g.wechsel(ich)
   }
 
   reaktion(e: number) {
     this.senden({ t: 'emoji', e })
   }
 
-  /** Jeden Frame: rechnen oder Gespiegeltes weiterzeichnen */
+  /** Jeden Frame: die Gegenwart vorausrechnen (Rennen: die eigene Welt) */
   frame(dt: number) {
     const g = this.game
     if (!g || !this.start) return
     if (this.start.modus === 'rennen') return this.rennenFrame(g, dt)
-    if (this.istRechner) {
-      if (this.laeuft && g.status === 'play') g.update(dt)
-      const ev = g.drain()
-      for (const e of ev) this.melden({ art: 'spiel', e })
-      const jetzt = performance.now()
-      if (ev.length || jetzt - this.letzterVersand >= VERSAND_MS) this.versenden(false, ev)
-      if (g.status === 'over' && g.ergebnis && !this.endeGeschickt) {
-        this.endeGeschickt = true
-        this.senden({ t: 'ende', ergebnis: g.ergebnis })
-      }
-      g.wechsel(this.ich)
-    } else {
-      const jetzt = performance.now()
-      this.faelligeAnwenden(jetzt)
-      if (this.basis && g.status === 'play') {
-        // Zwischen zwei Staenden die Zeit weiterlaufen lassen (fuer weiche Bewegung), hoechstens 0,3 s voraus.
-        // Kommt ein Stand knapp "vor" der schon gezeigten Zeit an, steht die Zeit kurz still statt zurueckzuspringen
-        let t = this.basis.spiel + Math.min(300, jetzt - this.basis.lokal)
-        if (t < this.zeitMax && this.zeitMax - t < 150) t = this.zeitMax
-        this.zeitMax = t
-        g.time = t
-      }
-    }
+    const b = this.basis
+    if (!b) return
+    // Echtzeit in Schritten seit dem Start (Serveruhr); im Countdown steht alles
+    const seit = this.jetzt() - this.start.los
+    const ziel = Math.max(0, Math.floor(seit / SIM_MS))
+    g.time = this.simZeit
+    if (this.neuRechnen) this.vomServer(g, b)
+    // Bis zur Gegenwart (nach dem Hintergrund in mehreren Frames)
+    this.vorrechnen(Math.min(ziel, this.schritt + MAX_SCHRITTE_FRAME))
+    // Gezeichnet wird mit der Zeit zwischen zwei Schritten: die Bewegung ist so weich wie offline
+    if (g.status === 'play' && this.schritt === ziel && seit > 0) g.time = this.simZeit + Math.min(SIM_MS, Math.max(0, seit - ziel * SIM_MS))
+    g.wechsel(Math.max(0, this.ich))
   }
 
-  private versenden(voll: boolean, e: GameEvent[] = []) {
+  /** Vom letzten Server-Stand aus neu bis zum bisherigen Schritt rechnen, mit allen inzwischen bekannten Wischern */
+  private vomServer(g: MehrGame, b: MehrGame) {
+    this.neuRechnen = false
+    const bis = this.schritt
+    const vorher = this.kopfSpur(g)
+    anwenden(g, JSON.parse(JSON.stringify(zustand(b, true))) as Zustand)
+    g.drain()
+    this.schritt = this.basisSchritt
+    this.simZeit = g.time
+    for (const e of this.eingaben) e.schon = false
+    this.vorrechnen(bis)
+    if (this.schritt === bis && this.kopfSpur(g) !== vorher) this.stat.korrektur++
+  }
+
+  /** Wo alle Koepfe gerade sind (um Korrekturen der Vorhersage zu zaehlen) */
+  private kopfSpur(g: MehrGame) {
+    g.sichern()
+    return g.schlangen.map((s) => (s.body[0] ? `${s.body[0].x},${s.body[0].y},${s.tot ? 1 : 0}` : '')).join(';')
+  }
+
+  /** `game` bis Schritt `bis` weiterrechnen: vor jedem Schritt die Wischer dieses Schritts, wie beim Server */
+  private vorrechnen(bis: number) {
     const g = this.game
-    if (!g) return
-    const jetzt = performance.now()
-    this.letzterVersand = jetzt
-    const z: Zustand = zustand(g, voll)
-    if (voll) {
-      this.abgleich.vergessen()
-      this.abgleich.aenderungen(z)
-      this.senden({ t: 'z', d: z, e, voll: true, s: jetzt })
-      return
+    if (!g || this.schritt >= bis) return
+    g.time = this.simZeit
+    const offen = this.eingaben.filter((e) => e.n >= this.schritt && e.n < bis).sort(reihenfolge)
+    let k = 0
+    while (this.schritt < bis) {
+      while (k < offen.length && offen[k].n <= this.schritt) {
+        const e = offen[k++]
+        // Ein eigener Wischer, der schon sofort angewendet wurde, gilt nicht noch einmal
+        if (!e.schon) g.lenke(e.wer, e.d)
+        e.schon = false
+      }
+      g.update(SIM_MS)
+      const ev = g.drain()
+      // Ereignisse nur beim ersten Mal (nicht beim Neurechnen); wer raus ist und wann es endet, sagt der Server
+      if (this.schritt >= this.gezeigt) for (const e of ev) if (e.type !== 'raus' && e.type !== 'ende') this.melden({ art: 'spiel', e })
+      this.schritt++
     }
-    // Schlechtes Netz: alles, was schon wartet, kommt erst spaet an. Noch mehr dazuzulegen macht den Stau
-    // groesser und alle Zuschauer bekommen alte Staende in einem Schwung. Die Aenderungen bleiben im Abgleich
-    // liegen und kommen mit dem naechsten Stand (Ereignisse aber immer)
-    if (!e.length && (this.ws?.bufferedAmount ?? 0) > STAU_BYTES) {
-      this.stat.uebersprungen++
-      return
-    }
-    const d = this.abgleich.aenderungen(z)
-    // Auch ohne Aenderung regelmaessig melden: sonst haelt der Server den Rechner fuer ausgefallen
-    if (d || e.length || jetzt - this.letzterHerz >= HERZ_MS) {
-      this.letzterHerz = jetzt
-      this.senden({ t: 'z', d: d ?? {}, e: e.length ? e : undefined, s: jetzt })
-    }
+    this.gezeigt = Math.max(this.gezeigt, this.schritt)
+    this.simZeit = g.time
   }
 
   private rennenFrame(g: MehrGame, dt: number) {

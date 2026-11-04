@@ -2,10 +2,12 @@
  * Nachrichten zwischen App und Snake-Server (Cloudflare). Eine Datei fuer beide Seiten.
  *
  * Ablauf: Wer einen Raum erstellt, ist Gastgeber (waehlt Modus, startet). Im Spiel auf einem Feld
- * (Gegeneinander, Koop) rechnet ein Geraet ("Rechner", anfangs der Gastgeber) und schickt den Stand,
- * die anderen schicken nur ihre Wischer. Der Server merkt sich den Stand: faellt der Rechner aus,
- * rechnet ein anderes Geraet damit weiter. Im Wettrennen rechnet jeder seine eigene Welt, der Server
- * verteilt die Geister, waehlt abwechselnd, wer das naechste Gebiet bestimmt, und entscheidet, wer raus ist.
+ * (Gegeneinander, Koop, Apfeljagd, Zone) rechnet der Server das Spiel in festen Schritten (SIM_MS). Jedes
+ * Handy schickt nur seine Wischer mit dem Schritt, in dem gewischt wurde, und rechnet das Spiel selbst
+ * voraus (die eigene Schlange biegt sofort ab, wie offline). Der Server rechnet VERZUG_MS hinter der
+ * Echtzeit, damit Wischer trotz Laufzeit noch puenktlich ankommen, und schickt seinen Stand; damit gleicht
+ * jedes Handy seine Vorhersage ab. Im Wettrennen rechnet jeder seine eigene Welt, der Server verteilt die
+ * Geister, waehlt abwechselnd, wer das naechste Gebiet bestimmt, und entscheidet, wer raus ist.
  */
 import type { Ergebnis, Modus, SpielerInfo } from '../game/mehr'
 import type { Tempo } from '../game/rules'
@@ -13,14 +15,18 @@ import type { Dir, GameEvent, P } from '../game/types'
 import type { Zustand } from '../game/zustand'
 
 /** Erhoehen, wenn sich Nachrichten oder die Spiellogik so aendern, dass alte Apps nicht mehr mitspielen koennen */
-export const PROTOKOLL = 2
+export const PROTOKOLL = 3
 export const MAX_SPIELER = 4
 /** Feste Kartengroesse im Mehrspieler (Felder eines Bildschirms), damit alle dieselbe Welt haben */
 export const MEHR_BILD = { w: 12, h: 23 }
 /** So lange (ms) zaehlt der Server rueckwaerts, bevor es losgeht */
 export const COUNTDOWN = 3000
-/** Kommt so lange (ms) kein Stand vom Rechner, uebernimmt ein anderes Geraet */
-export const RECHNER_STILL = 2500
+/** Ein Spielschritt (ms): Server und Handys rechnen in genau diesen Schritten, damit alle dasselbe ausrechnen */
+export const SIM_MS = 20
+/** So weit (ms) rechnet der Server hinter der Echtzeit: so lange darf ein Wischer unterwegs sein, ohne zu spaet zu kommen */
+export const VERZUG_MS = 280
+/** Der Server schickt seinen Stand hoechstens alle so vielen Schritte */
+export const STAND_SCHRITTE = 5
 
 export type Phase = 'lobby' | 'spiel' | 'ende'
 /** `revanche`: will nach dem Spiel noch eine Runde (Abstimmung im Ergebnis) */
@@ -32,8 +38,6 @@ export type StartInfo = {
   modus: Modus
   seed: number
   spieler: SpielerInfo[]
-  /** Index des rechnenden Geraets (nur Gegeneinander und Koop) */
-  rechner: number
   /** Serverzeit (ms seit Raumstart), ab der gespielt wird */
   los: number
 } & Einstellungen
@@ -49,30 +53,27 @@ export type AnServer =
   | { t: 'nochmal' }
   /** Ergebnis: Revanche wollen (true, Standard) oder zuruecknehmen. Wollen alle, geht es zurueck in die Lobby */
   | { t: 'revanche'; revanche?: boolean }
-  /** Wischer; `bei` = Kopffeld auf diesem Geraet, `k` = Anzahl Erweiterungen (gleiche Karte?) */
-  | { t: 'dir'; d: Dir; bei?: P; k?: number }
+  /** Wischer im Schritt `n` (seit dem Start); `i` = laufende Nummer dieses Geraets (fuer die Bestaetigung) */
+  | { t: 'dir'; d: Dir; n: number; i: number }
   /** Reaktion (Index in REAKTIONEN) */
   | { t: 'emoji'; e: number }
-  /** Rechner: geaenderte Felder des Stands, Ereignisse; `voll` = ganzer Stand; `s` = Sendezeit des Rechners (ms, fuer den Jitter-Puffer) */
-  | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean; s?: number }
-  | { t: 'ende'; ergebnis: Ergebnis }
-  /** Rechner geht in den Hintergrund: bitte jemand anderes */
-  | { t: 'abgabe' }
   /** Rennen: eigene Schlange (Weltkoordinaten), Aepfel, Leben */
   | { t: 'pos'; b: P[]; d: Dir; a: number; l: number; tot: boolean; raus: boolean }
   /** Rennen: gewaehltes Gebiet k (Block in Weltkoordinaten) */
   | { t: 'gebiet'; k: number; b: P; d: Dir }
-  | { t: 'ping' }
+  /** `z`: Sendezeit beim Handy (kommt im pong zurueck, damit die Laufzeit stimmt, auch wenn mehrere Pings unterwegs sind) */
+  | { t: 'ping'; z?: number }
 
 /** Server -> App */
 export type VomServer =
   | ({ t: 'raum'; code: string; gastgeber: string; phase: Phase; modus: Modus; spieler: Teilnehmer[]; ich: number } & Einstellungen)
   | { t: 'start'; info: StartInfo; jetzt: number }
-  | { t: 'z'; d: Zustand; e?: GameEvent[]; voll?: boolean; s?: number }
-  /** Ganzer Stand fuer ein Geraet, das neu rechnet oder zurueckkommt */
-  | { t: 'voll'; z: Zustand }
-  | { t: 'rechner'; wer: number }
-  | { t: 'dir'; wer: number; d: Dir; bei?: P; k?: number }
+  /** Stand des Servers nach `n` Schritten (nur geaenderte Felder); `e`: Ereignisse, die nur der Server entscheidet (raus) */
+  | { t: 'z'; d: Zustand; n: number; e?: GameEvent[] }
+  /** Ganzer Stand nach `n` Schritten (beim Start und fuer ein Geraet, das zurueckkommt) */
+  | { t: 'voll'; z: Zustand; n: number }
+  /** Wischer von Spieler `wer`, gilt im Schritt `n` (kann spaeter sein als gewuenscht, wenn er zu spaet kam); `q` = Reihenfolge beim Server */
+  | { t: 'dir'; wer: number; d: Dir; n: number; i: number; q: number }
   | { t: 'emoji'; wer: number; e: number }
   | ({ t: 'geist' } & Geist)
   | { t: 'waehler'; k: number; wer: number }
@@ -80,7 +81,7 @@ export type VomServer =
   | { t: 'raus'; wer: number; grund: 'leben' | 'abstand' }
   | { t: 'ende'; ergebnis: Ergebnis }
   | { t: 'fehler'; text: string }
-  | { t: 'pong'; jetzt: number }
+  | { t: 'pong'; jetzt: number; z?: number }
 
 /** Reaktionen im Spiel (fest, kein freier Text) */
 export const REAKTIONEN = ['👍', '😂', '😱', '😡', '🔥', '👋'] as const

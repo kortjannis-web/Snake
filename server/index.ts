@@ -10,6 +10,9 @@ import { dienstkonto, fcmSenden } from './fcm'
 import { pushSenden, type PushAbo } from './push'
 import { RaumLogik, type Kanal } from './raum'
 
+/** So oft (ms) dreht der Raum sein Spiel weiter */
+const TAKT_MS = 25
+
 type Env = {
   RAUM: DurableObjectNamespace<Raum>
   /** Fuer Push-Einladungen (optional): Supabase-Projekt und VAPID-Schluessel */
@@ -217,8 +220,8 @@ export class Raum extends DurableObject<Env> {
         weg()
       })
       server.addEventListener('error', weg)
-      // Jede Sekunde pruefen, ob das rechnende Geraet noch Stand schickt
-      this.uhr ??= setInterval(() => logik.takt(), 1000)
+      // Das Spiel rechnet der Raum selbst: oft genug weiterdrehen (jeder Takt holt nach, was faellig ist)
+      this.uhr ??= setInterval(() => logik.takt(), TAKT_MS)
     }
     return new Response(null, { status: 101, webSocket: client })
   }

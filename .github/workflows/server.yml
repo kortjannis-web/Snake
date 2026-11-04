@@ -8,7 +8,7 @@ name: Snake-Server (Cloudflare)
 
 on:
   push:
-    paths: ['server/**', 'src/game/**', 'src/multi/protokoll.ts', '.github/workflows/server.yml']
+    paths: ['server/**', 'src/game/**', 'src/multi/protokoll.ts', 'src/multi/sim.ts', '.github/workflows/server.yml']
   workflow_dispatch:
 
 concurrency:
@@ -45,7 +45,7 @@ jobs:
       - if: steps.pruefen.outputs.ok == 'true'
         run: npm ci
       - if: steps.pruefen.outputs.ok == 'true'
-        run: npx vitest run test/raum.test.ts test/mehr.test.ts test/push.test.ts
+        run: npx vitest run test/raum.test.ts test/mehr.test.ts test/push.test.ts test/online-vorhersage.test.ts
       - if: steps.pruefen.outputs.ok == 'true'
         name: Veroeffentlichen
         run: |

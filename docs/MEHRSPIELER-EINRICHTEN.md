@@ -11,16 +11,15 @@ Dauer: ca. 15 Minuten. Ohne diese Schritte läuft alles wie bisher, nur ohne den
 
 | Teil | Aufgabe |
 |---|---|
-| **Snake-Server** (Cloudflare Worker, je Raum ein Durable Object) | Räume mit Code, wer ist Gastgeber, wer rechnet, Stand merken, Wettrennen-Regeln (Abstand, wer wählt, Sieger) |
-| **Ein Handy rechnet** (Gegeneinander, Koop) | Anfangs der Gastgeber. Es schickt den Spielstand (nur Änderungen) über den Server an die anderen, die anderen schicken nur ihre Wischer. |
-| **Automatische Übernahme** | Fällt das rechnende Handy aus (Netz weg, App im Hintergrund, ausgestiegen), rechnet nach ca. 2 Sekunden ein anderes mit dem gespeicherten Stand weiter. |
+| **Snake-Server** (Cloudflare Worker, je Raum ein Durable Object) | Räume mit Code, wer ist Gastgeber, Wettrennen-Regeln (Abstand, wer wählt, Sieger) und seit 1.56 **das Spiel selbst** (Gegeneinander, Koop, Apfeljagd, Zone) |
+| **Jedes Handy rechnet voraus** | Schickt nur seine Wischer, rechnet die Gegenwart aus dem Server-Stand voraus: die eigene Schlange reagiert sofort wie offline (siehe [`ONLINE-LAG.md`](ONLINE-LAG.md)). |
 | **Wettrennen** | Jedes Handy rechnet seine eigene Welt, die anderen erscheinen als Geist. |
 | **Supabase** | Name, Spielerliste mit Skin und Rekord, Freunde, wer gerade online ist, Einladungen, Sieges- und Koop-Bestenliste. |
 | **Push-Einladungen** (optional) | Der Snake-Server schickt eine Benachrichtigung an Freunde, die Snake gerade nicht offen haben. |
 
-Warum rechnet nicht der Server selbst? Im Gratis-Tarif von Cloudflare darf ein Aufruf nur sehr kurz rechnen. Eine
-Spielschleife, die ständig läuft, wäre dort nicht zuverlässig. Deshalb rechnet ein Handy und der Server passt auf.
-Wer später 5 $/Monat für Cloudflare zahlt, könnte die Rechnung auf den Server verlegen: die Spiellogik ist dieselbe Datei.
+Bis 1.55 rechnete ein Handy, weil im Gratis-Tarif ein Aufruf nur kurz rechnen darf. Seit 1.56 rechnet der Server: ein
+Raum braucht nur 2 bis 3 ms Rechenzeit je Spielsekunde, und jede eingehende Nachricht (jedes Handy pingt alle 0,5 s)
+gibt neue Rechenzeit. Wie man nach dem Ausrollen prüft, ob das Limit reicht: [`ONLINE-LAG.md`](ONLINE-LAG.md).
 
 ## Schritt 1: Cloudflare-Konto
 

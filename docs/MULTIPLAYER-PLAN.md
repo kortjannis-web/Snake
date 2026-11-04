@@ -8,8 +8,8 @@ zwei Mehrspieler-Modi (**Gegeneinander** und **Füreinander**). Jede Phase ist f
 > **Umgesetzt in 1.17.0:** Mehrspieler mit Gegeneinander, Wettrennen und Koop, Räume mit Code, Online-Liste und Einladungen
 > (Einrichtung: [`MEHRSPIELER-EINRICHTEN.md`](MEHRSPIELER-EINRICHTEN.md)). Die Regeln weichen von diesem Plan ab (so gewünscht):
 > Gegeneinander auf **einem** Feld mit 3 Leben je Spieler und Apfel-Abstand, Koop mit 3 gemeinsamen Leben, Gebiete abwechselnd.
-> Der Server ist Cloudflare statt Supabase Realtime (ausgehende Nachrichten kostenlos), und es rechnet ein Handy mit
-> automatischer Übernahme, weil der Gratis-Tarif keine Spielschleife auf dem Server zulässt.
+> Der Server ist Cloudflare statt Supabase Realtime (ausgehende Nachrichten kostenlos). Bis 1.55 rechnete ein Handy mit
+> automatischer Übernahme; seit 1.56 rechnet der Server und jedes Handy rechnet voraus ([`ONLINE-LAG.md`](ONLINE-LAG.md)).
 > **Umgesetzt in 1.18.0:** Lobby mit Tempo, „Klassisch“ und Bereit-Knopf, größere Startkarte ab 3 Spielern, Abstand 5/6/7
 > nach Spielerzahl, neue Modi **Apfeljagd** (3 Minuten) und **Zone** (schrumpfende Karte), Duell-Power-ups, Vorausberechnung
 > der eigenen Schlange, Zuschauen nach dem Ausscheiden, Reaktionen, **Freunde per Code** (nur Freunde sehen sich online),
