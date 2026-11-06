@@ -4397,6 +4397,8 @@ beiCloud(() => {
   if (mode === 'home') updateHome()
   setzeSkin(wallet.skin)
   setzeSilber(wallet.verdient ?? 0)
+  // Kampagne aus der Cloud (seit 1.55.3): offene Karte neu setzen
+  if (page() === 'kampagne') kampagneOeffnen()
 })
 applySettings()
 newDemo()

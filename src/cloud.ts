@@ -8,7 +8,10 @@
  * - Listen (Skins, Welten, Erfolge): beide zusammen
  * - Auswahl (Skin, Aussehen, Welt): was hier zuletzt geaendert wurde, sonst die Cloud
  * So geht nichts verloren, auch wenn zwei Geraete offline gespielt haben.
+ *
+ * Die Kampagne (seit 1.55.3) hat eine eigene Tabelle und einen eigenen Abgleich (unten): Sie kann nur wachsen.
  */
+import { beiKampagne, kampagne, kampagneGleich, kampagneLeer, kampagneSauber, kampagneSeit, kampagneUebernehmen, kampagneZusammen, type KampagnenStand } from './kampagne'
 import { beiSpielstand, saveStats, saveWallet, stats, wallet } from './storage'
 import { beiZustand, sitzung } from './online'
 
@@ -156,7 +159,132 @@ beiSpielstand.add(() => {
   clearTimeout(timer)
   timer = window.setTimeout(() => void abgleichen(), 4000)
 })
+
+/* ---------------- Kampagne in der Cloud (seit 1.55.3) ----------------
+ * Eigene Tabelle `kampagne` (supabase/migrations/20261106000000_kampagne.sql). Die App schickt ihren Stand an
+ * `kampagne_abgleichen`; die Datenbank legt ihn zum gespeicherten dazu (nur dazu, nie weg) und gibt alles zurueck.
+ * Aeltere Apps kennen die Tabelle nicht und koennen sie deshalb auch nicht ueberschreiben.
+ *
+ * Wem gehoert der Stand auf dem Geraet? Dem Account, mit dem er zuletzt abgeglichen wurde (KONTO_KEY).
+ * - Erster Abgleich ueberhaupt (bis 1.55.2 lag die Kampagne nur hier): er kommt zum angemeldeten Account.
+ * - Gleicher Account: Geraet und Cloud zusammen.
+ * - Anderer Account als zuletzt: der Stand hier wird fuer den alten Account auf dem Geraet zurueckgelegt (SICHERUNG_KEY,
+ *   kommt beim naechsten Anmelden mit ihm dazu). Hat der neue Account schon eine Kampagne, gilt seine; ist sie leer
+ *   (neuer Account, z. B. nach Konto loeschen), bekommt er den Stand vom Geraet, wie Aepfel und Skins auch.
+ * Fehlt die Tabelle (SQL noch nicht eingespielt) oder das Netz, bleibt alles wie es ist; der naechste Abgleich holt es nach.
+ */
+const KONTO_KEY = 'snake.cloud.kampagne.konto'
+const SICHERUNG_KEY = 'snake.cloud.kampagne.sicherung'
+
+function liesJson<T>(key: string): T | null {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? 'null') as T | null
+  } catch {
+    return null
+  }
+}
+function schreibJson(key: string, v: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(v))
+  } catch {
+    /* Speicher blockiert: beim naechsten Mal noch einmal */
+  }
+}
+const liesSicherung = (): Record<string, KampagnenStand> => {
+  const roh = liesJson<Record<string, unknown>>(SICHERUNG_KEY)
+  const aus: Record<string, KampagnenStand> = {}
+  if (roh && typeof roh === 'object') for (const [uid, k] of Object.entries(roh)) aus[uid] = kampagneSauber(k)
+  return aus
+}
+
+const LEER: KampagnenStand = { geschafft: [], erreicht: {} }
+
+/**
+ * Was hochgeladen wird und ob der Stand hier danach durch den der Cloud ersetzt wird (rein, getestet in test/kampagne-cloud.test.ts).
+ * `cloud`: der gespeicherte Stand des angemeldeten Accounts (nur bei einem Wechsel gelesen, sonst egal).
+ */
+export function kampagnePlan(p: {
+  altUid: string | null
+  uid: string
+  lokal: KampagnenStand
+  cloud: KampagnenStand | null
+  sicherung: Record<string, KampagnenStand>
+}): { hoch: KampagnenStand; ersetzen: boolean; zuruecklegen: KampagnenStand | null } {
+  const eigeneSicherung = p.sicherung[p.uid] ?? LEER
+  if (!p.altUid || p.altUid === p.uid) return { hoch: kampagneZusammen(p.lokal, eigeneSicherung), ersetzen: false, zuruecklegen: null }
+  // Anderer Account: der Stand hier gehoert dem alten, er wird fuer ihn zurueckgelegt
+  const zuruecklegen = kampagneLeer(p.lokal) ? null : kampagneZusammen(p.sicherung[p.altUid] ?? LEER, p.lokal)
+  if (p.cloud && !kampagneLeer(p.cloud)) return { hoch: eigeneSicherung, ersetzen: true, zuruecklegen }
+  return { hoch: kampagneZusammen(p.lokal, eigeneSicherung), ersetzen: false, zuruecklegen }
+}
+
+/** Tabelle oder Funktion fehlt in der Datenbank (SQL noch nicht eingespielt): still warten */
+const fehltNoch = (e: { code?: string } | null) => !!e && ['42P01', '42883', 'PGRST202', 'PGRST205'].includes(e.code ?? '')
+
+let kLaeuft: Promise<void> | null = null
+let kNochmal = false
+/** Kampagne mit der Cloud abgleichen (nur dazu, nie weg). Ohne Anmeldung, Netz oder Tabelle passiert nichts */
+export function kampagneAbgleichen(): Promise<void> {
+  if (kLaeuft) {
+    kNochmal = true
+    return kLaeuft
+  }
+  kLaeuft = (async () => {
+    for (let runde = 0; runde < 3; runde++) {
+      kNochmal = false
+      const z = await sitzung().catch(() => null)
+      if (!z) return
+      const altUid = liesJson<{ uid?: string }>(KONTO_KEY)?.uid ?? null
+      const vorher = kampagneSauber(kampagne)
+      let cloud: KampagnenStand | null = null
+      if (altUid && altUid !== z.id) {
+        const { data, error } = await z.sb.from('kampagne').select('geschafft,erreicht').eq('id', z.id).maybeSingle()
+        if (error) return
+        cloud = data ? kampagneSauber(data) : null
+      }
+      const sicherung = liesSicherung()
+      const plan = kampagnePlan({ altUid, uid: z.id, lokal: vorher, cloud, sicherung })
+      // Zuruecklegen, bevor irgendetwas ersetzt wird
+      if (plan.zuruecklegen && altUid) schreibJson(SICHERUNG_KEY, { ...sicherung, [altUid]: plan.zuruecklegen })
+
+      const { data, error } = await z.sb.rpc('kampagne_abgleichen', { p_geschafft: plan.hoch.geschafft, p_erreicht: plan.hoch.erreicht })
+      if (error) {
+        if (!fehltNoch(error)) console.warn('Kampagne: Abgleich fehlgeschlagen', error)
+        return
+      }
+      const ergebnis = kampagneSauber(data)
+      // Geraet und Cloud zusammen. Beim Wechsel zu einem Account mit eigener Kampagne gilt seine (die alte ist zurueckgelegt);
+      // was waehrend des Abgleichs hier dazukam, gehoert dann zum angemeldeten Account
+      const jetzt = kampagneSauber(kampagne)
+      const neu = kampagneZusammen(ergebnis, plan.ersetzen ? kampagneSeit(vorher, jetzt) : jetzt)
+      if (!kampagneGleich(neu, kampagne)) {
+        kampagneUebernehmen(neu)
+        hoerer.forEach((f) => f())
+      }
+      // Die eigene Sicherung ist jetzt in der Cloud
+      const s = liesSicherung()
+      if (s[z.id]) {
+        delete s[z.id]
+        schreibJson(SICHERUNG_KEY, s)
+      }
+      schreibJson(KONTO_KEY, { uid: z.id })
+      // Ergebnis hat mehr als die Cloud (dazu waehrend des Abgleichs)? Dann gleich noch einmal
+      if (!kNochmal && kampagneGleich(neu, ergebnis)) return
+    }
+  })().finally(() => (kLaeuft = null))
+  return kLaeuft
+}
+
+let kTimer = 0
+beiKampagne.add(() => {
+  clearTimeout(kTimer)
+  kTimer = window.setTimeout(() => void kampagneAbgleichen(), 2000)
+})
+
 // Angemeldet (oder wieder verbunden): gleich abgleichen
 beiZustand((z) => {
-  if (z.ok) void abgleichen()
+  if (z.ok) {
+    void abgleichen()
+    void kampagneAbgleichen()
+  }
 })
