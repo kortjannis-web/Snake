@@ -1,7 +1,7 @@
 {
   "name": "snake-endlos",
   "private": true,
-  "version": "1.55.3",
+  "version": "1.56.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -30,6 +30,7 @@
   "devDependencies": {
     "@capacitor/cli": "8.5.2",
     "@cloudflare/workers-types": "^5.20261018.1",
+    "@electric-sql/pglite": "^0.5.15",
     "sharp": "0.35.4",
     "typescript": "5.9.3",
     "vite": "8.3.1",
