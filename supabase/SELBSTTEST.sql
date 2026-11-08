@@ -43,6 +43,11 @@ with soll(was, name, datei) as (
     ('Tabelle', 'weltchat', 'NACHHOLEN.sql'),
     ('Tabelle', 'kampagne', 'NACHHOLEN.sql'),
     ('Funktion', 'kampagne_abgleichen', 'NACHHOLEN.sql'),
+    ('Funktion', 'spielstand_abgleichen', 'NACHHOLEN.sql'),
+    ('Funktion', 'spielstand_schutz', 'NACHHOLEN.sql'),
+    ('Tabelle', 'spielstand_vorgang', 'NACHHOLEN.sql'),
+    ('Live', 'spielstand', 'NACHHOLEN.sql'),
+    ('Live', 'kampagne', 'NACHHOLEN.sql'),
     ('Spalte', 'profile.push_einstellung', 'NACHHOLEN.sql'),
     ('Funktion', 'push_nachricht', 'NACHHOLEN.sql'),
     ('Funktion', 'push_welt', 'NACHHOLEN.sql'),
@@ -77,6 +82,8 @@ union all
 select 'Zahl', 'Spielstaende in der Cloud', (select count(*)::text from public.spielstand), 'NACHHOLEN.sql (Tabelle spielstand)'
 union all
 select 'Zahl', 'Kampagnen in der Cloud', (select count(*)::text from public.kampagne), 'NACHHOLEN.sql (Tabelle kampagne)'
+union all
+select 'Zahl', 'Spielstaende in der letzten Stunde abgeglichen', (select count(*)::text from public.spielstand where updated_at > now() - interval '1 hour'), ''
 union all
 select 'Zahl', 'Ergebnisse gesamt', (select count(*)::text from public.score), ''
 union all
