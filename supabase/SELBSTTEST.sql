@@ -41,6 +41,8 @@ with soll(was, name, datei) as (
     ('Live', 'hall_signal', 'NACHHOLEN.sql'),
     ('Tabelle', 'spielstand', 'NACHHOLEN.sql'),
     ('Tabelle', 'weltchat', 'NACHHOLEN.sql'),
+    ('Tabelle', 'kampagne', 'NACHHOLEN.sql'),
+    ('Funktion', 'kampagne_abgleichen', 'NACHHOLEN.sql'),
     ('Spalte', 'profile.push_einstellung', 'NACHHOLEN.sql'),
     ('Funktion', 'push_nachricht', 'NACHHOLEN.sql'),
     ('Funktion', 'push_welt', 'NACHHOLEN.sql'),
@@ -73,6 +75,8 @@ union all
 select 'Zahl', 'Profile ohne Freundes-Code', (select count(*)::text from public.profile where code is null), 'NACHHOLEN.sql (profil_speichern vergibt ihn)'
 union all
 select 'Zahl', 'Spielstaende in der Cloud', (select count(*)::text from public.spielstand), 'NACHHOLEN.sql (Tabelle spielstand)'
+union all
+select 'Zahl', 'Kampagnen in der Cloud', (select count(*)::text from public.kampagne), 'NACHHOLEN.sql (Tabelle kampagne)'
 union all
 select 'Zahl', 'Ergebnisse gesamt', (select count(*)::text from public.score), ''
 union all

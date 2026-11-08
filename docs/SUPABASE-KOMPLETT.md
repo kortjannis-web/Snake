@@ -28,7 +28,9 @@ nach **Name und Passwort**. Ein Knopf für alles: Gibt es den Namen mit diesem P
 früher (ohne Passwort) oder ist das Gerät noch als alter Gast drin, wird das eingegebene Passwort festgelegt und alles bleibt.
 Gibt es den Namen noch nicht, legt die App den Account an. Danach trägt `profil_speichern` Name, Skin und Silber ein → der
 Spieler steht in der Hall of Snakes (live für alle über `hall_signal`). Der **Spielstand** (Äpfel, Skins, Welten, Rekorde,
-Statistik) liegt in der Tabelle `spielstand` und kommt auf jedem Gerät mit, auf dem man sich anmeldet. Supabase bekommt nur
+Statistik) liegt in der Tabelle `spielstand` und kommt auf jedem Gerät mit, auf dem man sich anmeldet. Die **Kampagne** (geschaffte
+Missionen, Stand auf der Karte) liegt seit 1.55.3 in der eigenen Tabelle `kampagne` und kann dort nur wachsen (Funktion
+`kampagne_abgleichen`, Migration `20261106000000_kampagne.sql`). Supabase bekommt nur
 einen Hash des Passworts. Abmelden: Hall of Snakes → **Abmelden**. Die App weicht nie mehr auf „Name 57“ aus.
 
 ---

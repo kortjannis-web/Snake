@@ -128,9 +128,16 @@ const namensFehler = (e: { code?: string; message?: string } | null) =>
  * Funkloch) manchmal ewig haengen, und alles, was danach kommt (Profil, Skin, Ergebnisse), wartet bis zum Neustart der App
  */
 const FRIST = 15_000
+/**
+ * Anmelde-Schluessel erneuern (/auth/v1/token) darf laenger dauern (60 s): Bricht die App die Erneuerung ab, obwohl der
+ * Server sie schon ausgefuehrt hat, ist der alte Schluessel verbraucht. Der naechste Versuch damit gilt bei Supabase als
+ * gestohlener Schluessel und meldet den Spieler ab (so musste man sich im schlechten Netz manchmal neu anmelden)
+ */
+const FRIST_TOKEN = 60_000
 const fetchMitFrist: typeof fetch = (input, init) => {
   const ab = new AbortController()
-  const t = setTimeout(() => ab.abort(), FRIST)
+  const url = typeof input === 'string' ? input : 'url' in input ? input.url : String(input)
+  const t = setTimeout(() => ab.abort(), /\/auth\/v1\/token/.test(url) ? FRIST_TOKEN : FRIST)
   init?.signal?.addEventListener('abort', () => ab.abort())
   return fetch(input, { ...init, signal: ab.signal }).finally(() => clearTimeout(t))
 }

@@ -4397,7 +4397,16 @@ beiCloud(() => {
   if (mode === 'home') updateHome()
   setzeSkin(wallet.skin)
   setzeSilber(wallet.verdient ?? 0)
+  // Kampagne aus der Cloud (seit 1.55.3): offene Karte neu setzen
+  if (page() === 'kampagne') kampagneOeffnen()
 })
+// Speicher auf dem Geraet als dauerhaft markieren: Android/Chrome raeumt ihn dann nicht von selbst weg, wenn der Platz
+// knapp wird (sonst sind Anmeldung und alles, was noch nicht in der Cloud ist, weg). Ohne Unterstuetzung passiert nichts
+try {
+  void navigator.storage?.persist?.().catch(() => undefined)
+} catch {
+  /* aeltere Browser */
+}
 applySettings()
 newDemo()
 setMode('home')

@@ -46,6 +46,48 @@ Hall den Namen ohne Nummer eingeben und **Ändern** tippen.
 
 ---
 
+## Teil 0b: Kampagne eines Spielers zurückgeben (z. B. nach neuem Handy oder gelöschten App-Daten)
+
+Bis 1.55.2 lag die Kampagne **nur auf dem Gerät**. Wer sich neu anmelden musste, weil die App-Daten weg waren (App gelöscht
+und neu zum Home-Bildschirm, neues Handy, Browser statt App), hatte Äpfel, Skins und Rekorde wieder (die liegen seit 1.42
+im Account), die Kampagne aber stand auf 0. Seit 1.55.3 liegt sie im Account (Tabelle `kampagne`, kann nur wachsen).
+
+**Erst probieren (holt den echten Stand):** Hat der Spieler noch ein Gerät oder einen Browser, auf dem die alte Kampagne
+zu sehen ist (z. B. Safari statt App, altes Handy, die APK), dort die neue Version öffnen und mit Name und Passwort anmelden.
+Die App schickt den Stand dann von selbst in den Account, und er kommt auf allen Geräten an.
+
+**Sonst von Hand (SQL Editor):** `Gisch` durch den genauen Namen ersetzen und `12` durch die letzte Mission, die er
+geschafft hatte. Die Missionen 1 bis dahin gelten als geschafft, die nächste ist offen. Es wird nur etwas dazugelegt,
+nie etwas weggenommen; mehrmals ausführen schadet nicht.
+```sql
+with spieler as (select id from public.profile where lower(name) = lower('Gisch')),
+     bis as (select 12 as nr)
+insert into public.kampagne as k (id, geschafft, erreicht)
+select spieler.id,
+       array(select case when i = 20 then 'wiese-20-ent' else 'wiese-' || i end from generate_series(1, (select nr from bis)) as i),
+       jsonb_build_object('wiese', (select nr from bis))
+from spieler
+on conflict (id) do update set
+  geschafft = array(select distinct x from unnest(k.geschafft || excluded.geschafft) as x order by x),
+  erreicht = jsonb_build_object('wiese', greatest(coalesce((k.erreicht->>'wiese')::int, 0), (excluded.erreicht->>'wiese')::int)),
+  updated_at = now();
+
+-- Kontrolle: so steht es jetzt da
+select p.name, k.geschafft, k.erreicht, k.updated_at
+from public.kampagne k join public.profile p on p.id = k.id
+where lower(p.name) = lower('Gisch');
+```
+Danach beim Spieler: App ganz schließen und neu öffnen (angemeldet), dann **Kampagne** öffnen.
+
+**Warum musste er sich neu anmelden?** Meist waren die App-Daten auf dem Handy weg (App vom Home-Bildschirm entfernt,
+Speicher aufgeräumt). Seit 1.55.3 bittet die App den Browser, ihre Daten dauerhaft zu behalten, und eine langsame
+Verbindung beim Erneuern der Anmeldung meldet niemanden mehr ab. Zusätzlich in Supabase (einmalig, empfohlen):
+**Authentication → Sessions** (je nach Dashboard unter *Configuration* oder *Settings* → *Refresh Tokens*):
+**Refresh token reuse interval** auf **60** Sekunden setzen und **Save**. Dann wirft ein im Funkloch
+wiederholter Anmelde-Schlüssel niemanden mehr hinaus.
+
+---
+
 ## Teil 1: Einmalig die Datenbank auf den neuen Stand bringen
 
 Ohne diesen Schritt kann die App niemanden löschen (die Löschfunktion fehlt in der Datenbank), und ab 1.39 fehlt die
