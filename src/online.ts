@@ -93,6 +93,36 @@ function fehlerWorte(e: unknown): OnlineZustand {
 }
 const warteschlange: Ergebnis[] = lies<Ergebnis[]>(QKEY, [])
 
+/**
+ * Noch nicht gesendete Ergebnisse gehoeren dem Account, in dem sie gespielt wurden. Beim Abmelden oder Wechsel werden sie
+ * fuer ihn zurueckgelegt (Schluessel: Nutzer-Id, sonst der Name) und beim naechsten Anmelden mit ihm gesendet
+ */
+const ZKEY = 'snake.online.queue.konto.v1'
+function warteschlangeZuruecklegen(wem: string | null | undefined) {
+  if (!wem || !warteschlange.length) return
+  const alle = lies<Record<string, Ergebnis[]>>(ZKEY, {})
+  alle[wem] = [...(alle[wem] ?? []), ...warteschlange].sort((a, b) => b.level - a.level).slice(0, MAX_WARTEND)
+  schreib(ZKEY, alle)
+  warteschlange.length = 0
+  schreib(QKEY, warteschlange)
+}
+function warteschlangeHolen(...wer: (string | null | undefined)[]) {
+  const alle = lies<Record<string, Ergebnis[]>>(ZKEY, {})
+  let da = false
+  for (const w of wer) {
+    if (!w || !alle[w]?.length) continue
+    warteschlange.push(...alle[w])
+    delete alle[w]
+    da = true
+  }
+  if (!da) return
+  warteschlange.sort((a, b) => b.level - a.level)
+  warteschlange.length = Math.min(warteschlange.length, MAX_WARTEND)
+  schreib(QKEY, warteschlange)
+  schreib(ZKEY, alle)
+}
+const nameSchluessel = (n: string) => `name:${kontoSchluessel(n)}`
+
 /** Wie in der Datenbank (name_pruefen): ohne Schimpfwoerter, auch mit Ziffern statt Buchstaben */
 const VERBOTEN = /(arsch|fick|fotze|hure|nazi|hitler|wichser|schlampe|spast|missgeburt|neger|nigg|penis|vagina|porno|fuck|shit|bitch|cunt|whore|slut|hurensohn|kanake|schwuchtel)/
 export function nameErlaubt(n: string) {
@@ -405,14 +435,13 @@ export async function anmelden(name: string, passwort: string): Promise<AnmeldeE
     profil.pw = true
     profil.umbenennen = false
     if (k.status !== 'neu') await uebernehmeProfil(sb, k.id)
-    // Ein anderer Account als vorher: dessen Freundes-Code gilt, Wartendes vom alten nicht mitnehmen
+    // Ein anderer Account als vorher: dessen Freundes-Code gilt. Wartendes vom alten fuer ihn zuruecklegen, eigenes holen
     if (nutzer?.id !== k.id) {
       profil.code = undefined
-      if (vorher.name && kontoSchluessel(vorher.name) !== kontoSchluessel(n)) {
-        warteschlange.length = 0
-        schreib(QKEY, warteschlange)
-      }
+      if (nutzer?.id) warteschlangeZuruecklegen(nutzer.id)
+      else if (vorher.name && kontoSchluessel(vorher.name) !== kontoSchluessel(n)) warteschlangeZuruecklegen(nameSchluessel(vorher.name))
     }
+    warteschlangeHolen(k.id, nameSchluessel(n))
     profilGeaendert()
     await profilEintragen('sichern', k)
     zuletztGesichert = Date.now()
@@ -437,10 +466,12 @@ export async function abmelden() {
   if (!onlineAktiv) return
   await nacheinander(async () => {
     const sb = await client()
+    const { data } = await sb.auth.getSession()
+    // Noch nicht Gesendetes gehoert diesem Account: zuruecklegen, kommt beim naechsten Anmelden mit
+    warteschlangeZuruecklegen(data.session?.user.id ?? (profil.name ? nameSchluessel(profil.name) : null))
     await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
   })
-  warteschlange.length = 0
-  schreib(QKEY, warteschlange)
+  warteschlangeZuruecklegen(profil.name ? nameSchluessel(profil.name) : null)
   profil.code = undefined
   abgemeldet()
 }
