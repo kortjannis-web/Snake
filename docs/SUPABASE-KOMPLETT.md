@@ -30,7 +30,7 @@ Gibt es den Namen noch nicht, legt die App den Account an. Danach trägt `profil
 Spieler steht in der Hall of Snakes (live für alle über `hall_signal`). Der **Spielstand** (Äpfel, Skins, Welten, Rekorde,
 Statistik) liegt in der Tabelle `spielstand` und kommt auf jedem Gerät mit, auf dem man sich anmeldet. Die **Kampagne** (geschaffte
 Missionen, Stand auf der Karte) liegt seit 1.55.3 in der eigenen Tabelle `kampagne` und kann dort nur wachsen (Funktion
-`kampagne_abgleichen`, Migration `20261106000000_kampagne.sql`). Supabase bekommt nur
+`kampagne_abgleichen`, Migration `20261106000000_kampagne.sql`). **Seit 1.56.0 schreibt die App nicht mehr selbst in `spielstand`:** Sie ruft `spielstand_abgleichen` auf (schickt ihren Stand und den zuletzt bekannten Stand des Servers, dazu eine Vorgangs-Kennung gegen doppeltes Zählen), die Datenbank führt zusammen und gibt alles zurück. Alte Apps, die noch direkt schreiben, fängt der Trigger `spielstand_schutz` ab (Listen und Bestwerte schrumpfen nie). `spielstand` und `kampagne` stehen in der Realtime-Publication: Eine Mission auf dem Handy ist Sekunden später auf dem PC zu sehen. Migration `20261108000000_spielstand_server.sql`. Supabase bekommt nur
 einen Hash des Passworts. Abmelden: Hall of Snakes → **Abmelden**. Die App weicht nie mehr auf „Name 57“ aus.
 
 ---
@@ -80,6 +80,8 @@ Unten **Save** tippen (jeder Bereich hat seinen eigenen Knopf).
 |---|---|---|
 | **Single session per user** | **aus** | Mehrere Geräte mit demselben Namen sind dasselbe Konto; an = die anderen fliegen raus |
 | Time-box user sessions / Inactivity timeout | **aus / 0** | Sonst wird man ständig abgemeldet |
+| **Refresh token reuse interval** (unter Refresh Tokens) | **60** Sekunden | Bei 10 s reicht ein Funkloch während der Erneuerung, und Supabase hält den alten Schlüssel für gestohlen: der Spieler ist abgemeldet |
+| Detect and revoke potentially compromised refresh tokens | **an** | Bleibt an, mit 60 s Spielraum schadet es nicht mehr |
 
 ### 1.5 Project Settings → API Keys (Zugangsdaten)
 
@@ -110,7 +112,7 @@ Unten **Save** tippen (jeder Bereich hat seinen eigenen Knopf).
 ### 1.9 Database → Publications
 
 - Unter **supabase_realtime** müssen diese Tabellen an sein: `score`, `sieg`, `koop_ergebnis`, `nachricht`, `freund_anfrage`,
-  `freund`. **`profile` muss aus sein** (darin steht der private Freundes-Code). Der Selbsttest (Teil 2) prüft das.
+  `freund`, `hall_signal`, `weltchat`, `spielstand`, `kampagne`. **`profile` muss aus sein** (darin steht der private Freundes-Code). Der Selbsttest (Teil 2) prüft das.
 
 ### 1.10 Was du nicht brauchst
 

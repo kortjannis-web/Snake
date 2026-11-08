@@ -17,7 +17,7 @@ gepufferte Eingaben, Sofort-Wende, Mauern Feld für Feld, Teiche).
 
 Mit Supabase (kostenlos) gibt es die Hall of Snakes (fehlt ein Spieler oder kommen Skin und Rekord nicht an: [`docs/SPIELER-LOESCHEN.md`](docs/SPIELER-LOESCHEN.md), Teil 0) (der **Name ist zugleich der Account**: derselbe Name auf einem anderen Gerät = derselbe Account, ohne Passwort; Einrichtung Schritt 2b): alle Spieler nach Rekord, Gold oder Silber sortiert, dazu Freunde und das Tageslevel.
 Einrichtung Schritt für Schritt: [`docs/ONLINE-EINRICHTEN.md`](docs/ONLINE-EINRICHTEN.md). **Alle Supabase-Einstellungen, Selbsttest, automatische Updates, Fehlersuche und Ideen fürs Online-Erlebnis:** [`docs/SUPABASE-KOMPLETT.md`](docs/SUPABASE-KOMPLETT.md). Ohne Einrichtung läuft das
-Spiel unverändert, nur ohne den Menüpunkt. Die Web-App aktualisiert sich bei jedem Merge bei allen Spielern von selbst (hängt der Service Worker, lädt sie hart neu, siehe `docs/SPIELFUNKTIONEN.md` 18), die Android-App
+Spiel unverändert, nur ohne den Menüpunkt. **Seit 1.56.0 ist der Server die einzige Wahrheit für den Spielstand:** Äpfel, Skins, Welten, Rekorde, Statistik, Erfolge und Kampagne gehören zum Account, die Datenbank führt zusammen (Funktion `spielstand_abgleichen`, Listen und Bestwerte können nie schrumpfen, ein Kauf zählt nie doppelt), und alle angemeldeten Geräte gleichen sich live ab (Supabase Realtime). Auf dem Gerät liegt nur ein Zwischenspeicher fürs Offline-Spielen. Die Web-App aktualisiert sich bei jedem Merge bei allen Spielern von selbst (hängt der Service Worker, lädt sie hart neu, siehe `docs/SPIELFUNKTIONEN.md` 18), die Android-App
 weist auf dem Startbildschirm auf eine neuere APK hin.
 
 ## Mehrspieler
