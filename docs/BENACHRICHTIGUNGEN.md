@@ -45,51 +45,19 @@ Ohne diesen Teil gibt es in der Hall of Snakes keine Weltchat-Leiste, und Benach
 
 ## Teil 2: Web Push (iPhone und Android-Web-App)
 
-**Hast du schon „Einladungen aufs Handy“ eingerichtet** ([`MEHRSPIELER-EINRICHTEN.md`](MEHRSPIELER-EINRICHTEN.md),
-Schritt 7)? Dann ist dieser Teil fertig, spring zu Schritt 2.4. Sonst:
+**Seit 1.55.2 nichts einzurichten:** Der Snake-Server erzeugt die Schlüssel beim ersten Bedarf selbst, behält sie in seinem
+Speicher und gibt den öffentlichen Teil unter `<Server-Adresse>/vapid` heraus. Die App holt ihn beim Start. Es braucht nur den
+laufenden Server mit den Supabase-Variablen (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SNAKE_SERVER`).
 
-### 2.1 Schlüssel erzeugen
-
-1. GitHub → Repo `kortjannis-web/Snake` → grüner Knopf **Code** → Reiter **Codespaces** → **Create codespace on main**.
-   (Oder an deinem Computer im Repo-Ordner.)
-2. Unten im Terminal nacheinander eingeben:
-
-   ```bash
-   npm install
-   ```
-
-   ```bash
-   npm run vapid
-   ```
-
-3. Es erscheinen zwei Werte: ein **öffentlicher** Schlüssel (lang, beginnt mit `B`) und ein **geheimer**.
-
-> Den geheimen Schlüssel niemandem schicken und nicht in einen Chat kopieren. Er gehört nur in die GitHub-Secrets.
-> Die Schlüssel nur **einmal** erzeugen: Neue Schlüssel machen alle bisherigen Abos ungültig.
-
-### 2.2 In GitHub eintragen
-
-GitHub → **Settings** → **Secrets and variables** → **Actions**:
-
-| Reiter | Name | Wert |
-|---|---|---|
-| **Variables** → New repository variable | `VITE_VAPID_PUBLIC_KEY` | der **öffentliche** Schlüssel |
-| **Secrets** → New repository secret | `VAPID_PRIVATE_KEY` | der **geheime** Schlüssel |
-
-Außerdem müssen schon da sein (vom Mehrspieler): Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
-Variablen `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SNAKE_SERVER`.
-
-### 2.3 Neu veröffentlichen
-
-GitHub → **Actions**, jeweils links den Namen anklicken → rechts **Run workflow** → **Run workflow**, in dieser Reihenfolge:
-
-1. **Snake-Server (Cloudflare)** (der Server bekommt die Schlüssel), warten bis grün.
-2. **Web-App (GitHub Pages)**.
+*Optional, eigene Schlüssel:* `npm install`, `npm run vapid`, den öffentlichen Wert als Variable `VITE_VAPID_PUBLIC_KEY`, den
+geheimen als Secret `VAPID_PRIVATE_KEY` in GitHub (Settings → Secrets and variables → Actions) eintragen, dann
+**Snake-Server (Cloudflare)** und **Web-App (GitHub Pages)** neu laufen lassen. Eigene Schlüssel haben Vorrang.
+Die Schlüssel nie nachträglich wechseln: Neue Schlüssel machen alle bisherigen Abos ungültig.
 
 ### 2.4 Ausprobieren
 
 0. Kontrolle am Server: die Adresse aus `VITE_SNAKE_SERVER` im Browser öffnen. Dort muss stehen
-   `Benachrichtigungen Web/iPhone: an`.
+   `Benachrichtigungen Web/iPhone: an`. Mit `/vapid` dahinter erscheint `"ok":true` und der öffentliche Schlüssel.
 
 1. Snake auf dem Handy vom Home-Bildschirm öffnen (Web-App, nicht die APK).
 2. Die App fragt einmal „Benachrichtigungen aktivieren?“ → **Ja, aktivieren** → im System **Erlauben**.
@@ -150,7 +118,7 @@ Beim nächsten Öffnen fragt die App nach Benachrichtigungen; ab Android 13 frag
 ## Teil 4: Was du nach dem Merge dieser Version tun musst (Kurzfassung)
 
 1. **Datenbank:** nichts, wenn die automatischen Updates laufen. Sonst `supabase/NACHHOLEN.sql` einmal im SQL Editor ausführen (Teil 1).
-2. **iPhone und Android-Web-App:** nichts, wenn Push-Einladungen schon gingen. Sonst Teil 2.
+2. **iPhone und Android-Web-App:** nichts (Teil 2).
 3. **Android-APK:** Teil 3 (Firebase, zwei Secrets, Server und APK neu bauen).
 4. Der Server veröffentlicht sich nach dem Merge von selbst neu (er hat sich geändert). Falls nicht:
    **Actions** → **Snake-Server (Cloudflare)** → **Run workflow**.
@@ -159,11 +127,11 @@ Beim nächsten Öffnen fragt die App nach Benachrichtigungen; ab Android 13 frag
 
 | Was passiert | Woran es liegt | Lösung |
 |---|---|---|
-| In den Optionen steht „Noch nicht eingerichtet: Der Push-Schlüssel fehlt“ | Variable `VITE_VAPID_PUBLIC_KEY` fehlt beim Bauen | Teil 2.2, dann Web-App neu bauen |
+| In den Optionen steht „Noch nicht verfügbar: Der Snake-Server hat noch keinen Push-Schlüssel geliefert“ | Server nicht erreichbar, ohne Supabase-Variablen veröffentlicht oder noch die alte Version | `<Server-Adresse>/vapid` im Browser öffnen; Server neu veröffentlichen, App online neu öffnen |
 | APK: „Diese Fassung der Android-App ist ohne Firebase gebaut“ | Secret `GOOGLE_SERVICES_JSON` fehlt | Teil 3.2, dann Android-APK neu bauen |
 | Android-APK-Lauf rot bei „Firebase-Datei“ | Inhalt nicht komplett kopiert | Secret neu anlegen, ganzen Text von `{` bis `}` |
 | Android-APK-Lauf rot bei „APK bauen“: *No matching client found for package name* | Falscher Paketname in Firebase | In Firebase eine Android-App mit genau `de.topsichtbar.snake` hinzufügen, neue google-services.json ins Secret |
-| Einladen sagt „Push ist auf dem Server noch nicht eingerichtet“ | Server ohne Schlüssel | **Snake-Server (Cloudflare)** neu laufen lassen |
+| Einladen sagt „Push ist auf dem Server noch nicht eingerichtet“ | Server ohne Supabase-Variablen veröffentlicht | **Snake-Server (Cloudflare)** neu laufen lassen |
 | iPhone: Schalter lässt sich nicht einschalten | Snake im Safari-Tab statt vom Home-Bildschirm, oder iOS älter als 16.4 | Zum Home-Bildschirm hinzufügen und von dort öffnen |
 | „Blockiert. In den Einstellungen des Handys erlauben“ | Beim System einmal „Nicht erlauben“ getippt | iPhone: Einstellungen → Mitteilungen → Snake. Android: Einstellungen → Apps → Snake (bzw. Chrome) → Benachrichtigungen |
 | Nachricht kommt nicht, obwohl alles an ist | Der Empfänger war gerade online (dann nur in der App), hat dich stumm geschaltet, die Art in den Optionen aus, oder es kam schon vor kurzem eine (Weltchat: 10 Minuten, Chat: 20 Sekunden je Absender) | so gewollt |

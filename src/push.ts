@@ -8,7 +8,36 @@ import { Capacitor } from '@capacitor/core'
 import { PushNotifications } from '@capacitor/push-notifications'
 import { pushSpeichern, zugangsToken } from './online'
 
-const VAPID = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? ''
+const SCHLUESSEL = 'snake.vapid.v1'
+const SERVER = (import.meta.env.VITE_SNAKE_SERVER as string | undefined) ?? ''
+/** Oeffentlicher Push-Schluessel: beim Bauen eingetragen, sonst der vom Snake-Server (der erzeugt ihn selbst, siehe pushVorbereiten) */
+let VAPID = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? ''
+if (!VAPID) {
+  try {
+    VAPID = localStorage.getItem(SCHLUESSEL) ?? ''
+  } catch {
+    /* Speicher blockiert: egal */
+  }
+}
+
+/** Fehlt der Schluessel noch, beim Snake-Server holen und merken. Gibt true zurueck, wenn er neu dazukam (dann Anzeige auffrischen) */
+export async function pushVorbereiten(): Promise<boolean> {
+  if (VAPID || !SERVER) return false
+  try {
+    const r = await fetch(`${SERVER.replace(/\/$/, '')}/vapid`)
+    const d = (await r.json().catch(() => ({}))) as { schluessel?: string }
+    if (!r.ok || !d.schluessel) return false
+    VAPID = d.schluessel
+    try {
+      localStorage.setItem(SCHLUESSEL, VAPID)
+    } catch {
+      /* egal */
+    }
+    return true
+  } catch {
+    return false
+  }
+}
 /** Android-App mit Firebase gebaut? Ohne google-services.json wuerde das Anmelden bei Firebase die App abstuerzen lassen */
 const FCM = import.meta.env.VITE_FCM === '1'
 const nativ = Capacitor.isNativePlatform()

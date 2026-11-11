@@ -8,6 +8,13 @@ export type Vapid = { oeffentlich: string; privat: string; kontakt: string }
 
 const enc = new TextEncoder()
 
+/** Neues VAPID-Schluesselpaar (oeffentlich: 65 Byte roh, privat: d aus dem JWK), beides base64url */
+export async function vapidErzeugen(): Promise<{ oeffentlich: string; privat: string }> {
+  const paar = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])) as CryptoKeyPair
+  const jwk = (await crypto.subtle.exportKey('jwk', paar.privateKey)) as JsonWebKey
+  return { oeffentlich: b64u((await crypto.subtle.exportKey('raw', paar.publicKey)) as ArrayBuffer), privat: jwk.d! }
+}
+
 export function b64u(buf: ArrayBuffer | Uint8Array): string {
   const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf)
   let s = ''
